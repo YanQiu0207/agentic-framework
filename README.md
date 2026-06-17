@@ -15,7 +15,9 @@ cd agentic-engineering-framework
 
 ### 2. 复制到 Agent 配置目录
 
-不同 agent 使用不同的配置目录，将三个文件夹复制到对应位置：
+不同 agent 使用不同的配置目录。根据需要选择安装方式：
+
+#### 完整安装（推荐）
 
 ```bash
 # Claude Code
@@ -29,6 +31,30 @@ cp -R agents skills commands ~/.codebuddy/
 
 # 其他支持类似 skill/agent 结构的 agent
 cp -R agents skills commands <your-agent-config-dir>/
+```
+
+#### 只安装默认工作流
+
+如果不需要 OpenSpec 工作流：
+
+```bash
+mkdir -p ~/.claude/skills ~/.claude/commands
+cp -R agents ~/.claude/
+cp -R skills/bp-* skills/std-* skills/workflow-* \
+    skills/project-knowledge skills/self-refinement skills/troubleshooting \
+    ~/.claude/skills/
+for f in commands/*.md; do [[ "$f" != commands/opsx-* ]] && cp "$f" ~/.claude/commands/; done
+```
+
+#### 只安装 OpenSpec 工作流
+
+如果只需要 OpenSpec 工作流：
+
+```bash
+mkdir -p ~/.claude/skills ~/.claude/commands
+cp -R agents ~/.claude/
+cp -R skills/bp-* skills/std-* skills/workflow-code-review skills/opsx-* ~/.claude/skills/
+cp commands/opsx-*.md ~/.claude/commands/
 ```
 
 ### 3. 验证
