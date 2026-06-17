@@ -1,1 +1,1 @@
- 调用 bp-skill-authoring skill
+调用 bp-skill-authoring skill

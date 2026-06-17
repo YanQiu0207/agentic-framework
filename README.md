@@ -103,7 +103,7 @@ skills/
         └── style-guide.md    # 详细规则
 ```
 
-然后在需要它的 workflow skill 中注册。例如在 `workflow-code-generation/SKILL.md` 的「按需加载」表格中添加：
+然后在需要它的 workflow skill 的「按需加载」规范表中注册。`workflow-code-generation`（编码时加载）和 `workflow-test-generation`（生成测试时加载）各有一张表，需要**两处都添加**：
 
 ```markdown
 | `std-rust` Skill | 文件为 `.rs` |
