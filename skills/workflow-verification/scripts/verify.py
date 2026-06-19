@@ -27,6 +27,7 @@ import argparse
 import json
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -38,7 +39,7 @@ class CheckResult:
 
     name: str
     type: str
-    status: str  # "pass" | "fail"
+    status: str  # "pass"（通过）| "fail"（违规）| "error"（命令/配置执行错误）
     detail: str = ""
     value: Any = None  # 本次测得的值：count 为数字，forbid_pattern 为命中行列表
     new_items: list[str] = field(default_factory=list)  # 相对基线的新增违规行
@@ -71,16 +72,17 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
     ctype = check.get("type")
     command = check.get("command", "")
     if not ctype or not command:
-        return CheckResult(name, ctype or "?", "fail", "check 缺少 type 或 command")
+        return CheckResult(name, ctype or "?", "error", "check 缺少 type 或 command")
 
     returncode, out, err = run_command(command)
 
     # 非 exit_code 检查只看 stdout；若命令本身执行失败（returncode 非 0 且有
     # stderr，如工具缺失、路径错误、正则非法），不能当成「无命中 / 0」放过——
     # 那会让门禁形同虚设。grep 类「无匹配返回 1 且无 stderr」不算执行失败。
+    # 判为 error（区别于「有违规」的 fail）：采基线时遇 error 必须中止，不能写入伪基线。
     if ctype in ("forbid_pattern", "count") and returncode != 0 and err.strip():
         tail = " | ".join(err.strip().splitlines()[-3:])
-        return CheckResult(name, ctype, "fail", f"命令执行失败 exit={returncode}：{tail}")
+        return CheckResult(name, ctype, "error", f"命令执行失败 exit={returncode}：{tail}")
 
     if ctype == "exit_code":
         expect = check.get("expect_code", 0)
@@ -95,8 +97,14 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
     if ctype == "forbid_pattern":
         items = _nonempty_lines(out)
         if baseline is not None:
-            base_items = set(baseline.get("value") or [])
-            new = [it for it in items if it not in base_items]
+            # 按出现次数比对，而非集合：grep -o 类命令对每处命中只输出相同文本，
+            # 用 set 会把「新增的同名违规」误判为已在基线内而放过。
+            base_counter = Counter(baseline.get("value") or [])
+            new: list[str] = []
+            for item, count in Counter(items).items():
+                extra = count - base_counter.get(item, 0)
+                if extra > 0:
+                    new.extend([item] * extra)
             if new:
                 return CheckResult(
                     name, ctype, "fail", f"新增 {len(new)} 处违规",
@@ -127,7 +135,7 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
             return CheckResult(name, ctype, "fail", f"{current} < 阈值 {threshold}", value=current)
         return CheckResult(name, ctype, "pass", f"{current}", value=current)
 
-    return CheckResult(name, ctype, "fail", f"未知 check 类型：{ctype}")
+    return CheckResult(name, ctype, "error", f"未知 check 类型：{ctype}")
 
 
 def load_config(path: Path) -> dict:
@@ -143,13 +151,27 @@ def load_config(path: Path) -> dict:
 
 
 def cmd_save_baseline(config: dict, out_path: Path) -> int:
-    """采集基线：只记录 baseline_aware 检查的当前"值"。"""
+    """采集基线：只记录 baseline_aware 检查的当前"值"。
+
+    注意：forbid_pattern 检查在采基线阶段返回 status="fail"（记录"已存在的违规"）
+    是正常用途，照常写入其值；只有 status="error"（命令/配置执行错误，如工具缺失、
+    正则非法、缺字段）才中止——否则会写入 value=None 的伪基线，让后续对比失真。
+    """
     baseline: dict[str, Any] = {"checks": {}}
+    errors: list[CheckResult] = []
     for check in config.get("checks", []):
         if not check.get("baseline_aware"):
             continue
         res = evaluate_check(check, baseline=None)
+        if res.status == "error":
+            errors.append(res)
+            continue
         baseline["checks"][res.name] = {"type": res.type, "value": res.value}
+    if errors:
+        print("[verify] 基线采集失败：以下 baseline-aware 检查无法产出可用基线，已中止。", file=sys.stderr)
+        for r in errors:
+            print(f"  [ERROR] {r.name} [{r.type}] {r.detail}", file=sys.stderr)
+        return 2
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(baseline, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[verify] 基线已保存到 {out_path}（{len(baseline['checks'])} 项 baseline-aware 检查）")
@@ -173,7 +195,7 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
             base_entry = baseline_data[check["name"]]
         results.append(evaluate_check(check, base_entry))
 
-    failed = [r for r in results if r.status == "fail"]
+    failed = [r for r in results if r.status != "pass"]  # fail（违规）与 error（执行错误）都不放过
     report = {
         "verdict": "FAIL" if failed else "PASS",
         "total": len(results),
@@ -190,7 +212,7 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
 def _print_summary(results: list[CheckResult], verdict: str, report_path: Path) -> None:
     print("\n==== verify 门禁结果 ====")
     for r in results:
-        mark = {"pass": "[PASS]", "fail": "[FAIL]"}.get(r.status, "[????]")
+        mark = {"pass": "[PASS]", "fail": "[FAIL]", "error": "[ERR ]"}.get(r.status, "[????]")
         print(f"{mark} {r.name} [{r.type}] {r.detail}")
         for item in r.new_items[:10]:
             print(f"        新增违规：{item}")
