@@ -1,0 +1,6 @@
+# Python
+__pycache__/
+*.pyc
+
+# verify 门禁的本地产物（基线与报告）
+.verify/

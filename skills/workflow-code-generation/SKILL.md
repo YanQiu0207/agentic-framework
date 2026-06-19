@@ -38,6 +38,8 @@ Using workflow-code-generation
 
 **强制**：`spec.md` 与 `tasks.md` 同时存在时，编码前必须完整读取两者。
 
+**查开发导航**：若存在 `docs/architecture/dev-map.md`，编码前先查——定位功能落点、影响链路、既有写法，避免重复造轮子；落点变化后回写 dev-map。
+
 ### 步骤 2：选定当前任务
 
 从 `tasks.md` 中找第一个未完成任务，记录其编号和上下文。
@@ -73,7 +75,13 @@ Using workflow-code-generation
 
 ### 步骤 5：逐个任务实现
 
-**核心规则：一个 Task → review 通过 → 报告 → 等用户批准 → 下一个 Task**
+**核心规则：一个 Task → review 通过 → 门禁通过 → 报告 → 等用户批准 → 下一个 Task**
+
+#### Phase 0: 采集验证基线（仅当存在 `verify.config.json`）
+
+若项目根存在 `verify.config.json`，在**动代码前**采集基线，供 Phase 2.5 对比：加载 `workflow-verification` skill，按其说明运行 `verify.py --save-baseline .verify/baseline.json`（脚本在该 skill 目录，不在项目根）。
+
+无 `verify.config.json` 时跳过本 Phase（对存量项目无侵入）。
 
 #### Phase 1: 实现
 
@@ -109,6 +117,16 @@ Using workflow-code-generation
 - 每条发现的问题、修复方式和犯错原因
 - 最终 PASS 的 review 报告
 
+#### Phase 2.5: 客观门禁验证（仅当存在 `verify.config.json`）
+
+Code Review PASS 后、汇报前，跑 verify 门禁做客观判定。加载 `workflow-verification` skill，按其说明运行 `verify.py --baseline .verify/baseline.json`（脚本在该 skill 目录，不在项目根）。
+
+- 门禁 **PASS**（退出码 0）→ 进入 Phase 3。
+- 门禁 **FAIL**（有新增违规）→ 回到 Phase 2 修复循环，修掉**新增**项后重跑门禁，直到 PASS。
+- 无 `verify.config.json` 时跳过本 Phase。
+
+> 基线对比只追究本次改动**新增**的违规；历史遗留项不阻塞，但本次不得放大。
+
 #### Phase 3: 汇报 → 停止等待
 
 如本 Task 完成后触发文档同步条件，先按 `project-knowledge` 更新对应文档或保留未完成任务。
@@ -131,6 +149,10 @@ Using workflow-code-generation
 
 **Review 轮次**: [第 K 轮通过]
 [附 workflow-code-review 输出的报告]
+
+### 门禁结果（若启用 verify）
+
+[附 verify 摘要：PASS / 新增违规及修复；未启用则标注 N/A]
 
 ---
 
