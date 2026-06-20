@@ -149,8 +149,16 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
         tail = " | ".join((err or out).strip().splitlines()[-3:]) or f"exit={returncode}"
         return CheckResult(name, ctype, "error", f"命令执行失败 exit={returncode}：{tail}")
 
-    # forbid_pattern: 只在有 stderr 时判 error（grep 无匹配返回 1 且无 stderr，是正常「无命中」）。
-    if ctype == "forbid_pattern" and returncode != 0 and err.strip():
+    # forbid_pattern 的合法退出码契约：
+    #   exit=0 → 扫描成功（stdout 含命中或为空）
+    #   exit=1 且无 stderr → grep 无匹配约定，视为「无命中」
+    #   exit=1 且有 stderr → 工具报错
+    #   exit>=2 → 任何情况均视为执行错误（崩溃、路径错误、工具不存在等）
+    # 不能用「有无 stderr」作为唯一判据，exit>=2 无 stderr 也可能是扫描器崩溃。
+    if ctype == "forbid_pattern" and returncode not in (0, 1):
+        tail = " | ".join((err or out).strip().splitlines()[-3:]) or f"exit={returncode}"
+        return CheckResult(name, ctype, "error", f"命令执行失败 exit={returncode}：{tail}")
+    if ctype == "forbid_pattern" and returncode == 1 and err.strip():
         tail = " | ".join(err.strip().splitlines()[-3:])
         return CheckResult(name, ctype, "error", f"命令执行失败 exit={returncode}：{tail}")
 
