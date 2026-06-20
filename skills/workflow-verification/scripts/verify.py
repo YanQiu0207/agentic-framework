@@ -26,6 +26,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -130,6 +132,24 @@ def _config_snapshot(config: dict) -> list[dict]:
     return sorted(snap, key=lambda x: x["name"])
 
 
+def _extract_executable(command: str) -> str:
+    """提取 shell 命令的第一个 token（通常为可执行文件名或路径）。解析失败时回退到按空格分割。"""
+    try:
+        tokens = shlex.split(command)
+    except ValueError:
+        tokens = command.strip().split()
+    return tokens[0] if tokens else ""
+
+
+def _tool_reachable(token: str) -> bool:
+    """判断命令 token 是否可访问：含路径分隔符用 exists，纯名称用 shutil.which。"""
+    if not token:
+        return True
+    if os.sep in token or "/" in token:
+        return os.path.exists(token)
+    return shutil.which(token) is not None
+
+
 def _measure_count(check: dict, stdout: str) -> int:
     """按 metric 把命令输出折算成一个整数。stdout_int 解析失败时抛 ValueError（不降级为行数）。"""
     metric = check.get("metric", "line_count")
@@ -199,6 +219,15 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
             return CheckResult(name, ctype, "error",
                                f"命令不可执行（工具缺失或无执行权限）exit={returncode}：{tail}")
         if returncode == expect:
+            # 补充 shutil.which 预检：覆盖 Windows 下缺失命令返回 1（而非 9009）且
+            # expect_code=1 导致虚假 PASS 的场景（stderr 被命令自身重定向时尤其危险）。
+            first_token = _extract_executable(command)
+            if first_token and not _tool_reachable(first_token):
+                return CheckResult(
+                    name, ctype, "error",
+                    f"exit={returncode} 与 expect_code 相同，但 '{first_token}' 未在 PATH 中找到——"
+                    "疑似工具缺失导致 exit 与 expect_code 碰巧相同；如确认为 shell 内置命令请忽略此 error",
+                )
             return CheckResult(name, ctype, "pass", f"exit={returncode}")
         tail = (err or out).strip().splitlines()[-5:]
         return CheckResult(
@@ -474,13 +503,29 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
             )
             return 2
         current_snap = _config_snapshot(config)
-        if current_snap != stored_snap:
-            print(
-                "[verify] 检查配置与基线采集时不一致（有检查被新增、修改或删除），"
-                "需重新运行 --save-baseline 更新基线后再验证。",
-                file=sys.stderr,
-            )
-            return 2
+        # 按 check 粒度比对快照：删除或修改已有检查 → fail-closed（防门禁被弱化）；
+        # 新增检查 → 放行，以绝对模式执行，无需重建基线。
+        # 全量相等比对会把「同一 PR 合法新增 check + 跑 --baseline」阻断，
+        # 迫使工程师在改后状态重采基线，新增违规可能被记入历史基线而绕过保护。
+        stored_by_name = {e["name"]: e for e in stored_snap}
+        current_by_name = {e["name"]: e for e in current_snap}
+        for sname, stored_entry in stored_by_name.items():
+            cur_entry = current_by_name.get(sname)
+            if cur_entry is None:
+                print(
+                    f"[verify] check '{sname}' 在基线中存在但已从配置中移除，"
+                    "需重新运行 --save-baseline 更新基线后再验证。",
+                    file=sys.stderr,
+                )
+                return 2
+            if cur_entry != stored_entry:
+                print(
+                    f"[verify] check '{sname}' 配置已变更（命令、阈值或类型与基线不一致），"
+                    "需重新运行 --save-baseline 更新基线后再验证。",
+                    file=sys.stderr,
+                )
+                return 2
+        # stored_by_name 中未出现的 check → 本次新增，以绝对模式执行，无需 rebaseline。
 
     results: list[CheckResult] = []
     for check in config.get("checks", []):
