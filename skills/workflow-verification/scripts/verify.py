@@ -55,6 +55,21 @@ def _nonempty_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
+_VALID_DIRECTIONS = {"not_decrease", "not_increase"}
+
+
+def _check_fingerprint(check: dict) -> dict:
+    """提取决定 check 行为的字段，用于检测配置在基线采集后是否被改弱/改变。"""
+    ctype = check.get("type", "")
+    fp: dict[str, Any] = {"type": ctype, "command": check.get("command", "")}
+    if ctype == "count":
+        fp["metric"] = check.get("metric", "line_count")
+        fp["direction"] = check.get("direction", "not_decrease")
+    elif ctype == "exit_code":
+        fp["expect_code"] = check.get("expect_code", 0)
+    return fp
+
+
 def _measure_count(check: dict, stdout: str) -> int:
     """按 metric 把命令输出折算成一个整数。"""
     metric = check.get("metric", "line_count")
@@ -121,9 +136,15 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
         return CheckResult(name, ctype, "pass", "无命中", value=items)
 
     if ctype == "count":
-        current = _measure_count(check, out)
         direction = check.get("direction", "not_decrease")
-        if baseline is not None and isinstance(baseline.get("value"), int):
+        if direction not in _VALID_DIRECTIONS:
+            return CheckResult(name, ctype, "error",
+                               f"count.direction 值「{direction}」无效，必须为 {sorted(_VALID_DIRECTIONS)}")
+        current = _measure_count(check, out)
+        if baseline is not None:
+            if not isinstance(baseline.get("value"), int):
+                return CheckResult(name, ctype, "error",
+                                   f"基线 value 类型错误（期望 int，实际 {type(baseline.get('value')).__name__}），需重新采集基线")
             base_val = baseline["value"]
             if direction == "not_decrease" and current < base_val:
                 return CheckResult(name, ctype, "fail", f"{current} < 基线 {base_val}", value=current)
@@ -166,7 +187,11 @@ def cmd_save_baseline(config: dict, out_path: Path) -> int:
         if res.status == "error":
             errors.append(res)
             continue
-        baseline["checks"][res.name] = {"type": res.type, "value": res.value}
+        baseline["checks"][res.name] = {
+            "type": res.type,
+            "value": res.value,
+            "fingerprint": _check_fingerprint(check),
+        }
     if errors:
         print("[verify] 基线采集失败：以下 baseline-aware 检查无法产出可用基线，已中止。", file=sys.stderr)
         for r in errors:
@@ -208,6 +233,18 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
                     ))
                     continue
                 base_entry = baseline_data[name]
+                # 校验 check 指纹：如果 command/direction 等关键字段在采集基线后被改变，
+                # 已存储的基线值不再对应当前检查的语义，继续对比会产生错误结论。
+                stored_fp = base_entry.get("fingerprint")
+                if stored_fp is not None:
+                    current_fp = _check_fingerprint(check)
+                    if current_fp != stored_fp:
+                        results.append(CheckResult(
+                            name, check.get("type", "?"), "error",
+                            f"check 配置与采集基线时不一致，需重新运行 --save-baseline 更新基线"
+                            f"（存储：{stored_fp}，当前：{current_fp}）",
+                        ))
+                        continue
             # baseline_path 为 None → 不带基线运行，对存量项目无侵入
         results.append(evaluate_check(check, base_entry))
 

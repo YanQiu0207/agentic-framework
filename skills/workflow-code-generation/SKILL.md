@@ -21,12 +21,14 @@ Using workflow-code-generation
 
 #### Fast-Path 执行
 
+0. **采集基线（仅当存在 `verify.config.json`）**：动代码前，加载 `workflow-verification` skill，运行 `verify.py --save-baseline .verify/baseline.json`；无配置文件则跳过。
 1. 加载编码规范（同步骤 4）
 2. 实现改动
 3. 执行过程中发现实际需要改多个文件 → **立即退出**，回到步骤 2 进入标准流程
 4. 询问用户是否需要 code review
    - **需要** → 加载 `workflow-code-review` skill（指定 `skip_reviewers: [magical-prompt-reviewer]`）→ 修复循环
    - **不需要** → 输出改动说明
+4.5. **门禁验证（仅当存在 `verify.config.json`）**：code review 完成（或用户选择不 review）后，加载 `workflow-verification` skill，运行 `verify.py --baseline .verify/baseline.json`；失败则修复后重跑，直到通过。
 5. **结束**，不进入后续步骤
 
 #### 标准流程入口
