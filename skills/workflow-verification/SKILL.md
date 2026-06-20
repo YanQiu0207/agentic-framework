@@ -3,7 +3,7 @@ name: workflow-verification
 description: 研发后验证门禁。对代码改动跑可配置的客观检查（静态规范、编译/测试通过、计数类指标），支持改动前后基线对比，只追究新增违规。当 workflow-code-generation 完成实现需要客观判定「是否真的做完」，或用户要求跑门禁/验证时使用。
 ---
 
-Using workflow-verification
+> 输出一行：`Using workflow-verification`
 
 # 研发后验证门禁
 
