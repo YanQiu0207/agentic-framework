@@ -45,10 +45,16 @@ class CheckResult:
     new_items: list[str] = field(default_factory=list)  # 相对基线的新增违规行
 
 
-def run_command(command: str) -> tuple[int, str, str]:
-    """执行 shell 命令，返回 (returncode, stdout, stderr)。"""
-    proc = subprocess.run(command, shell=True, capture_output=True, text=True)
-    return proc.returncode, proc.stdout, proc.stderr
+_DEFAULT_TIMEOUT = 60  # 秒；防止卡死命令永久阻塞验证流程
+
+
+def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str, str]:
+    """执行 shell 命令，返回 (returncode, stdout, stderr)。超时视为执行错误。"""
+    try:
+        proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
+        return proc.returncode, proc.stdout, proc.stderr
+    except subprocess.TimeoutExpired:
+        return 1, "", f"命令超时（>{timeout}s）"
 
 
 def _nonempty_lines(text: str) -> list[str]:
@@ -89,7 +95,8 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
     if not ctype or not command:
         return CheckResult(name, ctype or "?", "error", "check 缺少 type 或 command")
 
-    returncode, out, err = run_command(command)
+    timeout = int(check.get("timeout_seconds", _DEFAULT_TIMEOUT))
+    returncode, out, err = run_command(command, timeout=timeout)
 
     # 非 exit_code 检查只看 stdout；若命令本身执行失败（returncode 非 0 且有
     # stderr，如工具缺失、路径错误、正则非法），不能当成「无命中 / 0」放过——
@@ -152,8 +159,13 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
                 return CheckResult(name, ctype, "fail", f"{current} > 基线 {base_val}", value=current)
             return CheckResult(name, ctype, "pass", f"{current}（基线 {base_val}）", value=current)
         threshold = check.get("threshold")
-        if isinstance(threshold, int) and current < threshold:
-            return CheckResult(name, ctype, "fail", f"{current} < 阈值 {threshold}", value=current)
+        if isinstance(threshold, int):
+            # not_decrease → threshold 为下限，current 不得低于它
+            # not_increase → threshold 为上限，current 不得高于它
+            if direction == "not_decrease" and current < threshold:
+                return CheckResult(name, ctype, "fail", f"{current} < 下限阈值 {threshold}", value=current)
+            if direction == "not_increase" and current > threshold:
+                return CheckResult(name, ctype, "fail", f"{current} > 上限阈值 {threshold}", value=current)
         return CheckResult(name, ctype, "pass", f"{current}", value=current)
 
     return CheckResult(name, ctype, "error", f"未知 check 类型：{ctype}")
