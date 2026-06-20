@@ -77,13 +77,17 @@ def _check_fingerprint(check: dict) -> dict:
 
 
 def _measure_count(check: dict, stdout: str) -> int:
-    """按 metric 把命令输出折算成一个整数。"""
+    """按 metric 把命令输出折算成一个整数。stdout_int 解析失败时抛 ValueError（不降级为行数）。"""
     metric = check.get("metric", "line_count")
     if metric == "stdout_int":
+        stripped = stdout.strip()
         try:
-            return int(stdout.strip())
+            return int(stripped)
         except ValueError:
-            return len(_nonempty_lines(stdout))
+            raise ValueError(
+                f"stdout_int 解析失败：输出「{stripped[:60]}」不是整数；"
+                "如需行数语义请将 metric 改为 line_count"
+            )
     return len(_nonempty_lines(stdout))
 
 
@@ -147,7 +151,10 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
         if direction not in _VALID_DIRECTIONS:
             return CheckResult(name, ctype, "error",
                                f"count.direction 值「{direction}」无效，必须为 {sorted(_VALID_DIRECTIONS)}")
-        current = _measure_count(check, out)
+        try:
+            current = _measure_count(check, out)
+        except ValueError as exc:
+            return CheckResult(name, ctype, "error", str(exc))
         if baseline is not None:
             if not isinstance(baseline.get("value"), int):
                 return CheckResult(name, ctype, "error",
@@ -171,16 +178,48 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
     return CheckResult(name, ctype, "error", f"未知 check 类型：{ctype}")
 
 
+def _validate_config(config: dict, path: Path) -> None:
+    """校验配置 schema；不合规则打印错误并 sys.exit(2)。"""
+    if not isinstance(config, dict):
+        print(f"[verify] 配置格式错误：顶层必须为 JSON 对象（{path}）。", file=sys.stderr)
+        sys.exit(2)
+    checks = config.get("checks")
+    if checks is None:
+        print(f"[verify] 配置缺少 checks 字段（{path}）。", file=sys.stderr)
+        sys.exit(2)
+    if not isinstance(checks, list):
+        print(f"[verify] checks 必须是列表（{path}）。", file=sys.stderr)
+        sys.exit(2)
+    if len(checks) == 0:
+        print(f"[verify] checks 为空列表，没有任何检查项（{path}）。", file=sys.stderr)
+        sys.exit(2)
+    names: list[str] = []
+    for i, item in enumerate(checks):
+        if not isinstance(item, dict):
+            print(f"[verify] checks[{i}] 不是对象（{path}）。", file=sys.stderr)
+            sys.exit(2)
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            print(f"[verify] checks[{i}].name 缺失或不是非空字符串（{path}）。", file=sys.stderr)
+            sys.exit(2)
+        if name in names:
+            print(f"[verify] check 名称重复：「{name}」（{path}）。", file=sys.stderr)
+            sys.exit(2)
+        names.append(name)
+
+
 def load_config(path: Path) -> dict:
     """读配置；不存在则静默跳过门禁（对存量项目无侵入）。"""
     if not path.exists():
         print(f"[verify] 未找到配置 {path}，跳过门禁（对存量项目无侵入）。")
         sys.exit(0)
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        config = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         print(f"[verify] 配置解析失败：{exc}", file=sys.stderr)
         sys.exit(2)
+    _validate_config(config, path)
+    return config
 
 
 def cmd_save_baseline(config: dict, out_path: Path) -> int:
