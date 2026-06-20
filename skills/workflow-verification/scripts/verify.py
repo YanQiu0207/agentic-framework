@@ -115,6 +115,21 @@ def _check_fingerprint(check: dict) -> dict:
     return fp
 
 
+def _config_snapshot(config: dict) -> list[dict]:
+    """所有 check 的规范化快照（按 name 排序），用于检测任何 check 被新增/修改/删除。
+
+    覆盖 baseline_aware=false 的 exit_code/count 等关键门槛——这些检查没有
+    per-check 指纹，仅靠此快照防止 build/test 检查被静默弱化。
+    """
+    snap = []
+    for check in config.get("checks", []):
+        entry = _check_fingerprint(check)
+        entry["name"] = check.get("name", "")
+        entry["baseline_aware"] = bool(check.get("baseline_aware"))
+        snap.append(entry)
+    return sorted(snap, key=lambda x: x["name"])
+
+
 def _measure_count(check: dict, stdout: str) -> int:
     """按 metric 把命令输出折算成一个整数。stdout_int 解析失败时抛 ValueError（不降级为行数）。"""
     metric = check.get("metric", "line_count")
@@ -389,7 +404,7 @@ def cmd_save_baseline(config: dict, out_path: Path) -> int:
     count 的 fail 表示「已违反绝对 threshold」，不能写入——否则后续无改动也会 FAIL，
     导致门禁自相矛盾；与 error 同等处理，中止采集。
     """
-    baseline: dict[str, Any] = {"checks": {}}
+    baseline: dict[str, Any] = {"checks": {}, "config_snapshot": _config_snapshot(config)}
     blocked: list[CheckResult] = []
     for check in config.get("checks", []):
         if not check.get("baseline_aware"):
@@ -445,6 +460,19 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
                 print(f"[verify] 基线格式错误：checks.{k!r} 必须为对象（{baseline_path}）。", file=sys.stderr)
                 return 2
         baseline_data = checks_raw
+
+        # 全配置快照校验：覆盖所有 check（含 baseline_aware=false 的 build/test 等）。
+        # 任何 check 被新增/修改/删除 → fail-closed，防止在同一次变更里静默弱化门禁。
+        stored_snap = raw.get("config_snapshot")
+        if stored_snap is not None:
+            current_snap = _config_snapshot(config)
+            if current_snap != stored_snap:
+                print(
+                    "[verify] 检查配置与基线采集时不一致（有检查被新增、修改或删除），"
+                    "需重新运行 --save-baseline 更新基线后再验证。",
+                    file=sys.stderr,
+                )
+                return 2
 
     results: list[CheckResult] = []
     for check in config.get("checks", []):
