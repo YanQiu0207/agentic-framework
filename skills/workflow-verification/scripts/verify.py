@@ -364,34 +364,57 @@ def load_config(path: Path, require: bool = False) -> dict:
     return config
 
 
+def _atomic_write_json(path: Path, data: Any) -> None:
+    """原子写入 JSON：先写临时文件再 os.replace，防止中断破坏已有文件。"""
+    import tempfile
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def cmd_save_baseline(config: dict, out_path: Path) -> int:
     """采集基线：只记录 baseline_aware 检查的当前"值"。
 
-    注意：forbid_pattern 检查在采基线阶段返回 status="fail"（记录"已存在的违规"）
-    是正常用途，照常写入其值；只有 status="error"（命令/配置执行错误，如工具缺失、
-    正则非法、缺字段）才中止——否则会写入 value=None 的伪基线，让后续对比失真。
+    forbid_pattern 的 fail 表示「记录已存在的违规」，属正常用途，写入基线。
+    count 的 fail 表示「已违反绝对 threshold」，不能写入——否则后续无改动也会 FAIL，
+    导致门禁自相矛盾；与 error 同等处理，中止采集。
     """
     baseline: dict[str, Any] = {"checks": {}}
-    errors: list[CheckResult] = []
+    blocked: list[CheckResult] = []
     for check in config.get("checks", []):
         if not check.get("baseline_aware"):
             continue
         res = evaluate_check(check, baseline=None)
-        if res.status == "error":
-            errors.append(res)
+        # count 的 fail = 当前值已低于绝对 threshold，写入此值会让后续基线对比永久失败
+        if res.status == "error" or (res.status == "fail" and res.type == "count"):
+            blocked.append(res)
             continue
         baseline["checks"][res.name] = {
             "type": res.type,
             "value": res.value,
             "fingerprint": _check_fingerprint(check),
         }
-    if errors:
-        print("[verify] 基线采集失败：以下 baseline-aware 检查无法产出可用基线，已中止。", file=sys.stderr)
-        for r in errors:
-            print(f"  [ERROR] {r.name} [{r.type}] {r.detail}", file=sys.stderr)
+    if blocked:
+        print("[verify] 基线采集失败：以下检查无法产出可用基线，已中止。", file=sys.stderr)
+        for r in blocked:
+            tag = "[ERROR]" if r.status == "error" else "[FAIL] "
+            print(f"  {tag} {r.name} [{r.type}] {r.detail}", file=sys.stderr)
         return 2
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(baseline, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        _atomic_write_json(out_path, baseline)
+    except OSError as exc:
+        print(f"[verify] 基线写入失败：{exc}", file=sys.stderr)
+        return 2
     print(f"[verify] 基线已保存到 {out_path}（{len(baseline['checks'])} 项 baseline-aware 检查）")
     return 0
 
@@ -484,8 +507,11 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
         "violations": len(violations),
         "results": [asdict(r) for r in results],
     }
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        _atomic_write_json(report_path, report)
+    except OSError as exc:
+        print(f"[verify] 报告写入失败：{exc}", file=sys.stderr)
+        return 2
 
     _print_summary(results, verdict, report_path)
     if errors:

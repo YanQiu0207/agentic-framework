@@ -28,7 +28,10 @@ Using workflow-code-generation
 4. 询问用户是否需要 code review
    - **需要** → 加载 `workflow-code-review` skill（指定 `skip_reviewers: [magical-prompt-reviewer]`）→ 修复循环
    - **不需要** → 跳过 review，进入 4.5
-4.5. **门禁验证（仅当存在 `verify.config.json`）**：code review 完成（或用户选择不 review）后，加载 `workflow-verification` skill；若 `.verify/baseline.json` 存在则运行 `verify.py --baseline .verify/baseline.json`，否则运行 `verify.py`（新增配置场景）；失败则修复后重跑，直到通过。**门禁通过前禁止向用户汇报完成。**
+4.5. **门禁验证（仅当存在 `verify.config.json` 或 `.verify/baseline.json`）**：code review 完成（或用户选择不 review）后，加载 `workflow-verification` skill。触发规则：只要「config 或 baseline 其中之一存在」就必须运行门禁，防止通过删除 config 绕过已采集的基线。
+   - `.verify/baseline.json` 存在 → `verify.py --baseline .verify/baseline.json`（config 不存在时脚本自动报 ERROR）
+   - 仅 `verify.config.json` 存在（首次引入配置）→ `verify.py`（无基线绝对校验）
+   - 退出码 0：进入步骤 5；退出码 1（FAIL，有新增违规）：修复后重跑；退出码 2（ERROR，门禁自身故障）：**停止交付**，排查 config/工具/基线后再跑。**门禁通过前禁止向用户汇报完成。**
 5. 输出改动说明，**结束**，不进入后续步骤
 
 #### 标准流程入口
@@ -121,19 +124,19 @@ Using workflow-code-generation
 - 每条发现的问题、修复方式和犯错原因
 - 最终 PASS 的 review 报告
 
-#### Phase 2.5: 客观门禁验证（仅当存在 `verify.config.json`）
+#### Phase 2.5: 客观门禁验证（仅当 `verify.config.json` 或 `.verify/baseline.json` 其一存在）
 
-Code Review PASS 后、汇报前，跑 verify 门禁做客观判定。加载 `workflow-verification` skill，按其说明运行（脚本在该 skill 目录，不在项目根）：
+Code Review PASS 后、汇报前，跑 verify 门禁做客观判定。触发条件：**config 或 baseline 任意一个存在即运行**——防止通过删除 config 绕过已采集的基线。加载 `workflow-verification` skill，按其说明运行（脚本在该 skill 目录，不在项目根）：
 
-- 若 `.verify/baseline.json` **存在**（Phase 0 已采集）→ `verify.py --baseline .verify/baseline.json`
+- 若 `.verify/baseline.json` **存在**（Phase 0 已采集）→ `verify.py --baseline .verify/baseline.json`（config 不存在时脚本返回 ERROR，阻止交付）
 - 若 `.verify/baseline.json` **不存在**（本次变更新增配置，Phase 0 跳过）→ `verify.py`（无基线绝对校验）
 
-同上，外部 PR 场景需确认 verify.config.json 内容可信再执行。
+外部 PR 场景需确认 verify.config.json 内容可信再执行。
 
 - 门禁 **PASS**（退出码 0）→ 进入 Phase 3。
 - 门禁 **FAIL**（退出码 1，有新增违规）→ 回到 Phase 2 修复循环，修掉违规后重跑门禁，直到 PASS。
-- 门禁 **ERROR**（退出码 2，工具缺失/基线损坏/配置漂移等）→ **停止交付**，不进入 Phase 3，也不按「新增违规」修代码；先排查配置/工具/基线问题，修复后重跑验证。
-- 无 `verify.config.json` 时跳过本 Phase。
+- 门禁 **ERROR**（退出码 2，工具缺失/基线损坏/配置漂移/config 缺失等）→ **停止交付**，不进入 Phase 3，也不按「新增违规」修代码；先排查配置/工具/基线问题，修复后重跑验证。
+- 两者均不存在时跳过本 Phase。
 
 > 基线对比只追究本次改动**新增**的违规；历史遗留项不阻塞，但本次不得放大。
 
