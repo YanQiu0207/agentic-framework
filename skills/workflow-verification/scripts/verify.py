@@ -106,18 +106,21 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
     if not ctype or not command:
         return CheckResult(name, ctype or "?", "error", "check 缺少 type 或 command")
 
-    timeout = int(check.get("timeout_seconds", _DEFAULT_TIMEOUT))
+    timeout = int(check.get("timeout_seconds") or _DEFAULT_TIMEOUT)
     try:
         returncode, out, err = run_command(command, timeout=timeout)
     except CommandTimeout as exc:
         # 超时独立报 error，不复用任何 returncode，避免与 expect_code 语义冲突
         return CheckResult(name, ctype, "error", str(exc))
 
-    # 非 exit_code 检查只看 stdout；若命令本身执行失败（returncode 非 0 且有
-    # stderr，如工具缺失、路径错误、正则非法），不能当成「无命中 / 0」放过——
-    # 那会让门禁形同虚设。grep 类「无匹配返回 1 且无 stderr」不算执行失败。
-    # 判为 error（区别于「有违规」的 fail）：采基线时遇 error 必须中止，不能写入伪基线。
-    if ctype in ("forbid_pattern", "count") and returncode != 0 and err.strip():
+    # count: 命令必须以退出码 0 成功，否则判 error——count 命令（输出整数/行数）不存在
+    # 「非 0=无匹配」的语义，任何非 0 退出都意味着计数本身失败。
+    if ctype == "count" and returncode != 0:
+        tail = " | ".join((err or out).strip().splitlines()[-3:]) or f"exit={returncode}"
+        return CheckResult(name, ctype, "error", f"命令执行失败 exit={returncode}：{tail}")
+
+    # forbid_pattern: 只在有 stderr 时判 error（grep 无匹配返回 1 且无 stderr，是正常「无命中」）。
+    if ctype == "forbid_pattern" and returncode != 0 and err.strip():
         tail = " | ".join(err.strip().splitlines()[-3:])
         return CheckResult(name, ctype, "error", f"命令执行失败 exit={returncode}：{tail}")
 
@@ -222,14 +225,50 @@ def _validate_config(config: dict, path: Path) -> None:
             print(f"[verify] check 名称重复：「{name}」（{path}）。", file=sys.stderr)
             sys.exit(2)
         names.append(name)
-        # count 检查必须有判定依据：要么 baseline_aware（运行时提供基线），要么 threshold（整数）
-        if item.get("type") == "count" and not item.get("baseline_aware") and not isinstance(item.get("threshold"), int):
-            print(
-                f"[verify] checks[{i}]（name={name!r}）type=count 且 baseline_aware 为 false/缺失时，"
-                f"必须提供整数 threshold；否则该检查在无基线模式下无法做任何判断（{path}）。",
-                file=sys.stderr,
-            )
-            sys.exit(2)
+        _validate_check_item(i, name, item, path)
+
+
+_ALLOWED_TYPES = {"exit_code", "forbid_pattern", "count"}
+_ALLOWED_METRICS = {"line_count", "stdout_int"}
+
+
+def _validate_check_item(i: int, name: str, item: dict, path: Path) -> None:
+    """校验单个 check 条目的字段合法性；不合规则打印错误并 sys.exit(2)。"""
+
+    def fail(msg: str) -> None:
+        print(f"[verify] checks[{i}]（name={name!r}）{msg}（{path}）。", file=sys.stderr)
+        sys.exit(2)
+
+    ctype = item.get("type")
+    if ctype not in _ALLOWED_TYPES:
+        fail(f"type={ctype!r} 无效，必须为 {sorted(_ALLOWED_TYPES)}")
+
+    command = item.get("command")
+    if not isinstance(command, str) or not command.strip():
+        fail("command 缺失或不是非空字符串")
+
+    ts = item.get("timeout_seconds")
+    if ts is not None and (not isinstance(ts, int) or ts <= 0):
+        fail(f"timeout_seconds={ts!r} 无效，必须为正整数")
+
+    if ctype == "exit_code":
+        ec = item.get("expect_code", 0)
+        if not isinstance(ec, int):
+            fail(f"expect_code={ec!r} 无效，必须为整数")
+
+    if ctype == "count":
+        metric = item.get("metric", "line_count")
+        if metric not in _ALLOWED_METRICS:
+            fail(f"metric={metric!r} 无效，必须为 {sorted(_ALLOWED_METRICS)}")
+        direction = item.get("direction", "not_decrease")
+        if direction not in _VALID_DIRECTIONS:
+            fail(f"direction={direction!r} 无效，必须为 {sorted(_VALID_DIRECTIONS)}")
+        threshold = item.get("threshold")
+        if threshold is not None and not isinstance(threshold, int):
+            fail(f"threshold={threshold!r} 无效，必须为整数")
+        # 无基线时必须有 threshold 作为绝对判定依据
+        if not item.get("baseline_aware") and not isinstance(threshold, int):
+            fail("type=count 且 baseline_aware 为 false/缺失时，必须提供整数 threshold")
 
 
 def load_config(path: Path) -> dict:
