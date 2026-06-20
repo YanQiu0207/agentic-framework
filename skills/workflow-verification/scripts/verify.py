@@ -48,13 +48,20 @@ class CheckResult:
 _DEFAULT_TIMEOUT = 60  # 秒；防止卡死命令永久阻塞验证流程
 
 
+class CommandTimeout(Exception):
+    """命令执行超时。用独立异常而非复用 returncode，避免与 expect_code=1 混淆。"""
+
+    def __init__(self, command: str, timeout: int) -> None:
+        super().__init__(f"命令超时（>{timeout}s）：{command[:80]}")
+
+
 def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str, str]:
-    """执行 shell 命令，返回 (returncode, stdout, stderr)。超时视为执行错误。"""
+    """执行 shell 命令，返回 (returncode, stdout, stderr)。超时时抛 CommandTimeout。"""
     try:
         proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
         return proc.returncode, proc.stdout, proc.stderr
     except subprocess.TimeoutExpired:
-        return 1, "", f"命令超时（>{timeout}s）"
+        raise CommandTimeout(command, timeout)
 
 
 def _nonempty_lines(text: str) -> list[str]:
@@ -100,7 +107,11 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
         return CheckResult(name, ctype or "?", "error", "check 缺少 type 或 command")
 
     timeout = int(check.get("timeout_seconds", _DEFAULT_TIMEOUT))
-    returncode, out, err = run_command(command, timeout=timeout)
+    try:
+        returncode, out, err = run_command(command, timeout=timeout)
+    except CommandTimeout as exc:
+        # 超时独立报 error，不复用任何 returncode，避免与 expect_code 语义冲突
+        return CheckResult(name, ctype, "error", str(exc))
 
     # 非 exit_code 检查只看 stdout；若命令本身执行失败（returncode 非 0 且有
     # stderr，如工具缺失、路径错误、正则非法），不能当成「无命中 / 0」放过——
