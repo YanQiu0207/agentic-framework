@@ -177,13 +177,18 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
                 return CheckResult(name, ctype, "fail", f"{current} > 基线 {base_val}", value=current)
             return CheckResult(name, ctype, "pass", f"{current}（基线 {base_val}）", value=current)
         threshold = check.get("threshold")
-        if isinstance(threshold, int):
-            # not_decrease → threshold 为下限，current 不得低于它
-            # not_increase → threshold 为上限，current 不得高于它
-            if direction == "not_decrease" and current < threshold:
-                return CheckResult(name, ctype, "fail", f"{current} < 下限阈值 {threshold}", value=current)
-            if direction == "not_increase" and current > threshold:
-                return CheckResult(name, ctype, "fail", f"{current} > 上限阈值 {threshold}", value=current)
+        if not isinstance(threshold, int):
+            # 无基线、无合法 threshold：无法做任何判断，应在 schema 校验阶段阻止；
+            # 若运行时仍到此（如直接调用 evaluate_check），报 error 而不是静默 pass。
+            return CheckResult(name, ctype, "error",
+                               "count 检查无可用基线且无整数 threshold，无法判定；"
+                               "请添加 threshold 或使用 baseline_aware + --baseline 运行")
+        # not_decrease → threshold 为下限，current 不得低于它
+        # not_increase → threshold 为上限，current 不得高于它
+        if direction == "not_decrease" and current < threshold:
+            return CheckResult(name, ctype, "fail", f"{current} < 下限阈值 {threshold}", value=current)
+        if direction == "not_increase" and current > threshold:
+            return CheckResult(name, ctype, "fail", f"{current} > 上限阈值 {threshold}", value=current)
         return CheckResult(name, ctype, "pass", f"{current}", value=current)
 
     return CheckResult(name, ctype, "error", f"未知 check 类型：{ctype}")
@@ -217,6 +222,14 @@ def _validate_config(config: dict, path: Path) -> None:
             print(f"[verify] check 名称重复：「{name}」（{path}）。", file=sys.stderr)
             sys.exit(2)
         names.append(name)
+        # count 检查必须有判定依据：要么 baseline_aware（运行时提供基线），要么 threshold（整数）
+        if item.get("type") == "count" and not item.get("baseline_aware") and not isinstance(item.get("threshold"), int):
+            print(
+                f"[verify] checks[{i}]（name={name!r}）type=count 且 baseline_aware 为 false/缺失时，"
+                f"必须提供整数 threshold；否则该检查在无基线模式下无法做任何判断（{path}）。",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
 
 def load_config(path: Path) -> dict:

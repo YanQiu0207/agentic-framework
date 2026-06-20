@@ -83,6 +83,8 @@ Using workflow-code-generation
 
 若项目根存在 `verify.config.json`，在**动代码前**采集基线，供 Phase 2.5 对比：加载 `workflow-verification` skill，按其说明运行 `verify.py --save-baseline .verify/baseline.json`（脚本在该 skill 目录，不在项目根）。
 
+> ⚠️ **信任前提**：verify.config.json 中的命令会以 shell 执行。在你自己的仓库中可直接运行；如果你在审查外部 PR 或分支，且 `verify.config.json` 包含未经审查的变更，**必须先人工确认其命令安全**再允许本 Phase 执行。
+
 无 `verify.config.json` 时跳过本 Phase（对存量项目无侵入）。
 
 #### Phase 1: 实现
@@ -121,7 +123,7 @@ Using workflow-code-generation
 
 #### Phase 2.5: 客观门禁验证（仅当存在 `verify.config.json`）
 
-Code Review PASS 后、汇报前，跑 verify 门禁做客观判定。加载 `workflow-verification` skill，按其说明运行 `verify.py --baseline .verify/baseline.json`（脚本在该 skill 目录，不在项目根）。
+Code Review PASS 后、汇报前，跑 verify 门禁做客观判定。加载 `workflow-verification` skill，按其说明运行 `verify.py --baseline .verify/baseline.json`（脚本在该 skill 目录，不在项目根）。同上，外部 PR 场景需确认 verify.config.json 内容可信再执行。
 
 - 门禁 **PASS**（退出码 0）→ 进入 Phase 3。
 - 门禁 **FAIL**（有新增违规）→ 回到 Phase 2 修复循环，修掉**新增**项后重跑门禁，直到 PASS。

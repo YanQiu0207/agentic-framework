@@ -34,12 +34,13 @@
     },
     {
       "name": "B-test-count-not-decrease",
-      "_note": "B 类·交付门槛：测试数量不能异常减少（抓偷删测试）。direction=not_decrease 表示改动后必须 >= 基线。",
+      "_note": "B 类·交付门槛：测试数量不能异常减少（抓偷删测试）。direction=not_decrease 表示改动后必须 >= 基线。threshold=0 是无基线时的最低保障（有基线时 threshold 不生效）。",
       "type": "count",
       "command": "grep -rHo \"def test_\" tests/",
       "metric": "line_count",
       "direction": "not_decrease",
-      "baseline_aware": true
+      "baseline_aware": true,
+      "threshold": 0
     },
     {
       "name": "C-cs-files-in-csproj",
