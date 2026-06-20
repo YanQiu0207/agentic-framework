@@ -329,9 +329,19 @@ def _validate_check_item(i: int, name: str, item: dict, path: Path) -> None:
             fail("type=count 必须提供整数 threshold（无基线时作为绝对判定依据；有基线时作为最低保障值）")
 
 
-def load_config(path: Path) -> dict:
-    """读配置；不存在则静默跳过门禁（对存量项目无侵入）。"""
+def load_config(path: Path, require: bool = False) -> dict:
+    """读配置。
+
+    不存在时：
+    - require=False（无基线模式）→ 静默跳过，exit 0（对存量项目无侵入）。
+    - require=True（--baseline / --save-baseline 模式）→ exit 2，已有基线的验证场景
+      配置缺失属于门禁本身故障，不能视为"跳过"。
+    """
     if not path.exists():
+        if require:
+            print(f"[verify] 配置文件不存在：{path}；"
+                  "--baseline/--save-baseline 模式下配置必须存在（不能静默跳过）。", file=sys.stderr)
+            sys.exit(2)
         print(f"[verify] 未找到配置 {path}，跳过门禁（对存量项目无侵入）。")
         sys.exit(0)
     try:
@@ -439,6 +449,18 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
             # baseline_path 为 None → 不带基线运行，对存量项目无侵入
         results.append(evaluate_check(check, base_entry))
 
+    # 孤儿基线条目检查：baseline 中存在记录，但当前 config 已关闭 baseline_aware 或删除该 check。
+    # 不报 error 则攻击者可把 baseline_aware 改为 false 或删 check，从而绕过基线对比。
+    if baseline_path is not None:
+        active_aware = {c["name"] for c in config.get("checks", []) if c.get("baseline_aware")}
+        for orphan_name in baseline_data:
+            if orphan_name not in active_aware:
+                results.append(CheckResult(
+                    orphan_name, "?", "error",
+                    "基线中存在该检查的记录，但当前配置已关闭 baseline_aware 或移除该检查——"
+                    "属于配置漂移，需重新运行 --save-baseline 更新基线（或恢复 baseline_aware）",
+                ))
+
     errors = [r for r in results if r.status == "error"]
     violations = [r for r in results if r.status == "fail"]
     # 退出码语义：0 = 全部通过；1 = 有新增违规（可修复）；2 = 门禁本身出错（工具/配置问题）
@@ -481,7 +503,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--report", default=".verify/report.json", help="结构化报告输出路径")
     args = parser.parse_args(argv)
 
-    config = load_config(Path(args.config))
+    require_config = bool(args.save_baseline or args.baseline)
+    config = load_config(Path(args.config), require=require_config)
 
     if args.save_baseline:
         return cmd_save_baseline(config, Path(args.save_baseline))
