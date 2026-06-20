@@ -164,6 +164,23 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
 
     if ctype == "exit_code":
         expect = check.get("expect_code", 0)
+        # 工具不存在/无执行权限属于门禁自身故障（→ error），而非代码问题（→ fail）。
+        # 不先区分两者，expect_code 为某特殊值时工具缺失可能虚假 PASS。
+        # POSIX shell: 126=无执行权限，127=命令未找到；Windows cmd: 9009。
+        # 跨平台兜底：匹配 stderr 中常见「命令未找到」特征字符串。
+        _NOT_FOUND_PHRASES = (
+            "command not found",
+            "not recognized as an internal or external",
+            "not recognized as the name of a cmdlet",
+        )
+        _stderr_lc = (err or "").lower()
+        _shell_not_found = returncode in (126, 127) and not sys.platform.startswith("win")
+        _win_not_found = returncode == 9009
+        _stderr_not_found = any(p in _stderr_lc for p in _NOT_FOUND_PHRASES)
+        if _shell_not_found or _win_not_found or _stderr_not_found:
+            tail = " | ".join((err or out).strip().splitlines()[-3:]) or f"exit={returncode}"
+            return CheckResult(name, ctype, "error",
+                               f"命令不可执行（工具缺失或无执行权限）exit={returncode}：{tail}")
         if returncode == expect:
             return CheckResult(name, ctype, "pass", f"exit={returncode}")
         tail = (err or out).strip().splitlines()[-5:]

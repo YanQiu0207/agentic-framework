@@ -34,9 +34,9 @@
     },
     {
       "name": "B-test-count-not-decrease",
-      "_note": "B 类·交付门槛：测试数量不能异常减少（抓偷删测试）。direction=not_decrease 表示改动后必须 >= 基线。threshold=0 是无基线时的最低保障（有基线时 threshold 不生效）。",
+      "_note": "B 类·交付门槛：测试数量不能异常减少（抓偷删测试）。direction=not_decrease 表示改动后必须 >= 基线。threshold=0 是无基线时的最低保障（有基线时 threshold 不生效）。注意：count 命令必须在「零匹配」场景下也以 exit=0 退出，否则会被判为 error；grep 无匹配时返回 exit=1，故需 || true（POSIX）使其始终退出 0，stdout 为空则 line_count 计为 0。",
       "type": "count",
-      "command": "grep -rHo \"def test_\" tests/",
+      "command": "grep -rHo \"def test_\" tests/ || true",
       "metric": "line_count",
       "direction": "not_decrease",
       "baseline_aware": true,
