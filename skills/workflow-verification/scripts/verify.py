@@ -323,18 +323,25 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
             # baseline_path 为 None → 不带基线运行，对存量项目无侵入
         results.append(evaluate_check(check, base_entry))
 
-    failed = [r for r in results if r.status != "pass"]  # fail（违规）与 error（执行错误）都不放过
+    errors = [r for r in results if r.status == "error"]
+    violations = [r for r in results if r.status == "fail"]
+    # 退出码语义：0 = 全部通过；1 = 有新增违规（可修复）；2 = 门禁本身出错（工具/配置问题）
+    # 区分两种非 0 状态，避免把「门禁失效」当「有违规」送进修复循环。
+    verdict = "ERROR" if errors else ("FAIL" if violations else "PASS")
     report = {
-        "verdict": "FAIL" if failed else "PASS",
+        "verdict": verdict,
         "total": len(results),
-        "failed": len(failed),
+        "errors": len(errors),
+        "violations": len(violations),
         "results": [asdict(r) for r in results],
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    _print_summary(results, report["verdict"], report_path)
-    return 1 if failed else 0
+    _print_summary(results, verdict, report_path)
+    if errors:
+        return 2
+    return 1 if violations else 0
 
 
 def _print_summary(results: list[CheckResult], verdict: str, report_path: Path) -> None:

@@ -43,6 +43,8 @@ verify.py 通过以下措施降低风险：
 - `count`：`direction: not_decrease`（current ≥ baseline）或 `not_increase`（current ≤ baseline）。
 
 > ⚠️ `forbid_pattern` 的命令必须用 **`-H`（保留文件路径）**，不用 `-h`；输出格式为「文件:匹配内容」而非单纯匹配文本，确保跨文件移动（删旧增新同名违规）可被识别。同时**不输出行号**，避免行号漂移把历史违规误判为新增。示例：`grep -rHo --include=*.cs "pattern" src/`。
+>
+> ⚠️ **已知限制**：`forbid_pattern` 基线对比基于「全量扫描结果的出现次数差」。若同一文件删除一处旧违规、同时新增一处相同模式的违规（如同文件内移位），两次出现次数相同，门禁会判为 PASS。如需检测这类"等量替换"场景，应在 command 中使用含行号的输出（`grep -rHn`）并接受行号漂移带来的误报，或改用 diff-aware 的外部工具。
 
 ## 用法
 
@@ -59,7 +61,7 @@ python <skill-dir>/scripts/verify.py --baseline .verify/baseline.json
 python <skill-dir>/scripts/verify.py
 ```
 
-退出码：`0` 全过 / 无配置；`1` 存在（新增）违规；`2` 配置或运行错误。
+退出码：`0` 全过 / 无配置；`1` 存在（新增）违规（verdict=FAIL）；`2` 门禁本身出错——工具缺失、正则非法、基线损坏等（verdict=ERROR）。`1` 和 `2` 严格区分：`1` 应进入修复循环，`2` 应先排查门禁配置本身。
 
 > 采集基线时，若某个 baseline_aware 检查的命令本身执行失败（工具缺失、正则非法、缺字段等），脚本以退出码 `2` 中止，**不写入伪基线**——避免后续对比基于一份无效基线而失真。`forbid_pattern` 记录到的"已存在违规"不算失败，会照常写入基线。
 
