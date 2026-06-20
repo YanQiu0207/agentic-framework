@@ -463,16 +463,24 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
 
         # 全配置快照校验：覆盖所有 check（含 baseline_aware=false 的 build/test 等）。
         # 任何 check 被新增/修改/删除 → fail-closed，防止在同一次变更里静默弱化门禁。
+        # 旧基线缺失 config_snapshot → 同样 fail-closed，要求重建基线——
+        # 不能 fail-open，否则版本升级时旧基线对非 baseline_aware 检查完全失去保护。
         stored_snap = raw.get("config_snapshot")
-        if stored_snap is not None:
-            current_snap = _config_snapshot(config)
-            if current_snap != stored_snap:
-                print(
-                    "[verify] 检查配置与基线采集时不一致（有检查被新增、修改或删除），"
-                    "需重新运行 --save-baseline 更新基线后再验证。",
-                    file=sys.stderr,
-                )
-                return 2
+        if not isinstance(stored_snap, list):
+            print(
+                "[verify] 基线缺少合法 config_snapshot（旧版基线或结构损坏），"
+                "需重新运行 --save-baseline 重建基线。",
+                file=sys.stderr,
+            )
+            return 2
+        current_snap = _config_snapshot(config)
+        if current_snap != stored_snap:
+            print(
+                "[verify] 检查配置与基线采集时不一致（有检查被新增、修改或删除），"
+                "需重新运行 --save-baseline 更新基线后再验证。",
+                file=sys.stderr,
+            )
+            return 2
 
     results: list[CheckResult] = []
     for check in config.get("checks", []):
