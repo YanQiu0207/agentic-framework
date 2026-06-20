@@ -109,6 +109,7 @@ def _check_fingerprint(check: dict) -> dict:
     if ctype == "count":
         fp["metric"] = check.get("metric", "line_count")
         fp["direction"] = check.get("direction", "not_decrease")
+        fp["threshold"] = check.get("threshold")  # 阈值变更会改变判定语义，纳入指纹
     elif ctype == "exit_code":
         fp["expect_code"] = check.get("expect_code", 0)
     return fp
@@ -239,6 +240,16 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
                 return CheckResult(name, ctype, "fail", f"{current} < 基线 {base_val}", value=current)
             if direction == "not_increase" and current > base_val:
                 return CheckResult(name, ctype, "fail", f"{current} > 基线 {base_val}", value=current)
+            # 有基线时 threshold 依然作为绝对保障下/上限——否则基线本身偏低时
+            # threshold 形同虚设，配置作者声明的最低门槛永远不生效。
+            threshold = check.get("threshold")
+            if isinstance(threshold, int):
+                if direction == "not_decrease" and current < threshold:
+                    return CheckResult(name, ctype, "fail",
+                                       f"{current} < 绝对下限 {threshold}（基线 {base_val}）", value=current)
+                if direction == "not_increase" and current > threshold:
+                    return CheckResult(name, ctype, "fail",
+                                       f"{current} > 绝对上限 {threshold}（基线 {base_val}）", value=current)
             return CheckResult(name, ctype, "pass", f"{current}（基线 {base_val}）", value=current)
         threshold = check.get("threshold")
         if not isinstance(threshold, int):
