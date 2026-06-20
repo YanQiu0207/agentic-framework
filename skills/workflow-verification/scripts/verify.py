@@ -25,6 +25,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import signal
 import subprocess
 import sys
 from collections import Counter
@@ -55,12 +57,40 @@ class CommandTimeout(Exception):
         super().__init__(f"命令超时（>{timeout}s）：{command[:80]}")
 
 
-def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str, str]:
-    """执行 shell 命令，返回 (returncode, stdout, stderr)。超时时抛 CommandTimeout。"""
+def _kill_process_tree(proc: subprocess.Popen) -> None:
+    """强制终止进程及其所有子进程。"""
     try:
-        proc = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=timeout)
-        return proc.returncode, proc.stdout, proc.stderr
+        if sys.platform == "win32":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                capture_output=True, timeout=5,
+            )
+        else:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except ProcessLookupError:
+                proc.kill()
+    except Exception:
+        proc.kill()
+
+
+def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str, str]:
+    """执行 shell 命令，返回 (returncode, stdout, stderr)。超时时终止进程树并抛 CommandTimeout。"""
+    kwargs: dict[str, Any] = {
+        "shell": True,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+        "text": True,
+    }
+    if sys.platform != "win32":
+        kwargs["start_new_session"] = True  # POSIX：新进程组，方便 killpg
+    proc = subprocess.Popen(command, **kwargs)
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+        return proc.returncode, stdout, stderr
     except subprocess.TimeoutExpired:
+        _kill_process_tree(proc)
+        proc.wait()
         raise CommandTimeout(command, timeout)
 
 
@@ -327,10 +357,22 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
     baseline_data: dict[str, Any] = {}
     if baseline_path and baseline_path.exists():
         try:
-            baseline_data = json.loads(baseline_path.read_text(encoding="utf-8")).get("checks", {})
+            raw = json.loads(baseline_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             print(f"[verify] 基线解析失败：{exc}", file=sys.stderr)
             return 2
+        if not isinstance(raw, dict):
+            print(f"[verify] 基线格式错误：顶层必须为 JSON 对象（{baseline_path}）。", file=sys.stderr)
+            return 2
+        checks_raw = raw.get("checks", {})
+        if not isinstance(checks_raw, dict):
+            print(f"[verify] 基线格式错误：checks 必须为对象（{baseline_path}）。", file=sys.stderr)
+            return 2
+        for k, v in checks_raw.items():
+            if not isinstance(v, dict):
+                print(f"[verify] 基线格式错误：checks.{k!r} 必须为对象（{baseline_path}）。", file=sys.stderr)
+                return 2
+        baseline_data = checks_raw
 
     results: list[CheckResult] = []
     for check in config.get("checks", []):
