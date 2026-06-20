@@ -1,6 +1,6 @@
 # 改进路线图
 
-> 输入：[02-gap-analysis.md](02-gap-analysis.md) 中排序后的四个 gap。
+> 输入：[02-gap-analysis.md](02-gap-analysis.md) 中排序后的 gap。
 > 本文档为后续实施的轻量 spec；每项真正动手时，可在 `docs/design-docs/` 下展开为正式 spec / tasks。
 
 ## 总原则
@@ -53,71 +53,9 @@
 
 ---
 
-## 改进 2：跨 feature 任务看板（gap 3）
-
-### 动机
-新需求进来时无项目级历史视图，易「新需求冲掉旧设计」。
-
-### 目标
-一份项目级任务总览，记录所有 feature 的状态、阶段、文档入口、交付结论；需求澄清前先读。
-
-### 方案
-- 在 `skills/project-knowledge/SKILL.md` 目录约定中新增 `docs/design-docs/TASKBOARD.md`（项目级，单文件）。
-- 字段：feature 名 / 状态（对齐 spec 生命周期 Draft → … → Archived）/ 当前阶段 / spec 目录 / 一句话交付结论。
-- 提供模板 `skills/project-knowledge/reference/taskboard_template.md`。
-- 维护责任：
-  - `workflow-requirements-clarification` Step 0 / 1：**先读 TASKBOARD**，判断是否旧需求延续、有无类似历史。
-  - `workflow-code-generation` 任务完成 / spec 归档时：更新 TASKBOARD 对应行。
-
-### 涉及文件
-- 修改：`skills/project-knowledge/SKILL.md`、`skills/workflow-requirements-clarification/SKILL.md`
-- 新增：`skills/project-knowledge/reference/taskboard_template.md`
-
-### 验收标准
-- [ ] `project-knowledge` 明确 TASKBOARD 的位置、字段、维护责任。
-- [ ] `requirements-clarification` 在澄清前会读 TASKBOARD（流程中有显式步骤）。
-- [ ] 交付 / 归档时有更新 TASKBOARD 的指令。
-- [ ] 纯 Markdown，无新依赖。
-
-### Agent-Agnostic 说明
-纯文档约定，零平台依赖。
-
----
-
-## 改进 3：dev-map 细粒度化（gap 4）
-
-### 动机
-`overview.md` 偏架构级，缺代码级落点导航；AI 易重复造轮子。
-
-### 目标
-提供「改代码前先查」的开发导航：功能落点、影响链路、既有标准写法；由动代码的流程顺手维护。
-
-### 方案
-- 在 `skills/project-knowledge/SKILL.md` 新增 dev-map 文档约定：`docs/architecture/dev-map.md`（或按子系统拆分）。
-- 内容：功能 → 落点文件、配置定义位置、模块改动影响链路、项目既有写法 / 惯例。
-- 提供模板 `skills/project-knowledge/reference/dev-map_template.md`。
-- 维护责任（谁动代码谁更新）：
-  - `workflow-code-generation` 步骤 1 / 4：改码前查 dev-map 定位落点。
-  - 任务完成且涉及新模块 / 落点变化时：更新 dev-map（与现有「文档同步任务」机制一致，`skills/project-knowledge/SKILL.md:90`）。
-
-### 涉及文件
-- 修改：`skills/project-knowledge/SKILL.md`、`skills/workflow-code-generation/SKILL.md`
-- 新增：`skills/project-knowledge/reference/dev-map_template.md`
-
-### 验收标准
-- [ ] `project-knowledge` 明确 dev-map 的位置、内容、与 `overview.md` 的分工（overview 偏架构、dev-map 偏代码落点）。
-- [ ] `code-generation` 改码前有「查 dev-map」步骤。
-- [ ] 落点变化时有更新 dev-map 的指令。
-
-### Agent-Agnostic 说明
-纯文档约定，零平台依赖。
-
----
-
 ## 执行顺序与检查点
 
 1. 先做改进 1（价值最高、最能补「反馈」短板）；脚本与集成各自可独立验收。
-2. 再做改进 2、3（纯文档，互不依赖，可并行）。
-3. 每个改进完成后，按 `CONTRIBUTING.md` 附「问题证据 + 改进证据」。
+2. 每个改进完成后，按 `CONTRIBUTING.md` 附「问题证据 + 改进证据」。
 
 > 注：本框架另有一套平行的 `opsx-*`（OpenSpec）工作流，本路线图只覆盖 `workflow-*` 主线。如需同步到 opsx，另开条目。

@@ -35,8 +35,6 @@
 | 复杂度路由 | ✅ 文章没有，本框架更先进 | `skills/workflow-code-generation/SKILL.md:14`、`skills/workflow-requirements-clarification/SKILL.md:86` |
 | **总验证脚本（硬门禁）** | ❌ 缺 | 全 repo 无 `.ps1` / `.py` / `.sh`（Glob 验证） |
 | **基线对比（前后 diff）** | ❌ 缺 | 同上，依赖脚本 |
-| dev-map（代码级落点导航） | 🟡 弱 | `overview.md` 粒度粗、触发是「架构变更时」（`skills/project-knowledge/SKILL.md:60`） |
-| 任务看板（跨 feature 总览） | 🟡 缺 | 只有 per-feature `tasks.md`，无项目级总览（`skills/project-knowledge/SKILL.md:26`） |
 | 流程定义文件 + 流程校验脚本 | 🟡 设计取舍 | 流程写在 `SKILL.md`，无独立状态机文件 |
 | per-Agent 模型分档 | ➖ 不适用 | 刻意 Agent-Agnostic，模型配置交平台 |
 | MCP 外接 | ➖ 对等 | 双方都列为未来 |
@@ -52,14 +50,6 @@
 ### gap 2：基线对比
 
 与 gap 1 同源。有了能产出结构化报告的 verify 脚本，基线对比只是「跑两次 + 存一次 + diff 一次」的薄封装。专治 AI 拿「历史遗留」甩锅。
-
-### gap 3：跨 feature 任务看板
-
-纯 Markdown、不破坏任何设计、好补。现在新需求进来时，`requirements-clarification` 没有项目级任务总览可一眼看历史，防不住「新需求冲掉旧设计」。
-
-### gap 4：dev-map 细粒度化
-
-把 `architecture/overview.md` 增强为「某功能落在哪些文件、改 X 牵动哪些链路」，并让 `code-generation` 改码前先查。现在它偏架构级，缺代码级落点导航与开发者自维护闭环。
 
 ## 4. 不建议盲目补的（是设计取舍，不是缺陷）
 
