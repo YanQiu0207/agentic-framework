@@ -80,7 +80,8 @@ def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str
         "shell": True,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
-        "text": True,
+        "encoding": "utf-8",   # 固定 UTF-8，避免 Windows GBK 等本机编码导致解码崩溃
+        "errors": "replace",   # 不可解码字节替换为 U+FFFD，门禁继续产出结构化报告
     }
     if sys.platform != "win32":
         kwargs["start_new_session"] = True  # POSIX：新进程组，方便 killpg
@@ -192,6 +193,11 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
     if ctype == "forbid_pattern":
         items = _nonempty_lines(out)
         if baseline is not None:
+            # 校验 value 类型：基线损坏或格式迁移时应 fail-closed，而非被 Counter 静默接受
+            # 并把当前命中"计入基线"从而放过新增违规。与 count 的 int 校验保持对称。
+            if not isinstance(baseline.get("value"), list):
+                return CheckResult(name, ctype, "error",
+                                   f"基线 value 类型错误（期望 list，实际 {type(baseline.get('value')).__name__}），需重新运行 --save-baseline 采集基线")
             # 按出现次数比对，而非集合：grep -o 类命令对每处命中只输出相同文本，
             # 用 set 会把「新增的同名违规」误判为已在基线内而放过。
             base_counter = Counter(baseline.get("value") or [])
