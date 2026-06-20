@@ -423,15 +423,22 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
                 # 校验 check 指纹：如果 command/direction 等关键字段在采集基线后被改变，
                 # 已存储的基线值不再对应当前检查的语义，继续对比会产生错误结论。
                 stored_fp = base_entry.get("fingerprint")
-                if stored_fp is not None:
-                    current_fp = _check_fingerprint(check)
-                    if current_fp != stored_fp:
-                        results.append(CheckResult(
-                            name, check.get("type", "?"), "error",
-                            f"check 配置与采集基线时不一致，需重新运行 --save-baseline 更新基线"
-                            f"（存储：{stored_fp}，当前：{current_fp}）",
-                        ))
-                        continue
+                # fingerprint 缺失（旧基线/损坏）视为配置漂移检测不可信，fail-closed。
+                # 不静默接受旧基线：accept 旧 value 但跳过指纹校验会让配置弱化后仍 PASS。
+                if not isinstance(stored_fp, dict):
+                    results.append(CheckResult(
+                        name, check.get("type", "?"), "error",
+                        "基线条目缺少合法 fingerprint（旧版或损坏基线），需重新运行 --save-baseline 重建基线",
+                    ))
+                    continue
+                current_fp = _check_fingerprint(check)
+                if current_fp != stored_fp:
+                    results.append(CheckResult(
+                        name, check.get("type", "?"), "error",
+                        f"check 配置与采集基线时不一致，需重新运行 --save-baseline 更新基线"
+                        f"（存储：{stored_fp}，当前：{current_fp}）",
+                    ))
+                    continue
             # baseline_path 为 None → 不带基线运行，对存量项目无侵入
         results.append(evaluate_check(check, base_entry))
 
