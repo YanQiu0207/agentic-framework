@@ -180,6 +180,11 @@ def cmd_save_baseline(config: dict, out_path: Path) -> int:
 
 def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> int:
     """跑全部检查，对 baseline_aware 项做基线对比，产出报告。"""
+    # 显式传了 --baseline 但文件不存在 → fail-closed，不能静默降级为无基线模式
+    if baseline_path is not None and not baseline_path.exists():
+        print(f"[verify] 指定了 --baseline 但文件不存在：{baseline_path}，需先运行 --save-baseline 采集基线。", file=sys.stderr)
+        return 2
+
     baseline_data: dict[str, Any] = {}
     if baseline_path and baseline_path.exists():
         try:
@@ -190,9 +195,20 @@ def cmd_verify(config: dict, baseline_path: Path | None, report_path: Path) -> i
 
     results: list[CheckResult] = []
     for check in config.get("checks", []):
+        name = check.get("name", "<unnamed>")
         base_entry = None
-        if check.get("baseline_aware") and check.get("name") in baseline_data:
-            base_entry = baseline_data[check["name"]]
+        if check.get("baseline_aware"):
+            if baseline_path is not None:
+                # baseline 显式指定：baseline_aware 检查必须在基线中；
+                # 缺失条目不降级为无基线模式（count 无基线会静默 pass，门禁形同虚设）
+                if name not in baseline_data:
+                    results.append(CheckResult(
+                        name, check.get("type", "?"), "error",
+                        "baseline_aware 检查在基线文件中无对应条目，需重新运行 --save-baseline 更新基线",
+                    ))
+                    continue
+                base_entry = baseline_data[name]
+            # baseline_path 为 None → 不带基线运行，对存量项目无侵入
         results.append(evaluate_check(check, base_entry))
 
     failed = [r for r in results if r.status != "pass"]  # fail（违规）与 error（执行错误）都不放过

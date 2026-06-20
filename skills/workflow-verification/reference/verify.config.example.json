@@ -1,19 +1,19 @@
 {
-  "_comment": "verify 门禁配置示例。按项目实际技术栈替换每个 check 的 command。三类 type 对应文章的 A(静态规范)/B(交付门槛)/C(工程一致性)。forbid_pattern 的命令建议不输出行号，避免行号漂移把历史违规误判为新增。",
+  "_comment": "verify 门禁配置示例。按项目实际技术栈替换每个 check 的 command。三类 type 对应文章的 A(静态规范)/B(交付门槛)/C(工程一致性)。forbid_pattern 的命令必须使用 -H（保留文件路径）而非 -h，输出格式为「文件:匹配内容」，这样删除旧文件的同名违规、在新文件新增同名违规时才能被追踪；同时不输出行号，避免行号漂移把历史违规误判为新增。",
 
   "checks": [
     {
       "name": "A-forbid-messagebox",
       "_note": "A 类·静态规范：禁止直接调用 MessageBox.Show（示例）。命令命中的每行算一处违规。",
       "type": "forbid_pattern",
-      "command": "grep -rho --include=*.cs \"MessageBox\\.Show\" src/",
+      "command": "grep -rHo --include=*.cs \"MessageBox\\.Show\" src/",
       "baseline_aware": true
     },
     {
       "name": "A-forbid-chinese-in-xaml",
       "_note": "A 类·静态规范：禁止 XAML 出现中文字符（示例，需支持 -P 的 grep）。",
       "type": "forbid_pattern",
-      "command": "grep -rhoP --include=*.xaml \"[\\x{4e00}-\\x{9fff}]+\" src/",
+      "command": "grep -rHoP --include=*.xaml \"[\\x{4e00}-\\x{9fff}]+\" src/",
       "baseline_aware": true
     },
     {
@@ -36,7 +36,7 @@
       "name": "B-test-count-not-decrease",
       "_note": "B 类·交付门槛：测试数量不能异常减少（抓偷删测试）。direction=not_decrease 表示改动后必须 >= 基线。",
       "type": "count",
-      "command": "grep -rho \"def test_\" tests/",
+      "command": "grep -rHo \"def test_\" tests/",
       "metric": "line_count",
       "direction": "not_decrease",
       "baseline_aware": true
