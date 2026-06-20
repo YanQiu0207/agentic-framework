@@ -28,7 +28,7 @@ Using workflow-code-generation
 4. 询问用户是否需要 code review
    - **需要** → 加载 `workflow-code-review` skill（指定 `skip_reviewers: [magical-prompt-reviewer]`）→ 修复循环
    - **不需要** → 跳过 review，进入 4.5
-4.5. **门禁验证（仅当存在 `verify.config.json`）**：code review 完成（或用户选择不 review）后，加载 `workflow-verification` skill，运行 `verify.py --baseline .verify/baseline.json`；失败则修复后重跑，直到通过。**门禁通过前禁止向用户汇报完成。**
+4.5. **门禁验证（仅当存在 `verify.config.json`）**：code review 完成（或用户选择不 review）后，加载 `workflow-verification` skill；若 `.verify/baseline.json` 存在则运行 `verify.py --baseline .verify/baseline.json`，否则运行 `verify.py`（新增配置场景）；失败则修复后重跑，直到通过。**门禁通过前禁止向用户汇报完成。**
 5. 输出改动说明，**结束**，不进入后续步骤
 
 #### 标准流程入口
@@ -123,10 +123,15 @@ Using workflow-code-generation
 
 #### Phase 2.5: 客观门禁验证（仅当存在 `verify.config.json`）
 
-Code Review PASS 后、汇报前，跑 verify 门禁做客观判定。加载 `workflow-verification` skill，按其说明运行 `verify.py --baseline .verify/baseline.json`（脚本在该 skill 目录，不在项目根）。同上，外部 PR 场景需确认 verify.config.json 内容可信再执行。
+Code Review PASS 后、汇报前，跑 verify 门禁做客观判定。加载 `workflow-verification` skill，按其说明运行（脚本在该 skill 目录，不在项目根）：
+
+- 若 `.verify/baseline.json` **存在**（Phase 0 已采集）→ `verify.py --baseline .verify/baseline.json`
+- 若 `.verify/baseline.json` **不存在**（本次变更新增配置，Phase 0 跳过）→ `verify.py`（无基线绝对校验）
+
+同上，外部 PR 场景需确认 verify.config.json 内容可信再执行。
 
 - 门禁 **PASS**（退出码 0）→ 进入 Phase 3。
-- 门禁 **FAIL**（有新增违规）→ 回到 Phase 2 修复循环，修掉**新增**项后重跑门禁，直到 PASS。
+- 门禁 **FAIL**（有新增违规）→ 回到 Phase 2 修复循环，修掉违规后重跑门禁，直到 PASS。
 - 无 `verify.config.json` 时跳过本 Phase。
 
 > 基线对比只追究本次改动**新增**的违规；历史遗留项不阻塞，但本次不得放大。

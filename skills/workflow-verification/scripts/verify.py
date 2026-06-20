@@ -325,11 +325,8 @@ def _validate_check_item(i: int, name: str, item: dict, path: Path) -> None:
         if direction not in _VALID_DIRECTIONS:
             fail(f"direction={direction!r} 无效，必须为 {sorted(_VALID_DIRECTIONS)}")
         threshold = item.get("threshold")
-        if threshold is not None and not isinstance(threshold, int):
-            fail(f"threshold={threshold!r} 无效，必须为整数")
-        # 无基线时必须有 threshold 作为绝对判定依据
-        if not item.get("baseline_aware") and not isinstance(threshold, int):
-            fail("type=count 且 baseline_aware 为 false/缺失时，必须提供整数 threshold")
+        if not isinstance(threshold, int):
+            fail("type=count 必须提供整数 threshold（无基线时作为绝对判定依据；有基线时作为最低保障值）")
 
 
 def load_config(path: Path) -> dict:
