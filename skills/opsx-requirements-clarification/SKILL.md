@@ -1,6 +1,6 @@
 ---
 name: opsx-requirements-clarification
-description: OpenSpec 需求澄清。初始化变更目录 openspec/changes/<change-name>/，生成 .openspec.yaml、proposal.md 和 specs/<capability>/spec.md。只负责明确「要解决什么问题」，禁止在本阶段讨论设计方案。
+description: OpenSpec 需求澄清。初始化变更目录 openspec/changes/<change-name>/，生成 proposal.md 和 specs/<capability>/spec.md。只负责明确「要解决什么问题」，禁止在本阶段讨论设计方案。
 ---
 
 > 输出一行：`Using opsx-requirements-clarification`
@@ -44,7 +44,6 @@ description: OpenSpec 需求澄清。初始化变更目录 openspec/changes/<cha
 
 ```
 openspec/changes/<change-name>/
-├── .openspec.yaml          # 变更元数据
 ├── proposal.md             # 为什么改、改什么
 └── specs/
     └── [capability]/
@@ -81,13 +80,11 @@ openspec/changes/<change-name>/
 
 ```bash
 mkdir -p openspec/changes/<change-name>/specs/
-cp skills/opsx-requirements-clarification/reference/openspec_yaml_template.yaml \
-   openspec/changes/<change-name>/.openspec.yaml
 cp skills/opsx-requirements-clarification/reference/proposal_template.md \
    openspec/changes/<change-name>/proposal.md
 ```
 
-填写 `.openspec.yaml` 的 `change` 和 `date` 字段。
+填写 `proposal.md` 头部的 `变更` 和 `日期` 字段。
 
 ### Step 1：代码调研（AI 自主完成）
 
@@ -235,7 +232,6 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 需求澄清已完成：
 
   openspec/changes/<change-name>/
-  ├── .openspec.yaml
   ├── proposal.md（背景、目标、需求概览）
   └── specs/
       └── <capability>/spec.md（增量规范）
@@ -270,4 +266,3 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 
 - [Proposal 模板](reference/proposal_template.md)
 - [Capability Spec 模板](reference/spec_capability_template.md)
-- [OpenSpec YAML 模板](reference/openspec_yaml_template.yaml)
