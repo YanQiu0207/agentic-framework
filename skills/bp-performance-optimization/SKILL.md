@@ -23,7 +23,7 @@ description: 提供性能优化方法论、设计原则和具体优化规则。�
    - 热点在哪里？
 
 **如果以上问题不清楚**：
-- 涉及代码修改 → 先走 `workflow-code-generation` Skill（它会引导需求澄清）
+- 涉及代码修改 → 先走 `opsx-code-generation` Skill（它会引导需求澄清）
 - 仅做分析 → 先与用户确认优化目标和当前数据
 
 ---

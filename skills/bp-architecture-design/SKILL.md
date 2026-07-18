@@ -7,7 +7,7 @@ description: 提供架构设计原则，包括模块划分、依赖管理、数�
 
 # 架构设计
 
-> **使用场景**：`workflow-system-design` skill 在讨论 spec.md **4.1 方案概览** 时加载本 skill。
+> **使用场景**：`opsx-system-design` skill 在讨论 design.md **1.1 方案概览** 时加载本 skill。
 
 ## 第一性原理
 

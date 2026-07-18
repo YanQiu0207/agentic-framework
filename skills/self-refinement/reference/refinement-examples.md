@@ -50,7 +50,7 @@ const ErrUserAlreadyExists = 10002
 ### 诊断
 
 - **根因类别**：流程遗漏
-- **分析**：`workflow-code-generation` Skill 中没有"实现前先搜索项目中是否有类似功能"的检查步骤
+- **分析**：`opsx-code-generation` Skill 中没有「实现前先搜索项目中是否有类似功能」的检查步骤
 
 ### 沉淀建议
 
@@ -58,7 +58,7 @@ const ErrUserAlreadyExists = 10002
 ### 建议 1: 在代码生成流程中增加"复用检查"步骤
 
 - **根因**：流程遗漏
-- **目标文件**：`skills/workflow-code-generation/SKILL.md`
+- **目标文件**：`skills/opsx-code-generation/SKILL.md`
 - **操作**：在"步骤 3"和"步骤 4"之间插入新步骤
 - **具体内容**：
   ```

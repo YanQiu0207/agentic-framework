@@ -33,19 +33,6 @@ cp -R agents skills commands ~/.codebuddy/
 cp -R agents skills commands <your-agent-config-dir>/
 ```
 
-#### 只安装默认工作流
-
-如果不需要 OpenSpec 工作流：
-
-```bash
-mkdir -p ~/.claude/skills ~/.claude/commands
-cp -R agents ~/.claude/
-cp -R skills/bp-* skills/std-* skills/workflow-* \
-    skills/project-knowledge skills/self-refinement skills/troubleshooting \
-    ~/.claude/skills/
-for f in commands/*.md; do [[ "$f" != commands/opsx-* ]] && cp "$f" ~/.claude/commands/; done
-```
-
 #### 只安装 OpenSpec 工作流
 
 如果只需要 OpenSpec 工作流：
@@ -69,25 +56,7 @@ Agent 应该会加载 `workflow-code-review` skill 并按照定义的审查流�
 
 ## 推荐工作流
 
-框架会根据上下文自动触发 skill，但**主动通过 command 调用更可靠**。框架提供两套工作流变体，按需选择：
-
-### 默认工作流
-
-所有内容集中在单一 `spec.md` 中，适合大多数团队。
-
-```
-/requirements-clarification   →  澄清需求，生成 spec.md（AI 作为引导者）
-         ↓
-/system-design                →  设计方案，填写 spec.md 的设计章节（AI 作为协作者）
-         ↓
-/code-generation              →  实现代码，自动加载编码规范，逐任务推进（AI 作为执行者）
-         ↓
-/test-generation              →  基于 spec 和实现生成测试
-         ↓
-/code-review                  →  对照 spec 和规范审查变更
-```
-
-### OpenSpec 工作流
+框架会根据上下文自动触发 skill，但**主动通过 command 调用更可靠**。框架使用 OpenSpec 工作流：
 
 将每次变更拆分为多个独立文件，归档时整目录移动，适合需要清晰变更溯源的团队。
 
@@ -96,9 +65,7 @@ Agent 应该会加载 `workflow-code-review` skill 并按照定义的审查流�
          ↓
 /opsx-system-design               →  生成 design.md（可选，视复杂度而定）
          ↓
-/opsx-code-generation             →  生成 tasks.md，逐任务实现
-         ↓
-/opsx-test-generation             →  基于 design.md 生成测试
+/opsx-code-generation             →  生成 tasks.md，逐任务实现代码与测试，全部完成后统一 Code Review
          ↓
 /opsx-archive                     →  整目录归档到 openspec/changes/archive/
 ```
@@ -115,14 +82,12 @@ openspec/changes/<change-name>/
         └── spec.md     # ADDED / MODIFIED / REMOVED
 ```
 
-两套工作流**共享**所有 `bp-*`、`std-*`、`agents/` 和 `workflow-code-review`，相互独立、互不干扰。
-
 AI 在不同阶段扮演不同角色：需求阶段是**引导者**（通过结构化提问帮你将模糊意图显式化）、设计阶段是**协作者**（分析权衡、提出替代方案）、编码阶段是**执行者**（在明确规格下自主实现）。每个阶段产出的结构化文档自然成为下一阶段的高质量上下文，形成正向循环。
 
 **流程的严格程度与任务的风险成正比**——不必每次都走完整流程：
 
-- **小 bug 修复？** → 直接 `/code-generation` 或 `/opsx-code-generation`
-- **内部工具或小型服务？** → 直接 `/quick-design` 或 `/opsx-quick-design`
+- **小 bug 修复？** → 直接 `/opsx-code-generation`
+- **内部工具或小型服务？** → 直接 `/opsx-quick-design`
 - **线上故障？** → 直接 `/troubleshooting`
 - **优化热点路径？** → 直接 `/performance-optimization`
 - **审查一个 diff？** → 直接 `/code-review`
@@ -142,7 +107,7 @@ AI agent 没有跨会话记忆——这一轮对话中纠正过的错误，下�
 |------------|-----------|
 | "变量命名应该用 snake_case" | `std-*` 编码规范 Skill |
 | "这个模块的锁应该用 bthread mutex" | `std-*` 模块规范 Skill |
-| "不要跳过 spec 直接写代码" | `workflow-code-generation` Skill |
+| "不要跳过 spec 直接写代码" | `opsx-code-generation` Skill |
 | "错误处理要用 Status 而不是返回 -1" | `bp-coding-best-practices` Skill |
 
 这使得团队的工程经验可以**从对话中自然生长**，而非依赖人工维护文档。每次纠正都是一次改进框架的机会。
@@ -163,7 +128,7 @@ skills/
         └── style-guide.md    # 详细规则
 ```
 
-然后在需要它的 workflow skill 的「按需加载」规范表中注册。`workflow-code-generation`（编码时加载）和 `workflow-test-generation`（生成测试时加载）各有一张表，需要**两处都添加**：
+然后在需要它的 workflow skill 的「按需加载」规范表中注册。`opsx-code-generation`（编码时加载）和 `opsx-test-generation`（生成测试时加载）各有一张表，需要**两处都添加**：
 
 ```markdown
 | `std-rust` Skill | 文件为 `.rs` |
@@ -185,9 +150,9 @@ skills/
 
 | 集成点 | 何时添加 |
 |--------|----------|
-| `workflow-code-generation` → 步骤 3（加载规范） | 编码时需要遵循的规范 |
-| `workflow-code-review/code-reviewer.md` → 审查维度 | Review 时需要检查的维度 |
-| `workflow-test-generation` → 测试策略 | 需要考虑的测试类别 |
+| `opsx-code-generation` → 步骤 4（加载编码规范） | 编码时需要遵循的规范 |
+| `workflow-code-review` → 审查维度 | Review 时需要检查的维度 |
+| `opsx-test-generation` → 测试策略 | 需要考虑的测试类别 |
 | `troubleshooting` → 模块专项指南 | 特定领域的排查知识 |
 
 ### 添加排查案例
@@ -228,7 +193,7 @@ AI 编码 agent 能力很强，但缺乏纪律性。没有明确的流程约束�
 |---------|---------|------------|
 | **Context Engineering** | 上下文质量决定输出质量上限 | Spec-First、渐进式披露、按需加载 |
 | **AI 全链条参与** | 源头损耗传播最远、修复代价最高 | 从需求澄清到代码审查的完整 Workflow |
-| **小任务推进、多层次验证** | 控制 AI 概率性输出的错误累积 | 任务拆解 + 逐步审查 + 多维度验证 |
+| **小任务推进、多层次验证** | 控制 AI 概率性输出的错误累积 | 任务拆解 + 完成后统一审查 + 多维度验证 |
 | **Knowledge as Code** | 团队私有知识是 AI 的知识盲区 | Best Practices / Standards 编码为 Skill |
 | **Error-Driven Refinement** | LLM 无跨会话记忆，纠错经验易丢失 | Self-Refinement 自动/手动反馈闭环 |
 
@@ -247,9 +212,9 @@ AI 编码 agent 能力很强，但缺乏纪律性。没有明确的流程约束�
                                           │
                                           ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                              Workflow Skills (主入口)                                │
+│                              OpenSpec Workflow Skills（主入口）                       │
 │                                                                                     │
-│         需求澄清  ──▶  系统设计  ──▶  代码生成  ──▶  测试生成  ──▶  代码评审               │
+│         需求澄清  ──▶  系统设计  ──▶  代码生成  ──▶  测试生成  ──▶  归档                   │
 │                                                                                     │
 └─────────────────────────────────────────┬───────────────────────────────────────────┘
                                           │
@@ -280,7 +245,7 @@ AI 编码 agent 能力很强，但缺乏纪律性。没有明确的流程约束�
 
 ```
 agents/      → Subagent 定义（如代码审查中的专项 reviewer）
-commands/    → 用户触发的入口（如 /code-generation、/troubleshooting）
+commands/    → 用户触发的入口（如 /opsx-code-generation、/troubleshooting）
 skills/      → 详细的工作流和知识定义（按需加载，不消耗常驻上下文）
 ```
 
@@ -302,15 +267,10 @@ Agent 是可独立执行子任务的专项角色，由 workflow skill 按需调�
 
 Command 是加载对应 skill 的快捷方式：
 
-**默认工作流**
+**通用入口**
 
 | Command | 加载的 Skill |
 |---------|-------------|
-| `/requirements-clarification` | `workflow-requirements-clarification` |
-| `/system-design` | `workflow-system-design` |
-| `/quick-design` | `workflow-quick-design` |
-| `/code-generation` | `workflow-code-generation` |
-| `/test-generation` | `workflow-test-generation` |
 | `/code-review` | `workflow-code-review` |
 | `/troubleshooting` | `troubleshooting` |
 | `/performance-optimization` | `bp-performance-optimization` |
@@ -342,8 +302,8 @@ Skill 分为五类：
 
 | 前缀 | 类型 | 角色 | 示例 |
 |------|------|------|------|
-| `workflow-*` | 工作流 | 端到端流程控制，是主入口 | `workflow-code-generation`、`workflow-code-review` |
+| `opsx-*` | OpenSpec 工作流 | 端到端流程控制，是主入口 | `opsx-code-generation`、`opsx-archive` |
+| `workflow-code-review` | 代码评审 | 全部任务完成后的统一评审入口 | `workflow-code-review` |
 | `bp-*` | 最佳实践 | 通用工程知识，由工作流按需加载 | `bp-coding-best-practices`、`bp-distributed-systems` |
 | `std-*` | 编码规范 | 语言/团队特定的编码标准 | `std-cpp`、`std-go` |
-| `project-*` | 项目知识 | 项目文档、架构沉淀和归档约定 | `project-knowledge` |
 | *（其他）* | 工具型 | 独立能力 | `troubleshooting`、`self-refinement` |

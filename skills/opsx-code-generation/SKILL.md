@@ -46,7 +46,7 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 
 ### 步骤 3：选定当前任务
 
-从 `tasks.md` 中找第一个未完成任务，记录其编号和上下文。
+从 `tasks.md` 中找第一个未完成任务，记录其编号和上下文。若全部任务均已完成且 Code Review 状态不是 `PASS`，直接进入步骤 5 的 Phase 3；状态已为 `PASS` 时结束，禁止重复评审。旧版 `tasks.md` 没有 Code Review 状态时，按 `Pending` 处理。
 
 ### 步骤 4：加载编码规范（🚨 强制前置）
 
@@ -70,43 +70,18 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 
 ### 步骤 5：逐个任务实现
 
-**核心规则：一个 Task → review 通过 → 报告 → 等用户批准 → 下一个 Task**
+**核心规则：一个 Task → 实现 → 报告 → 等用户批准 → 下一个 Task；全部 Task 完成后统一执行一次 Code Review**
 
 #### Phase 1：实现
 
-修改代码，更新 `tasks.md` 标记 In Progress。
+修改代码，更新 `tasks.md` 标记 In Progress。当前 Task 涉及测试代码时，加载 `opsx-test-generation` skill 生成并运行测试；测试任务也是本次统一 Code Review 的审查范围。
 
-#### Phase 2：Code Review 与修复循环（🚨 强制）
+#### Phase 2：汇报 → 继续或停止等待
 
-**4a. 执行 Code Review**
+输出报告，更新 `tasks.md` 标记 Completed：
 
-加载 `workflow-code-review` skill，按其工作流执行（指定 `skip_reviewers: [magical-prompt-reviewer]`）。该 skill 会并行调用 reviewer subagent 执行审查——**禁止主 agent 自己做 review 代替 subagent**。
-
-**4b. 逐条反思犯错原因**
-
-对报告中**每条** keep 的 finding，反思犯错原因：
-
-| 原因分类 | 含义 |
-|---------|------|
-| **文档理解偏差** | proposal.md/design.md 写清楚了但理解错误 |
-| **规范未遵守** | 编码规范有要求但未执行 |
-| **执行遗漏** | 漏掉边界/细节 |
-| **设计考虑不足** | 需更深层设计思考 |
-
-**4c. 自动修复 → Re-review 循环**
-
-修复 finding → 重新加载 `workflow-code-review` skill 执行 re-review → 重复 4b-4c，直到结论为 PASS。
-
-**4d. 输出 Review 总结**
-
-所有轮次结束（PASS）后，向用户输出一份总结，包含：
-- 经历了几轮 review
-- 每条发现的问题、修复方式和犯错原因
-- 最终 PASS 的 review 报告
-
-#### Phase 3：汇报 → 停止等待
-
-输出报告，更新 `tasks.md` 标记 Completed，**停止等待用户批准**。
+- 仍有未完成 Task → **停止等待用户批准**
+- 全部 Task 已完成 → 不再等待，直接进入 Phase 3
 
 #### Task 完成报告模板
 
@@ -120,18 +95,36 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 ### 改动内容
 [做了什么，为什么]
 
-### Code Review 结果
-
-**Review 轮次**: [第 K 轮通过]
-[附 workflow-code-review 输出的报告]
-
 ---
 
-询问用户下一步操作，提供以下选项：
+仍有未完成 Task 时，询问用户下一步操作，提供以下选项：
 - **继续/LGTM** → 下一个任务
 - **修改** → 重新提交（用户附带修改要求）
 - **回滚** → 撤销本次改动
 ```
+
+#### Phase 3：全部任务完成后统一 Code Review（🚨 强制）
+
+仅当 `tasks.md` 中全部 Task 均为 Completed 时执行一次统一 Code Review。加载 `workflow-code-review` skill，按其工作流审查本次变更的完整 diff，并指定 `skip_reviewers: [magical-prompt-reviewer]`。该 skill 会并行调用 reviewer subagent 执行审查——**禁止主 agent 自己做 review 代替 subagent**。
+
+对报告中**每条** keep 的 finding，反思犯错原因：
+
+| 原因分类 | 含义 |
+|---------|------|
+| **文档理解偏差** | proposal.md/design.md 写清楚了但理解错误 |
+| **规范未遵守** | 编码规范有要求但未执行 |
+| **执行遗漏** | 漏掉边界/细节 |
+| **设计考虑不足** | 需更深层设计思考 |
+
+修复 finding 后，按照 `workflow-code-review` 的 re-review 流程仅复核保留项和修复 diff，直到结论为 PASS。
+
+评审通过后，将 `tasks.md` 中的 `Code Review` 状态更新为 `PASS`。
+
+最终向用户输出 Review 总结，包含：
+
+- 经历了几轮 review
+- 每条发现的问题、修复方式和犯错原因
+- 最终 PASS 的 review 报告
 
 ---
 
