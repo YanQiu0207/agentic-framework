@@ -21,16 +21,16 @@ cd agentic-engineering-framework
 
 ```bash
 # Claude Code
-cp -R agents skills commands ~/.claude/
+cp -R agents skills commands scripts ~/.claude/
 
 # Codex CLI
-cp -R agents skills commands ~/.codex/
+cp -R agents skills commands scripts ~/.codex/
 
 # CodeBuddy
-cp -R agents skills commands ~/.codebuddy/
+cp -R agents skills commands scripts ~/.codebuddy/
 
 # 其他支持类似 skill/agent 结构的 agent
-cp -R agents skills commands <your-agent-config-dir>/
+cp -R agents skills commands scripts <your-agent-config-dir>/
 ```
 
 #### 只安装 OpenSpec 工作流
@@ -38,10 +38,11 @@ cp -R agents skills commands <your-agent-config-dir>/
 如果只需要 OpenSpec 工作流：
 
 ```bash
-mkdir -p ~/.claude/skills ~/.claude/commands
+mkdir -p ~/.claude/skills ~/.claude/commands ~/.claude/scripts
 cp -R agents ~/.claude/
 cp -R skills/bp-* skills/std-* skills/workflow-code-review skills/opsx-* ~/.claude/skills/
 cp commands/opsx-*.md ~/.claude/commands/
+cp scripts/validate_change.py ~/.claude/scripts/
 ```
 
 ### 3. 验证
@@ -63,12 +64,30 @@ Agent 应该会加载 `workflow-code-review` skill 并按照定义的审查流�
 ```
 /opsx-requirements-clarification  →  生成 proposal.md + specs/<capability>/spec.md
          ↓
-/opsx-system-design               →  生成 design.md（可选，视复杂度而定）
+/opsx-system-design               →  Standard 路径生成 design.md
          ↓
-/opsx-code-generation             →  生成 tasks.md，逐任务实现代码与测试，全部完成后统一 Code Review
+/opsx-code-generation             →  生成 tasks.md，Plan 门禁通过后实现代码与测试
          ↓
-/opsx-archive                     →  整目录归档到 openspec/changes/archive/
+Delivery 门禁               →  全部任务完成后校验，通过后统一 Code Review 一次
+         ↓
+/opsx-archive                     →  Archive 门禁通过后整目录归档
 ```
+
+门禁由 `scripts/validate_change.py` 提供，只检查文件、任务依赖、状态和覆盖映射等确定性规则。Skill 从自身目录向上定位 `../../scripts/validate_change.py`，因此安装时必须同步复制根目录的 `scripts/` 目录。
+
+本框架不维护 `openspec/specs/` 中央规范库：**代码是当前实现的唯一事实源**，Change Artifacts 只记录本次变更的需求、设计、任务和决策背景。
+
+### 手动运行变更校验
+
+```bash
+python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<change-name> --phase plan
+python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<change-name> --phase delivery
+python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<change-name> --phase archive --archive-target openspec/changes/archive/YYYY-MM-DD-<change-name>
+```
+
+`<agent-config-dir>` 例如 `~/.claude` 或 `~/.codex`。在框架源码目录内开发时，也可直接使用 `python scripts/validate_change.py ...`。
+
+Archive 阶段的 `--archive-target` 必须填写即将移动到的实际路径，日期使用执行当天。退出码 `0` 表示通过，`1` 表示存在确定性违规，`2` 表示调用、路径或校验器内部错误。需要结构化输出时追加 `--json`。
 
 每次变更产出结构：
 
@@ -76,7 +95,7 @@ Agent 应该会加载 `workflow-code-review` skill 并按照定义的审查流�
 openspec/changes/<change-name>/
 ├── proposal.md         # 为什么改、改什么
 ├── tasks.md            # 实现任务清单
-├── design.md           # 技术设计（可选）
+├── design.md           # 技术设计（Standard 必选，Quick 不需要）
 └── specs/
     └── [capability]/
         └── spec.md     # ADDED / MODIFIED / REMOVED

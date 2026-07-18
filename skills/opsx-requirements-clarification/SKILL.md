@@ -1,6 +1,6 @@
 ---
 name: opsx-requirements-clarification
-description: OpenSpec 需求澄清。初始化变更目录 openspec/changes/<change-name>/，生成 proposal.md 和 specs/<capability>/spec.md。只负责明确「要解决什么问题」，禁止在本阶段讨论设计方案。
+description: OpenSpec 需求澄清。初始化活跃 Change 目录，生成 proposal.md 和 capability specs。只负责明确「要解决什么问题」，禁止在本阶段讨论设计方案。
 ---
 
 > 输出一行：`Using opsx-requirements-clarification`
@@ -160,6 +160,8 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 
 **实时更新 proposal.md**：确认后，更新 `2. 目标` 和 `2.1 非目标`。
 
+同时将可机械执行或可明确判定的完成条件写入 `3.3 验收标准`。
+
 ### Step 4：明确功能性需求
 
 **目标**：让用户说清楚「具体要做哪些功能来达成目标」。
@@ -237,8 +239,14 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
       └── <capability>/spec.md（增量规范）
 
 如果准备好了，说「开始设计」进入 system design 阶段。
-如果改动不涉及技术设计，可直接说「开始编码」。
+如果改动低风险且不需要独立 Design，先将 Proposal 明确标记为 `Quick Draft`，再进入编码。
 ```
+
+### Step 7：校验交接
+
+Plan 门禁要求 `tasks.md`，而本 Skill 只负责需求产物，不得为通过校验越界生成任务或设计。
+
+明确告知用户：Plan 门禁将在 `opsx-code-generation` 创建并确认 `tasks.md` 后统一执行。本阶段不单独运行不完整的 Plan 校验。
 
 ---
 
@@ -250,6 +258,7 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 4. **正确的目录路径**：`openspec/changes/<change-name>/`
 5. **禁止生成设计内容**：设计方案由 `opsx-system-design` skill 负责
 6. **实时更新文件**：每个步骤结束后立即更新对应内容，不要等到最后一次性写入
+7. **不维护当前实现副本**：`proposal.md` 只记录本次变更 intent，当前实现必须从代码读取，不得从历史 Archive 推断
 
 ## 反模式
 

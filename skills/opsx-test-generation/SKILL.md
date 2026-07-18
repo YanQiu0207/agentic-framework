@@ -101,7 +101,7 @@ description: OpenSpec 测试生成。基于 design.md 的测试计划章节或�
 >
 > **前置条件**：所有测试用例已通过。
 
-由 `opsx-code-generation` 的测试任务调用时，返回 `opsx-code-generation` 继续后续任务，**禁止在此启动 Code Review**；所有任务完成后，由 `opsx-code-generation` 对功能代码和测试代码统一评审一次。
+由 `opsx-code-generation` 的测试任务调用时，将实际测试命令和结果写入 `tasks.md` 的「测试执行记录」，然后返回 `opsx-code-generation` 继续后续任务。**禁止在此启动 Code Review**；所有任务完成后，由 `opsx-code-generation` 先执行 Delivery 门禁，再对功能代码和测试代码统一评审一次。
 
 仅当用户独立调用本 skill，且当前不处于 `opsx-code-generation` 任务流程中时，提示用户进入 `workflow-code-review`：
 

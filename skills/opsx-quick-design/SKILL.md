@@ -115,10 +115,9 @@ cp skills/opsx-quick-design/reference/quick-proposal-template.md \
 
 ### Step 6：任务规划（可选，当场完成）
 
-如果用户同意，立即基于方案拆分任务并创建 `tasks.md`：
-- 每个任务有明确的完成条件
-- 按依赖顺序排列
-- 预计复杂度（小/中/大）
+如果用户同意，读取 `../opsx-code-generation/reference/task_planning_guide.md`，按其完整模板创建 `tasks.md`。Quick Draft 不要求 `specs/` 或 `design.md`，但任务状态、依赖、直接修改文件、验收标准和 Proposal 覆盖映射不得省略。
+
+创建并获得用户确认后，交给 `opsx-code-generation` 统一执行 Quick Plan 门禁；校验通过前禁止编码。如果用户暂不创建 `tasks.md`，明确告知 Plan 门禁将在 `opsx-code-generation` 创建 Tasks 后执行。
 
 ---
 
@@ -129,6 +128,7 @@ cp skills/opsx-quick-design/reference/quick-proposal-template.md \
 3. **说明权衡**：每个设计决策要说明为什么选这个，放弃了什么
 4. **写入用户确认的内容**：`proposal.md` 内容必须是用户已确认的方案，不要把探讨中的内容写进去
 5. **不要写空章节**：`quick-proposal-template.md` 中未用到的章节直接省略
+6. **风险升级必须转标准路径**：如果调研或任务拆解发现涉及跨模块、破坏性接口、并发、数据迁移或高风险上线，停止 Quick 路径，补齐 Requirements 和 Design
 
 ## 反模式
 

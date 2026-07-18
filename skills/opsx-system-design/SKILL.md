@@ -24,15 +24,13 @@ description: OpenSpec 系统设计。当 proposal.md 已完整但 design.md 不�
 
 ### 何时生成 design.md
 
-| 场景 | 是否生成 |
-|------|---------|
-| 涉及新模块或子系统设计 | 是 |
-| 接口或数据模型有破坏性变更 | 是 |
-| 核心逻辑存在算法复杂度或并发安全问题 | 是 |
-| 需要明确测试计划或可观测性方案 | 是 |
-| 简单 bug 修复、配置调整、文案变更 | 否 |
+| 场景 | 路径 |
+|------|------|
+| Standard Change | 必须生成完整 `design.md` |
+| 低风险、范围明确且不需要独立 Design | 转 `opsx-quick-design`，标记 `Quick Draft` |
+| 单文件局部修改等极简单变更 | 直接进入 `opsx-code-generation` Fast-Path，不创建 Change |
 
-如果判断不需要 `design.md`，告知用户并直接建议进入 `opsx-code-generation`。
+不得将缺少 `design.md` 的 Change 作为 Standard 路径进入编码。
 
 ## 前置条件
 
@@ -155,6 +153,8 @@ AI：「1.2.3 数据模型这个 section，你的需求涉及新的数据结构�
 ---
 
 ## 设计完成后
+
+设计完成时不得用历史 Archive 替代当前代码调研。Plan 门禁要求 `tasks.md`，因此本 Skill 只明确交接给 `opsx-code-generation`：创建并确认 Tasks 后统一执行 Plan 校验，本阶段不越界拆任务。
 
 ```
 design.md 已完成：openspec/changes/<change-name>/design.md

@@ -1,6 +1,6 @@
 ---
 name: opsx-code-generation
-description: OpenSpec 代码生成。代码文件修改的统一入口，适用于 openspec 工作流。读取 openspec/changes/<change-name>/ 下的 proposal.md 和 design.md，生成 tasks.md，并逐个任务执行。
+description: OpenSpec 代码生成。代码文件修改的统一入口，适用于 openspec 工作流。读取活跃 Change 下的 proposal.md 和 design.md，生成 tasks.md，并逐个任务执行。
 ---
 
 > 输出一行：`Using opsx-code-generation`
@@ -44,9 +44,21 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 
 > 🚨 **创建 tasks.md 后必须停下来等用户确认。** 展示任务列表，然后**停止并等待用户回复**。禁止自动进入步骤 3。
 
+### 步骤 2.5：执行 Plan 门禁（🚨 编码前强制）
+
+用户确认 `tasks.md` 后，从当前 Skill 目录向上定位 `../../scripts/validate_change.py`，执行：
+
+```bash
+python <validator-path> --repo . --change openspec/changes/<change-name> --phase plan
+```
+
+- 退出码为 `0` 才能进入步骤 3。
+- 退出码为 `1` 时，按输出的规则编号、文件、行号和修复提示修正 Change Artifacts，然后重跑；校验通过前禁止编码。
+- 退出码为 `2` 时，停止并报告调用、路径或校验器错误，不得绕过。
+
 ### 步骤 3：选定当前任务
 
-从 `tasks.md` 中找第一个未完成任务，记录其编号和上下文。若全部任务均已完成且 Code Review 状态不是 `PASS`，直接进入步骤 5 的 Phase 3；状态已为 `PASS` 时结束，禁止重复评审。旧版 `tasks.md` 没有 Code Review 状态时，按 `Pending` 处理。
+从 `tasks.md` 中找第一个未完成任务，记录其编号和上下文。若全部任务均已完成且 Code Review 状态不是 `PASS`，直接进入步骤 5 的 Phase 3；状态已为 `PASS` 时结束，禁止重复评审。旧版 `tasks.md` 没有 Code Review 状态时，必须先补为 `Pending` 并重跑 Plan 门禁。
 
 ### 步骤 4：加载编码规范（🚨 强制前置）
 
@@ -105,7 +117,15 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 
 #### Phase 3：全部任务完成后统一 Code Review（🚨 强制）
 
-仅当 `tasks.md` 中全部 Task 均为 Completed 时执行一次统一 Code Review。加载 `workflow-code-review` skill，按其工作流审查本次变更的完整 diff，并指定 `skip_reviewers: [magical-prompt-reviewer]`。该 skill 会并行调用 reviewer subagent 执行审查——**禁止主 agent 自己做 review 代替 subagent**。
+仅当 `tasks.md` 中全部 Task 均为 Completed 时，先执行 Delivery 门禁：
+
+```bash
+python <validator-path> --repo . --change openspec/changes/<change-name> --phase delivery
+```
+
+处理退出码的规则与 Plan 门禁相同：只有 `0` 允许启动 Code Review；`1` 必须修正后重跑；`2` 必须停止并报告错误。
+
+Delivery 通过后，执行一次统一 Code Review。加载 `workflow-code-review` skill，按其完整工作流审查本次变更的完整 diff。该 skill 会调用 reviewer subagent 执行审查——**禁止主 agent 自己做 review 代替 subagent**。
 
 对报告中**每条** keep 的 finding，反思犯错原因：
 
@@ -116,7 +136,7 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 | **执行遗漏** | 漏掉边界/细节 |
 | **设计考虑不足** | 需更深层设计思考 |
 
-修复 finding 后，按照 `workflow-code-review` 的 re-review 流程仅复核保留项和修复 diff，直到结论为 PASS。
+修复 finding 后，必须重跑受影响的构建和测试、更新 `tasks.md` 的执行记录，并再次通过 Delivery 门禁。随后按照 `workflow-code-review` 的 re-review 流程仅复核保留项和修复 diff，直到结论为 PASS。这里不启动第二次完整 Code Review。
 
 评审通过后，将 `tasks.md` 中的 `Code Review` 状态更新为 `PASS`。
 
@@ -134,4 +154,4 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 
 ## 恢复中断的任务
 
-读取 `tasks.md` → 找未完成任务 → **重新加载编码规范** → 继续执行。
+读取 `tasks.md` → 重跑 Plan 门禁 → 找未完成任务 → **重新加载编码规范** → 继续执行。
