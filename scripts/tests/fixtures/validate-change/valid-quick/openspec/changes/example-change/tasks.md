@@ -6,6 +6,8 @@
 ## 任务列表
 
 ### 任务 1：[completed] 增加示例命令
+- Review Profile: standard
+- Task Review: PASS
 
 - 依赖：无
 - 文件：`scripts/example.py`
@@ -16,6 +18,8 @@
   - [x] 1.1：实现固定分支。
 
 ### 任务 2：[completed] 验证示例命令
+- Review Profile: standard
+- Task Review: PASS
 
 - 依赖：Task 1
 - 文件：无需修改代码；执行现有验证命令。

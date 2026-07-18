@@ -13,37 +13,38 @@ git clone https://github.com/davidYichengWei/agentic-engineering-framework.git
 cd agentic-engineering-framework
 ```
 
-### 2. 复制到 Agent 配置目录
+### 2. 选择一个 Profile 安装
 
-不同 agent 使用不同的配置目录。根据需要选择安装方式：
-
-#### 完整安装（推荐）
+生产项目使用 Production Profile：
 
 ```bash
-# Claude Code
-cp -R agents skills commands scripts ~/.claude/
-
-# Codex CLI
-cp -R agents skills commands scripts ~/.codex/
-
-# CodeBuddy
-cp -R agents skills commands scripts ~/.codebuddy/
-
-# 其他支持类似 skill/agent 结构的 agent
-cp -R agents skills commands scripts <your-agent-config-dir>/
+python scripts/install_agentic_framework.py . --profile production
 ```
 
-#### 只安装 OpenSpec 工作流
-
-如果只需要 OpenSpec 工作流：
+大型非生产工具使用 Tooling Profile：
 
 ```bash
-mkdir -p ~/.claude/skills ~/.claude/commands ~/.claude/scripts
-cp -R agents ~/.claude/
-cp -R skills/bp-* skills/std-* skills/workflow-code-review skills/opsx-* ~/.claude/skills/
-cp commands/opsx-*.md ~/.claude/commands/
-cp scripts/validate_change.py ~/.claude/scripts/
+python scripts/install_agentic_framework.py . --profile tooling
 ```
+
+Tooling 可显式增加 Pack：
+
+```bash
+python scripts/install_agentic_framework.py . \
+    --profile tooling \
+    --with frontend \
+    --with telemetry
+```
+
+安装器同时写入 `.codex/` 和 `.claude/`，并在 `.agentic-framework/manifest.json` 记录 Profile、Packs、受管文件和 SHA-256。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
+
+安全卸载只删除 Manifest 中记录且哈希匹配的受管文件：
+
+```bash
+python scripts/install_agentic_framework.py . --uninstall
+```
+
+受管文件被本地修改时，重装、切换和卸载默认失败；确认要覆盖或删除时才显式传 `--force`。
 
 ### 3. 验证
 
@@ -55,20 +56,28 @@ cp scripts/validate_change.py ~/.claude/scripts/
 
 Agent 应该会加载 `workflow-code-review` skill 并按照定义的审查流程执行。
 
-## 推荐工作流
+## 双 Profile 路由
 
-框架会根据上下文自动触发 skill，但**主动通过 command 调用更可靠**。框架使用 OpenSpec 工作流：
+| 判断 | Production | Tooling |
+| --- | --- | --- |
+| 适用场景 | 进入生产环境的功能、修复和架构变更 | 大型非生产工具 |
+| 入口 | `/opsx-requirements-clarification` | `/requirements-clarification` 或 `/quick-design` |
+| Artifact | `openspec/changes/<name>/` | `docs/design-docs/<module>/<feature>/` |
+| 执行节奏 | 逐阶段批准、逐 Task 推进 | Tasks 批准后 DAG 分波自主执行 |
+| Task Review | 普通 Task 单综合审核；高风险 Task 五维审核 | 不启动 LLM Review |
+| 最终 Review | 固定五维集成审核 | 全部完成后一次风险分级审核 |
+| 当前实现事实源 | 代码 | 代码 |
 
-将每次变更拆分为多个独立文件，归档时整目录移动，适合需要清晰变更溯源的团队。
+### Production 工作流
 
 ```
 /opsx-requirements-clarification  →  生成 proposal.md + specs/<capability>/spec.md
          ↓
 /opsx-system-design               →  Standard 路径生成 design.md
          ↓
-/opsx-code-generation             →  生成 tasks.md，Plan 门禁通过后实现代码与测试
+/opsx-code-generation             →  Plan 门禁后逐 Task 实现、测试和风险分档审核
          ↓
-Delivery 门禁               →  全部任务完成后校验，通过后统一 Code Review 一次
+Delivery 门禁               →  全部任务完成后校验，通过后五维集成 Review
          ↓
 /opsx-archive                     →  Archive 门禁通过后整目录归档
 ```
@@ -76,6 +85,20 @@ Delivery 门禁               →  全部任务完成后校验，通过后统一
 门禁由 `scripts/validate_change.py` 提供，只检查文件、任务依赖、状态和覆盖映射等确定性规则。Skill 从自身目录向上定位 `../../scripts/validate_change.py`，因此安装时必须同步复制根目录的 `scripts/` 目录。
 
 本框架不维护 `openspec/specs/` 中央规范库：**代码是当前实现的唯一事实源**，Change Artifacts 只记录本次变更的需求、设计、任务和决策背景。
+
+### Tooling 工作流
+
+```text
+/requirements-clarification 或 /quick-design
+    → /system-design
+    → /code-generation
+    → DAG 分波、worktree、实现、测试和任务级机器检查
+    → 全局机器验证
+    → 一次风险分级 Review
+    → 定向 re-review（仅在存在 P0 / P1 时）
+```
+
+Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 消耗；worktree、机器验证、失败隔离和 intent 检查仍保留。
 
 ### 手动运行变更校验
 
@@ -231,9 +254,9 @@ AI 编码 agent 能力很强，但缺乏纪律性。没有明确的流程约束�
                                           │
                                           ▼
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                              OpenSpec Workflow Skills（主入口）                       │
+│                         Production / Tooling Workflow Skills                          │
 │                                                                                     │
-│         需求澄清  ──▶  系统设计  ──▶  代码生成  ──▶  测试生成  ──▶  归档                   │
+│         需求澄清  ──▶  系统设计  ──▶  代码生成  ──▶  测试与验证  ──▶  Review / 归档         │
 │                                                                                     │
 └─────────────────────────────────────────┬───────────────────────────────────────────┘
                                           │
@@ -275,6 +298,7 @@ Agent 是可独立执行子任务的专项角色，由 workflow skill 按需调�
 | Agent | 职责 |
 |-------|------|
 | `codebase-researcher` | 深度代码库探索，追踪调用链、分析模块依赖 |
+| `comprehensive-reviewer` | 普通风险综合审查：正确性、需求符合度、健壮性和工程规范 |
 | `performance-reviewer` | 性能专项审查：热路径、内存、锁竞争、算法复杂度 |
 | `robustness-reviewer` | 健壮性专项审查：边界条件、错误处理、资源泄漏 |
 | `spec-compliance-reviewer` | Spec 符合度审查：验证实现是否匹配设计 |
@@ -307,6 +331,17 @@ Command 是加载对应 skill 的快捷方式：
 | `/opsx-test-generation` | `opsx-test-generation` |
 | `/opsx-archive` | `opsx-archive` |
 
+**Tooling 工作流**
+
+| Command | 加载的 Skill |
+| --- | --- |
+| `/requirements-clarification` | `workflow-requirements-clarification` |
+| `/system-design` | `workflow-system-design` |
+| `/quick-design` | `workflow-quick-design` |
+| `/code-generation` | `workflow-code-generation` |
+| `/test-generation` | `workflow-test-generation` |
+| `/verification` | `workflow-verification` |
+
 ### Skills
 
 Skill 是框架的核心载体——模块化、按需加载、可组合。大量 Skills 不会拖垮上下文窗口，因为框架采用三层加载机制：
@@ -321,8 +356,8 @@ Skill 分为五类：
 
 | 前缀 | 类型 | 角色 | 示例 |
 |------|------|------|------|
-| `opsx-*` | OpenSpec 工作流 | 端到端流程控制，是主入口 | `opsx-code-generation`、`opsx-archive` |
-| `workflow-code-review` | 代码评审 | 全部任务完成后的统一评审入口 | `workflow-code-review` |
+| `opsx-*` | Production 工作流 | 可溯源、逐阶段门禁 | `opsx-code-generation`、`opsx-archive` |
+| `workflow-*` | Tooling 与共享质量门 | 自主执行、验证和 Review | `workflow-code-generation`、`workflow-code-review` |
 | `bp-*` | 最佳实践 | 通用工程知识，由工作流按需加载 | `bp-coding-best-practices`、`bp-distributed-systems` |
 | `std-*` | 编码规范 | 语言/团队特定的编码标准 | `std-cpp`、`std-go` |
 | *（其他）* | 工具型 | 独立能力 | `troubleshooting`、`self-refinement` |

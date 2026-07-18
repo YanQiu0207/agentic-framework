@@ -12,7 +12,7 @@
 - orphan：定义了却无人引用的 skill（warning，不阻断）。
 
 这一层是评测体系的 L1 结构门卫（零 token、确定性）：能机器判定的结构问题在此拦下，
-语义 / 触发 / 效果评测见 agentic-framework/docs/08-evaluation-strategy.md。
+语义 / 触发 / 效果评测见 docs/tooling/08-evaluation-strategy.md。
 
 能力边界：只查「引用目标是否存在 / 是否连通」，查不出「引用存在但语义没接对」
 （如链路图声明了某 skill 但工作流步骤实际没加载它）——那是 code review 的职责。

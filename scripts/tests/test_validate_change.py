@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -13,7 +14,6 @@ from datetime import date
 from pathlib import Path
 from typing import Iterator
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR = REPO_ROOT / "scripts" / "validate_change.py"
 FIXTURES = Path(__file__).parent / "fixtures" / "validate-change"
@@ -22,9 +22,9 @@ CHANGE = Path("openspec/changes/example-change")
 
 def archive_target() -> Path:
     """Return the valid archive destination for the fixture change."""
-    return Path(
-        "openspec/changes/archive"
-    ) / f"{date.today().isoformat()}-example-change"
+    return (
+        Path("openspec/changes/archive") / f"{date.today().isoformat()}-example-change"
+    )
 
 
 class ValidateChangeCliTest(unittest.TestCase):
@@ -117,18 +117,14 @@ class ValidateChangeCliTest(unittest.TestCase):
         for phase in ("plan", "delivery"):
             with self.subTest(phase=phase):
                 result = self.run_validator("valid-standard", phase)
-                self.assertEqual(
-                    0, result.returncode, result.stdout + result.stderr
-                )
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_valid_quick_plan_and_delivery(self) -> None:
         """A Quick Draft may omit specs and design."""
         for phase in ("plan", "delivery"):
             with self.subTest(phase=phase):
                 result = self.run_validator("valid-quick", phase)
-                self.assertEqual(
-                    0, result.returncode, result.stdout + result.stderr
-                )
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_missing_required_artifacts_fail_plan(self) -> None:
         """Missing required artifacts are deterministic errors."""
@@ -158,6 +154,77 @@ class ValidateChangeCliTest(unittest.TestCase):
             r"(?i)(unfinished|pending|未完成)",
         )
 
+    def test_task_review_contract_is_required_at_plan(self) -> None:
+        """Every production task declares its risk-tiered review contract."""
+        cases = (
+            ("- Review Profile: standard\n", "", "OPSX037"),
+            ("- Task Review: PASS\n", "", "OPSX038"),
+            ("- Review Profile: standard", "- Review Profile: lightweight", "OPSX037"),
+        )
+        for old, new, expected_rule in cases:
+            with self.subTest(rule=expected_rule, replacement=new):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    self.rewrite(temporary_repo, "tasks.md", old, new)
+                    result = self.run_repo(temporary_repo, "plan", json_output=True)
+                    rules = {
+                        item["rule_id"] for item in json.loads(result.stdout)["errors"]
+                    }
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn(expected_rule, rules)
+
+    def test_pending_task_review_blocks_delivery(self) -> None:
+        """A completed task cannot pass delivery before its review passes."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "- Task Review: PASS",
+                "- Task Review: Pending",
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX038", rules)
+
+    def test_duplicate_task_review_metadata_is_rejected(self) -> None:
+        """Conflicting or duplicate review metadata fails closed."""
+        cases = (
+            (
+                "- Task Review: PASS",
+                "- Task Review: PASS\n- Task Review: Pending",
+                "OPSX038",
+            ),
+            (
+                "- Review Profile: standard",
+                "- Review Profile: standard\n- Review Profile: strict",
+                "OPSX037",
+            ),
+        )
+        for old, new, expected_rule in cases:
+            with self.subTest(rule=expected_rule):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    self.rewrite(temporary_repo, "tasks.md", old, new)
+                    result = self.run_repo(temporary_repo, "delivery", json_output=True)
+                    rules = {
+                        item["rule_id"] for item in json.loads(result.stdout)["errors"]
+                    }
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn(expected_rule, rules)
+
+    def test_review_metadata_inside_code_fence_is_ignored(self) -> None:
+        """Example text in a fenced block cannot satisfy task metadata."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "- Task Review: PASS",
+                "```text\n- Task Review: PASS\n```",
+            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX038", rules)
+
     def test_review_not_pass_blocks_archive(self) -> None:
         """Archive requires a PASS review state."""
         result = self.run_validator(
@@ -184,9 +251,7 @@ class ValidateChangeCliTest(unittest.TestCase):
         self.assertEqual("plan", success_payload["phase"])
         self.assertEqual([], success_payload["errors"])
 
-        failure = self.run_validator(
-            "missing-proposal", "plan", json_output=True
-        )
+        failure = self.run_validator("missing-proposal", "plan", json_output=True)
         self.assertEqual(1, failure.returncode, failure.stderr)
         failure_payload = json.loads(failure.stdout)
         self.assertFalse(failure_payload["ok"])
@@ -213,12 +278,8 @@ class ValidateChangeCliTest(unittest.TestCase):
                 "Code Review：Pending",
                 "Code Review：PASS",
             )
-            result = self.run_repo(
-                temporary_repo, "archive", target=archive_target()
-            )
-            self.assertEqual(
-                0, result.returncode, result.stdout + result.stderr
-            )
+            result = self.run_repo(temporary_repo, "archive", target=archive_target())
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_quick_requires_explicit_status(self) -> None:
         """Only explicit status metadata selects the Quick path."""
@@ -230,9 +291,7 @@ class ValidateChangeCliTest(unittest.TestCase):
                 "# Proposal: Example Change",
             )
             result = self.run_repo(temporary_repo, "plan")
-            self.assertEqual(
-                0, result.returncode, result.stdout + result.stderr
-            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
         with self.copied_repo("valid-standard") as temporary_repo:
             self.rewrite(
@@ -243,9 +302,7 @@ class ValidateChangeCliTest(unittest.TestCase):
             )
             shutil.rmtree(temporary_repo / CHANGE / "specs")
             (temporary_repo / CHANGE / "design.md").unlink()
-            result = self.run_repo(
-                temporary_repo, "plan", json_output=True
-            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
             payload = json.loads(result.stdout)
             self.assertEqual(1, result.returncode)
             self.assertEqual("standard", payload["change_type"])
@@ -255,8 +312,7 @@ class ValidateChangeCliTest(unittest.TestCase):
         cases = (
             ("## 2. 目标\n\n- 增加可执行的校验。", "", "OPSX013"),
             (
-                "## 4. 验收标准\n\n"
-                "- 执行测试命令后返回退出码 0。",
+                "## 4. 验收标准\n\n" "- 执行测试命令后返回退出码 0。",
                 "## 4. 验收标准\n",
                 "OPSX015",
             ),
@@ -264,28 +320,17 @@ class ValidateChangeCliTest(unittest.TestCase):
         for old, new, expected_rule in cases:
             with self.subTest(rule=expected_rule):
                 with self.copied_repo("valid-standard") as temporary_repo:
-                    self.rewrite(
-                        temporary_repo, "proposal.md", old, new
-                    )
-                    result = self.run_repo(
-                        temporary_repo, "plan", json_output=True
-                    )
+                    self.rewrite(temporary_repo, "proposal.md", old, new)
+                    result = self.run_repo(temporary_repo, "plan", json_output=True)
                     payload = json.loads(result.stdout)
                     rules = {item["rule_id"] for item in payload["errors"]}
                     self.assertEqual(1, result.returncode)
                     self.assertIn(expected_rule, rules)
 
         with self.copied_repo("valid-standard") as temporary_repo:
-            (temporary_repo / CHANGE / "proposal.md").write_text(
-                "", encoding="utf-8"
-            )
-            result = self.run_repo(
-                temporary_repo, "plan", json_output=True
-            )
-            rules = {
-                item["rule_id"]
-                for item in json.loads(result.stdout)["errors"]
-            }
+            (temporary_repo / CHANGE / "proposal.md").write_text("", encoding="utf-8")
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
             self.assertIn("OPSX010", rules)
 
     def test_invalid_self_and_missing_dependencies_fail_plan(self) -> None:
@@ -299,15 +344,11 @@ class ValidateChangeCliTest(unittest.TestCase):
             with self.subTest(dependency=new):
                 with self.copied_repo("valid-standard") as temporary_repo:
                     self.rewrite(temporary_repo, "tasks.md", old, new)
-                    result = self.run_repo(
-                        temporary_repo, "plan", json_output=True
-                    )
+                    result = self.run_repo(temporary_repo, "plan", json_output=True)
                     payload = json.loads(result.stdout)
                     self.assertEqual(1, result.returncode)
                     if expected_rule:
-                        rules = {
-                            item["rule_id"] for item in payload["errors"]
-                        }
+                        rules = {item["rule_id"] for item in payload["errors"]}
                         self.assertIn(expected_rule, rules)
 
     def test_utf8_bom_files_are_supported(self) -> None:
@@ -318,9 +359,7 @@ class ValidateChangeCliTest(unittest.TestCase):
                 content = path.read_text(encoding="utf-8")
                 path.write_text(content, encoding="utf-8-sig")
             result = self.run_repo(temporary_repo, "delivery")
-            self.assertEqual(
-                0, result.returncode, result.stdout + result.stderr
-            )
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_failed_or_bare_na_execution_record_fails_delivery(self) -> None:
         """Execution records require successful evidence or an N/A reason."""
@@ -333,7 +372,7 @@ class ValidateChangeCliTest(unittest.TestCase):
             ),
             (
                 "测试命令：`python -m unittest discover -s scripts/tests "
-                "-p \"test_*.py\"`，退出码 0。",
+                '-p "test_*.py"`，退出码 0。',
                 "测试命令：N/A",
                 "OPSX034",
             ),
@@ -342,9 +381,7 @@ class ValidateChangeCliTest(unittest.TestCase):
             with self.subTest(rule=expected_rule):
                 with self.copied_repo("valid-standard") as temporary_repo:
                     self.rewrite(temporary_repo, "tasks.md", old, new)
-                    result = self.run_repo(
-                        temporary_repo, "delivery", json_output=True
-                    )
+                    result = self.run_repo(temporary_repo, "delivery", json_output=True)
                     errors = json.loads(result.stdout)["errors"]
                     self.assertEqual(1, result.returncode)
                     self.assertIn(
@@ -361,12 +398,8 @@ class ValidateChangeCliTest(unittest.TestCase):
                 "Code Review：Pending",
                 "Code Review：PASS",
             )
-            result = self.run_repo(
-                temporary_repo, "archive", target=archive_target()
-            )
-            self.assertEqual(
-                0, result.returncode, result.stdout + result.stderr
-            )
+            result = self.run_repo(temporary_repo, "archive", target=archive_target())
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_archive_target_is_required_and_validated(self) -> None:
         """Archive requires an explicit destination with the exact shape."""
@@ -387,9 +420,8 @@ class ValidateChangeCliTest(unittest.TestCase):
                     "name",
                 ),
                 (
-                    Path(
-                        "openspec/archive"
-                    ) / f"{date.today().isoformat()}-example-change",
+                    Path("openspec/archive")
+                    / f"{date.today().isoformat()}-example-change",
                     "parent",
                 ),
             )
@@ -426,13 +458,9 @@ class ValidateChangeCliTest(unittest.TestCase):
                 )
                 if line == "- 依赖：Task 99"
             )
-            result = self.run_repo(
-                temporary_repo, "plan", json_output=True
-            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
             errors = json.loads(result.stdout)["errors"]
-            finding = next(
-                item for item in errors if item["rule_id"] == "OPSX025"
-            )
+            finding = next(item for item in errors if item["rule_id"] == "OPSX025")
             self.assertEqual(expected_line, finding["line"])
 
         tasks_path = FIXTURES / "unfinished-delivery" / CHANGE / "tasks.md"
@@ -443,13 +471,9 @@ class ValidateChangeCliTest(unittest.TestCase):
             )
             if line == "  - [ ] 2.1：覆盖正常路径。"
         )
-        result = self.run_validator(
-            "unfinished-delivery", "delivery", json_output=True
-        )
+        result = self.run_validator("unfinished-delivery", "delivery", json_output=True)
         errors = json.loads(result.stdout)["errors"]
-        finding = next(
-            item for item in errors if item["rule_id"] == "OPSX031"
-        )
+        finding = next(item for item in errors if item["rule_id"] == "OPSX031")
         self.assertEqual(expected_line, finding["line"])
 
     def test_standard_mapping_must_cover_each_artifact(self) -> None:
@@ -462,9 +486,7 @@ class ValidateChangeCliTest(unittest.TestCase):
                 "| `design.md` §1 | Task 1 | 实现设计方案 |",
                 "| `proposal.md` §3 | Task 1 | 重复 Proposal 映射 |",
             )
-            result = self.run_repo(
-                temporary_repo, "plan", json_output=True
-            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
             errors = json.loads(result.stdout)["errors"]
             self.assertEqual(1, result.returncode)
             combined = " ".join(item["message"] for item in errors)
@@ -479,13 +501,37 @@ class ValidateChangeCliTest(unittest.TestCase):
                 "- 文档映射：`proposal.md` 验收标准",
                 "- 文档映射：`proposal.md` §2.1",
             )
-            result = self.run_repo(
-                temporary_repo, "plan", json_output=True
-            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
             errors = json.loads(result.stdout)["errors"]
             self.assertEqual(1, result.returncode)
             combined = " ".join(item["message"] for item in errors)
             self.assertRegex(combined, r"(?i)(acceptance|验收|映射)")
+
+    @unittest.skipUnless(os.name == "nt", "Windows Junction regression test")
+    def test_specs_junction_outside_change_fails_plan(self) -> None:
+        """A Junction must not let external artifacts satisfy the Plan gate."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            change = temporary_repo / CHANGE
+            specs = change / "specs"
+            outside = temporary_repo.parent / "outside-specs"
+            shutil.move(str(specs), str(outside))
+            command = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(specs), str(outside)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if command.returncode != 0:
+                self.skipTest(f"Junction creation failed: {command.stderr}")
+            try:
+                result = self.run_repo(temporary_repo, "plan", json_output=True)
+                payload = json.loads(result.stdout)
+                self.assertEqual(1, result.returncode)
+                self.assertIn(
+                    "OPSX004", {item["rule_id"] for item in payload["errors"]}
+                )
+            finally:
+                specs.rmdir()
 
 
 if __name__ == "__main__":

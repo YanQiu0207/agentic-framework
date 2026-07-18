@@ -93,7 +93,7 @@ description: OpenSpec 轻量级设计工作流，适用于内部工具、小型�
 
 用户确认后，立即初始化变更目录并写入文件。
 
-先加载 `opsx-project-knowledge` 确认目录路径与归档约定。
+变更固定写入 `openspec/changes/<change-name>/`，归档由 `opsx-archive` 负责；不依赖中央规范库或额外知识管理 Skill。
 
 **确认变更名称**（如用户还未提供）：
 

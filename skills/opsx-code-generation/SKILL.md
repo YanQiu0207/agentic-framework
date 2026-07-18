@@ -22,10 +22,9 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 1. 加载编码规范（同步骤 4）
 2. 实现改动
 3. 执行过程中发现实际需要改多个文件 → **立即退出**，回到步骤 2 进入标准流程
-4. 询问用户是否需要 code review
-   - **需要** → 加载 `workflow-code-review` skill（指定 `skip_reviewers: [magical-prompt-reviewer]`）→ 修复循环
-   - **不需要** → 输出改动说明
-5. **结束**，不进入后续步骤
+4. 自动执行一次 `standard` Code Review，由独立 `comprehensive-reviewer` 审查完整 Fast-Path diff
+5. 有 finding 时修复并定向 re-review，不扩大审查范围
+6. **结束**，不进入后续步骤
 
 #### 标准流程入口
 
@@ -82,11 +81,20 @@ python <validator-path> --repo . --change openspec/changes/<change-name> --phase
 
 ### 步骤 5：逐个任务实现
 
-**核心规则：一个 Task → 实现 → 报告 → 等用户批准 → 下一个 Task；全部 Task 完成后统一执行一次 Code Review**
+**核心规则：一个 Task → 实现和测试 → 风险分档 Review → 报告 → 等用户批准 → 下一个 Task；全部 Task 完成后再执行一次五维集成 Review。**
 
 #### Phase 1：实现
 
 修改代码，更新 `tasks.md` 标记 In Progress。当前 Task 涉及测试代码时，加载 `opsx-test-generation` skill 生成并运行测试；测试任务也是本次统一 Code Review 的审查范围。
+
+实现和测试通过后，先加载 `workflow-verification` 执行 Task 级机器检查。Production 要求项目根存在有效 `verify.config.json`；缺失、失效或检查失败时不得进入 Review，也不得通过删除检查项绕过。
+
+机器检查通过后，根据 Task 风险执行独立审核：
+
+- 普通 Task：`review_profile: standard`，由独立 `comprehensive-reviewer` 审核。
+- 高风险 Task：`review_profile: strict`，由 5 个专项 Reviewer 审核，并由未参与实现的独立 Judge 裁决。高风险包括安全、权限、数据迁移、并发、分布式、生产关键路径、公共 API 和大范围重构。
+- 每个 Task 只能启动一次首轮审核。有 keep 的 P0 / P1 时修复并重跑受影响的测试，再按 re-review 模式只检查原 finding 和修复 diff，禁止扩大范围。
+- 审核通过后，把该 Task 的「Task Review」更新为 `PASS`；未通过时不得标记 Completed。
 
 #### Phase 2：汇报 → 继续或停止等待
 
@@ -115,9 +123,11 @@ python <validator-path> --repo . --change openspec/changes/<change-name> --phase
 - **回滚** → 撤销本次改动
 ```
 
-#### Phase 3：全部任务完成后统一 Code Review（🚨 强制）
+#### Phase 3：全部任务完成后五维集成 Code Review（🚨 强制）
 
 仅当 `tasks.md` 中全部 Task 均为 Completed 时，先执行 Delivery 门禁：
+
+在 Delivery 前，对集成结果执行一次全局 `workflow-verification`。失败时修复并重验；只有全局机器验证通过才能继续。
 
 ```bash
 python <validator-path> --repo . --change openspec/changes/<change-name> --phase delivery
@@ -125,7 +135,7 @@ python <validator-path> --repo . --change openspec/changes/<change-name> --phase
 
 处理退出码的规则与 Plan 门禁相同：只有 `0` 允许启动 Code Review；`1` 必须修正后重跑；`2` 必须停止并报告错误。
 
-Delivery 通过后，执行一次统一 Code Review。加载 `workflow-code-review` skill，按其完整工作流审查本次变更的完整 diff。该 skill 会调用 reviewer subagent 执行审查——**禁止主 agent 自己做 review 代替 subagent**。
+Delivery 通过后，加载 `workflow-code-review`，以 `review_profile: strict`、`scope: integration` 审查本次变更的完整 diff：固定并行调用 5 个专项 Reviewer，并由未参与实现的独立 Judge 裁决。Task 级审核不能替代集成审核，集成审核也不得重复计作某个 Task 的首轮审核。
 
 对报告中**每条** keep 的 finding，反思犯错原因：
 
@@ -136,7 +146,7 @@ Delivery 通过后，执行一次统一 Code Review。加载 `workflow-code-revi
 | **执行遗漏** | 漏掉边界/细节 |
 | **设计考虑不足** | 需更深层设计思考 |
 
-修复 finding 后，必须重跑受影响的构建和测试、更新 `tasks.md` 的执行记录，并再次通过 Delivery 门禁。随后按照 `workflow-code-review` 的 re-review 流程仅复核保留项和修复 diff，直到结论为 PASS。这里不启动第二次完整 Code Review。
+修复 finding 后，必须重跑受影响的构建和测试、更新 `tasks.md` 的执行记录，并再次通过 Delivery 门禁。随后按照 `workflow-code-review` 的 re-review 流程仅复核保留项和修复 diff，直到结论为 PASS。禁止启动第二次五维首轮审核。
 
 评审通过后，将 `tasks.md` 中的 `Code Review` 状态更新为 `PASS`。
 

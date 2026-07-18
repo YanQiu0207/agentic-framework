@@ -39,4 +39,4 @@
 
 ## 后续约定
 
-本专题只负责「分析 + 规划」。每个补齐项真正实施时，按 `project-knowledge` 约定在 `docs/design-docs/<module>/<feature>/` 下建正式 `spec.md` 与 `tasks.md`；本目录的 [03-roadmap.md](03-roadmap.md) 作为它们的输入。
+本专题只负责「分析 + 规划」。每个补齐项真正实施时，按仓库文档约定在 `docs/design-docs/<module>/<feature>/` 下建正式 `spec.md` 与 `tasks.md`；本目录的 [03-roadmap.md](03-roadmap.md) 作为它们的输入。

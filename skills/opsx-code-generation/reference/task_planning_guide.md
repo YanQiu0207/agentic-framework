@@ -155,6 +155,8 @@ Task 2 (描述)  ← 依赖 Task 1
 ### 任务 1: [ ] [简短描述]
 - 文件: `path/to/file1.cc`（新建/修改/删除）
 - 依赖: 无
+- Review Profile: standard
+- Task Review: Pending
 - 文档映射: proposal.md §3.1 / design.md §1.2.2
 - 说明: 详细说明这个任务要做什么
 - context:
@@ -197,6 +199,7 @@ Task 2 (描述)  ← 依赖 Task 1
 | 8 | **无冗余任务** | 每个任务有不可替代的产出 |
 | 9 | **跨切面无遗漏** | 错误码/日志/配置等有统一定义任务，且排在使用方前面 |
 | 10 | **context 完整** | 每个任务的 context 包含直接修改文件 + 上游 + 下游，精确到函数级 |
+| 11 | **Task Review 完整** | 每个任务都有 `Review Profile: standard\|strict` 和 `Task Review: Pending` |
 
 ## 硬性规则
 
@@ -209,3 +212,4 @@ Task 2 (描述)  ← 依赖 Task 1
 7. **验收标准必须可操作**：不能是「确保正确」之类的模糊描述
 8. **先建后迁后删**：涉及替换旧代码的场景，禁止先删除再创建
 9. **歧义必须记录**：拆解过程中遇到文档有歧义或需要假设的地方，必须在对应任务中明确标注假设
+10. **审核必须分层**：普通 Task 标 `standard`，高风险 Task 标 `strict`；Task Review 通过后才能标 Completed，全部 Task 完成后还要执行一次 `strict` 集成审核

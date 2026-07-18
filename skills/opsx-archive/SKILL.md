@@ -70,7 +70,7 @@ mv openspec/changes/<change-name> \
 ```
 
 > 归档状态由**目录位置**表达：在 `openspec/changes/` 下即活跃，移入 `openspec/changes/archive/` 即已归档，不维护单独的状态文件。
-> 归档只移动目录，**不把增量规范合并到任何中央库**——本工作流不维护中央真相库（见 `opsx-project-knowledge`）。
+> 归档只移动目录，**不把增量规范合并到任何中央库**；当前实现始终以代码为事实源。
 
 ### Step 5：输出归档报告
 

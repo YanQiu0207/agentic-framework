@@ -6,6 +6,8 @@
 ## 任务列表
 
 ### 任务 1：[completed] 实现校验器
+- Review Profile: standard
+- Task Review: PASS
 
 - 依赖：无
 - 文件：`scripts/validate_change.py`
@@ -16,6 +18,8 @@
   - [x] 1.1：实现 CLI。
 
 ### 任务 2：[completed] 添加测试
+- Review Profile: standard
+- Task Review: PASS
 
 - 依赖：Task 1
 - 文件：`scripts/tests/test_validate_change.py`

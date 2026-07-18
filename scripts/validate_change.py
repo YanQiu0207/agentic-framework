@@ -7,7 +7,9 @@ import argparse
 import dataclasses
 import datetime
 import json
+import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -23,6 +25,14 @@ DEPENDENCY_RE = re.compile(
 )
 TASK_REFERENCE_RE = re.compile(r"(?:Task|任务)\s*(\d+)", re.IGNORECASE)
 REVIEW_RE = re.compile(r"Code\s+Review\s*[:：]\s*(Pending|PASS)\b", re.IGNORECASE)
+TASK_REVIEW_PROFILE_RE = re.compile(
+    r"^-\s*Review\s+Profile\s*[:：]\s*(\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+TASK_REVIEW_STATUS_RE = re.compile(
+    r"^-\s*Task\s+Review\s*[:：]\s*(\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 SECTION_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<title>.+?)\s*$")
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
 CHANGE_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
@@ -112,7 +122,57 @@ def _finding(
 
 
 def _nonempty_file(path: Path) -> bool:
-    return not path.is_symlink() and path.is_file() and bool(_read_text(path).strip())
+    return (
+        not _is_reparse_point(path)
+        and path.is_file()
+        and bool(_read_text(path).strip())
+    )
+
+
+def _is_reparse_point(path: Path) -> bool:
+    """Return whether a path is a symlink, junction, or other reparse point."""
+    if path.is_symlink():
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    if is_junction and is_junction():
+        return True
+    try:
+        attributes = path.lstat().st_file_attributes
+    except (AttributeError, OSError):
+        return False
+    return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def _find_reparse_point(root: Path) -> Path | None:
+    """Find a reparse point without descending through it."""
+    if _is_reparse_point(root):
+        return root
+    try:
+        children = list(root.iterdir())
+    except OSError:
+        return None
+    for child in children:
+        if _is_reparse_point(child):
+            return child
+        if child.is_dir():
+            found = _find_reparse_point(child)
+            if found is not None:
+                return found
+    return None
+
+
+def _find_reparse_path_component(root: Path, path: Path) -> Path | None:
+    """Find a reparse point between an existing root and a lexical child path."""
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        return path
+    current = root
+    for part in relative.parts:
+        current /= part
+        if os.path.lexists(current) and _is_reparse_point(current):
+            return current
+    return None
 
 
 def _normalized_section_title(title: str) -> str:
@@ -219,6 +279,21 @@ def _task_block(lines: Sequence[str], task: Task) -> list[str]:
     return list(lines[task.line - 1 : task.end_line])
 
 
+def _metadata_text(lines: Sequence[str]) -> str:
+    """Return task metadata with fenced code blocks removed."""
+    result: list[str] = []
+    fence: str | None = None
+    for line in lines:
+        stripped = line.lstrip()
+        marker = stripped[:3]
+        if marker in {"```", "~~~"}:
+            fence = None if fence == marker else marker
+            continue
+        if fence is None:
+            result.append(line)
+    return "\n".join(result)
+
+
 def _completed_status(status: str) -> bool:
     return status.casefold() in {"x", "completed", "complete", "done"}
 
@@ -291,16 +366,16 @@ def _validate_common(repo: Path, change: Path) -> list[Finding]:
             )
         )
 
-    symlink = next((path for path in change.rglob("*") if path.is_symlink()), None)
-    if symlink is not None:
+    reparse_point = _find_reparse_point(change)
+    if reparse_point is not None:
         findings.append(
             _finding(
                 "OPSX004",
-                symlink,
+                reparse_point,
                 repo,
                 1,
-                "Change 目录不得包含符号链接。",
-                "将符号链接替换为 Change 目录内的普通文件或目录。",
+                "Change 目录不得包含符号链接、Junction 或其他重解析点。",
+                "将重解析点替换为 Change 目录内的普通文件或目录。",
             )
         )
 
@@ -605,6 +680,47 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
                     "添加「- 文档映射：<artifact 条目>」。",
                 )
             )
+        metadata_text = _metadata_text(block)
+        profile_matches = list(TASK_REVIEW_PROFILE_RE.finditer(metadata_text))
+        if len(profile_matches) != 1 or profile_matches[0].group(1).casefold() not in {
+            "standard",
+            "strict",
+        }:
+            findings.append(
+                _finding(
+                    "OPSX037",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 缺少合法的 Review Profile。",
+                    "添加「- Review Profile: standard」或「strict」。",
+                )
+            )
+        task_review_matches = list(TASK_REVIEW_STATUS_RE.finditer(metadata_text))
+        if len(task_review_matches) != 1 or task_review_matches[0].group(
+            1
+        ).casefold() not in {"pending", "pass"}:
+            findings.append(
+                _finding(
+                    "OPSX038",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 缺少合法的 Task Review 状态。",
+                    "添加「- Task Review: Pending」；审核通过后更新为 PASS。",
+                )
+            )
+        elif require_completed and task_review_matches[0].group(1).casefold() != "pass":
+            findings.append(
+                _finding(
+                    "OPSX038",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Task Review 尚未 PASS。",
+                    "完成 Task 级独立审核并将状态更新为 PASS。",
+                )
+            )
         if require_completed and not _completed_status(task.status):
             findings.append(
                 _finding(
@@ -782,10 +898,12 @@ def validate_change(
     repo = repo.resolve()
     if not repo.is_dir():
         raise InvocationError(f"仓库目录不存在：{repo}")
-    change = change if change.is_absolute() else repo / change
-    if change.is_symlink():
-        raise InvocationError("Change 目录不得是符号链接。")
-    change = change.resolve()
+    change = change.absolute() if change.is_absolute() else (repo / change).absolute()
+    reparse_component = _find_reparse_path_component(repo, change)
+    if reparse_component is not None:
+        raise InvocationError(
+            f"Change 路径不得经过符号链接、Junction 或其他重解析点：{reparse_component}"
+        )
     if not change.is_dir():
         raise InvocationError(f"Change 目录不存在：{change}")
     try:
