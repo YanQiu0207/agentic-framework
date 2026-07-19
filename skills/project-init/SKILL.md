@@ -87,6 +87,9 @@ Profile 只决定执行生命周期；两种 Profile 使用相同的 `openspec/`
 所有项目追加以下缺失条目：
 
 ```gitignore
+# Agentic Engineering Framework 本地运行产物
+.agentic-framework/
+
 # OS / 编辑器
 .DS_Store
 Thumbs.db

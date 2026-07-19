@@ -53,6 +53,9 @@ from pathlib import Path
 MARKER_RE = re.compile(
     r"^>?\s*(?:\*\*)?`?Using ([a-z][a-z0-9]*(?:-[a-z0-9]+)+)[\s`*]*$", re.MULTILINE
 )
+
+RUNTIME_HISTORY_PATH = Path(".agentic-framework/metrics/session-history.jsonl")
+LEGACY_HISTORY_PATH = Path("metrics/session-history.jsonl")
 COMMAND_RE = re.compile(r"<command-name>/([a-z0-9-]+)</command-name>")
 # 行首锚定防止正文提及误报；级数与后缀放宽（历史报告存在 ## 级、带后缀的变体）
 REVIEW_HEAD_RE = re.compile(r"^\s{0,3}#{1,3}\s*Code Review 报告.*$", re.MULTILINE)
@@ -717,7 +720,32 @@ def print_report(results: list[dict], min_share: float, rates: dict | None) -> N
         )
 
 
-def append_history(results: list[dict], history_path: Path) -> tuple[int, int]:
+def resolve_history_paths(
+    requested_path: Path, repo_root: Path
+) -> tuple[Path, Path | None]:
+    """Resolve the runtime ledger write path and optional legacy read source."""
+    root = repo_root.resolve(strict=False)
+    requested = (
+        requested_path if requested_path.is_absolute() else root / requested_path
+    )
+    requested = requested.resolve(strict=False)
+    legacy = (root / LEGACY_HISTORY_PATH).resolve(strict=False)
+    runtime = (root / RUNTIME_HISTORY_PATH).resolve(strict=False)
+    if requested not in {legacy, runtime}:
+        return requested, None
+    legacy_read = legacy if legacy.is_file() and not runtime.is_file() else None
+    if requested == legacy or legacy_read is not None:
+        print(
+            f"[telemetry] 检测到旧账本 {legacy}；仅兼容读取，"
+            f"新账本写入 {runtime}。",
+            file=sys.stderr,
+        )
+    return runtime, legacy_read
+
+
+def append_history(
+    results: list[dict], history_path: Path, legacy_read_path: Path | None = None
+) -> tuple[int, int]:
     """按 (source, session) upsert 账本：新会话追加，已有会话用最新解析覆盖。
 
     返回 (新增条数, 更新条数)。进行中的会话首次入账后，会话继续增长时
@@ -725,8 +753,9 @@ def append_history(results: list[dict], history_path: Path) -> tuple[int, int]:
     """
     raw_kept: list[str] = []
     entries: dict[tuple, str] = {}
-    if history_path.is_file():
-        with open(history_path, encoding="utf-8") as f:
+    read_path = history_path if history_path.is_file() else legacy_read_path
+    if read_path and read_path.is_file():
+        with open(read_path, encoding="utf-8") as f:
             for line in f:
                 line = line.rstrip("\n")
                 if not line:
@@ -755,8 +784,9 @@ def append_history(results: list[dict], history_path: Path) -> tuple[int, int]:
         else:
             continue
         entries[key] = line
-    if added or updated:
+    if added or updated or (legacy_read_path is not None and not history_path.exists()):
         content = "".join(x + "\n" for x in raw_kept + list(entries.values()))
+        history_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -805,7 +835,13 @@ def main() -> int:
         help="低于该占比的阶段不打印（默认 0.01）",
     )
     parser.add_argument("--json", help="额外输出 JSON 文件路径")
-    parser.add_argument("--history", help="按会话 upsert 到该 JSONL 账本")
+    parser.add_argument(
+        "--history",
+        help=(
+            "按会话 upsert 到 JSONL 账本；框架默认位置为 "
+            ".agentic-framework/metrics/session-history.jsonl"
+        ),
+    )
     parser.add_argument("--rates", help="费率表 JSON（美元/MTok），启用成本折算")
     parser.add_argument(
         "--profile",
@@ -863,11 +899,14 @@ def main() -> int:
         )
         print(f"\nJSON 已写入 {args.json}")
     if args.history:
-        added, updated = append_history(results, Path(args.history))
+        history_path, legacy_read_path = resolve_history_paths(
+            Path(args.history), Path.cwd()
+        )
+        added, updated = append_history(results, history_path, legacy_read_path)
         unchanged = len(results) - added - updated
         print(
             f"账本：新增 {added} 条，更新 {updated} 条，"
-            f"未变 {unchanged} 条 → {args.history}"
+            f"未变 {unchanged} 条 → {history_path}"
         )
     return 0
 

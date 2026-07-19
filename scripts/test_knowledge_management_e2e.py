@@ -25,6 +25,7 @@ for import_path in (SCRIPTS_DIR, WORKFLOW_SCRIPTS_DIR):
 
 import validate_change  # noqa: E402
 import validate_shared_knowledge  # noqa: E402
+from test_workflow_control import runtime_verify_fixture  # noqa: E402
 
 
 def _load_workflow_control() -> ModuleType:
@@ -130,8 +131,7 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
 """,
             )
 
-            verify_report_path = tasks_path.parent / "verify-report.json"
-            _write(verify_report_path, json.dumps({"verdict": "PASS"}))
+            run_dir, verify_report_path = runtime_verify_fixture(Path(temp_dir))
             self.assertEqual(
                 0,
                 WORKFLOW_CONTROL.main(
@@ -142,6 +142,8 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
                         "quality_passed",
                         "--verify-report",
                         str(verify_report_path),
+                        "--run-dir",
+                        str(run_dir),
                         "--write",
                     ]
                 ),

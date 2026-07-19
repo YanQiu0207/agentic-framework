@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import errno
+import hashlib
 import json
 import math
 import os
@@ -17,6 +18,11 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import lint_task_deps
+
+_FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
+if str(_FRAMEWORK_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+import runtime_workflow
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _TASK_DOCUMENT_NAME = "tasks.md"
@@ -433,13 +439,20 @@ def _load(path: Path) -> tuple[str, dict[int, dict]]:
     return text, tasks
 
 
-def _load_verify_report(path: Path | None) -> dict:
+def _load_verify_report(
+    path: Path | None, run_dir: Path | None, task_id: int, attempt: int
+) -> dict:
     """Read, parse, and validate the verify report required by quality_passed."""
     if path is None:
         raise ValueError("quality_passed 事件必须提供 --verify-report")
-    report = json.loads(path.read_text(encoding="utf-8"))
-    _validate_verify_report(report)
-    return report
+    if run_dir is None:
+        raise ValueError("quality_passed 事件必须提供 --run-dir")
+    try:
+        return runtime_workflow.validate_verify_artifact(
+            run_dir, path, str(task_id), attempt
+        )
+    except runtime_workflow.RuntimeWorkflowError as error:
+        raise ValueError(str(error)) from error
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -499,18 +512,38 @@ def _unlock(stream) -> None:
     fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
+def _repository_root(path: Path) -> Path:
+    """Return the nearest Git repository root, or the task directory."""
+    resolved = path.resolve(strict=False)
+    for candidate in (resolved.parent, *resolved.parents[1:]):
+        if (candidate / ".git").exists():
+            return candidate
+    return resolved.parent
+
+
+def _task_lock_path(path: Path) -> Path:
+    """Build a collision-resistant runtime lock path for one tasks.md."""
+    resolved = path.resolve(strict=False)
+    normalized = os.path.normcase(str(resolved))
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return (
+        _repository_root(resolved)
+        / ".agentic-framework"
+        / "locks"
+        / f"{digest}.lock"
+    )
+
+
 @contextlib.contextmanager
-def _task_write_lock(path: Path, timeout: float):
-    """Acquire the task file's cross-process write lock within timeout."""
-    if not math.isfinite(timeout) or timeout < 0:
-        raise ValueError("锁超时必须是大于等于 0 的有限数")
-    lock_path = path.parent / f".{path.name}.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+b") as stream:
-        if stream.tell() == 0:
+def _file_lock(lock_path: Path, deadline: float, timeout: float, create: bool):
+    """Acquire one existing or newly created lock without deleting it."""
+    if create:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+    mode = "a+b" if create else "r+b"
+    with lock_path.open(mode) as stream:
+        if create and lock_path.stat().st_size == 0:
             stream.write(b"\0")
             stream.flush()
-        deadline = time.monotonic() + timeout
         while not _try_lock(stream):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -520,6 +553,26 @@ def _task_write_lock(path: Path, timeout: float):
             yield
         finally:
             _unlock(stream)
+
+
+@contextlib.contextmanager
+def _task_write_lock(path: Path, timeout: float):
+    """Acquire the task file's cross-process write lock within timeout."""
+    if not math.isfinite(timeout) or timeout < 0:
+        raise ValueError("锁超时必须是大于等于 0 的有限数")
+    legacy_path = path.parent / f".{path.name}.lock"
+    lock_path = _task_lock_path(path)
+    deadline = time.monotonic() + timeout
+    with contextlib.ExitStack() as stack:
+        if legacy_path.exists():
+            print(
+                f"[workflow-control] 检测到旧任务锁 {legacy_path}；"
+                f"仅兼容加锁读取，新锁使用 {lock_path}。",
+                file=sys.stderr,
+            )
+            stack.enter_context(_file_lock(legacy_path, deadline, timeout, False))
+        stack.enter_context(_file_lock(lock_path, deadline, timeout, True))
+        yield
 
 
 def _write_decisions(path: Path, text: str, decisions: list[TaskDecision]) -> None:
@@ -555,6 +608,25 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     event_parser.add_argument("--write", action="store_true")
     event_parser.add_argument("--lock-timeout", type=float, default=10.0)
     event_parser.add_argument("--verify-report", type=Path, default=None)
+    event_parser.add_argument("--run-dir", type=Path)
+    init_parser = subparsers.add_parser("init-run", help="初始化并探测 Runtime Run")
+    init_parser.add_argument("--run-dir", type=Path, required=True)
+    init_parser.add_argument("--run-id", required=True)
+    init_parser.add_argument(
+        "--profile", choices=("production", "tooling"), required=True
+    )
+    init_parser.add_argument("--harness", required=True)
+    init_parser.add_argument("--commit-sha", required=True)
+    init_parser.add_argument("--base-commit-sha", required=True)
+    init_parser.add_argument("--max-attempts", type=int, default=2)
+    init_parser.add_argument("--verify-config", type=Path)
+    init_parser.add_argument("--spec", type=Path, required=True)
+    init_parser.add_argument("--agents-file", type=Path, required=True)
+    init_parser.add_argument("--skill-file", type=Path, required=True)
+    init_parser.add_argument("--harness-declaration", type=Path, required=True)
+    init_parser.add_argument("--adapter-command", nargs="+", required=True)
+    init_parser.add_argument("--required-capability", action="append", default=[])
+    init_parser.add_argument("--optional-capability", action="append", default=[])
     block_parser = subparsers.add_parser("block", help="传播下游阻塞")
     block_parser.add_argument("--write", action="store_true")
     block_parser.add_argument("--lock-timeout", type=float, default=10.0)
@@ -569,13 +641,43 @@ def main(argv: list[str]) -> int:
     try:
         if hasattr(sys.stdout, "reconfigure"):
             sys.stdout.reconfigure(encoding="utf-8")  # 避免 Windows 控制台中文乱码
-        if args.command == "event" and args.event == "quality_passed":
-            _load_verify_report(args.verify_report)
+        if args.command == "init-run":
+            _, tasks = _load(args.tasks_md)
+            context = runtime_workflow.initialize_run(
+                args.tasks_md.resolve().parents[3],
+                args.run_dir,
+                run_id=args.run_id,
+                profile=args.profile,
+                harness=args.harness,
+                commit_sha=args.commit_sha,
+                base_commit_sha=args.base_commit_sha,
+                max_attempts=args.max_attempts,
+                verify_config=args.verify_config,
+                tasks_path=args.tasks_md,
+                task_ids=[str(task_id) for task_id in sorted(tasks)],
+                spec_path=args.spec,
+                agents_path=args.agents_file,
+                skill_path=args.skill_file,
+                declaration_path=args.harness_declaration,
+                adapter_command=args.adapter_command,
+                required_capabilities=args.required_capability,
+                optional_capabilities=args.optional_capability,
+            )
+            print(json.dumps(context, ensure_ascii=False, indent=2))
+            return 0
         is_write = args.command in {"event", "block"} and args.write
         if is_write:
             with _task_write_lock(args.tasks_md, args.lock_timeout):
                 text, tasks = _load(args.tasks_md)
                 if args.command == "event":
+                    attempt = _attempts(tasks[args.task_id]) + 1
+                    if args.event == "quality_passed":
+                        _load_verify_report(
+                            args.verify_report,
+                            args.run_dir,
+                            args.task_id,
+                            attempt,
+                        )
                     decision = apply_event(
                         tasks,
                         args.task_id,
@@ -584,6 +686,13 @@ def main(argv: list[str]) -> int:
                         args.max_attempts,
                     )
                     output = asdict(decision)
+                    if args.event == "quality_passed":
+                        runtime_workflow.record_quality_passed(
+                            args.run_dir,
+                            args.verify_report,
+                            str(args.task_id),
+                            attempt,
+                        )
                     _write_decisions(args.tasks_md, text, [decision])
                 else:
                     decisions = propagate_blocked(tasks)
@@ -611,7 +720,7 @@ def main(argv: list[str]) -> int:
                 output = [
                     asdict(action) for action in plan_recovery(tasks, set(args.merged))
                 ]
-    except (OSError, ValueError) as error:
+    except (OSError, ValueError, runtime_workflow.RuntimeWorkflowError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     print(json.dumps(output, ensure_ascii=False, indent=2))

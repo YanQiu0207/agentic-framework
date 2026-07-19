@@ -1,0 +1,40 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/final-report.schema.json",
+    "title": "final-report",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "final-report"
+                },
+                "task_id": {
+                    "type": "null"
+                },
+                "attempt": {
+                    "type": "null"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "verdict",
+                        "summary"
+                    ],
+                    "properties": {
+                        "verdict": {
+                            "const": "PASS"
+                        },
+                        "summary": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    ]
+}

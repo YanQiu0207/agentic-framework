@@ -1,0 +1,60 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/code-result.schema.json",
+    "title": "code-result",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "code-result"
+                },
+                "task_id": {
+                    "type": "null"
+                },
+                "attempt": {
+                    "type": "null"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "base_commit_sha",
+                        "head_commit_sha",
+                        "path",
+                        "content_digest",
+                        "changed_paths"
+                    ],
+                    "properties": {
+                        "base_commit_sha": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "head_commit_sha": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "path": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "content_digest": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                        },
+                        "changed_paths": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "uniqueItems": true
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    ]
+}

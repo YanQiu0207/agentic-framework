@@ -9,10 +9,10 @@
 
 用法：
     # 改动前：采集基线
-    python verify.py --save-baseline .verify/baseline.json
+    python verify.py --save-baseline .agentic-framework/verify/baseline.json
 
     # 改动后：验证并与基线对比
-    python verify.py --baseline .verify/baseline.json
+    python verify.py --baseline .agentic-framework/verify/baseline.json
 
     # 不带基线：所有检查按绝对标准判定
     python verify.py
@@ -26,6 +26,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import shlex
@@ -33,10 +34,14 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+RUNTIME_VERIFY_DIR = Path(".agentic-framework/verify")
+LEGACY_VERIFY_DIR = Path(".verify")
 
 
 @dataclass
@@ -51,7 +56,11 @@ class CheckResult:
     new_items: list[str] = field(default_factory=list)  # 相对基线的新增违规行
 
 
-_DEFAULT_TIMEOUT = 60  # 秒；防止卡死命令永久阻塞验证流程
+_DEFAULT_TIMEOUT = 120  # 秒；为约 55 秒的全量验证保留负载余量，同时防止永久阻塞
+_HEARTBEAT_SECONDS = 5.0
+_PROCESS_CLEANUP_TIMEOUT_SECONDS = 5.0
+_OUTPUT_SUMMARY_LINES = 3
+_OUTPUT_SUMMARY_CHARS = 600
 _CODE_SUFFIXES = {
     ".c",
     ".cc",
@@ -84,46 +93,206 @@ _DOC_SUFFIXES = {".md", ".mdx"}
 class CommandTimeout(Exception):
     """命令执行超时。用独立异常而非复用 returncode，避免与 expect_code=1 混淆。"""
 
-    def __init__(self, command: str, timeout: int) -> None:
-        super().__init__(f"命令超时（>{timeout}s）：{command[:80]}")
+    def __init__(
+        self,
+        command: str,
+        timeout: float,
+        elapsed: float,
+        stdout: str,
+        stderr: str,
+        cleanup_complete: bool = True,
+    ) -> None:
+        self.stdout = stdout
+        self.stderr = stderr
+        self.cleanup_complete = cleanup_complete
+        detail = _output_summary(stdout, stderr)
+        details = [detail] if detail else []
+        if not cleanup_complete:
+            details.append("进程树清理不完整")
+        suffix = f"；{'；'.join(details)}" if details else ""
+        super().__init__(
+            f"命令超时（timeout={timeout:g}s elapsed={elapsed:.1f}s）："
+            f"{command[:160]}{suffix}"
+        )
 
 
-def _kill_process_tree(proc: subprocess.Popen) -> None:
-    """强制终止进程及其所有子进程。"""
+def _output_tail(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return " | ".join(lines[-_OUTPUT_SUMMARY_LINES:])[-_OUTPUT_SUMMARY_CHARS:]
+
+
+def _output_summary(stdout: str, stderr: str) -> str:
+    parts = []
+    stdout_tail = _output_tail(stdout)
+    stderr_tail = _output_tail(stderr)
+    if stdout_tail:
+        parts.append(f"stdout={stdout_tail}")
+    if stderr_tail:
+        parts.append(f"stderr={stderr_tail}")
+    return "；".join(parts)
+
+
+def _diagnostic(message: str) -> None:
+    print(f"[verify] {message}", file=sys.stderr, flush=True)
+
+
+def _kill_process_tree(
+    proc: subprocess.Popen, timeout: float = _PROCESS_CLEANUP_TIMEOUT_SECONDS
+) -> bool:
+    """有界终止进程树；返回是否确认完成了树级终止。"""
     try:
         if sys.platform == "win32":
-            subprocess.run(
+            completed = subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=max(0.001, timeout),
+                check=False,
             )
+            if completed.returncode == 0:
+                return True
         else:
             try:
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                return True
             except ProcessLookupError:
-                proc.kill()
-    except Exception:
+                if proc.poll() is not None:
+                    return True
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
         proc.kill()
+    except (OSError, ProcessLookupError):
+        return proc.poll() is not None
+    return False
 
 
-def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str, str]:
-    """执行 shell 命令，返回 (returncode, stdout, stderr)。超时时终止进程树并抛 CommandTimeout。"""
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _close_process_pipes(proc: subprocess.Popen) -> None:
+    for pipe in (proc.stdout, proc.stderr):
+        try:
+            if pipe is not None:
+                pipe.close()
+        except (AttributeError, OSError):
+            pass
+
+
+def _cleanup_timed_out_process(
+    proc: subprocess.Popen,
+) -> tuple[str, str, bool]:
+    """在固定期限内终止进程树并收集输出。"""
+    deadline = time.monotonic() + _PROCESS_CLEANUP_TIMEOUT_SECONDS
+    tree_terminated = _kill_process_tree(
+        proc, max(0.001, deadline - time.monotonic())
+    )
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        _close_process_pipes(proc)
+        return "", "", False
+    try:
+        stdout, stderr = proc.communicate(timeout=remaining)
+        return stdout or "", stderr or "", tree_terminated
+    except subprocess.TimeoutExpired as error:
+        stdout = _timeout_output(error.output)
+        stderr = _timeout_output(error.stderr)
+        _close_process_pipes(proc)
+        try:
+            proc.kill()
+        except (AttributeError, OSError, ProcessLookupError):
+            pass
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            try:
+                proc.wait(timeout=remaining)
+            except (AttributeError, OSError, subprocess.TimeoutExpired):
+                pass
+        return stdout, stderr, False
+
+
+def run_command(
+    command: str,
+    timeout: float = _DEFAULT_TIMEOUT,
+    check_name: str = "<unnamed>",
+    heartbeat_seconds: float = _HEARTBEAT_SECONDS,
+) -> tuple[int, str, str]:
+    """执行命令，输出有界心跳，超时时终止进程树。"""
+    if timeout <= 0 or heartbeat_seconds <= 0:
+        raise ValueError("timeout and heartbeat_seconds must be positive")
+    child_env = os.environ.copy()
+    child_env.update(
+        {
+            "PYTHONUTF8": "1",
+            "PYTHONIOENCODING": "utf-8",
+        }
+    )
     kwargs: dict[str, Any] = {
         "shell": True,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
         "encoding": "utf-8",   # 固定 UTF-8，避免 Windows GBK 等本机编码导致解码崩溃
         "errors": "replace",   # 不可解码字节替换为 U+FFFD，门禁继续产出结构化报告
+        "env": child_env,
     }
-    if sys.platform != "win32":
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
         kwargs["start_new_session"] = True  # POSIX：新进程组，方便 killpg
     proc = subprocess.Popen(command, **kwargs)
-    try:
-        stdout, stderr = proc.communicate(timeout=timeout)
+    started = time.monotonic()
+    next_heartbeat = heartbeat_seconds
+    _diagnostic(f"start check={check_name!r} pid={proc.pid} command={command}")
+    while True:
+        elapsed = time.monotonic() - started
+        remaining = timeout - elapsed
+        if remaining <= 0:
+            stdout, stderr, cleanup_complete = _cleanup_timed_out_process(proc)
+            elapsed = time.monotonic() - started
+            summary = _output_summary(stdout, stderr)
+            details = []
+            if summary:
+                details.append(f"summary={summary}")
+            if not cleanup_complete:
+                details.append("cleanup=incomplete")
+            detail = f" {' '.join(details)}" if details else ""
+            _diagnostic(
+                f"end check={check_name!r} pid={proc.pid} exit=TIMEOUT "
+                f"elapsed={elapsed:.1f}s timeout={timeout:g}s{detail}"
+            )
+            raise CommandTimeout(
+                command,
+                timeout,
+                elapsed,
+                stdout,
+                stderr,
+                cleanup_complete=cleanup_complete,
+            )
+        wait_seconds = min(remaining, max(0.001, next_heartbeat - elapsed))
+        try:
+            stdout, stderr = proc.communicate(timeout=wait_seconds)
+        except subprocess.TimeoutExpired:
+            elapsed = time.monotonic() - started
+            if elapsed >= timeout:
+                continue
+            _diagnostic(
+                f"heartbeat check={check_name!r} pid={proc.pid} "
+                f"elapsed={elapsed:.1f}s timeout={timeout:g}s"
+            )
+            next_heartbeat += heartbeat_seconds
+            continue
+        elapsed = time.monotonic() - started
+        summary = _output_summary(stdout, stderr) if proc.returncode != 0 else ""
+        detail = f" summary={summary}" if summary else ""
+        _diagnostic(
+            f"end check={check_name!r} pid={proc.pid} exit={proc.returncode} "
+            f"elapsed={elapsed:.1f}s timeout={timeout:g}s{detail}"
+        )
         return proc.returncode, stdout, stderr
-    except subprocess.TimeoutExpired:
-        _kill_process_tree(proc)
-        proc.wait()
-        raise CommandTimeout(command, timeout)
 
 
 def _nonempty_lines(text: str) -> list[str]:
@@ -459,7 +628,7 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
 
     timeout = int(check.get("timeout_seconds") or _DEFAULT_TIMEOUT)
     try:
-        returncode, out, err = run_command(command, timeout=timeout)
+        returncode, out, err = run_command(command, timeout=timeout, check_name=name)
     except CommandTimeout as exc:
         # 超时独立报 error，不复用任何 returncode，避免与 expect_code 语义冲突
         return CheckResult(name, ctype, "error", str(exc))
@@ -747,12 +916,63 @@ def cmd_save_baseline(config: dict, out_path: Path) -> int:
     return 0
 
 
+def _relative_to_or_none(path: Path, directory: Path) -> Path | None:
+    try:
+        return path.relative_to(directory)
+    except ValueError:
+        return None
+
+
+def resolve_verify_write_path(path: Path, repo_root: Path) -> Path:
+    """Redirect writes from the legacy verify directory to the runtime directory."""
+    root = repo_root.resolve(strict=False)
+    resolved = path if path.is_absolute() else root / path
+    resolved = resolved.resolve(strict=False)
+    legacy_dir = (root / LEGACY_VERIFY_DIR).resolve(strict=False)
+    suffix = _relative_to_or_none(resolved, legacy_dir)
+    if suffix is None:
+        return resolved
+    runtime = (root / RUNTIME_VERIFY_DIR / suffix).resolve(strict=False)
+    print(
+        f"[verify] 旧路径 {resolved} 仅兼容读取；新产物写入 {runtime}。",
+        file=sys.stderr,
+    )
+    return runtime
+
+
+def resolve_verify_read_path(path: Path, repo_root: Path) -> Path:
+    """Read the requested path, falling back to its legacy counterpart."""
+    root = repo_root.resolve(strict=False)
+    resolved = path if path.is_absolute() else root / path
+    resolved = resolved.resolve(strict=False)
+    runtime_dir = (root / RUNTIME_VERIFY_DIR).resolve(strict=False)
+    legacy_dir = (root / LEGACY_VERIFY_DIR).resolve(strict=False)
+    runtime_suffix = _relative_to_or_none(resolved, runtime_dir)
+    legacy_suffix = _relative_to_or_none(resolved, legacy_dir)
+    fallback = legacy_dir / runtime_suffix if runtime_suffix is not None else None
+    if legacy_suffix is not None:
+        fallback = runtime_dir / legacy_suffix
+    selected = resolved
+    if not resolved.exists() and fallback is not None and fallback.exists():
+        selected = fallback
+    if _relative_to_or_none(selected, legacy_dir) is not None:
+        print(
+            f"[verify] 检测到旧 Verification 产物 {selected}；"
+            "仅兼容读取，请迁移到 .agentic-framework/verify/。",
+            file=sys.stderr,
+        )
+    return selected
+
+
 def cmd_verify(
     config: dict,
     baseline_path: Path | None,
     report_path: Path,
     diff_base: str,
     spec_drift_reason: str,
+    runtime_context: dict[str, Any] | None = None,
+    task_id: str | None = None,
+    attempt: int | None = None,
 ) -> int:
     """跑全部检查，对 baseline_aware 项做基线对比，产出报告。"""
     # 显式传了 --baseline 但文件不存在 → fail-closed，不能静默降级为无基线模式
@@ -874,7 +1094,7 @@ def cmd_verify(
     # 区分两种非 0 状态，避免把「门禁失效」当「有违规」送进修复循环。
     verdict = "ERROR" if errors else ("FAIL" if violations else "PASS")
     source_warnings = knowledge_source_warnings(Path.cwd())
-    report = {
+    payload = {
         "verdict": verdict,
         "total": len(results),
         "errors": len(errors),
@@ -883,6 +1103,34 @@ def cmd_verify(
         "warnings": source_warnings,
         "results": [asdict(r) for r in results],
     }
+    report: dict[str, Any] = payload
+    if runtime_context is not None:
+        if (task_id is None) != (attempt is None) or (
+            attempt is not None and attempt < 1
+        ):
+            print(
+                "[verify] Runtime Task 报告必须同时提供合法 task_id 和 attempt。",
+                file=sys.stderr,
+            )
+            return 2
+        artifact_id = "verify-run" if task_id is None else f"verify-{task_id}-{attempt}"
+        report = {
+            "schema_version": 1,
+            "artifact_type": "verify-report",
+            "artifact_id": artifact_id,
+            "run_id": runtime_context["run_id"],
+            "task_id": task_id,
+            "attempt": attempt,
+            "profile": runtime_context["profile"],
+            "harness": runtime_context["harness"],
+            "producer": "workflow-verification",
+            "commit_sha": runtime_context["commit_sha"],
+            "config_digest": runtime_context["config_digest"],
+            "created_at": datetime.datetime.now(datetime.timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "payload": payload,
+        }
     try:
         _atomic_write_json(report_path, report)
     except OSError as exc:
@@ -920,7 +1168,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="verify.config.json", help="配置文件路径")
     parser.add_argument("--save-baseline", metavar="PATH", help="采集基线并写入该路径")
     parser.add_argument("--baseline", metavar="PATH", help="对比用的基线路径")
-    parser.add_argument("--report", default=".verify/report.json", help="结构化报告输出路径")
+    parser.add_argument(
+        "--report",
+        default=".agentic-framework/verify/report.json",
+        help="结构化报告输出路径",
+    )
+    parser.add_argument("--run-dir", type=Path, help="已初始化的 Runtime Run 目录")
+    parser.add_argument("--task-id", help="Runtime Task 标识")
+    parser.add_argument("--attempt", type=int, help="Runtime 执行序号")
     parser.add_argument(
         "--diff-base",
         default="HEAD",
@@ -937,15 +1192,51 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(Path(args.config), require=require_config)
 
     if args.save_baseline:
-        return cmd_save_baseline(config, Path(args.save_baseline))
+        save_path = resolve_verify_write_path(Path(args.save_baseline), Path.cwd())
+        return cmd_save_baseline(config, save_path)
 
-    baseline_path = Path(args.baseline) if args.baseline else None
+    baseline_path = (
+        resolve_verify_read_path(Path(args.baseline), Path.cwd())
+        if args.baseline
+        else None
+    )
+    if args.run_dir is None and (args.task_id is not None or args.attempt is not None):
+        parser.error("--task-id 与 --attempt 必须配合 --run-dir 使用")
+    if (args.task_id is None) != (args.attempt is None):
+        parser.error("--task-id 与 --attempt 必须同时提供或同时省略")
+    runtime_context = None
+    if args.run_dir is not None:
+        try:
+            runtime_context = json.loads(
+                (args.run_dir / "run-context.json").read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            parser.error(f"Runtime context 无效：{error}")
+        default_report = Path(".agentic-framework/verify/report.json")
+        requested = Path(args.report)
+        if requested == default_report:
+            artifact_id = (
+                "verify-run"
+                if args.task_id is None
+                else f"verify-{args.task_id}-{args.attempt}"
+            )
+            requested = args.run_dir / "artifacts" / f"{artifact_id}.json"
+        report_path = requested.resolve(strict=False)
+        try:
+            report_path.relative_to((args.run_dir / "artifacts").resolve(strict=False))
+        except ValueError:
+            parser.error("Runtime Verify 报告必须写入 Run artifacts 目录")
+    else:
+        report_path = resolve_verify_write_path(Path(args.report), Path.cwd())
     return cmd_verify(
         config,
         baseline_path,
-        Path(args.report),
+        report_path,
         args.diff_base,
         args.spec_drift_reason,
+        runtime_context,
+        args.task_id,
+        args.attempt,
     )
 
 

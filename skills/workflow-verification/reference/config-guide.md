@@ -8,7 +8,7 @@
 # 1. 复制示例到项目根
 cp <skill-dir>/reference/verify.config.example.json verify.config.json
 # 2. 按技术栈改每个 check 的 command（见下方片段）
-# 3. 把 .verify/ 加进 .gitignore（基线和报告是本地临时产物）
+# 3. 把 .agentic-framework/ 加进 .gitignore（框架本地运行产物）
 ```
 
 无 `verify.config.json` 时，仍会运行内置 spec drift 检查；项目自定义 build/test/lint 检查跳过。
@@ -37,7 +37,7 @@ cp <skill-dir>/reference/verify.config.example.json verify.config.json
 | `metric` | count | 否 | `line_count`（输出行数）或 `stdout_int`（输出本身是数字），默认 `line_count` |
 | `direction` | count | 否 | `not_decrease`（不得减少）/ `not_increase`（不得增加），默认 `not_decrease` |
 | `threshold` | count | **是** | 整数。无基线时作绝对判定；有基线时作绝对下 / 上限保障 |
-| `timeout_seconds` | 全部 | 否 | 正整数，默认 60 |
+| `timeout_seconds` | 全部 | 否 | 正整数，默认 120 |
 
 ## 三类检查
 
@@ -103,14 +103,14 @@ cp <skill-dir>/reference/verify.config.example.json verify.config.json
 
 ```bash
 # 改动前采基线（只记录 baseline_aware check 的「值」）
-python <skill-dir>/scripts/verify.py --save-baseline .verify/baseline.json
+python <skill-dir>/scripts/verify.py --save-baseline .agentic-framework/verify/baseline.json
 # 改动后验证并对比
-python <skill-dir>/scripts/verify.py --baseline .verify/baseline.json
+python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseline.json
 ```
 
 - `forbid_pattern`：按出现次数比，只对**超出基线的新增命中**判 fail。
 - `count`：`not_decrease` 要求 current ≥ 基线，`not_increase` 要求 current ≤ 基线。
-- 下放并行执行在 git worktree 内，基线须用**主仓库根绝对路径**（worktree 看不到未提交的 `.verify/`）。
+- 下放并行执行在 Git worktree 内，基线须用**主仓库根绝对路径**（worktree 看不到未提交的 `.agentic-framework/verify/`）。
 
 退出码：`0` 全过；`1` 有新增违规或 spec drift（进修复循环）；`2` 门禁自身出错——工具缺失、正则非法、基线损坏（先排查配置，别改代码）。
 
@@ -131,7 +131,7 @@ python <skill-dir>/scripts/verify.py --baseline .verify/baseline.json
 ```bash
 # 有 verify.config.json
 python <skill-dir>/scripts/verify.py \
-  --baseline <repo-root>/.verify/baseline.json \
+  --baseline <repo-root>/.agentic-framework/verify/baseline.json \
   --diff-base <base_sha>
 
 # 无 verify.config.json
@@ -143,7 +143,7 @@ python <skill-dir>/scripts/verify.py --diff-base <base_sha>
 ```bash
 # 方案 1：补文档 / 任务 / ADR 后重跑（有 config）
 python <skill-dir>/scripts/verify.py \
-  --baseline <repo-root>/.verify/baseline.json \
+  --baseline <repo-root>/.agentic-framework/verify/baseline.json \
   --diff-base <base_sha>
 
 # 方案 1：补文档 / 任务 / ADR 后重跑（无 config）
@@ -151,7 +151,7 @@ python <skill-dir>/scripts/verify.py --diff-base <base_sha>
 
 # 方案 2：确实无需更新时写明原因（有 config）
 python <skill-dir>/scripts/verify.py \
-  --baseline <repo-root>/.verify/baseline.json \
+  --baseline <repo-root>/.agentic-framework/verify/baseline.json \
   --diff-base <base_sha> \
   --spec-drift-reason "仅修复脚本输出编码，不改变需求、任务拆解或架构决策"
 
@@ -161,7 +161,7 @@ python <skill-dir>/scripts/verify.py \
   --spec-drift-reason "仅修复脚本输出编码，不改变需求、任务拆解或架构决策"
 ```
 
-报告会写入 `.verify/report.json` 的 `spec_drift` 字段，最终交付证据必须引用其结论。
+报告会写入 `.agentic-framework/verify/report.json` 的 `spec_drift` 字段，最终交付证据必须引用其结论。
 
 ## 常见技术栈片段
 

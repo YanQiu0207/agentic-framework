@@ -13,7 +13,7 @@
 → 写入并纳入 Git
 ```
 
-`verify.config.json` 纳入 Git，使配置变化可审查；`.verify/`（基线与报告）维持不入库。
+`verify.config.json` 纳入 Git，使配置变化可审查；`.agentic-framework/verify/`（基线与报告）维持不入库。
 
 ## 仓库证据
 

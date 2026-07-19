@@ -1,0 +1,69 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/verify-report.schema.json",
+    "title": "verify-report",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "verify-report"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "verdict",
+                        "total",
+                        "errors",
+                        "violations",
+                        "spec_drift",
+                        "warnings",
+                        "results"
+                    ],
+                    "properties": {
+                        "verdict": {
+                            "enum": [
+                                "PASS",
+                                "FAIL",
+                                "ERROR"
+                            ]
+                        },
+                        "total": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "errors": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "violations": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "spec_drift": {
+                            "type": [
+                                "object",
+                                "null"
+                            ]
+                        },
+                        "warnings": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "results": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    ]
+}

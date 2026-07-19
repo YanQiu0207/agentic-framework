@@ -1,0 +1,139 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/harness-capability.schema.json",
+    "title": "Harness Capability Declaration",
+    "type": "object",
+    "required": [
+        "schema_version",
+        "harness",
+        "capabilities"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": 1
+        },
+        "harness": {
+            "type": "string",
+            "minLength": 1
+        },
+        "capabilities": {
+            "type": "object",
+            "required": [
+                "subagents",
+                "worktree_isolation",
+                "transcript_access",
+                "lifecycle_hooks",
+                "structured_tool_results"
+            ],
+            "properties": {
+                "subagents": {
+                    "type": "object",
+                    "required": [
+                        "status",
+                        "evidence"
+                    ],
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "supported",
+                                "degraded",
+                                "unsupported"
+                            ]
+                        },
+                        "evidence": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "worktree_isolation": {
+                    "type": "object",
+                    "required": [
+                        "status",
+                        "evidence"
+                    ],
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "supported",
+                                "degraded",
+                                "unsupported"
+                            ]
+                        },
+                        "evidence": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "transcript_access": {
+                    "type": "object",
+                    "required": [
+                        "status",
+                        "evidence"
+                    ],
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "supported",
+                                "degraded",
+                                "unsupported"
+                            ]
+                        },
+                        "evidence": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "lifecycle_hooks": {
+                    "type": "object",
+                    "required": [
+                        "status",
+                        "evidence"
+                    ],
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "supported",
+                                "degraded",
+                                "unsupported"
+                            ]
+                        },
+                        "evidence": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "structured_tool_results": {
+                    "type": "object",
+                    "required": [
+                        "status",
+                        "evidence"
+                    ],
+                    "properties": {
+                        "status": {
+                            "enum": [
+                                "supported",
+                                "degraded",
+                                "unsupported"
+                            ]
+                        },
+                        "evidence": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "additionalProperties": false
+}

@@ -1,0 +1,126 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json",
+    "title": "Agent Runtime Envelope",
+    "type": "object",
+    "required": [
+        "schema_version",
+        "artifact_type",
+        "artifact_id",
+        "run_id",
+        "task_id",
+        "attempt",
+        "profile",
+        "harness",
+        "producer",
+        "commit_sha",
+        "config_digest",
+        "created_at",
+        "payload"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": 1
+        },
+        "artifact_type": {
+            "enum": [
+                "run-manifest",
+                "task-state",
+                "event",
+                "review-report",
+                "verify-report",
+                "eval-result",
+                "input-artifact",
+                "code-result",
+                "final-report"
+            ]
+        },
+        "artifact_id": {
+            "type": "string",
+            "minLength": 1
+        },
+        "run_id": {
+            "type": "string",
+            "minLength": 1
+        },
+        "task_id": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "minLength": 1
+        },
+        "attempt": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "minimum": 1
+        },
+        "profile": {
+            "enum": [
+                "production",
+                "tooling"
+            ]
+        },
+        "harness": {
+            "type": "string",
+            "minLength": 1
+        },
+        "producer": {
+            "type": "string",
+            "minLength": 1
+        },
+        "commit_sha": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{40}$"
+        },
+        "config_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "created_at": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "payload": {
+            "type": "object"
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "task_id": {
+                        "type": "null"
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "attempt": {
+                        "type": "null"
+                    }
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {
+                    "task_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "attempt": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                }
+            }
+        }
+    ],
+    "additionalProperties": false
+}

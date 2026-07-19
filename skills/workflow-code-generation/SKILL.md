@@ -118,18 +118,20 @@ tasks.md 经用户批准后，执行下放给 agent：**主会话只编排，不
 
 **详细操作（Phase 0 准备 / Phase 1 逐波执行 / 失败隔离 / 合并 / 阻塞）见 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md)，按其执行。** 核心不变量：每产物必须完成实现、测试和任务级机器检查后才合并；LLM Review 只在全部任务合并并完成全局验证后启动一次。失败标 `需人工` 不阻塞其余；上游未合并则下游 `阻塞`；`tasks.md` 的 `状态:` 字段是续跑真相源。
 
+Phase 0 必须先调用 `workflow_control.py <tasks.md> init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明与 Adapter 命令。该命令在业务副作用前冻结规则输入与完整 Task Plan、生成 Run Context、执行 Harness 启动能力门并创建 Journal；失败时禁止 dispatch。每次 `quality_passed --write` 必须同时传 `--run-dir` 和该次执行生成的 Envelope Verify Artifact，旧式无 Run/Task/Attempt 绑定的顶层 `PASS` JSON 不得放行。
+
 ### 步骤 6：功能交付与 intent 沉淀（🚨 强制，全部 task 完成后触发）
 
 全部 wave 处理完、`tasks.md` 任务为 `完成` / `需人工` / `阻塞` 时，**禁止直接宣布交付**，先走：
 
 1. **汇总报告**（一次性，不逐 task）：汇总每个 task 的实现、测试和机器检查结果，列出哪些 `需人工`、哪些 `阻塞`、哪些合并冲突。
-2. **机器验证**：对合并结果整体跑 `workflow-verification`。有 config 时必须传 `--baseline <repo-root>/.verify/baseline.json --diff-base <base_sha>`；无 config 时必须传 `--diff-base <base_sha>` 触发内置 spec drift 检查。FAIL → 派 fix agent 修复后重验；仍 FAIL 标 `需人工`。
+2. **机器验证**：对合并结果整体跑 `workflow-verification`，并传 `--run-dir <run-dir>` 生成 Run 级 Verify Artifact。有 config 时必须传 `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config 时必须传 `--diff-base <base_sha>` 触发内置 spec drift 检查。FAIL → 派 fix agent 修复后重验；仍 FAIL 标 `需人工`。
 3. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证。失败则修复并回到第 2 步重验。
 4. **一次最终审核**：对本次全部变更调用一次 `workflow-code-review`（`mode: initial`，`review_profile` 取各 task 中最高档位）。`strict` 必须由未参与实现的独立 Judge 裁决。存在 keep 的 P0 / P1 时派 fix agent 修复、重跑受影响的验证，再按 `mode: re-review` 只复核 finding 和修复 diff；最多 2 轮，禁止启动第二次全量首审。
 5. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)，执行统一知识影响检查，并逐条核销步骤 3 / Phase 1 预留的「intent 沉淀」任务。命中长期知识影响时记录目标 `openspec/specs/` 或 `openspec/issues/` 及同步状态；Fast-Path 未创建 Change 时必须说明无长期知识影响的理由。
 6. **知识同步与归档**：加载 `project-knowledge`，对照实际 Diff 和验证证据完成 Delta、索引、Issues 与冲突检查；知识同步任务未完成时禁止归档。通过后把 `proposal.md` 头部 `状态` 改为 `Archived`，并将整个 Change 移到 `openspec/changes/archive/YYYY-MM-DD-<change-name>/`。
 7. **提交归档产物**：将工作区本次残留的全部改动（fix 修复、spec / tasks / ADR / issues 等文档）提交本地 git，提交信息关联 feature，交付时工作区必须干净；push / `svn commit` 仍由用户决定。
-8. **交付门（机器判定）**：对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <review-report.json>`——校验任务全部终态且附原因、Proposal 已归档、工作区干净与 Run 级 Review 证据。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
+8. **交付门（机器判定）**：对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --run-dir <run-dir> --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <run-dir>/artifacts/review-run.json`——生成代码 Diff 与最终结论 Artifact，校验完整 Manifest 可达性、Journal、Harness 启动证据、Trust Gate、任务终态、归档和 Git 状态。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
 9. 按[「统一交付证据格式」](#统一交付证据格式)交付，等用户验收 `需人工` / `阻塞` 项的处理。
 
 ## 统一交付证据格式
@@ -153,7 +155,7 @@ tasks.md 经用户批准后，执行下放给 agent：**主会话只编排，不
 - **交付门**：`check_delivery.py` 输出（各项 PASS，或未过项及处理说明）。
 - **测试命令**：列出实际运行命令、结果；未运行写原因。
 - **review 结论**：列出 review_profile、通过 / finding / 需人工。
-- **机器验证**：列出 `workflow-verification` 结果和 `.verify/report.json` 路径；必须包含 `spec_drift` 结论；注明配置消费状态（使用现有 / 缺失已跳过 / 建议刷新及原因——如 exit 2 或配置引用的命令、路径失效，提示用户之后运行 `/verify-config`，不在任务内改配置）。
+- **机器验证**：列出 `workflow-verification` 结果和 `.agentic-framework/verify/report.json` 路径；必须包含 `spec_drift` 结论；注明配置消费状态（使用现有 / 缺失已跳过 / 建议刷新及原因——如 exit 2 或配置引用的命令、路径失效，提示用户之后运行 `/verify-config`，不在任务内改配置）。
 - **前端截图 / DOM 验证**：涉及 UI 时列截图路径、DOM / console / 交互检查；不涉及写「不涉及」。
 - **未验证风险**：列出无法验证项、阻塞原因和建议补验方式。
 

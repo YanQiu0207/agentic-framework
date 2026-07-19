@@ -138,7 +138,7 @@ agentic-engineering-framework/
 │   ├── workflow-verification/ # Shared Core
 │   ├── opsx-*                # Production
 │   ├── workflow-*            # Tooling
-│   └── frontend / init / OCR # Optional Packs
+│   └── frontend / OCR        # Optional Packs；project-init 已进入 Core
 ├── commands/                  # 由安装器按 Profile / Pack 白名单选择
 ├── scripts/
 │   ├── install_agentic_framework.py
@@ -367,7 +367,7 @@ AI 可以根据仓库事实生成或维护 Verify 配置，但必须：
 | Pack | 默认 Profile | 内容 |
 | --- | --- | --- |
 | `frontend` | Tooling | Frontend Design、Layout、Taste、React、Playwright |
-| `project-init` | Tooling | 项目初始化 |
+| `project-init` | 两个 Profile 的 Core；保留兼容 Pack 选择器 | 项目初始化；重复选择不增加资产 |
 | `open-code-review` | 可选 | 外部独立审查工具 |
 | `telemetry` | Tooling 推荐、Production 可选，均需显式安装 | transcript 后处理、成本和收敛分析 |
 
@@ -403,8 +403,8 @@ python scripts/install_agentic_framework.py . \
 - 必须显式选择一个 Profile。
 - 第一版不提供 `--profile all`。
 - 同一目标项目默认禁止同时安装两个生命周期 Profile。
-- 安装器写入 Manifest，记录版本、Profile、Packs 和受管文件哈希。
-- 重装和升级根据 Manifest 精确覆盖受管文件。
+- 安装器写入 Manifest，记录版本、来源、Profile、Packs，以及受管链接的路径、来源和类型。
+- 重装和升级先校验已有受管链接，再以事务方式重建安装器管理的链接；不覆盖未受管文件。
 - 卸载不得删除项目自有文件。
 - Production 安装结果不得出现 Tooling 生命周期入口。
 - Tooling 安装结果不得出现 OPSX 生命周期入口。
@@ -476,7 +476,7 @@ task
 ### 14.4 Packs
 
 - 前端 Skills 与 `std-react`。
-- `project-init`。
+- `project-init` 迁入 Shared Core；旧 `--with project-init` 选择器只保留兼容语义。
 - `open-code-review`。
 - telemetry 脚本和指标账本模板。
 
@@ -723,7 +723,7 @@ E:\work\my-ai-resource\agentic-framework\docs
 | Review 次数 | Production 风险分档 Task Review + 最终五维集成 Review；Tooling 每个 Run 一次 | Tooling 仍写「每产物分级」 | 采用本方案，在生产质量与 Tooling Token 成本之间隔离策略 |
 | 长期 Specs | 建立受控 `openspec/specs/`，但只作为辅助知识；当前实现仍以代码和运行证据为准 | 不建立中央 Specs | 采用本方案，通过冲突报告和归档门禁控制漂移风险 |
 | 资产边界 | Core、Profile、Pack、Delete 分类 | 主要按两轨直接搬入 | 采用本方案，防止 `project-knowledge`、`bp-cola-ddd` 回流 |
-| 安装治理 | Manifest、受管文件哈希、切换约束 | 目录复制和三档安装 | 采用本方案 |
+| 安装治理 | 链接式 Manifest、用户级 Registry、切换约束 | 目录复制和三档安装 | 采用本方案 |
 | 落地复杂度 | 原设计建议物理迁移到 `core/`、`profiles/` | 保持顶层平铺 | 第一阶段吸收平铺布局，先用安装清单形成逻辑边界，避免无价值的大规模路径搬迁 |
 | 独立裁决 | Shared Review 中要求独立 Judge | 明确 Production 使用独立 Judge | 吸收并强化：Production Strict Review 必须由未参与实现的 Judge 执行 |
 | 共享治理 | 规则需同时满足双 Profile 准入条件 | 「谁改谁证明两轨通用」 | 吸收后者作为贡献者检查项 |
