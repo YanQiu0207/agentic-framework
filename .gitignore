@@ -5,6 +5,9 @@ __pycache__/
 # verify 门禁的本地产物（基线与报告）
 .verify/
 
+# Agent 运行协议的本地产物（合同 Schema 位于 schemas/runtime/）
+.agentic-framework/
+
 # Workflow 控制器的本地任务锁
 **/.tasks.md.lock
 

@@ -1,0 +1,49 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/task-state.schema.json",
+    "title": "task-state",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "task-state"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "state",
+                        "attempts"
+                    ],
+                    "properties": {
+                        "state": {
+                            "enum": [
+                                "pending",
+                                "running",
+                                "quality_passed",
+                                "completed",
+                                "manual",
+                                "blocked"
+                            ]
+                        },
+                        "attempts": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "task_id": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "attempt": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        }
+    ]
+}

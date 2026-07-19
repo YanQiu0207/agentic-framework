@@ -1,0 +1,40 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/run-config.schema.json",
+    "title": "Canonical Run Configuration",
+    "type": "object",
+    "required": [
+        "profile",
+        "harness",
+        "workflow",
+        "max_attempts",
+        "verify_config"
+    ],
+    "properties": {
+        "profile": {
+            "enum": [
+                "production",
+                "tooling"
+            ]
+        },
+        "harness": {
+            "type": "string",
+            "minLength": 1
+        },
+        "workflow": {
+            "type": "string",
+            "minLength": 1
+        },
+        "max_attempts": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "verify_config": {
+            "type": "object",
+            "default": {
+                "checks": []
+            }
+        }
+    },
+    "additionalProperties": false
+}
