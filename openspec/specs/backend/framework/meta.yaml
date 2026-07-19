@@ -1,22 +1,22 @@
 services:
     install-agentic-framework:
-        source_ref: git:677a4fd
+        source_ref: git:767cf8111e6f8959861fa77e373f2c0a71557307
         source_paths:
             - scripts/install_agentic_framework.py
             - scripts/test_install_agentic_framework.py
-        generated_at: 2026-07-19
+        generated_at: 2026-07-20
         status: active
     workflow-control:
-        source_ref: git:91d7abfd6303c0f7ca0288aaab74148445c7d488
+        source_ref: git:767cf8111e6f8959861fa77e373f2c0a71557307
         source_paths:
             - skills/workflow-code-generation/SKILL.md
             - skills/workflow-code-generation/scripts/
             - scripts/test_workflow_control.py
             - scripts/test_check_delivery.py
-        generated_at: 2026-07-19
+        generated_at: 2026-07-20
         status: active
     quality-gates:
-        source_ref: git:91d7abfd6303c0f7ca0288aaab74148445c7d488
+        source_ref: git:767cf8111e6f8959861fa77e373f2c0a71557307
         source_paths:
             - skills/opsx-code-generation/SKILL.md
             - skills/opsx-archive/SKILL.md
@@ -26,10 +26,10 @@ services:
             - scripts/tests/test_validate_change.py
             - agents/
             - verify.config.json
-        generated_at: 2026-07-19
+        generated_at: 2026-07-20
         status: active
     knowledge-management:
-        source_ref: git:91d7abfd6303c0f7ca0288aaab74148445c7d488
+        source_ref: git:767cf8111e6f8959861fa77e373f2c0a71557307
         source_paths:
             - skills/project-init/SKILL.md
             - skills/project-knowledge/SKILL.md
@@ -37,12 +37,12 @@ services:
             - scripts/validate_shared_knowledge.py
             - scripts/test_knowledge_management_e2e.py
             - scripts/test_profile_contracts.py
-        generated_at: 2026-07-19
+        generated_at: 2026-07-20
         status: active
     session-telemetry:
-        source_ref: git:046562b12d36d9d7fa9faa11e8c0cb8f104d040d
+        source_ref: git:767cf8111e6f8959861fa77e373f2c0a71557307
         source_paths:
             - scripts/analyze_session_metrics.py
             - scripts/test_analyze_session_metrics.py
-        generated_at: 2026-07-19
+        generated_at: 2026-07-20
         status: active

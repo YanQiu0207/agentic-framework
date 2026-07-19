@@ -1,6 +1,8 @@
-# 机器可验证的 Agent 运行协议 Delta
+# 机器可验证的 Agent 运行协议
 
-## ADDED Requirements
+**状态**：Active
+
+## Requirements
 
 ### Requirement：统一运行身份
 

@@ -9,7 +9,7 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 ## 导航
 
 - [长期 Specs](specs/)
-- [活跃 Change：建立机器可验证的 Agent 运行协议](changes/machine-verifiable-agent-runtime/)
+- [机器可验证的 Agent 运行协议](specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md)
 - [已验证 Issues](issues/)
 - [历史 Changes](changes/archive/)
 
@@ -21,6 +21,7 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - 项目知识、迁移和公共知识边界：[`knowledge-management`](specs/backend/framework/knowledge-management/overview.md)
 - 安装、Manifest 与 Registry：[`install-agentic-framework`](specs/backend/framework/install-agentic-framework/overview.md)
 - 会话指标与质量收敛分析：[`session-telemetry`](specs/backend/framework/session-telemetry/overview.md)
+- Run Envelope、证据链、恢复与 Trust Model：[`machine-verifiable-agent-runtime`](specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md)
 
 ## 读取规则
 

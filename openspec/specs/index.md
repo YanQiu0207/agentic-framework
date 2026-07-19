@@ -4,6 +4,8 @@
 
 - [双 Profile 总体合同](backend/engineering/tech/framework-unification.md)
 - [统一知识管理合同](backend/engineering/tech/knowledge-management.md)
+- [机器可验证的 Agent 运行协议](backend/engineering/tech/machine-verifiable-agent-runtime/spec.md)
+- [机器运行最小 Trust Model](backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md)
 - [知识目录决策 ADR 002](backend/engineering/tech/adr/002-unify-project-knowledge-layout.md)
 - [软连接安装决策 ADR 001](backend/engineering/tech/adr/001-use-symlink-based-installation.md)
 - [质量门结构化证据 ADR 003](backend/engineering/tech/adr/003-quality-gate-evidence.md)
