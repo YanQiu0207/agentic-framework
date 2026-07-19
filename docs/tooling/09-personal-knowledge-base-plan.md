@@ -1,5 +1,9 @@
 # 跨项目共用知识库建设方案
 
+> **状态**：Superseded
+>
+> 本文是合并前 Tooling 框架的历史研究与实施快照，不再作为当前知识管理规范。当前方案见[《项目知识库与跨项目公共知识库统一方案》](../design-docs/knowledge-management/spec.md)，实施范围见其[任务清单](../design-docs/knowledge-management/tasks.md)。
+
 ## 结论
 
 跨项目共用知识库首版采用「Markdown + Git + 分层索引 + 按需检索 + 增量更新」，暂不引入向量数据库、知识图谱和复杂 Agent 编排。
