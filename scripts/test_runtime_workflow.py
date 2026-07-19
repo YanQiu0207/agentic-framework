@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(
     0,
@@ -181,6 +182,86 @@ class RuntimeWorkflowTest(unittest.TestCase):
                 {item["artifact_type"] for item in manifest["payload"]["artifacts"]},
             )
             self.assertTrue((run_dir / "events.jsonl").is_file())
+
+    def test_finalize_rejects_non_terminal_task_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir)
+            context = {
+                "run_id": "run-1",
+                "profile": "tooling",
+                "harness": "codex",
+                "commit_sha": "1" * 40,
+                "base_commit_sha": "0" * 40,
+                "config_digest": "sha256:" + "2" * 64,
+                "created_at": "2026-07-19T12:00:00Z",
+            }
+            (run_dir / "run-context.json").write_text(
+                json.dumps(context), encoding="utf-8"
+            )
+            (run_dir / "snapshots").mkdir()
+            spec_snapshot = run_dir / "snapshots" / "input-spec.md"
+            spec_snapshot.write_text("# Spec\n", encoding="utf-8")
+            spec_artifact = runtime_workflow.envelope(
+                context,
+                "input-artifact",
+                "input-spec",
+                {
+                    "input_type": "spec",
+                    "path": "snapshots/input-spec.md",
+                    "content_digest": runtime_workflow.run_manifest.file_digest(
+                        spec_snapshot
+                    ),
+                },
+                "runtime-workflow",
+            )
+            runtime_workflow._write_artifact(run_dir, spec_artifact)
+            verify = runtime_workflow.envelope(
+                context,
+                "verify-report",
+                "verify-run",
+                {
+                    "verdict": "PASS",
+                    "total": 1,
+                    "errors": 0,
+                    "violations": 0,
+                    "spec_drift": None,
+                    "warnings": [],
+                    "results": [],
+                },
+                "workflow-verification",
+            )
+            runtime_workflow._write_artifact(run_dir, verify)
+            review = runtime_workflow.envelope(
+                context,
+                "review-report",
+                "review-run",
+                {
+                    "verdict": "PASS",
+                    "p0_count": 0,
+                    "p1_count": 0,
+                    "scope": "run",
+                    "review_profile": "strict",
+                    "round": 0,
+                    "implementer_actor": "owner-agent",
+                    "judge_actor": "independent-judge",
+                    "independence_basis": "process-separated-agent",
+                },
+                "workflow-code-review",
+            )
+            review_path = runtime_workflow._write_artifact(run_dir, review)
+            with mock.patch.object(
+                runtime_workflow, "subprocess_result", return_value=b""
+            ):
+                with self.assertRaisesRegex(
+                    runtime_workflow.RuntimeWorkflowError,
+                    "non_terminal_task_state:1:running",
+                ):
+                    runtime_workflow.finalize_run(
+                        run_dir.parent,
+                        run_dir,
+                        review_path,
+                        [{"task_id": "1", "state": "running", "attempts": 0}],
+                    )
 
     def test_legacy_unbound_pass_report_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

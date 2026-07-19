@@ -23,6 +23,14 @@
 - **Then** 校验必须失败关闭
 - **And** 输出具体的不匹配字段，不得只报告通用失败
 
+#### Scenario：配置摘要字段固定
+
+- **Given** Run 启动时生成 `config_digest`
+- **When** 计算规范化摘要
+- **Then** 摘要必须覆盖 `profile`、`harness`、`workflow`、`max_attempts`、解析后的 `verify.config.json`、`required_capabilities` 与 `optional_capabilities`
+- **And** 所有键按字典序序列化为 UTF-8 JSON
+- **And** 任一受覆盖字段变化必须改变摘要
+
 ### Requirement：可验证证据链
 
 框架必须生成 Run Manifest，记录关键 Artifact 的位置、摘要、生产者、Schema 版本和证据关系。
@@ -99,6 +107,14 @@
 - **When** 系统计算恢复动作
 - **Then** 系统必须停止并报告全部冲突证据
 - **And** 不得静默选择任一状态源
+
+#### Scenario：失败尝试的证据落在事件账本
+
+- **Given** 某次 Task 验证未通过并触发重试
+- **When** 该次失败尝试被记录
+- **Then** 失败证据必须以 `task-failed` 事件写入 `events.jsonl` 并递增已消费重试预算
+- **And** 重试产生的新 Artifact 必须使用新的 `artifact_id` 与更大的 `attempt`，不得覆盖旧证据
+- **And** 失败尝试不要求单独落盘 `verify-report` Artifact
 
 ### Requirement：最小信任模型
 
