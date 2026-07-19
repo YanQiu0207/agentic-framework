@@ -14,6 +14,7 @@ Fast-Path（无 spec / tasks）只传 `--repo`，仅检查工作区。
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -64,6 +65,24 @@ def check_spec(text: str) -> list[str]:
     return []
 
 
+def check_review_report(path: Path) -> list[str]:
+    """Review 报告须存在、可解析，verdict 为 PASS 且 P0/P1 计数均为 0。"""
+    if not path.is_file():
+        return [f"找不到 Review 报告 {path}"]
+    try:
+        report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError) as error:
+        return [f"Review 报告解析失败：{error}"]
+
+    errors: list[str] = []
+    if report.get("verdict") != "PASS":
+        errors.append(f"Review 报告 verdict 不是 PASS：{report.get('verdict')!r}")
+    for field in ("p0_count", "p1_count"):
+        if report.get(field) != 0:
+            errors.append(f"Review 报告 {field} 不为 0：{report.get(field)!r}")
+    return errors
+
+
 def check_git_clean(repo: Path) -> list[str]:
     """git 工作区（含未跟踪文件）必须干净。"""
     result = subprocess.run(
@@ -92,6 +111,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--tasks", type=Path, help="tasks.md 路径（标准流程必传）")
     parser.add_argument("--spec", type=Path, help="spec.md 路径（标准流程必传）")
     parser.add_argument("--repo", type=Path, default=Path("."), help="git 仓库根，默认当前目录")
+    parser.add_argument(
+        "--review-report",
+        type=Path,
+        required=True,
+        help="workflow-code-review 产出的 review-report.json 路径（Fast-Path 亦必传）",
+    )
     args = parser.parse_args(argv)
 
     errors: list[str] = []
@@ -115,6 +140,11 @@ def main(argv: list[str]) -> int:
     found = check_git_clean(args.repo)
     errors.extend(found)
     print(("ERROR  " + "；".join(found)) if found else "PASS   工作区干净（代码与归档产物已提交）")
+
+    checks += 1
+    found = check_review_report(args.review_report)
+    errors.extend(found)
+    print(("ERROR  " + "；".join(found)) if found else "PASS   Review 报告 verdict=PASS 且 P0/P1=0")
 
     print(f"\nchecks={checks} | errors={len(errors)}")
     return 1 if errors else 0
