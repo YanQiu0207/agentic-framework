@@ -24,6 +24,7 @@ REGISTRY_SCHEMA_VERSION = 1
 
 CORE_SKILLS = {
     "bp-architecture-design",
+    "bp-cli-tool-design",
     "bp-coding-best-practices",
     "bp-component-design",
     "bp-distributed-systems",
@@ -129,6 +130,7 @@ MANAGED_PROFILE_SKILL_ROOTS = {
     "production": frozenset(
         {
             "bp-architecture-design",
+            "bp-cli-tool-design",
             "bp-coding-best-practices",
             "bp-component-design",
             "bp-distributed-systems",
@@ -154,6 +156,7 @@ MANAGED_PROFILE_SKILL_ROOTS = {
     "tooling": frozenset(
         {
             "bp-architecture-design",
+            "bp-cli-tool-design",
             "bp-coding-best-practices",
             "bp-component-design",
             "bp-distributed-systems",

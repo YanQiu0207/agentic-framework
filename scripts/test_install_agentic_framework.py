@@ -139,6 +139,10 @@ class InstallTest(unittest.TestCase):
                 }
                 for client in installer.CLIENT_DIRS:
                     self.assertIn(
+                        f"{client}/skills/bp-cli-tool-design",
+                        targets,
+                    )
+                    self.assertIn(
                         f"{client}/skills/project-init",
                         targets,
                     )
