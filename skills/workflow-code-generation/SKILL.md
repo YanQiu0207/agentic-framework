@@ -45,7 +45,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 5. **统一 Code Review**：实现、测试和机器验证全部完成后，加载一次 `workflow-code-review`（`review_profile: lightweight`，`mode: initial`）。结论为 `NEEDS_CHANGES`（存在 keep 的 P0 / P1）→ 自行修复、重跑受影响的机器验证，再按 `mode: re-review` 定向复核，最多 2 轮；禁止启动第二次全量首审。
 6. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)（强制，Fast-Path 不豁免）。
 7. **提交**：将本次改动提交本地 git（push / `svn commit` 由用户决定）；用户明确要求不提交时，在交付报告标注「未提交待用户处理」。
-8. **交付门（机器判定）**：跑 `python <本 skill 目录>/scripts/check_delivery.py`（免 spec / tasks，只校验工作区干净）。非 0 → 补提交后重跑；用户要求不提交的改动是唯一豁免，在报告中标注。
+8. **交付门（机器判定）**：跑 `python <本 skill 目录>/scripts/check_delivery.py --review-report <review-report.json>`（免 spec / tasks，校验工作区干净与 Run 级 Review 证据）。非 0 → 补齐报告或提交后重跑；用户要求不提交的改动是工作区干净检查的唯一豁免，在报告中标注。
 9. 按[「统一交付证据格式」](#统一交付证据格式)输出改动说明，**结束**。
 
 ---
@@ -128,7 +128,7 @@ tasks.md 经用户批准后，执行下放给 agent：**主会话只编排，不
 5. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)，执行统一知识影响检查，并逐条核销步骤 3 / Phase 1 预留的「intent 沉淀」任务。命中长期知识影响时记录目标 `openspec/specs/` 或 `openspec/issues/` 及同步状态；Fast-Path 未创建 Change 时必须说明无长期知识影响的理由。
 6. **知识同步与归档**：加载 `project-knowledge`，对照实际 Diff 和验证证据完成 Delta、索引、Issues 与冲突检查；知识同步任务未完成时禁止归档。通过后把 `proposal.md` 头部 `状态` 改为 `Archived`，并将整个 Change 移到 `openspec/changes/archive/YYYY-MM-DD-<change-name>/`。
 7. **提交归档产物**：将工作区本次残留的全部改动（fix 修复、spec / tasks / ADR / issues 等文档）提交本地 git，提交信息关联 feature，交付时工作区必须干净；push / `svn commit` 仍由用户决定。
-8. **交付门（机器判定）**：对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --tasks <archived-tasks.md> --spec <archived-proposal.md>`——校验任务全部终态且附原因、Proposal 已归档、工作区干净。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
+8. **交付门（机器判定）**：对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <review-report.json>`——校验任务全部终态且附原因、Proposal 已归档、工作区干净与 Run 级 Review 证据。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
 9. 按[「统一交付证据格式」](#统一交付证据格式)交付，等用户验收 `需人工` / `阻塞` 项的处理。
 
 ## 统一交付证据格式

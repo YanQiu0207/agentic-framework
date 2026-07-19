@@ -3,11 +3,14 @@
 > 任务总数：2
 > Code Review：Pending
 
+- Review Report: review-reports/review-report.json
+
 ## 任务列表
 
 ### 任务 1：[completed] 实现校验器
 - Review Profile: standard
 - Task Review: PASS
+- Review Report: review-reports/task-1-review.json
 
 - 依赖：无
 - 文件：`scripts/validate_change.py`
@@ -20,6 +23,7 @@
 ### 任务 2：[completed] 添加测试
 - Review Profile: standard
 - Task Review: PASS
+- Review Report: review-reports/task-2-review.json
 
 - 依赖：Task 1
 - 文件：`scripts/tests/test_validate_change.py`

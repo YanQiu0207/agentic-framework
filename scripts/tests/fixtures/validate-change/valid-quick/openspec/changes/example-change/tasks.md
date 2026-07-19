@@ -3,11 +3,14 @@
 > 任务总数：2
 > Code Review：Pending
 
+- Review Report: review-reports/review-report.json
+
 ## 任务列表
 
 ### 任务 1：[completed] 增加示例命令
 - Review Profile: standard
 - Task Review: PASS
+- Review Report: review-reports/task-1-review.json
 
 - 依赖：无
 - 文件：`scripts/example.py`
@@ -20,6 +23,7 @@
 ### 任务 2：[completed] 验证示例命令
 - Review Profile: standard
 - Task Review: PASS
+- Review Report: review-reports/task-2-review.json
 
 - 依赖：Task 1
 - 文件：无需修改代码；执行现有验证命令。

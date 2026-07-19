@@ -102,7 +102,7 @@ python <validator-path> --repo . --change openspec/changes/<change-name> --phase
 - 普通 Task：`review_profile: standard`，由独立 `comprehensive-reviewer` 审核。
 - 高风险 Task：`review_profile: strict`，由 5 个专项 Reviewer 审核，并由未参与实现的独立 Judge 裁决。高风险包括安全、权限、数据迁移、并发、分布式、生产关键路径、公共 API 和大范围重构。
 - 每个 Task 只能启动一次首轮审核。有 keep 的 P0 / P1 时修复并重跑受影响的测试，再按 re-review 模式只检查原 finding 和修复 diff，禁止扩大范围。
-- 审核通过后，把该 Task 的「Task Review」更新为 `PASS`；未通过时不得标记 Completed。
+- 审核通过后，由 Judge 写出机器可读的 `review-report.json`，把该 Task 的「Task Review」更新为 `PASS`，并在同一 Task 元数据中添加 `- Review Report: <path>`。路径必须相对仓库根目录，且报告须满足 `verdict == "PASS"`、`p0_count == 0`、`p1_count == 0`；未通过时不得标记 Completed。
 
 #### Phase 2：汇报 → 继续或停止等待
 
@@ -156,7 +156,7 @@ Delivery 通过后，加载 `workflow-code-review`，以 `review_profile: strict
 
 修复 finding 后，必须重跑受影响的构建和测试、更新 `tasks.md` 的执行记录，并再次通过 Delivery 门禁。随后按照 `workflow-code-review` 的 re-review 流程仅复核保留项和修复 diff，直到结论为 PASS。禁止启动第二次五维首轮审核。
 
-评审通过后，将 `tasks.md` 中的 `Code Review` 状态更新为 `PASS`。
+评审通过后，由 Judge 写出集成级 `review-report.json`，将 `tasks.md` 中的 `Code Review` 状态更新为 `PASS`，并在变更头部添加 `- Review Report: <path>`。路径必须相对仓库根目录，报告字段与 Task 级报告使用同一契约。
 
 最终向用户输出 Review 总结，包含：
 

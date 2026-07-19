@@ -84,6 +84,8 @@ class WorkflowControlTest(unittest.TestCase):
             workflow_control._validate_verify_report({"verdict": "NEEDS_CHANGES"})
         with self.assertRaisesRegex(ValueError, "PASS"):
             workflow_control._validate_verify_report({})
+        with self.assertRaisesRegex(ValueError, "JSON 对象"):
+            workflow_control._validate_verify_report([])
 
     def test_quality_passed_without_verify_report_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

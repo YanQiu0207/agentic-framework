@@ -35,7 +35,7 @@ owner / implementer 的固定职责：
 
 主编排方收到结果后：
 
-- 实现、测试和机器检查通过 → 将 `quality_passed` 解释为「Task 级客观质量门通过」，允许合并。
+- 实现、测试和机器检查通过 → 使用 `event <task-id> quality_passed --verify-report <verify-report.json> --write` 写入状态；控制器仅在报告的 `verdict` 为 `PASS` 时允许进入合并阶段。
 - 失败且两轮内可修复 → 在原 worktree 修复并重验。
 - 仍失败、Agent 未返回或出现范围冲突 → 标 `需人工`，保留 worktree。
 - 上游未合并 → 下游标 `阻塞`，不得 dispatch。
@@ -53,6 +53,7 @@ owner / implementer 的固定职责：
 4. `strict` 必须由未参与实现的独立 Judge 裁决。
 5. keep 的 P0 / P1 触发修复；修复后重跑受影响的机器验证，并以 `mode: re-review` 只复核原 finding 和修复 diff，最多两轮。
 6. P2 和 follow-up 不触发修复循环；仍有 P0 / P1 时整体标 `需人工`。
+7. Review 通过后，由 Judge 同步写出 `review-report.json`，再运行 `check_delivery.py --tasks <tasks.md> --spec <spec.md> --review-report <review-report.json>`；只有退出码为 `0` 才允许交付。
 
 最终 Review 是 Run 级门禁，不回写每个 Task 的 Review 状态，也不改变已经记录的 DAG 和合并事实。
 

@@ -1,8 +1,8 @@
 # Tool/Service: 质量门证据校验（Verify/Review Evidence Gate）
 
-**作者**: Claude Code（与用户对话确认）
-**日期**: 2026-07-19
-**状态**: Quick Draft
+**作者**：Claude Code（与用户对话确认）
+**日期**：2026-07-19
+**状态**：Archived
 
 ---
 
@@ -15,7 +15,7 @@ Tooling Profile 的 `workflow_control.py`（`quality_passed` 事件）与 Produc
 - `workflow_control.py` 的 `quality_passed` 事件接受任意 `--reason` 字符串就允许状态迁移进入 merge，不校验 Review 或 Verify 是否真的发生过（`skills/workflow-code-generation/scripts/workflow_control.py:174-179,566-582`）。
 - `validate_change.py` 的 OPSX038（`Task Review: PASS`）和 OPSX032（`Code Review: PASS`）只检查 `tasks.md` 里的一行文本标记，没有对应的真实报告文件佐证（`scripts/validate_change.py:27-35,1057-1081,1182-1204`）。
 
-两者是同一类信任链漏洞：宿主 Agent 只要在文档里写一行 "PASS"，机器就无条件放行，无法察觉 Review 或 Verify 被跳过或谎报。
+两者是同一类信任链漏洞：宿主 Agent 只要在文档里写一行 `PASS`，机器就无条件放行，无法察觉 Review 或 Verify 被跳过或谎报。
 
 ### 目标
 
@@ -53,8 +53,8 @@ Tooling Profile 的 `workflow_control.py`（`quality_passed` 事件）与 Produc
 |------|------|
 | `workflow_control.py`（Tooling task 级） | `quality_passed` 新增必填 `--verify-report <path>`，读取并校验 `verdict=="PASS"` |
 | `workflow-code-review/SKILL.md` Step 7 | 输出契约扩展：Markdown 报告之外，额外写 `.verify/review-report.json` |
-| `check_delivery.py`（Tooling run 级） | 新增必填 `--review-report <path>`，校验 `verdict=="PASS"` 且 `p0_count==p1_count==0` |
-| `validate_change.py`（Production） | OPSX038（Task 级）与 OPSX032（集成级）新增校验 `tasks.md` 中 `- Review Report: <path>` 字段指向的文件 |
+| `check_delivery.py`（Tooling run 级） | 新增必填 `--review-report <path>`，校验完整 schema、`scope=="run"`、`verdict=="PASS"` 且 `p0_count==p1_count==0` |
+| `validate_change.py`（Production） | OPSX038（Task 级）与 OPSX032（集成级）新增校验 `tasks.md` 中 `- Review Report: <path>` 字段指向的仓库内文件，并分别要求 `scope=="task"` / `scope=="integration"` |
 
 ### 2.3 主要接口/API
 
@@ -80,6 +80,8 @@ Tooling Profile 的 `workflow_control.py`（`quality_passed` 事件）与 Produc
 
 - `verdict` 取值与现有 Markdown 报告「总体结论」字段一致（`PASS` / `NEEDS_CHANGES`）。
 - `p0_count` / `p1_count` 统计「正式问题」区 P0/P1 数量（`follow-up` 与 P2 不计入）。
+- `scope` 必须与消费门一致：Task 级为 `task`，Production 集成级为 `integration`，Tooling Run 级为 `run`。
+- `review_profile` 只能是 `lightweight` / `standard` / `strict`。
 - `round` 对应「轮次」字段：首审为 0，复审第 N 轮为 N。
 
 `workflow-verification` 的 `.verify/report.json`（已存在，不新增字段，直接复用其 `verdict` 字段，见 `skills/workflow-verification/scripts/verify.py:776-783`）。
@@ -90,8 +92,9 @@ Tooling Profile 的 `workflow_control.py`（`quality_passed` 事件）与 Produc
 
 - **堵什么，不堵什么**：这套改动堵住「跳过 Review/Verify 或忘了核对结论就直接宣布通过」这类流程性漏洞，并留下可审计的文件痕迹；堵不住 Reviewer/Judge 本身给出错误结论——语义正确性没有机器可验证的边界。
 - **为什么 `review-report` 不挂在 `quality_passed` 上**：Tooling 故意把 Code Review 推迟到全部 Task 合并后才跑一次以收敛修复循环成本（ADR-003）；Task 级 `quality_passed` 触发时 Review 架构上还没跑，挂载会直接违反这条既有决策。因此 Review 证据门放在 Run 级 `check_delivery.py`。
-- **破坏性变更**：新增必填参数/字段对现有正在跑的 change 有影响。落地前需确认仓库内当前没有其他活跃 Tooling/Production change 依赖旧 CLI 契约；若有,需要在对应 change 里同步升级调用方式。
+- **破坏性变更**：新增必填参数/字段对现有正在跑的 change 有影响。落地前需确认仓库内当前没有其他活跃 Tooling/Production change 依赖旧 CLI 契约；若有，需要在对应 change 里同步升级调用方式。
 - **范围边界**：`_execution_record`（构建/测试执行记录）的自由文本校验是同类问题，但本次讨论未覆盖，不在本次范围内，避免范围蔓延。
+- **证据新鲜度边界**：当前 schema 不绑定 Task/change 标识、commit 或 diff hash，因此机器门禁不能证明报告与当前代码版本一一对应。补充 provenance/freshness 字段会改变生产者和所有消费者合同，留作独立后续设计，不在本次已批准范围内扩张。
 
 ---
 
