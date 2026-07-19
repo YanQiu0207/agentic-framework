@@ -125,7 +125,9 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7 → Tas
 
 ### 任务 8：[pending] 统一框架本地运行产物目录
 
-- 状态：未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - depends_on：[Task 7]
 - review_profile：strict
 - context_files：本 Change、Verification、Workflow 控制器、Session Telemetry、`project-init` 和安装器合同
