@@ -73,6 +73,10 @@ Run 级 Review 必须满足：
 - 已完全控制主机的攻击者没有伪造文件、进程、Git 或命令输出；
 - 未在 `verify.config.json`、行为用例或 Harness 探测中声明的行为正确。
 
+### Fast-Path 交付的有界裁决
+
+局部低风险改动可走 Fast-Path 交付门（无 `--run-dir`）：校验 lightweight Review、机器验证报告、工作区干净与知识影响结论后输出 `fast-path-pass`。该裁决**不是** Run 级 Trust Gate PASS，仅证明上述四项本地检查通过；它显式不声明 `strict-independent-review`、`run-manifest-evidence-graph` 与 `harness-capability-probe`。任何要求独立审查或完整证据链的交付必须走 `--run-dir` 的 strict 路径，不得用 `fast-path-pass` 替代。
+
 ## 6. 迁移说明
 
 1. 旧 Review Artifact 仍可按 Schema 解析，但缺少 `scope: run` 或 actor 独立性声明时不能通过最终 Trust Gate。

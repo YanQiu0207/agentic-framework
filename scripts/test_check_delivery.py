@@ -38,9 +38,77 @@ PASSING_RUN_REPORT = {
     "round": 0,
 }
 
+PASSING_LIGHTWEIGHT_REPORT = {
+    "verdict": "PASS",
+    "p0_count": 0,
+    "p1_count": 0,
+    "scope": "run",
+    "review_profile": "lightweight",
+    "round": 0,
+}
+
+PASSING_VERIFY_REPORT = {
+    "verdict": "PASS",
+    "total": 1,
+    "errors": 0,
+    "violations": 0,
+    "spec_drift": None,
+    "warnings": [],
+    "results": [],
+}
+
 
 class CheckDeliveryTest(unittest.TestCase):
     """Cover terminal states, reason requirement, spec status, and git cleanliness."""
+
+    def _clean_repo_with_ignore(self) -> Path:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        subprocess.run(
+            ["git", "init", "-q", str(repo)], check=True, capture_output=True
+        )
+        (repo / ".gitignore").write_text(".agentic-framework/\n", encoding="utf-8")
+        (repo / "code.py").write_text("print('v1')\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "-A"], check=True, capture_output=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-qm",
+                "init",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        return repo
+
+    def _fast_path_inputs(
+        self,
+        repo: Path,
+        *,
+        review: dict | None = None,
+        verify: dict | None = None,
+    ) -> tuple[Path, Path]:
+        runtime = repo / ".agentic-framework"
+        runtime.mkdir(parents=True, exist_ok=True)
+        review_path = runtime / "review.json"
+        verify_path = runtime / "verify.json"
+        review_path.write_text(
+            json.dumps(review or PASSING_LIGHTWEIGHT_REPORT), encoding="utf-8"
+        )
+        verify_path.write_text(
+            json.dumps(verify or PASSING_VERIFY_REPORT), encoding="utf-8"
+        )
+        return review_path, verify_path
 
     def test_terminal_tasks_with_reason_pass(self) -> None:
         self.assertEqual([], check_delivery.check_tasks(TERMINAL_TASKS))
@@ -103,58 +171,111 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertIn("必须同时提供", stderr.getvalue())
 
-    def test_main_fast_path_requires_and_reports_knowledge_impact(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            repo = Path(temp_dir)
-            subprocess.run(["git", "init", "-q", str(repo)], check=True)
-            report = repo / "review-report.json"
-            report.write_text(json.dumps(PASSING_RUN_REPORT), encoding="utf-8")
-            subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(repo),
-                    "-c",
-                    "user.name=Test",
-                    "-c",
-                    "user.email=test@example.com",
-                    "commit",
-                    "-q",
-                    "-m",
-                    "fixture",
-                ],
-                check=True,
-            )
-            with redirect_stdout(StringIO()):
-                self.assertEqual(
-                    1,
-                    check_delivery.main(
-                        [
-                            "--repo",
-                            str(repo),
-                            "--review-report",
-                            str(report),
-                        ]
-                    ),
-                )
-            stdout = StringIO()
-            with redirect_stdout(stdout):
-                result = check_delivery.main(
-                    [
-                        "--repo",
-                        str(repo),
-                        "--knowledge-impact",
-                        "none",
-                        "--knowledge-impact-reason",
-                        "只修改局部日志",
-                        "--review-report",
-                        str(report),
-                    ]
-                )
+    def test_main_fast_path_requires_knowledge_impact(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, verify = self._fast_path_inputs(repo)
+        result = check_delivery.main(
+            [
+                "--repo",
+                str(repo),
+                "--review-report",
+                str(review),
+                "--verify-report",
+                str(verify),
+            ]
+        )
         self.assertEqual(1, result)
-        self.assertIn("旧无绑定 Review PASS 不得放行", stdout.getvalue())
-        self.assertIn("知识影响：未命中；理由：只修改局部日志", stdout.getvalue())
+
+    def test_main_fast_path_accepts_lightweight_delivery(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, verify = self._fast_path_inputs(repo)
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            result = check_delivery.main(
+                [
+                    "--repo",
+                    str(repo),
+                    "--review-report",
+                    str(review),
+                    "--verify-report",
+                    str(verify),
+                    "--knowledge-impact",
+                    "none",
+                    "--knowledge-impact-reason",
+                    "局部改动，无长期知识影响",
+                ]
+            )
+        self.assertEqual(0, result)
+        output = stdout.getvalue()
+        self.assertIn("fast-path-pass", output)
+        self.assertIn("知识影响：未命中；理由：局部改动", output)
+        self.assertIn("unprovable_claims", output)
+        self.assertIn("strict-independent-review", output)
+
+    def test_main_fast_path_rejects_standard_review_without_run_dir(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, verify = self._fast_path_inputs(repo, review=PASSING_RUN_REPORT)
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            result = check_delivery.main(
+                [
+                    "--repo",
+                    str(repo),
+                    "--review-report",
+                    str(review),
+                    "--verify-report",
+                    str(verify),
+                    "--knowledge-impact",
+                    "none",
+                    "--knowledge-impact-reason",
+                    "x",
+                ]
+            )
+        self.assertEqual(1, result)
+        self.assertIn("lightweight", stdout.getvalue())
+
+    def test_main_fast_path_rejects_failed_verify(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        failed = dict(PASSING_VERIFY_REPORT, verdict="FAIL", errors=2)
+        review, verify = self._fast_path_inputs(repo, verify=failed)
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            result = check_delivery.main(
+                [
+                    "--repo",
+                    str(repo),
+                    "--review-report",
+                    str(review),
+                    "--verify-report",
+                    str(verify),
+                    "--knowledge-impact",
+                    "none",
+                    "--knowledge-impact-reason",
+                    "x",
+                ]
+            )
+        self.assertEqual(1, result)
+        self.assertIn("机器验证 verdict 非 PASS", stdout.getvalue())
+
+    def test_main_fast_path_rejects_dirty_tree(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        (repo / "untracked.txt").write_text("dirty", encoding="utf-8")
+        review, verify = self._fast_path_inputs(repo)
+        result = check_delivery.main(
+            [
+                "--repo",
+                str(repo),
+                "--review-report",
+                str(review),
+                "--verify-report",
+                str(verify),
+                "--knowledge-impact",
+                "none",
+                "--knowledge-impact-reason",
+                "x",
+            ]
+        )
+        self.assertEqual(1, result)
 
     def test_main_standard_pair_remains_compatible(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

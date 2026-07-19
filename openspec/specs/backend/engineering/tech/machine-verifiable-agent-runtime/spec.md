@@ -118,6 +118,15 @@
 - **Then** 框架只能声明证据存在且上下文一致
 - **And** 不得把该结果表述为 Reviewer/Judge 语义判断必然正确
 
+#### Scenario：Fast-Path 交付的有界裁决
+
+- **Given** 一次局部低风险改动未走完整 Run（无 `--run-dir`）
+- **When** 交付门以 Fast-Path 模式校验
+- **Then** 必须校验 lightweight Review、机器验证报告、工作区干净与知识影响结论
+- **And** Review 的 `review_profile` 必须为 `lightweight`；strict/standard 须走 `--run-dir`
+- **And** 裁决必须为 `fast-path-pass`，不得表述为 strict Trust Gate PASS
+- **And** 必须显式声明 `strict-independent-review` 与 `run-manifest-evidence-graph` 为不可证明
+
 ### Requirement：本地运行产物统一收口
 
 框架必须将不纳入版本控制的本地运行产物统一写入仓库根 `.agentic-framework/`，不得继续在项目目录中新增平级私有状态目录或文件。

@@ -113,6 +113,41 @@ def check_review_report(path: Path, run_dir: Path | None = None) -> list[str]:
     return errors
 
 
+def check_fast_path_review(path: Path) -> list[str]:
+    """Fast-Path Review 须为 lightweight 且 PASS，不得冒充 strict Run 级裁决。"""
+    found = check_review_report(path, run_dir=None)
+    if found:
+        return found
+    report = json.loads(path.read_text(encoding="utf-8"))
+    profile = report.get("review_profile")
+    if profile != "lightweight":
+        return [
+            "Fast-Path review_profile 必须为 lightweight"
+            f"（当前 {profile!r}）；strict/standard 须走 --run-dir"
+        ]
+    return []
+
+
+def check_verify_report(path: Path) -> list[str]:
+    """Fast-Path 须附带 PASS 的机器验证报告。"""
+    if not path.is_file():
+        return [f"找不到机器验证报告 {path}（先跑 workflow-verification）"]
+    try:
+        report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        return [f"机器验证报告解析失败：{error}"]
+    if not isinstance(report, dict):
+        return ["机器验证报告顶层结构必须是 JSON 对象"]
+    errors: list[str] = []
+    if report.get("verdict") != "PASS":
+        errors.append(f"机器验证 verdict 非 PASS：{report.get('verdict')!r}")
+    for field in ("errors", "violations"):
+        value = report.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value != 0:
+            errors.append(f"机器验证 {field} 必须为整数 0：{value!r}")
+    return errors
+
+
 def check_git_clean(repo: Path) -> list[str]:
     """git 工作区（含未跟踪文件）必须干净。"""
     result = subprocess.run(
@@ -173,6 +208,12 @@ def main(argv: list[str]) -> int:
         required=True,
         help="workflow-code-review 产出的 review-report.json 路径（Fast-Path 亦必传）",
     )
+    parser.add_argument(
+        "--verify-report",
+        type=Path,
+        default=Path(".agentic-framework/verify/report.json"),
+        help="workflow-verification 产出的机器验证报告路径（Fast-Path 必传）",
+    )
     args = parser.parse_args(argv)
 
     if (args.tasks is None) != (args.spec is None):
@@ -226,19 +267,32 @@ def main(argv: list[str]) -> int:
     )
 
     checks += 1
-    found = (
-        check_review_report(args.review_report, args.run_dir)
-        if args.run_dir is not None
-        else ["缺少 --run-dir，旧无绑定 Review PASS 不得放行"]
-    )
-    errors.extend(found)
-    print(
-        ("ERROR  " + "；".join(found))
-        if found
-        else "PASS   Review 报告 verdict=PASS 且 P0/P1=0"
-    )
+    if args.run_dir is not None:
+        found = check_review_report(args.review_report, args.run_dir)
+        errors.extend(found)
+        print(
+            ("ERROR  " + "；".join(found))
+            if found
+            else "PASS   Review 报告 verdict=PASS 且 P0/P1=0"
+        )
+    else:
+        found = check_fast_path_review(args.review_report)
+        errors.extend(found)
+        print(
+            ("ERROR  " + "；".join(found))
+            if found
+            else "PASS   Fast-Path lightweight Review：verdict=PASS 且 P0/P1=0"
+        )
+        checks += 1
+        verify_errors = check_verify_report(args.verify_report)
+        errors.extend(verify_errors)
+        print(
+            ("ERROR  " + "；".join(verify_errors))
+            if verify_errors
+            else "PASS   机器验证报告 verdict=PASS"
+        )
 
-    if not errors:
+    if not errors and args.run_dir is not None:
         if args.tasks is None:
             task_states = [
                 {"task_id": "fast-path", "state": "completed", "attempts": 0}
@@ -281,6 +335,17 @@ def main(argv: list[str]) -> int:
             checks += 1
             errors.append(str(error))
             print(f"ERROR  Runtime 证据链：{error}")
+    elif not errors:
+        checks += 1
+        print("PASS   Fast-Path 交付裁决：fast-path-pass")
+        print(
+            "       verified_claims: git-clean, machine-verify, "
+            "lightweight-review, knowledge-impact"
+        )
+        print(
+            "       unprovable_claims: strict-independent-review, "
+            "run-manifest-evidence-graph, harness-capability-probe"
+        )
 
     print(f"\nchecks={checks} | errors={len(errors)}")
     return 1 if errors else 0
