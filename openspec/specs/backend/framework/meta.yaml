@@ -6,3 +6,43 @@ services:
             - scripts/test_install_agentic_framework.py
         generated_at: 2026-07-19
         status: active
+    workflow-control:
+        source_ref: git:91d7abfd6303c0f7ca0288aaab74148445c7d488
+        source_paths:
+            - skills/workflow-code-generation/SKILL.md
+            - skills/workflow-code-generation/scripts/
+            - scripts/test_workflow_control.py
+            - scripts/test_check_delivery.py
+        generated_at: 2026-07-19
+        status: active
+    quality-gates:
+        source_ref: git:91d7abfd6303c0f7ca0288aaab74148445c7d488
+        source_paths:
+            - skills/opsx-code-generation/SKILL.md
+            - skills/opsx-archive/SKILL.md
+            - skills/workflow-code-review/SKILL.md
+            - skills/workflow-verification/
+            - scripts/validate_change.py
+            - scripts/tests/test_validate_change.py
+            - agents/
+            - verify.config.json
+        generated_at: 2026-07-19
+        status: active
+    knowledge-management:
+        source_ref: git:91d7abfd6303c0f7ca0288aaab74148445c7d488
+        source_paths:
+            - skills/project-init/SKILL.md
+            - skills/project-knowledge/SKILL.md
+            - scripts/migrate_project_knowledge.py
+            - scripts/validate_shared_knowledge.py
+            - scripts/test_knowledge_management_e2e.py
+            - scripts/test_profile_contracts.py
+        generated_at: 2026-07-19
+        status: active
+    session-telemetry:
+        source_ref: git:046562b12d36d9d7fa9faa11e8c0cb8f104d040d
+        source_paths:
+            - scripts/analyze_session_metrics.py
+            - scripts/test_analyze_session_metrics.py
+        generated_at: 2026-07-19
+        status: active
