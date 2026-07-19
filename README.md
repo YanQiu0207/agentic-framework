@@ -115,6 +115,7 @@ Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 
 
 | 主题 | 当前状态 | 文档入口 |
 | --- | --- | --- |
+| 框架特性、开发进展与开源对比 | 当前综合说明 | [框架特性、进展与框架对比](docs/framework-features-status-and-comparison.md) |
 | 双 Profile 总体设计 | 当前合同 | [单仓库双 Profile 合并方案](docs/design-docs/framework-unification/spec.md) |
 | 机器验证 Verify | 已实现；支持 `build`、`test`、`lint`、基线对比和 spec drift | [workflow-verification](skills/workflow-verification/SKILL.md)、[配置指南](skills/workflow-verification/reference/config-guide.md) |
 | 跨项目共用知识库 | `project-init` Pack 负责接线外部知识库；框架不内置中央知识真相库 | [project-init](skills/project-init/SKILL.md)、[知识库方案快照](docs/tooling/09-personal-knowledge-base-plan.md) |
