@@ -57,6 +57,16 @@ class RunFixture:
         artifacts.mkdir(parents=True)
         spec_path = artifacts / "spec.md"
         spec_path.write_text("# Spec\n", encoding="utf-8")
+        agents_path = artifacts / "AGENTS.md"
+        agents_path.write_text("# Rules\n", encoding="utf-8")
+        skill_path = artifacts / "SKILL.md"
+        skill_path.write_text("# Workflow\n", encoding="utf-8")
+        tasks_path = artifacts / "tasks.md"
+        tasks_path.write_text("### Task 3\n", encoding="utf-8")
+        capability_path = artifacts / "capability-probe.json"
+        capability_path.write_text("{}\n", encoding="utf-8")
+        code_path = artifacts / "code.diff"
+        code_path.write_text("diff --git a/a b/a\n", encoding="utf-8")
         self.documents = {
             "spec": envelope(
                 "input-artifact",
@@ -65,6 +75,47 @@ class RunFixture:
                     "input_type": "spec",
                     "path": "artifacts/spec.md",
                     "content_digest": run_manifest.file_digest(spec_path),
+                },
+                None,
+            ),
+            "agents": envelope(
+                "input-artifact",
+                "agents",
+                {
+                    "input_type": "agents",
+                    "path": "artifacts/AGENTS.md",
+                    "content_digest": run_manifest.file_digest(agents_path),
+                },
+                None,
+            ),
+            "skill": envelope(
+                "input-artifact",
+                "skill",
+                {
+                    "input_type": "skill",
+                    "path": "artifacts/SKILL.md",
+                    "content_digest": run_manifest.file_digest(skill_path),
+                },
+                None,
+            ),
+            "task-plan": envelope(
+                "input-artifact",
+                "task-plan",
+                {
+                    "input_type": "task-plan",
+                    "path": "artifacts/tasks.md",
+                    "content_digest": run_manifest.file_digest(tasks_path),
+                    "task_ids": ["3"],
+                },
+                None,
+            ),
+            "capability": envelope(
+                "input-artifact",
+                "capability",
+                {
+                    "input_type": "capability-matrix",
+                    "path": "artifacts/capability-probe.json",
+                    "content_digest": run_manifest.file_digest(capability_path),
                 },
                 None,
             ),
@@ -96,6 +147,24 @@ class RunFixture:
                     "round": 0,
                 },
             ),
+            "code": envelope(
+                "code-result",
+                "code",
+                {
+                    "base_commit_sha": BASE_SHA,
+                    "head_commit_sha": COMMIT_SHA,
+                    "path": "artifacts/code.diff",
+                    "content_digest": run_manifest.file_digest(code_path),
+                    "changed_paths": ["a"],
+                },
+                None,
+            ),
+            "final": envelope(
+                "final-report",
+                "final",
+                {"verdict": "PASS", "summary": "Evidence is context-bound."},
+                None,
+            ),
         }
         for name, document in self.documents.items():
             write_json(artifacts / f"{name}.json", document)
@@ -121,6 +190,15 @@ class RunFixture:
                     "source_artifact_id": "review",
                     "target_artifact_id": "spec",
                 },
+                *[
+                    {
+                        "relation_type": "concludes",
+                        "source_artifact_id": "final",
+                        "target_artifact_id": artifact_id,
+                    }
+                    for artifact_id in self.documents
+                    if artifact_id != "final"
+                ],
             ],
         }
 
@@ -152,7 +230,18 @@ class RunManifestTest(unittest.TestCase):
             manifest = fixture.generate()
             run_manifest.validate_manifest(fixture.root, manifest)
             self.assertEqual(
-                ["review", "spec", "task", "verify"],
+                [
+                    "agents",
+                    "capability",
+                    "code",
+                    "final",
+                    "review",
+                    "skill",
+                    "spec",
+                    "task",
+                    "task-plan",
+                    "verify",
+                ],
                 [item["artifact_id"] for item in manifest["payload"]["artifacts"]],
             )
             self.assertEqual("completed", manifest["payload"]["tasks"][0]["state"])
@@ -247,6 +336,26 @@ class RunManifestTest(unittest.TestCase):
                 run_manifest.validate_manifest(fixture.root, manifest)
             self.assertIn("missing_spec_binding:review", unbound.exception.issues)
             self.assertIn("missing_spec_binding:verify", unbound.exception.issues)
+
+    def test_complete_task_plan_and_final_reachability_are_required(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture = RunFixture(Path(temp_dir))
+            manifest = fixture.generate()
+            plan = copy.deepcopy(fixture.documents["task-plan"])
+            plan["payload"]["task_ids"].append("4")
+            fixture.rewrite_artifact(manifest, "task-plan", plan)
+            manifest["payload"]["relations"] = [
+                relation
+                for relation in manifest["payload"]["relations"]
+                if not (
+                    relation["relation_type"] == "concludes"
+                    and relation["target_artifact_id"] == "code"
+                )
+            ]
+            with self.assertRaises(run_manifest.ManifestError) as caught:
+                run_manifest.validate_manifest(fixture.root, manifest)
+            self.assertIn("missing_planned_task:4", caught.exception.issues)
+            self.assertIn("final_evidence_unreachable:code", caught.exception.issues)
 
     def test_producer_and_relation_endpoints_are_verified(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

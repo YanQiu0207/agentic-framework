@@ -116,6 +116,22 @@ class RuntimeSchemaTest(unittest.TestCase):
                 },
                 None,
             ),
+            artifact(
+                "code-result",
+                {
+                    "base_commit_sha": COMMIT_SHA,
+                    "head_commit_sha": COMMIT_SHA,
+                    "path": "snapshots/code.diff",
+                    "content_digest": DIGEST,
+                    "changed_paths": ["src/tool.py"],
+                },
+                None,
+            ),
+            artifact(
+                "final-report",
+                {"verdict": "PASS", "summary": "Evidence is context-bound."},
+                None,
+            ),
         ]
         for document in documents:
             with self.subTest(artifact_type=document["artifact_type"]):

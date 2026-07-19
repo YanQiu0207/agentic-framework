@@ -24,6 +24,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lint_spec
 import lint_task_deps
 
+_FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
+if str(_FRAMEWORK_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+import runtime_workflow
+
 TERMINAL_STATES = {"完成", "需人工", "阻塞"}
 NEEDS_REASON = {"需人工", "阻塞"}
 
@@ -66,32 +71,39 @@ def check_spec(text: str) -> list[str]:
     return []
 
 
-def check_review_report(path: Path) -> list[str]:
+def check_review_report(path: Path, run_dir: Path | None = None) -> list[str]:
     """Review 报告须符合 Run 级机器可读产物契约。"""
     if not path.is_file():
         return [f"找不到 Review 报告 {path}"]
     try:
-        report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, ValueError) as error:
+        if run_dir is None:
+            report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+            payload = report
+        else:
+            report = runtime_workflow.load_bound_report(
+                run_dir, path, "review-report"
+            )
+            payload = report["payload"]
+    except (OSError, ValueError, runtime_workflow.RuntimeWorkflowError) as error:
         return [f"Review 报告解析失败：{error}"]
 
     if not isinstance(report, dict):
         return ["Review 报告顶层结构必须是 JSON 对象"]
 
     errors: list[str] = []
-    if report.get("verdict") != "PASS":
-        errors.append(f"Review 报告 verdict 不是 PASS：{report.get('verdict')!r}")
+    if payload.get("verdict") != "PASS":
+        errors.append(f"Review 报告 verdict 不是 PASS：{payload.get('verdict')!r}")
     for field in ("p0_count", "p1_count"):
-        count = report.get(field)
+        count = payload.get(field)
         if not isinstance(count, int) or isinstance(count, bool) or count != 0:
             errors.append(f"Review 报告 {field} 必须为整数 0：{count!r}")
-    if report.get("scope") != "run":
-        errors.append(f"Review 报告 scope 不是 run：{report.get('scope')!r}")
-    if report.get("review_profile") not in {"lightweight", "standard", "strict"}:
+    if payload.get("scope") != "run":
+        errors.append(f"Review 报告 scope 不是 run：{payload.get('scope')!r}")
+    if payload.get("review_profile") not in {"lightweight", "standard", "strict"}:
         errors.append(
-            "Review 报告 review_profile 非法：" f"{report.get('review_profile')!r}"
+            "Review 报告 review_profile 非法：" f"{payload.get('review_profile')!r}"
         )
-    round_number = report.get("round")
+    round_number = payload.get("round")
     if (
         not isinstance(round_number, int)
         or isinstance(round_number, bool)
@@ -141,6 +153,9 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--spec", type=Path, help="spec.md 路径（标准流程必传）")
     parser.add_argument(
         "--repo", type=Path, default=Path("."), help="git 仓库根，默认当前目录"
+    )
+    parser.add_argument(
+        "--run-dir", type=Path, help="已初始化的 Runtime Run 目录"
     )
     parser.add_argument(
         "--knowledge-impact",
@@ -211,13 +226,61 @@ def main(argv: list[str]) -> int:
     )
 
     checks += 1
-    found = check_review_report(args.review_report)
+    found = (
+        check_review_report(args.review_report, args.run_dir)
+        if args.run_dir is not None
+        else ["缺少 --run-dir，旧无绑定 Review PASS 不得放行"]
+    )
     errors.extend(found)
     print(
         ("ERROR  " + "；".join(found))
         if found
         else "PASS   Review 报告 verdict=PASS 且 P0/P1=0"
     )
+
+    if not errors:
+        if args.tasks is None:
+            task_states = [
+                {"task_id": "fast-path", "state": "completed", "attempts": 0}
+            ]
+        else:
+            parsed = lint_task_deps.parse_tasks(
+                args.tasks.read_text(encoding="utf-8", errors="replace")
+            )
+            state_names = {
+                "完成": "completed",
+                "需人工": "manual",
+                "阻塞": "blocked",
+            }
+            task_states = []
+            for task_id, task in sorted(parsed.items()):
+                state = lint_task_deps.parse_state(
+                    lint_task_deps.field(task["body"], "状态")
+                )
+                attempts = lint_task_deps.field(task["body"], "attempts") or "0"
+                task_states.append(
+                    {
+                        "task_id": str(task_id),
+                        "state": state_names[state],
+                        "attempts": int(attempts),
+                    }
+                )
+        try:
+            trust_report = runtime_workflow.finalize_run(
+                args.repo.resolve(),
+                args.run_dir.resolve(),
+                args.review_report.resolve(),
+                task_states,
+            )
+            checks += 1
+            print(
+                "PASS   Runtime Manifest、Journal、Harness 与 Trust Gate："
+                f"{trust_report['verdict']}"
+            )
+        except Exception as error:
+            checks += 1
+            errors.append(str(error))
+            print(f"ERROR  Runtime 证据链：{error}")
 
     print(f"\nchecks={checks} | errors={len(errors)}")
     return 1 if errors else 0

@@ -26,6 +26,50 @@ import lint_task_deps
 import workflow_control
 
 
+def runtime_verify_fixture(root: Path) -> tuple[Path, Path]:
+    """Create the minimum initialized Run needed by the task quality gate."""
+    run_dir = root / ".agentic-framework" / "runs" / "run-1"
+    context = {
+        "run_id": "run-1",
+        "profile": "tooling",
+        "harness": "codex",
+        "commit_sha": "1" * 40,
+        "base_commit_sha": "0" * 40,
+        "config_digest": "sha256:" + "2" * 64,
+        "created_at": "2026-07-19T12:00:00Z",
+    }
+    run_dir.mkdir(parents=True)
+    (run_dir / "run-context.json").write_text(
+        json.dumps(context), encoding="utf-8"
+    )
+    report = workflow_control.runtime_workflow.envelope(
+        context,
+        "verify-report",
+        "verify-1-1",
+        {
+            "verdict": "PASS",
+            "total": 1,
+            "errors": 0,
+            "violations": 0,
+            "spec_drift": None,
+            "warnings": [],
+            "results": [],
+        },
+        "workflow-verification",
+        task_id="1",
+        attempt=1,
+    )
+    report_path = run_dir / "artifacts" / "verify-1-1.json"
+    report_path.parent.mkdir()
+    report_path.write_text(json.dumps(report), encoding="utf-8")
+    journal = run_dir / "events.jsonl"
+    workflow_control.runtime_workflow.run_journal.append_event(
+        journal, workflow_control.runtime_workflow._event(context, 1, "run-started")
+    )
+    workflow_control.runtime_workflow.run_journal.write_checkpoint(run_dir, journal)
+    return run_dir, report_path
+
+
 def tasks_text(
     states: dict[int, str],
     dependencies: dict[int, list[int]],
@@ -167,8 +211,7 @@ class WorkflowControlTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
-            report_path = Path(temp_dir) / "report.json"
-            report_path.write_text(json.dumps({"verdict": "PASS"}), encoding="utf-8")
+            run_dir, report_path = runtime_verify_fixture(Path(temp_dir))
             result = workflow_control.main(
                 [
                     str(path),
@@ -178,6 +221,8 @@ class WorkflowControlTest(unittest.TestCase):
                     "--write",
                     "--verify-report",
                     str(report_path),
+                    "--run-dir",
+                    str(run_dir),
                 ]
             )
             self.assertEqual(0, result)
@@ -277,8 +322,7 @@ class WorkflowControlTest(unittest.TestCase):
             )
             path.parent.mkdir(parents=True)
             path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
-            report_path = Path(temp_dir) / "report.json"
-            report_path.write_text(json.dumps({"verdict": "PASS"}), encoding="utf-8")
+            run_dir, report_path = runtime_verify_fixture(Path(temp_dir))
             result = workflow_control.main(
                 [
                     str(path),
@@ -288,6 +332,8 @@ class WorkflowControlTest(unittest.TestCase):
                     "--write",
                     "--verify-report",
                     str(report_path),
+                    "--run-dir",
+                    str(run_dir),
                 ]
             )
             self.assertEqual(0, result)

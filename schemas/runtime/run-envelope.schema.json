@@ -30,7 +30,9 @@
                 "review-report",
                 "verify-report",
                 "eval-result",
-                "input-artifact"
+                "input-artifact",
+                "code-result",
+                "final-report"
             ]
         },
         "artifact_id": {

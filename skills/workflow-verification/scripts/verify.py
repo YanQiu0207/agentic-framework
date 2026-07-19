@@ -26,6 +26,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import shlex
@@ -888,6 +889,9 @@ def cmd_verify(
     report_path: Path,
     diff_base: str,
     spec_drift_reason: str,
+    runtime_context: dict[str, Any] | None = None,
+    task_id: str | None = None,
+    attempt: int | None = None,
 ) -> int:
     """跑全部检查，对 baseline_aware 项做基线对比，产出报告。"""
     # 显式传了 --baseline 但文件不存在 → fail-closed，不能静默降级为无基线模式
@@ -1009,7 +1013,7 @@ def cmd_verify(
     # 区分两种非 0 状态，避免把「门禁失效」当「有违规」送进修复循环。
     verdict = "ERROR" if errors else ("FAIL" if violations else "PASS")
     source_warnings = knowledge_source_warnings(Path.cwd())
-    report = {
+    payload = {
         "verdict": verdict,
         "total": len(results),
         "errors": len(errors),
@@ -1018,6 +1022,28 @@ def cmd_verify(
         "warnings": source_warnings,
         "results": [asdict(r) for r in results],
     }
+    report: dict[str, Any] = payload
+    if runtime_context is not None:
+        if task_id is None or attempt is None or attempt < 1:
+            print("[verify] Runtime 报告必须提供合法 task_id 和 attempt。", file=sys.stderr)
+            return 2
+        report = {
+            "schema_version": 1,
+            "artifact_type": "verify-report",
+            "artifact_id": f"verify-{task_id}-{attempt}",
+            "run_id": runtime_context["run_id"],
+            "task_id": task_id,
+            "attempt": attempt,
+            "profile": runtime_context["profile"],
+            "harness": runtime_context["harness"],
+            "producer": "workflow-verification",
+            "commit_sha": runtime_context["commit_sha"],
+            "config_digest": runtime_context["config_digest"],
+            "created_at": datetime.datetime.now(datetime.timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "payload": payload,
+        }
     try:
         _atomic_write_json(report_path, report)
     except OSError as exc:
@@ -1060,6 +1086,9 @@ def main(argv: list[str] | None = None) -> int:
         default=".agentic-framework/verify/report.json",
         help="结构化报告输出路径",
     )
+    parser.add_argument("--run-dir", type=Path, help="已初始化的 Runtime Run 目录")
+    parser.add_argument("--task-id", help="Runtime Task 标识")
+    parser.add_argument("--attempt", type=int, help="Runtime 执行序号")
     parser.add_argument(
         "--diff-base",
         default="HEAD",
@@ -1084,13 +1113,41 @@ def main(argv: list[str] | None = None) -> int:
         if args.baseline
         else None
     )
-    report_path = resolve_verify_write_path(Path(args.report), Path.cwd())
+    runtime_values = (args.run_dir, args.task_id, args.attempt)
+    if any(value is not None for value in runtime_values) and not all(
+        value is not None for value in runtime_values
+    ):
+        parser.error("--run-dir、--task-id 与 --attempt 必须同时提供")
+    runtime_context = None
+    if args.run_dir is not None:
+        try:
+            runtime_context = json.loads(
+                (args.run_dir / "run-context.json").read_text(encoding="utf-8")
+            )
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
+            parser.error(f"Runtime context 无效：{error}")
+        default_report = Path(".agentic-framework/verify/report.json")
+        requested = Path(args.report)
+        if requested == default_report:
+            requested = (
+                args.run_dir / "artifacts" / f"verify-{args.task_id}-{args.attempt}.json"
+            )
+        report_path = requested.resolve(strict=False)
+        try:
+            report_path.relative_to((args.run_dir / "artifacts").resolve(strict=False))
+        except ValueError:
+            parser.error("Runtime Verify 报告必须写入 Run artifacts 目录")
+    else:
+        report_path = resolve_verify_write_path(Path(args.report), Path.cwd())
     return cmd_verify(
         config,
         baseline_path,
         report_path,
         args.diff_base,
         args.spec_drift_reason,
+        runtime_context,
+        args.task_id,
+        args.attempt,
     )
 
 
