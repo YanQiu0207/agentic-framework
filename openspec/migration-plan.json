@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "mode": "plan-only",
-  "repo": "E:\\github\\agentic-engineering-framework-worktrees\\unified-knowledge-management",
+  "repo": "E:\\github\\agentic-engineering-framework-worktrees\\knowledge-review-fixes",
   "safety": {
     "writes_source": false,
     "copies_files": false,
@@ -18,7 +18,7 @@
   ],
   "summary": {
     "files": 15,
-    "references": 85,
+    "references": 90,
     "classification_required": 0
   },
   "mappings": [
@@ -27,7 +27,7 @@
       "proposed_target": "openspec/specs/backend/engineering/tech/adr/001-use-symlink-based-installation.md",
       "status": "review-required",
       "reason": "ADR 的最终位置取决于作用域；该位置仅作为项目工程决策候选。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/design-docs/framework/link-based-installation/tasks.md",
@@ -66,7 +66,7 @@
       "proposed_target": "openspec/specs/backend/engineering/tech/adr/002-unify-project-knowledge-layout.md",
       "status": "review-required",
       "reason": "ADR 的最终位置取决于作用域；该位置仅作为项目工程决策候选。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/design-docs/knowledge-management/spec.md",
@@ -117,18 +117,18 @@
     },
     {
       "source": "docs/adr/README.md",
-      "proposed_target": "openspec/specs/backend/engineering/tech/adr/README.md",
-      "status": "review-required",
-      "reason": "ADR 的最终位置取决于作用域；该位置仅作为项目工程决策候选。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "proposed_target": null,
+      "status": "marker-only",
+      "reason": "目录级 Superseded 治理标记原地保留，不复制到当前知识库。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": []
     },
     {
       "source": "docs/design-docs/README.md",
-      "proposed_target": "openspec/changes/archive/legacy-legacy-change/README.md",
-      "status": "review-required",
-      "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "proposed_target": null,
+      "status": "marker-only",
+      "reason": "目录级 Superseded 治理标记原地保留，不复制到当前知识库。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": []
     },
     {
@@ -136,7 +136,7 @@
       "proposed_target": "openspec/changes/archive/legacy-framework-unification/spec.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/design-docs/framework-unification/tasks.md",
@@ -210,7 +210,7 @@
         },
         {
           "path": "openspec/specs/backend/engineering/tech/knowledge-management.md",
-          "line": 588,
+          "line": 601,
           "text": "- 当前双 Profile 合同：`docs/design-docs/framework-unification/spec.md`。"
         }
       ]
@@ -220,7 +220,7 @@
       "proposed_target": "openspec/changes/archive/legacy-framework-unification/tasks.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/framework-features-status-and-comparison.md",
@@ -244,7 +244,7 @@
       "proposed_target": "openspec/changes/archive/legacy-framework-dual-track-merge/spec.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/design-docs/framework-unification/tasks.md",
@@ -260,6 +260,11 @@
           "path": "docs/incidents/2026-07-19-untracked-plan-deletion.md",
           "line": 11,
           "text": "主 Agent 将未跟踪文件 `docs/design-docs/framework/dual-track-merge/spec.md` 判断为重复方案，并使用 PowerShell `Remove-Item` 直接删除。该命令没有进入 Windows 回收站，Git 也无法恢复未跟踪文件。"
+        },
+        {
+          "path": "openspec/acceptance/2026-07-19-knowledge-management.md",
+          "line": 32,
+          "text": "- 代码与版本证据：`scripts/migrate_project_knowledge.py` 的安全合同明确 `writes_source=false`、`deletes_files=false`、`apply_supported=false`；`git log -- docs/design-docs/framework/dual-track-merge/spec.md` 显示恢复后的文件已进入提交 `046562b`。"
         },
         {
           "path": "openspec/changes/archive/legacy-framework-unification/tasks.md",
@@ -278,7 +283,7 @@
       "proposed_target": "openspec/changes/archive/legacy-framework-link-based-installation/spec.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/design-docs/framework/link-based-installation/tasks.md",
@@ -327,7 +332,7 @@
       "proposed_target": "openspec/changes/archive/legacy-framework-link-based-installation/tasks.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "openspec/changes/archive/legacy-framework-link-based-installation/tasks.md",
@@ -367,19 +372,11 @@
       ]
     },
     {
-      "source": "docs/design-docs/knowledge-management/.tasks.md.lock",
-      "proposed_target": "openspec/changes/archive/legacy-knowledge-management/.tasks.md.lock",
-      "status": "review-required",
-      "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
-      "references": []
-    },
-    {
       "source": "docs/design-docs/knowledge-management/spec.md",
       "proposed_target": "openspec/changes/archive/legacy-knowledge-management/spec.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/adr/002-unify-project-knowledge-layout.md",
@@ -483,7 +480,7 @@
       "proposed_target": "openspec/changes/archive/legacy-knowledge-management/tasks.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/adr/002-unify-project-knowledge-layout.md",
@@ -504,6 +501,21 @@
           "path": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
           "line": 339,
           "text": "- `docs/design-docs/knowledge-management/tasks.md`"
+        },
+        {
+          "path": "openspec/changes/knowledge-management-review-fixes/tasks.md",
+          "line": 88,
+          "text": "- context_files: `skills/project-knowledge/SKILL.md`、`docs/design-docs/knowledge-management/tasks.md`、`openspec/acceptance/2026-07-19-knowledge-management.md`、`scripts/test_knowledge_management_e2e.py`"
+        },
+        {
+          "path": "openspec/changes/knowledge-management-review-fixes/tasks.md",
+          "line": 90,
+          "text": "- artifacts: `skills/project-knowledge/SKILL.md`、`skills/workflow-code-generation/SKILL.md`、`docs/design-docs/knowledge-management/tasks.md`、`openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md`、`openspec/acceptance/2026-07-19-knowledge-management.md`、`scripts/test_knowledge_management_e2e.py`"
+        },
+        {
+          "path": "openspec/changes/knowledge-management-review-fixes/tasks.md",
+          "line": 94,
+          "text": "- 文件：`skills/project-knowledge/SKILL.md`、`skills/workflow-code-generation/SKILL.md`、`docs/design-docs/knowledge-management/tasks.md`、`openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md`、`openspec/acceptance/2026-07-19-knowledge-management.md`、`scripts/test_knowledge_management_e2e.py`"
         }
       ]
     },
@@ -512,7 +524,7 @@
       "proposed_target": "openspec/changes/archive/legacy-opsx-code-first-deterministic-validation/spec.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/framework-features-status-and-comparison.md",
@@ -536,7 +548,7 @@
       "proposed_target": "openspec/changes/archive/legacy-opsx-code-first-deterministic-validation/tasks.md",
       "status": "review-required",
       "reason": "设计文档生命周期必须逐项审核；确认已完成或退役后，才可按原目录聚合为只读 Legacy Change。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/framework-features-status-and-comparison.md",
@@ -555,7 +567,7 @@
       "proposed_target": "openspec/issues/incidents/2026-07-19-untracked-plan-deletion.md",
       "status": "mapped",
       "reason": "已验证 Incident 迁入项目 Issues，并保留 incidents 分类避免重名。",
-      "superseded_marker": "复制并核对引用后，在旧文档头部标记 Superseded；未经用户授权不得修改。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
       "references": [
         {
           "path": "docs/design-docs/framework-unification/tasks.md",
@@ -576,6 +588,20 @@
           "path": "openspec/changes/archive/legacy-framework-unification/tasks.md",
           "line": 74,
           "text": "- 文件：`docs/incidents/2026-07-19-untracked-plan-deletion.md`"
+        }
+      ]
+    },
+    {
+      "source": "docs/incidents/README.md",
+      "proposed_target": null,
+      "status": "marker-only",
+      "reason": "目录级 Superseded 治理标记原地保留，不复制到当前知识库。",
+      "superseded_marker": "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，并保留逐文件迁移映射；未经用户授权不得删除。",
+      "references": [
+        {
+          "path": "openspec/changes/knowledge-management-review-fixes/tasks.md",
+          "line": 140,
+          "text": "- 实际 Diff 与 Task 1～4 的 artifacts 一致；额外新增 `docs/incidents/README.md`，用于修复 Task 4 Review 发现的目录级迁移指针缺口。"
         }
       ]
     }

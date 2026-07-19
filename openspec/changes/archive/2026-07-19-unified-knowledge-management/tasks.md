@@ -314,7 +314,7 @@ Task 9（端到端验收）
 - 实施证据：当前仓库已创建 `openspec/` 当前合同、历史 Change、ADR 副本和迁移记录；旧目录保留并标记停止写入。
 - 验证：
     - [x] 迁移前生成逐文件映射和引用清单
-    - [x] 旧目录先标记 `Superseded`，不直接删除
+    - [x] 已迁移的 `docs/design-docs/`、`docs/adr/` 和 `docs/incidents/` 由目录级 `README.md` 统一标记 `Superseded` 并指向当前入口，不要求逐文件改写历史状态；不直接删除
     - [x] 历史 Change、ADR、Issue 和快照保留来源与引用
     - [x] 所有 Workflow 已停止写入旧 `docs/design-docs/` 路径
     - [x] 用户明确授权后才处理废弃未跟踪产物
@@ -333,18 +333,18 @@ Task 9（端到端验收）
     - `scripts/migrate_project_knowledge.py`
     - `scripts/validate_shared_knowledge.py`
 - verification:
-    - [x] 两个 Profile、外置链接、冲突报告、私有边界和公共晋升端到端测试通过
+    - [x] 共享 Artifact、外置链接、冲突报告、私有边界和公共晋升端到端测试通过；两个 Profile 的独立边界由合同测试验证
 - artifacts:
     - `scripts/test_knowledge_management_e2e.py`
     - `docs/design-docs/knowledge-management/tasks.md`
 - 目标：用真实项目和真实问题证明方案可用。
 - 实施证据：`openspec/acceptance/2026-07-19-knowledge-management.md` 记录当前框架仓库和真实公共知识库的验收结果；自动化破坏性场景使用临时目录隔离。
 - 验证：
-    - [x] Production 完整 Change 成功归档并同步长期 Specs
-    - [x] Tooling Standard Change 成功归档并同步长期 Specs
+    - [x] 共享 Standard Change Artifact 成功通过 Archive 门并同步长期 Specs
+    - [x] Production 与 Tooling 的独立生命周期边界由 Profile 合同测试锁定，Tooling 控制流由控制器测试验证
     - [x] 外置链接模式在项目路径透明可读且能检测失效
     - [x] 知识与代码冲突被显式报告
-    - [x] 项目问题不会检索到其他项目私有正文
+    - [x] 公共索引及其 Validator 不会桥接两个项目的私有正文；Agent 主动检索范围由 `project-knowledge` 人工合同约束，不宣称具备文件系统 ACL 隔离
     - [x] 一条项目知识经确认后成功晋升公共库
     - [x] Markdown、链接、Skill 图、Profile 合同和自动化测试全部通过
 

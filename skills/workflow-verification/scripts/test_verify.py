@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+import subprocess
 
 import verify
 
@@ -110,6 +111,148 @@ class EvaluateSpecDriftTest(unittest.TestCase):
             )
         self.assertEqual("pass", result.status)
         self.assertIn("无需更新原因", result.detail)
+
+
+class KnowledgeSourceFreshnessTest(unittest.TestCase):
+    """Verify generated knowledge source metadata without blocking delivery."""
+
+    def _repo(self, temp_dir: str) -> Path:
+        repo = Path(temp_dir)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.email", "test@example.com"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.name", "Test"],
+            check=True,
+        )
+        return repo
+
+    def _commit(self, repo: Path, message: str) -> str:
+        subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-q", "-m", message],
+            check=True,
+        )
+        return subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    def test_current_source_ref_has_no_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = self._repo(temp_dir)
+            source = repo / "scripts" / "tool.py"
+            source.parent.mkdir()
+            source.write_text("print('v1')\n", encoding="utf-8")
+            generated_at = self._commit(repo, "source")
+            meta = repo / "openspec" / "specs" / "tool" / "meta.yaml"
+            meta.parent.mkdir(parents=True)
+            meta.write_text(
+                "service:\n"
+                f"    source_ref: git:{generated_at}\n"
+                "    source_paths:\n"
+                "        - scripts/tool.py\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual([], verify.knowledge_source_warnings(repo))
+
+    def test_newer_source_change_warns(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = self._repo(temp_dir)
+            source = repo / "scripts" / "tool.py"
+            source.parent.mkdir()
+            source.write_text("print('v1')\n", encoding="utf-8")
+            generated_at = self._commit(repo, "source")
+            meta = repo / "openspec" / "specs" / "tool" / "meta.yaml"
+            meta.parent.mkdir(parents=True)
+            meta.write_text(
+                "service:\n"
+                f"    source_ref: git:{generated_at}\n"
+                "    source_paths:\n"
+                "        - scripts/tool.py\n",
+                encoding="utf-8",
+            )
+            self._commit(repo, "meta")
+            source.write_text("print('v2')\n", encoding="utf-8")
+            self._commit(repo, "source update")
+
+            warnings = verify.knowledge_source_warnings(repo)
+
+        self.assertEqual(1, len(warnings))
+        self.assertIn("来源已晚于", warnings[0])
+
+    def test_duplicate_metadata_reuses_git_results(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            source = repo / "scripts" / "tool.py"
+            source.parent.mkdir()
+            source.write_text("print('ok')\n", encoding="utf-8")
+            for service in ("a", "b"):
+                meta = repo / "openspec" / "specs" / service / "meta.yaml"
+                meta.parent.mkdir(parents=True)
+                meta.write_text(
+                    "service:\n"
+                    "    source_ref: git:abc1234\n"
+                    "    source_paths:\n"
+                    "        - scripts/tool.py\n",
+                    encoding="utf-8",
+                )
+            responses = {
+                "rev-parse": (0, "abc1234"),
+                "log": (0, "abc1234"),
+                "merge-base": (0, ""),
+            }
+
+            def git_result(_repo: Path, args: list[str]) -> tuple[int, str]:
+                return responses[args[0]]
+
+            with mock.patch.object(
+                verify, "_git_result", side_effect=git_result
+            ) as git_result_mock:
+                self.assertEqual([], verify.knowledge_source_warnings(repo))
+
+        self.assertEqual(3, git_result_mock.call_count)
+
+    def test_cmd_verify_keeps_source_warning_non_blocking(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = self._repo(temp_dir)
+            source = repo / "scripts" / "tool.py"
+            source.parent.mkdir()
+            source.write_text("print('v1')\n", encoding="utf-8")
+            generated_at = self._commit(repo, "source")
+            meta = repo / "openspec" / "specs" / "tool" / "meta.yaml"
+            meta.parent.mkdir(parents=True)
+            meta.write_text(
+                "service:\n"
+                f"    source_ref: git:{generated_at}\n"
+                "    source_paths:\n"
+                "        - scripts/tool.py\n",
+                encoding="utf-8",
+            )
+            self._commit(repo, "meta")
+            source.write_text("print('v2')\n", encoding="utf-8")
+            self._commit(repo, "source update")
+            report = repo / "report.json"
+            old_cwd = Path.cwd()
+            try:
+                import os
+
+                os.chdir(repo)
+                with mock.patch("builtins.print"):
+                    result = verify.cmd_verify({}, None, report, "HEAD", "")
+            finally:
+                os.chdir(old_cwd)
+
+            payload = __import__("json").loads(report.read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result)
+        self.assertEqual("PASS", payload["verdict"])
+        self.assertEqual(1, len(payload["warnings"]))
 
 
 if __name__ == "__main__":

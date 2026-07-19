@@ -70,7 +70,7 @@ python scripts/validate_shared_knowledge.py --root E:/work/shared-knowledge-base
 - 公共条目是否具有非空的 `status`、`source`、`source_version`、`applies_to` 和 `excludes`。
 - `status` 是否属于合同允许值。
 
-校验器不能证明正文已经充分泛化或脱敏，也不能识别所有项目内部术语。这些内容必须由公共库变更的人工 Review 负责。
+校验器不能证明正文已经充分泛化或脱敏，也不能识别所有项目内部术语。晋升前仍必须取得用户明确确认，并由公共库变更的人工 Review 复核；脚本不能替代用户确认或人工判断。
 
 ## 现有 9 条元数据债务的修复步骤
 

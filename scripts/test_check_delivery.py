@@ -3,6 +3,8 @@
 import subprocess
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
 import sys
 
@@ -65,6 +67,83 @@ class CheckDeliveryTest(unittest.TestCase):
             (repo / "untracked.txt").write_text("dirty", encoding="utf-8")
             errors = check_delivery.check_git_clean(repo)
             self.assertTrue(any("工作区不干净" in e for e in errors))
+
+    def test_fast_path_requires_knowledge_impact(self) -> None:
+        self.assertTrue(check_delivery.check_knowledge_impact(None, ""))
+        self.assertTrue(check_delivery.check_knowledge_impact("none", ""))
+        self.assertEqual(
+            [],
+            check_delivery.check_knowledge_impact(
+                "none", "只调整局部日志，不改变长期知识"
+            ),
+        )
+        self.assertEqual([], check_delivery.check_knowledge_impact("hit", ""))
+
+    def test_main_rejects_partial_standard_arguments(self) -> None:
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            result = check_delivery.main(["--spec", "proposal.md"])
+        self.assertEqual(2, result)
+        self.assertIn("必须同时提供", stderr.getvalue())
+
+    def test_main_fast_path_requires_and_reports_knowledge_impact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            with redirect_stdout(StringIO()):
+                self.assertEqual(1, check_delivery.main(["--repo", str(repo)]))
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                result = check_delivery.main(
+                    [
+                        "--repo",
+                        str(repo),
+                        "--knowledge-impact",
+                        "none",
+                        "--knowledge-impact-reason",
+                        "只修改局部日志",
+                    ]
+                )
+        self.assertEqual(0, result)
+        self.assertIn("知识影响：未命中；理由：只修改局部日志", stdout.getvalue())
+
+    def test_main_standard_pair_remains_compatible(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            tasks = repo / "tasks.md"
+            spec = repo / "proposal.md"
+            tasks.write_text(TERMINAL_TASKS, encoding="utf-8")
+            spec.write_text("**状态**: Archived\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "-c",
+                    "user.name=Test",
+                    "-c",
+                    "user.email=test@example.com",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "fixture",
+                ],
+                check=True,
+            )
+            with redirect_stdout(StringIO()):
+                result = check_delivery.main(
+                    [
+                        "--repo",
+                        str(repo),
+                        "--tasks",
+                        str(tasks),
+                        "--spec",
+                        str(spec),
+                    ]
+                )
+        self.assertEqual(0, result)
 
 
 if __name__ == "__main__":

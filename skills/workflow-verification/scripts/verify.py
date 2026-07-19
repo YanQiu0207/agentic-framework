@@ -285,6 +285,106 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
         return False
 
 
+def _meta_source_records(path: Path) -> list[tuple[str, list[str]]]:
+    """Parse the source fields needed from a generated-knowledge meta file."""
+    records: list[tuple[str, list[str]]] = []
+    source_ref: str | None = None
+    source_paths: list[str] = []
+    reading_paths = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("source_ref:"):
+            if source_ref is not None:
+                records.append((source_ref, source_paths))
+            source_ref = stripped.split(":", 1)[1].strip().strip("\"'")
+            source_paths = []
+            reading_paths = False
+        elif source_ref is not None and stripped == "source_paths:":
+            reading_paths = True
+        elif reading_paths and stripped.startswith("- "):
+            source_paths.append(stripped[2:].strip().strip("\"'"))
+        elif reading_paths and stripped:
+            reading_paths = False
+    if source_ref is not None:
+        records.append((source_ref, source_paths))
+    return records
+
+
+def _git_result(repo: Path, args: list[str]) -> tuple[int, str]:
+    result = subprocess.run(
+        ["git", "-C", str(repo), *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return result.returncode, result.stdout.strip()
+
+
+def knowledge_source_warnings(repo: Path) -> list[str]:
+    """Return non-blocking warnings for stale or invalid knowledge sources."""
+    repo = repo.resolve()
+    warnings: list[str] = []
+    specs = repo / "openspec" / "specs"
+    if not specs.is_dir():
+        return warnings
+    valid_refs: dict[str, bool] = {}
+    latest_commits: dict[str, tuple[int, str]] = {}
+    ancestry: dict[tuple[str, str], bool] = {}
+    for meta in sorted(specs.rglob("meta.yaml")):
+        relative_meta = meta.relative_to(repo).as_posix()
+        try:
+            records = _meta_source_records(meta)
+        except (OSError, UnicodeError) as error:
+            warnings.append(f"{relative_meta} 无法读取：{error}")
+            continue
+        for source_ref, source_paths in records:
+            if not source_ref.startswith("git:"):
+                warnings.append(
+                    f"{relative_meta} 的 source_ref 不可解析：{source_ref or '<empty>'}"
+                )
+                continue
+            commit = source_ref.removeprefix("git:").strip()
+            if commit not in valid_refs:
+                code, _ = _git_result(
+                    repo, ["rev-parse", "--verify", f"{commit}^{{commit}}"]
+                )
+                valid_refs[commit] = code == 0
+            if not valid_refs[commit]:
+                warnings.append(f"{relative_meta} 的 source_ref 不存在：{source_ref}")
+                continue
+            if not source_paths:
+                warnings.append(f"{relative_meta} 的 {source_ref} 缺少 source_paths")
+                continue
+            for source_path in source_paths:
+                candidate = (repo / source_path).resolve()
+                if not _is_relative_to(candidate, repo) or not candidate.exists():
+                    warnings.append(
+                        f"{relative_meta} 的来源路径不可用：{source_path}"
+                    )
+                    continue
+                if source_path not in latest_commits:
+                    latest_commits[source_path] = _git_result(
+                        repo, ["log", "-1", "--format=%H", "--", source_path]
+                    )
+                code, latest = latest_commits[source_path]
+                if code != 0 or not latest:
+                    warnings.append(
+                        f"{relative_meta} 的来源路径没有可核对的 Git 提交：{source_path}"
+                    )
+                    continue
+                ancestry_key = (latest, commit)
+                if ancestry_key not in ancestry:
+                    code, _ = _git_result(
+                        repo, ["merge-base", "--is-ancestor", latest, commit]
+                    )
+                    ancestry[ancestry_key] = code == 0
+                if not ancestry[ancestry_key]:
+                    warnings.append(
+                        f"{relative_meta} 来源已晚于 {source_ref}：{source_path}（最新 {latest[:12]}）"
+                    )
+    return warnings
+
+
 _VALID_DIRECTIONS = {"not_decrease", "not_increase"}
 
 
@@ -773,12 +873,14 @@ def cmd_verify(
     # 退出码语义：0 = 全部通过；1 = 有新增违规（可修复）；2 = 门禁本身出错（工具/配置问题）
     # 区分两种非 0 状态，避免把「门禁失效」当「有违规」送进修复循环。
     verdict = "ERROR" if errors else ("FAIL" if violations else "PASS")
+    source_warnings = knowledge_source_warnings(Path.cwd())
     report = {
         "verdict": verdict,
         "total": len(results),
         "errors": len(errors),
         "violations": len(violations),
         "spec_drift": asdict(results[0]) if results else None,
+        "warnings": source_warnings,
         "results": [asdict(r) for r in results],
     }
     try:
@@ -787,19 +889,26 @@ def cmd_verify(
         print(f"[verify] 报告写入失败：{exc}", file=sys.stderr)
         return 2
 
-    _print_summary(results, verdict, report_path)
+    _print_summary(results, source_warnings, verdict, report_path)
     if errors:
         return 2
     return 1 if violations else 0
 
 
-def _print_summary(results: list[CheckResult], verdict: str, report_path: Path) -> None:
+def _print_summary(
+    results: list[CheckResult],
+    warnings: list[str],
+    verdict: str,
+    report_path: Path,
+) -> None:
     print("\n==== verify 门禁结果 ====")
     for r in results:
         mark = {"pass": "[PASS]", "fail": "[FAIL]", "error": "[ERR ]"}.get(r.status, "[????]")
         print(f"{mark} {r.name} [{r.type}] {r.detail}")
         for item in r.new_items[:10]:
             print(f"        新增违规：{item}")
+    for warning in warnings:
+        print(f"[WARN] Z-knowledge-source [source_freshness] {warning}")
     print(f"\n总判定：{verdict}（报告：{report_path}）")
 
 
