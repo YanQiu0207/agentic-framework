@@ -61,7 +61,9 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
 
 ### 任务 4：[pending] 自动执行核心 Agent 行为评测
 
-- 状态：未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - depends_on：[Task 3]
 - review_profile：standard
 - context_files：`docs/tooling/08-evaluation-strategy.md`、现有 4 组 `evaluation/trigger-cases.md` 和 Task 2 Eval Schema
