@@ -57,6 +57,7 @@ class CheckResult:
 
 _DEFAULT_TIMEOUT = 120  # 秒；为约 55 秒的全量验证保留负载余量，同时防止永久阻塞
 _HEARTBEAT_SECONDS = 5.0
+_PROCESS_CLEANUP_TIMEOUT_SECONDS = 5.0
 _OUTPUT_SUMMARY_LINES = 3
 _OUTPUT_SUMMARY_CHARS = 600
 _CODE_SUFFIXES = {
@@ -98,11 +99,16 @@ class CommandTimeout(Exception):
         elapsed: float,
         stdout: str,
         stderr: str,
+        cleanup_complete: bool = True,
     ) -> None:
         self.stdout = stdout
         self.stderr = stderr
+        self.cleanup_complete = cleanup_complete
         detail = _output_summary(stdout, stderr)
-        suffix = f"；{detail}" if detail else ""
+        details = [detail] if detail else []
+        if not cleanup_complete:
+            details.append("进程树清理不完整")
+        suffix = f"；{'；'.join(details)}" if details else ""
         super().__init__(
             f"命令超时（timeout={timeout:g}s elapsed={elapsed:.1f}s）："
             f"{command[:160]}{suffix}"
@@ -129,21 +135,83 @@ def _diagnostic(message: str) -> None:
     print(f"[verify] {message}", file=sys.stderr, flush=True)
 
 
-def _kill_process_tree(proc: subprocess.Popen) -> None:
-    """强制终止进程及其所有子进程。"""
+def _kill_process_tree(
+    proc: subprocess.Popen, timeout: float = _PROCESS_CLEANUP_TIMEOUT_SECONDS
+) -> bool:
+    """有界终止进程树；返回是否确认完成了树级终止。"""
     try:
         if sys.platform == "win32":
-            subprocess.run(
+            completed = subprocess.run(
                 ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                capture_output=True, timeout=5,
+                capture_output=True,
+                timeout=max(0.001, timeout),
+                check=False,
             )
+            if completed.returncode == 0:
+                return True
         else:
             try:
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                return True
             except ProcessLookupError:
-                proc.kill()
-    except Exception:
+                if proc.poll() is not None:
+                    return True
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
         proc.kill()
+    except (OSError, ProcessLookupError):
+        return proc.poll() is not None
+    return False
+
+
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _close_process_pipes(proc: subprocess.Popen) -> None:
+    for pipe in (proc.stdout, proc.stderr):
+        try:
+            if pipe is not None:
+                pipe.close()
+        except (AttributeError, OSError):
+            pass
+
+
+def _cleanup_timed_out_process(
+    proc: subprocess.Popen,
+) -> tuple[str, str, bool]:
+    """在固定期限内终止进程树并收集输出。"""
+    deadline = time.monotonic() + _PROCESS_CLEANUP_TIMEOUT_SECONDS
+    tree_terminated = _kill_process_tree(
+        proc, max(0.001, deadline - time.monotonic())
+    )
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        _close_process_pipes(proc)
+        return "", "", False
+    try:
+        stdout, stderr = proc.communicate(timeout=remaining)
+        return stdout or "", stderr or "", tree_terminated
+    except subprocess.TimeoutExpired as error:
+        stdout = _timeout_output(error.output)
+        stderr = _timeout_output(error.stderr)
+        _close_process_pipes(proc)
+        try:
+            proc.kill()
+        except (AttributeError, OSError, ProcessLookupError):
+            pass
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            try:
+                proc.wait(timeout=remaining)
+            except (AttributeError, OSError, subprocess.TimeoutExpired):
+                pass
+        return stdout, stderr, False
 
 
 def run_command(
@@ -170,7 +238,9 @@ def run_command(
         "errors": "replace",   # 不可解码字节替换为 U+FFFD，门禁继续产出结构化报告
         "env": child_env,
     }
-    if sys.platform != "win32":
+    if sys.platform == "win32":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
         kwargs["start_new_session"] = True  # POSIX：新进程组，方便 killpg
     proc = subprocess.Popen(command, **kwargs)
     started = time.monotonic()
@@ -180,16 +250,27 @@ def run_command(
         elapsed = time.monotonic() - started
         remaining = timeout - elapsed
         if remaining <= 0:
-            _kill_process_tree(proc)
-            stdout, stderr = proc.communicate()
+            stdout, stderr, cleanup_complete = _cleanup_timed_out_process(proc)
             elapsed = time.monotonic() - started
             summary = _output_summary(stdout, stderr)
-            detail = f" summary={summary}" if summary else ""
+            details = []
+            if summary:
+                details.append(f"summary={summary}")
+            if not cleanup_complete:
+                details.append("cleanup=incomplete")
+            detail = f" {' '.join(details)}" if details else ""
             _diagnostic(
                 f"end check={check_name!r} pid={proc.pid} exit=TIMEOUT "
                 f"elapsed={elapsed:.1f}s timeout={timeout:g}s{detail}"
             )
-            raise CommandTimeout(command, timeout, elapsed, stdout, stderr)
+            raise CommandTimeout(
+                command,
+                timeout,
+                elapsed,
+                stdout,
+                stderr,
+                cleanup_complete=cleanup_complete,
+            )
         wait_seconds = min(remaining, max(0.001, next_heartbeat - elapsed))
         try:
             stdout, stderr = proc.communicate(timeout=wait_seconds)

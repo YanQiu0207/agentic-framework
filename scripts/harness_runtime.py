@@ -5,9 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -21,10 +23,108 @@ CAPABILITIES = (
     "structured_tool_results",
 )
 CAPABILITY_STATES = frozenset({"supported", "degraded", "unsupported"})
+_PROCESS_CLEANUP_TIMEOUT_SECONDS = 5.0
 
 
 class HarnessError(Exception):
     """Raised when an Adapter or capability document violates the contract."""
+
+
+def _kill_process_tree(
+    process: subprocess.Popen[str], timeout: float
+) -> bool:
+    """Bound process-tree termination and report whether tree cleanup succeeded."""
+    try:
+        if os.name == "nt":
+            completed = subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(process.pid)],
+                capture_output=True,
+                timeout=max(0.001, timeout),
+                check=False,
+            )
+            if completed.returncode == 0:
+                return True
+        else:
+            try:
+                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                return True
+            except ProcessLookupError:
+                if process.poll() is not None:
+                    return True
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        process.kill()
+    except (OSError, ProcessLookupError):
+        return process.poll() is not None
+    return False
+
+
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _close_process_pipes(process: subprocess.Popen[str]) -> None:
+    for pipe in (process.stdin, process.stdout, process.stderr):
+        try:
+            if pipe is not None:
+                pipe.close()
+        except OSError:
+            pass
+
+
+def _cleanup_timed_out_process(
+    process: subprocess.Popen[str], timeout_error: subprocess.TimeoutExpired
+) -> tuple[str, str, bool]:
+    """Terminate an Adapter tree and collect output within one hard deadline."""
+    deadline = time.monotonic() + _PROCESS_CLEANUP_TIMEOUT_SECONDS
+    tree_terminated = _kill_process_tree(
+        process, max(0.001, deadline - time.monotonic())
+    )
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        _close_process_pipes(process)
+        return (
+            _timeout_output(timeout_error.output),
+            _timeout_output(timeout_error.stderr),
+            False,
+        )
+    try:
+        stdout, stderr = process.communicate(timeout=remaining)
+        return stdout or "", stderr or "", tree_terminated
+    except subprocess.TimeoutExpired as cleanup_error:
+        stdout = _timeout_output(cleanup_error.output or timeout_error.output)
+        stderr = _timeout_output(cleanup_error.stderr or timeout_error.stderr)
+        _close_process_pipes(process)
+        try:
+            process.kill()
+        except (OSError, ProcessLookupError):
+            pass
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            try:
+                process.wait(timeout=remaining)
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        return stdout, stderr, False
+
+
+def _abort_process(process: subprocess.Popen[str]) -> None:
+    """Best-effort cleanup for non-timeout communication failures."""
+    deadline = time.monotonic() + _PROCESS_CLEANUP_TIMEOUT_SECONDS
+    _kill_process_tree(process, max(0.001, deadline - time.monotonic()))
+    _close_process_pipes(process)
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        return
+    try:
+        process.wait(timeout=remaining)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 class SubprocessHarnessAdapter:
@@ -44,21 +144,44 @@ class SubprocessHarnessAdapter:
             {"contract_version": 1, "operation": operation, "payload": payload},
             ensure_ascii=False,
         )
+        child_env = os.environ.copy()
+        child_env.update(
+            {
+                "PYTHONUTF8": "1",
+                "PYTHONIOENCODING": "utf-8",
+            }
+        )
+        process_kwargs: dict[str, Any] = {
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "encoding": "utf-8",
+            "errors": "strict",
+            "env": child_env,
+        }
+        if os.name == "nt":
+            process_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            process_kwargs["start_new_session"] = True
         try:
-            completed = subprocess.run(
-                self._command,
-                input=request,
-                capture_output=True,
-                text=True,
-                timeout=self._timeout_seconds,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired) as error:
+            process = subprocess.Popen(self._command, **process_kwargs)
+        except OSError as error:
             raise HarnessError("adapter execution failed") from error
-        if completed.returncode != 0:
+        try:
+            stdout, stderr = process.communicate(
+                input=request, timeout=self._timeout_seconds
+            )
+        except subprocess.TimeoutExpired as error:
+            _, _, cleanup_complete = _cleanup_timed_out_process(process, error)
+            detail = "" if cleanup_complete else "; process tree cleanup incomplete"
+            raise HarnessError(f"adapter execution timed out{detail}") from error
+        except (OSError, UnicodeError) as error:
+            _abort_process(process)
+            raise HarnessError("adapter execution failed") from error
+        if process.returncode != 0:
             raise HarnessError("adapter returned nonzero")
         try:
-            response = json.loads(completed.stdout)
+            response = json.loads(stdout)
         except json.JSONDecodeError as error:
             raise HarnessError("adapter output is not JSON") from error
         if not isinstance(response, dict):

@@ -5,6 +5,7 @@ import io
 import json
 import os
 import shlex
+import signal
 import subprocess
 import sys
 import tempfile
@@ -20,6 +21,34 @@ def _python_command(source: str) -> str:
     if os.name == "nt":
         return subprocess.list2cmdline(arguments)
     return shlex.join(arguments)
+
+
+def _force_kill_process_group(pid: int) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _cleanup_runner(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    _force_kill_process_group(process.pid)
+    try:
+        process.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        for pipe in (process.stdout, process.stderr):
+            if pipe is not None:
+                pipe.close()
+        process.kill()
 
 
 class _FakeClock:
@@ -55,7 +84,9 @@ class _FakeProcess:
             self.clock.now += max(0.0, finish_in)
             return self.stdout, self.stderr
         self.clock.now += timeout
-        raise subprocess.TimeoutExpired("fake-command", timeout)
+        raise subprocess.TimeoutExpired(
+            "fake-command", timeout, output=self.stdout, stderr=self.stderr
+        )
 
 
 class CommandDiagnosticsTest(unittest.TestCase):
@@ -173,6 +204,109 @@ class CommandDiagnosticsTest(unittest.TestCase):
         self.assertIn("stderr=before-err", log)
         self.assertIn("stdout=before-out", str(caught.exception))
         self.assertIn("stderr=before-err", str(caught.exception))
+
+    def test_timeout_cleanup_has_hard_deadline_and_closes_stuck_pipes(self) -> None:
+        source = f"""
+import json
+import subprocess
+import sys
+import time
+from unittest import mock
+sys.path.insert(0, {str(Path(verify.__file__).parent)!r})
+import verify
+
+class Pipe:
+    def __init__(self):
+        self.closed = False
+    def close(self):
+        self.closed = True
+
+class Process:
+    pid = 4321
+    returncode = None
+    def __init__(self):
+        self.stdout = Pipe()
+        self.stderr = Pipe()
+        self.killed = False
+    def communicate(self, timeout=None):
+        if timeout is None:
+            time.sleep(60)
+            return "", ""
+        time.sleep(timeout)
+        raise subprocess.TimeoutExpired(
+            "fake-command", timeout, output="partial-out", stderr="partial-err"
+        )
+    def kill(self):
+        self.killed = True
+    def wait(self, timeout=None):
+        raise subprocess.TimeoutExpired("fake-command", timeout)
+
+process = Process()
+verify._PROCESS_CLEANUP_TIMEOUT_SECONDS = 0.2
+with mock.patch.object(
+    verify.subprocess, "Popen", return_value=process
+), mock.patch.object(verify, "_kill_process_tree", return_value=False):
+    try:
+        verify.run_command(
+            "stuck-cleanup", timeout=0.05, check_name="stuck-cleanup",
+            heartbeat_seconds=0.05
+        )
+    except verify.CommandTimeout as error:
+        print(json.dumps({{
+            "cleanup_complete": error.cleanup_complete,
+            "stdout_closed": process.stdout.closed,
+            "stderr_closed": process.stderr.closed,
+            "killed": process.killed,
+            "message": str(error),
+        }}))
+"""
+        process_kwargs = {
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "encoding": "utf-8",
+            "env": {
+                **os.environ,
+                "PYTHONUTF8": "1",
+                "PYTHONIOENCODING": "utf-8",
+            },
+        }
+        if os.name == "nt":
+            process_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            process_kwargs["start_new_session"] = True
+        runner = subprocess.Popen([sys.executable, "-c", source], **process_kwargs)
+        try:
+            try:
+                stdout, stderr = runner.communicate(timeout=3)
+            except subprocess.TimeoutExpired as error:
+                self.fail(f"verification cleanup exceeded outer hard deadline: {error}")
+            self.assertEqual(0, runner.returncode, stderr)
+            result = json.loads(stdout)
+            self.assertFalse(result["cleanup_complete"])
+            self.assertTrue(result["stdout_closed"])
+            self.assertTrue(result["stderr_closed"])
+            self.assertTrue(result["killed"])
+            self.assertIn("清理不完整", result["message"])
+        finally:
+            _cleanup_runner(runner)
+
+    def test_windows_taskkill_failure_falls_back_to_direct_kill(self) -> None:
+        process = mock.Mock(pid=4321)
+        process.poll.return_value = None
+        completed = subprocess.CompletedProcess([], returncode=1)
+        with mock.patch.object(verify.sys, "platform", "win32"), mock.patch.object(
+            verify.subprocess, "run", return_value=completed
+        ) as run:
+            tree_terminated = verify._kill_process_tree(process, timeout=0.25)
+
+        self.assertFalse(tree_terminated)
+        process.kill.assert_called_once_with()
+        run.assert_called_once_with(
+            ["taskkill", "/F", "/T", "/PID", "4321"],
+            capture_output=True,
+            timeout=0.25,
+            check=False,
+        )
 
     def test_nonzero_exit_logs_stdout_stderr_summary(self) -> None:
         clock = _FakeClock()
