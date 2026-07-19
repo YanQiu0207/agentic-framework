@@ -85,6 +85,7 @@ python <validator-path> --repo . --change openspec/changes/<change-name> --phase
 | `std-cpp` | `.cc`/`.cpp`/`.h` 文件 |
 | `std-go` | `.go` 文件 |
 | `std-python` | `.py` 文件 |
+| `bp-cli-tool-design` | 实现或修改 CLI、部署脚本、运维脚本或自动化命令 |
 | `bp-distributed-systems` | 涉及网络通信、多节点协调、一致性、故障恢复 |
 
 ### 步骤 5：逐个任务实现

@@ -90,6 +90,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 | `bp-coding-best-practices` | 必须 |
 | `bp-performance-optimization` | 必须（所有代码都性能敏感） |
 | `std-cpp` / `std-go` / `std-python` | `.cc/.cpp/.h` / `.go` / `.py` 文件 |
+| `bp-cli-tool-design` | 实现或修改 CLI、部署脚本、运维脚本或自动化命令 |
 | `std-react` | `.tsx` / `.ts` 前端文件；默认用 shadcn/ui 写基础组件 |
 | `bp-frontend-layout` | 新页面、页面重排、导航结构、响应式骨架 |
 | `bp-frontend-taste` | 可见 UI 实现完成后的收尾质检 |
