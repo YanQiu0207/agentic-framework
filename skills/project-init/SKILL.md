@@ -78,9 +78,13 @@ Profile 只决定执行生命周期；两种 Profile 使用相同的 `openspec/`
 - 不是仓库 → 运行 `git init`，记录「已初始化」。
 - `git init` 失败 → 报告错误，继续执行不依赖 Git 的创建步骤；最后不得声称初始化完整成功。
 
-### 5. 创建 `.gitignore`
+### 5. 创建并补全 `.gitignore`
 
-不存在则创建，已存在则只追加缺失条目，不改写已有内容：
+不存在则创建，已存在则只追加缺失条目，不改写、排序或删除已有内容。追加前先执行 `git check-ignore -v <path>` 核实已有规则，避免添加重复或范围过大的模式。
+
+#### 5.1 通用本地产物
+
+所有项目追加以下缺失条目：
 
 ```gitignore
 # OS / 编辑器
@@ -89,9 +93,47 @@ Thumbs.db
 
 # AI 客户端本地配置
 .claude/settings.local.json
+
+# Agentic Engineering Framework 本地运行产物
+.agentic-framework/
+.verify/
+**/.tasks.md.lock
 ```
 
+这些框架产物的边界是：
+
+- `.agentic-framework/`：安装器生成的目标项目 Manifest、Pack 链接和后续框架本地状态；内容包含本机安装路径，不作为项目源码提交。
+- `.verify/`：`workflow-verification` 和 `workflow-code-review` 生成的本地基线、验证报告与 Review 证据；长期结论应写入 `openspec/`，不直接提交 `.verify/`。
+- `**/.tasks.md.lock`：`workflow-code-generation` 控制器生成的任务写锁；只用于并发保护，不是任务状态正文。
+
 Git + SVN 模式额外追加 `.svn/`。
+
+#### 5.2 按项目事实追加
+
+只在当前项目已存在对应工具、配置或产物时追加，不凭技术栈名称猜测：
+
+```gitignore
+# Python 缓存（项目包含 Python 代码或 Python 工具时）
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 会话遥测（项目使用本框架 analyze_session_metrics.py 时）
+metrics/session-history.jsonl
+```
+
+发现其他候选忽略项时，必须先说明其创建者、用途和是否可重建；不能仅因文件未跟踪、位于隐藏目录或看起来像生成物就加入 `.gitignore`。
+
+#### 5.3 禁止忽略的项目产物
+
+以下内容属于项目自身的可审查产物，默认必须纳入版本管理，不得加入 `.gitignore`：
+
+- `AGENTS.md`、`CLAUDE.md`、`README.md` 和 `verify.config.json`。
+- `openspec/index.md`、`openspec/specs/`、`openspec/changes/`、`openspec/issues/` 及其 `proposal.md`、`design.md`、`spec.md`、`tasks.md`、ADR、审计报告和归档文件。
+- 项目代码、测试、Schema、配置、脚本、Skill、Agent、Command 和正式文档。
+- 用于保留约定空目录的 `.gitkeep`。
+
+若项目已有规则忽略上述内容，停止修改该规则，展示 `git check-ignore -v` 的来源并要求用户确认；不得静默取消忽略，也不得继续声称这些产物会被 Git 提交。
 
 若 `openspec/` 是指向项目外部的链接，先询问用户是否跟踪该链接本身；不要擅自把 `openspec/` 加入 `.gitignore`。
 

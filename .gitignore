@@ -17,3 +17,6 @@ Thumbs.db
 
 # AI 客户端本地配置
 .claude/settings.local.json
+
+# tencent-workbuddy
+.workbuddy/
