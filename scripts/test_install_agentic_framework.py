@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import locale
 import os
 import shutil
 import subprocess
@@ -654,6 +655,8 @@ class InstallTest(unittest.TestCase):
             check=False,
             capture_output=True,
             text=True,
+            encoding=locale.getencoding(),
+            errors="replace",
         )
         if result.returncode != 0:
             self.skipTest(f"Junction creation failed: {result.stderr}")
