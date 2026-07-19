@@ -1,5 +1,6 @@
 """Regression tests for review-quality parsing in analyze_session_metrics."""
 
+import io
 import json
 import sys
 import tempfile
@@ -370,6 +371,40 @@ class AppendHistoryTest(unittest.TestCase):
                     asm.append_history([{"source": "claude", "session": "s2"}], ledger)
             self.assertEqual(original, ledger.read_text(encoding="utf-8"))
             self.assertEqual([ledger], list(Path(td).iterdir()))
+
+    def test_legacy_history_is_read_but_new_history_is_written(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            legacy = root / "metrics" / "session-history.jsonl"
+            legacy.parent.mkdir()
+            old = {"source": "claude", "session": "s1", "entries": 1}
+            legacy.write_text(json.dumps(old) + "\n", encoding="utf-8")
+            before = legacy.read_text(encoding="utf-8")
+
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                runtime, legacy_read = asm.resolve_history_paths(
+                    Path("metrics/session-history.jsonl"), root
+                )
+            updated = {"source": "claude", "session": "s1", "entries": 2}
+            self.assertEqual((0, 1), asm.append_history([updated], runtime, legacy_read))
+
+            self.assertEqual(
+                root / ".agentic-framework" / "metrics" / "session-history.jsonl",
+                runtime,
+            )
+            self.assertEqual(before, legacy.read_text(encoding="utf-8"))
+            self.assertIn("仅兼容读取", stderr.getvalue())
+            rows = runtime.read_text(encoding="utf-8").splitlines()
+            self.assertEqual(2, json.loads(rows[0])["entries"])
+
+    def test_custom_history_path_remains_explicit(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            custom = Path("reports/custom.jsonl")
+            self.assertEqual(
+                ((root / custom).resolve(), None),
+                asm.resolve_history_paths(custom, root),
+            )
 
 
 if __name__ == "__main__":

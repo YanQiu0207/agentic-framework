@@ -2,13 +2,24 @@
 
 import contextlib
 import io
+import json
+import os
+import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import verify
+
+
+def _python_command(source: str) -> str:
+    arguments = [sys.executable, "-c", source]
+    if os.name == "nt":
+        return subprocess.list2cmdline(arguments)
+    return shlex.join(arguments)
 
 
 class _FakeClock:
@@ -49,6 +60,26 @@ class _FakeProcess:
 
 class CommandDiagnosticsTest(unittest.TestCase):
     """Verify bounded command diagnostics without slowing normal checks."""
+
+    def test_child_process_receives_forced_utf8_environment(self) -> None:
+        command = _python_command(
+            "import json,os; print(json.dumps({"
+            "'PYTHONUTF8': os.environ.get('PYTHONUTF8'),"
+            "'PYTHONIOENCODING': os.environ.get('PYTHONIOENCODING')}))"
+        )
+        diagnostics = io.StringIO()
+        with contextlib.redirect_stderr(diagnostics):
+            returncode, stdout, stderr = verify.run_command(
+                command,
+                timeout=10,
+                check_name="utf8-environment",
+            )
+        self.assertEqual(0, returncode)
+        self.assertEqual("", stderr)
+        self.assertEqual(
+            {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
+            json.loads(stdout),
+        )
 
     def test_short_command_logs_start_and_end_without_heartbeat(self) -> None:
         clock = _FakeClock()
@@ -394,6 +425,48 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertEqual("PASS", payload["verdict"])
         self.assertEqual(1, len(payload["warnings"]))
+
+    def test_verify_paths_write_new_and_read_legacy_without_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            legacy = root / ".verify" / "baseline.json"
+            legacy.parent.mkdir()
+            legacy.write_text('{"legacy": true}\n', encoding="utf-8")
+            before = legacy.read_text(encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                read_path = verify.resolve_verify_read_path(
+                    Path(".agentic-framework/verify/baseline.json"), root
+                )
+                write_path = verify.resolve_verify_write_path(
+                    Path(".verify/report.json"), root
+                )
+
+            self.assertEqual(legacy, read_path)
+            self.assertEqual(
+                root / ".agentic-framework" / "verify" / "report.json",
+                write_path,
+            )
+            self.assertEqual(before, legacy.read_text(encoding="utf-8"))
+            self.assertIn("仅兼容读取", stderr.getvalue())
+
+    def test_main_defaults_report_to_runtime_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with mock.patch.object(verify, "load_config", return_value={}), mock.patch.object(
+                    verify, "cmd_verify", return_value=0
+                ) as cmd_verify:
+                    self.assertEqual(0, verify.main([]))
+            finally:
+                os.chdir(old_cwd)
+
+            self.assertEqual(
+                root / ".agentic-framework" / "verify" / "report.json",
+                cmd_verify.call_args.args[2],
+            )
 
 
 if __name__ == "__main__":

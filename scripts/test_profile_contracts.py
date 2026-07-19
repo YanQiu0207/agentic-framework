@@ -116,6 +116,7 @@ class ProfileContractTest(unittest.TestCase):
             "链接恢复",
             "单独询问公共知识库接线",
             "不得覆盖",
+            ".agentic-framework/",
         ):
             self.assertIn(required, text)
         self.assertNotIn("docs/design-docs/", text)

@@ -365,7 +365,7 @@ Tier 1 当前是评测资产，不是效果结果；存在 Case 文件不能证�
 python -m pytest scripts -q
 python scripts/lint_skill_graph.py
 python skills/workflow-verification/scripts/verify.py \
-    --baseline .verify/baseline.json \
+    --baseline .agentic-framework/verify/baseline.json \
     --diff-base d5cd0263b2dc47578d38144ab63cb6b0fa695f94
 python scripts/validate_shared_knowledge.py \
     --root E:/work/shared-knowledge-base
@@ -381,7 +381,7 @@ python scripts/validate_shared_knowledge.py \
 - 统一知识管理的 9 个 Task 全部完成，独立 Strict Review 最终为 PASS，无 P0/P1。
 - 双 Profile、外置链接、冲突报告、项目私有边界和公共晋升均有端到端验收记录。
 
-验收记录：`docs/design-docs/knowledge-management/tasks.md:322-357`、`openspec/acceptance/2026-07-19-knowledge-management.md`。机器报告位于本地 `.verify/report.json`，不作为提交内容。
+验收记录：`docs/design-docs/knowledge-management/tasks.md:322-357`、`openspec/acceptance/2026-07-19-knowledge-management.md`。机器报告位于本地 `.agentic-framework/verify/report.json`，不作为提交内容。
 
 这些结果证明当前代码回归通过，但不能证明：
 
@@ -538,7 +538,7 @@ python scripts/install_agentic_framework.py --refresh-all
 - Production 全部 Task 完成后才进行唯一一次 Review。
 - 通过旧版 `project-knowledge`（现状真相机制）或 `opsx-project-knowledge` Skill 维护知识；现行 `skills/project-knowledge` 是双 Profile 共用的读取、写入、冲突和归档路由。
 - 将 `openspec/specs/` 当作中央当前真相库；现行长期 Specs 只是带来源信息的辅助知识。
-- 将 `metrics/session-history.jsonl` 提交 Git。
+- 将 `.agentic-framework/metrics/session-history.jsonl` 提交 Git。
 - 使用 `rapid` 作为 Tooling Profile 名称。
 - 声称 OPSX 没有机器校验。
 - 声称 Harness 仍缺少 Verify 或基线比较。

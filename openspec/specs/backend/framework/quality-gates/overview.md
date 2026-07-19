@@ -37,6 +37,8 @@
 
 本仓库的 `verify.config.json` 运行全量 Pytest、测试数量不下降检查和 Skill 图 Lint。
 
+Verification 基线、机器报告和 Run 级 Review JSON 统一位于仓库根 `.agentic-framework/verify/`，不纳入 Git。旧 `.verify/` 只作为迁移期读取来源；检测到旧产物时提示迁移，新版本不再写入、删除或覆盖旧产物。
+
 ## Code Review
 
 共享 Review 入口按风险选择：

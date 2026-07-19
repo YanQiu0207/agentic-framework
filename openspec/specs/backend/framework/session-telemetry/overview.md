@@ -30,6 +30,7 @@ Telemetry 是显式安装的可选 Pack。当前只实现 transcript 后处理�
 - 默认打印人类可读报告。
 - `--json` 写机器可读结果。
 - `--history` 按 `(source, session)` Upsert JSONL 账本。
+- 框架账本位于仓库根 `.agentic-framework/metrics/session-history.jsonl`，不纳入 Git；旧 `metrics/session-history.jsonl` 只在新账本不存在时兼容读取并提示迁移，新写入始终进入统一目录。
 - 历史账本通过临时文件、`fsync` 和 `os.replace` 原子替换；无法解析的旧行原样保留（`scripts/analyze_session_metrics.py:720-778`）。
 - 单个损坏会话会被隔离并跳过，不终止整批；全部无匹配结果时返回非 0（`scripts/analyze_session_metrics.py:832-872`）。
 

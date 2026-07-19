@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import errno
+import hashlib
 import json
 import math
 import os
@@ -499,18 +500,38 @@ def _unlock(stream) -> None:
     fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
+def _repository_root(path: Path) -> Path:
+    """Return the nearest Git repository root, or the task directory."""
+    resolved = path.resolve(strict=False)
+    for candidate in (resolved.parent, *resolved.parents[1:]):
+        if (candidate / ".git").exists():
+            return candidate
+    return resolved.parent
+
+
+def _task_lock_path(path: Path) -> Path:
+    """Build a collision-resistant runtime lock path for one tasks.md."""
+    resolved = path.resolve(strict=False)
+    normalized = os.path.normcase(str(resolved))
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return (
+        _repository_root(resolved)
+        / ".agentic-framework"
+        / "locks"
+        / f"{digest}.lock"
+    )
+
+
 @contextlib.contextmanager
-def _task_write_lock(path: Path, timeout: float):
-    """Acquire the task file's cross-process write lock within timeout."""
-    if not math.isfinite(timeout) or timeout < 0:
-        raise ValueError("锁超时必须是大于等于 0 的有限数")
-    lock_path = path.parent / f".{path.name}.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+b") as stream:
-        if stream.tell() == 0:
+def _file_lock(lock_path: Path, deadline: float, timeout: float, create: bool):
+    """Acquire one existing or newly created lock without deleting it."""
+    if create:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+    mode = "a+b" if create else "r+b"
+    with lock_path.open(mode) as stream:
+        if create and lock_path.stat().st_size == 0:
             stream.write(b"\0")
             stream.flush()
-        deadline = time.monotonic() + timeout
         while not _try_lock(stream):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -520,6 +541,26 @@ def _task_write_lock(path: Path, timeout: float):
             yield
         finally:
             _unlock(stream)
+
+
+@contextlib.contextmanager
+def _task_write_lock(path: Path, timeout: float):
+    """Acquire the task file's cross-process write lock within timeout."""
+    if not math.isfinite(timeout) or timeout < 0:
+        raise ValueError("锁超时必须是大于等于 0 的有限数")
+    legacy_path = path.parent / f".{path.name}.lock"
+    lock_path = _task_lock_path(path)
+    deadline = time.monotonic() + timeout
+    with contextlib.ExitStack() as stack:
+        if legacy_path.exists():
+            print(
+                f"[workflow-control] 检测到旧任务锁 {legacy_path}；"
+                f"仅兼容加锁读取，新锁使用 {lock_path}。",
+                file=sys.stderr,
+            )
+            stack.enter_context(_file_lock(legacy_path, deadline, timeout, False))
+        stack.enter_context(_file_lock(lock_path, deadline, timeout, True))
+        yield
 
 
 def _write_decisions(path: Path, text: str, decisions: list[TaskDecision]) -> None:

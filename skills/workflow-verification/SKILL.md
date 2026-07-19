@@ -21,7 +21,7 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
 - 改了代码文件，且无法证明相关活跃 Change（`spec.md` / `ui-spec.md` / `tasks.md`）或长期 `openspec/specs/`、`openspec/issues/` 已按知识影响更新 → FAIL。
 - 相关性只做机械判定：`tasks.md` 中出现代码路径，或代码文件位于同一规格目录下；判不出相关时必须传 `--spec-drift-reason "<原因>"`。旧 `docs/design-docs/` 只作为迁移输入，不作为新改动的规格写入目标。
 - 标准 / 下放流程必须在 Phase 0 记录 `base_sha`，后续验证显式传 `--diff-base <base_sha>`；禁止在已提交 / 已合并后的 clean 工作区裸用默认 `HEAD` 作为基准。
-- 报告写入 `.verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
+- 报告写入 `.agentic-framework/verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
 
 示例：
 
@@ -46,14 +46,14 @@ python <skill-dir>/scripts/verify.py \
 
 ```bash
 # 改动前采基线
-python <skill-dir>/scripts/verify.py --save-baseline .verify/baseline.json
+python <skill-dir>/scripts/verify.py --save-baseline .agentic-framework/verify/baseline.json
 # 改动后验证并对比
-python <skill-dir>/scripts/verify.py --baseline .verify/baseline.json
+python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseline.json
 ```
 
 退出码：`0` 全过；`1` 有新增违规或 spec drift（进修复循环）；`2` 门禁自身出错（先排查配置）。
 
-配置项目：`cp <skill-dir>/reference/verify.config.example.json verify.config.json`，按技术栈改 `command`；`.verify/` 加进 `.gitignore`。**怎么写配置、怎么接入自己的脚本见 [reference/config-guide.md](reference/config-guide.md)。**
+配置项目：`cp <skill-dir>/reference/verify.config.example.json verify.config.json`，按技术栈改 `command`；`.agentic-framework/` 加进 `.gitignore`。**怎么写配置、怎么接入自己的脚本见 [reference/config-guide.md](reference/config-guide.md)。**
 
 ## 配置维护模式（用户触发）
 
@@ -82,11 +82,11 @@ python <skill-dir>/scripts/verify.py --baseline .verify/baseline.json
 | 时机 | 动作 |
 | --- | --- |
 | 动代码前（Fast-Path / Phase 0） | 有 config → `--save-baseline` 采基线 |
-| Task 合并前、Run 最终 Review 前 | 有 config → `--baseline <repo-root>/.verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>` |
+| Task 合并前、Run 最终 Review 前 | 有 config → `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>` |
 
-> 下放执行在 worktree 内，基线须用**主仓库根绝对路径** `--baseline <repo-root>/.verify/baseline.json`（worktree 看不到未提交的基线）。
+> 下放执行在 worktree 内，基线须用**主仓库根绝对路径** `--baseline <repo-root>/.agentic-framework/verify/baseline.json`（worktree 看不到未提交的基线）。
 >
-> **基线读多写一、并发安全**：`--save-baseline` 只在动代码前单点写一次，并行 task 验证时一律**只读对比**、不改基线；report 默认写各自 worktree 的 `.verify/report.json`（相对 cwd）。worktree 隔离是为了隔离代码改动，不是为了基线。
+> **基线读多写一、并发安全**：`--save-baseline` 只在动代码前单点写一次，并行 task 验证时一律**只读对比**、不改基线；report 默认写各自 worktree 的 `.agentic-framework/verify/report.json`（相对 cwd）。worktree 隔离是为了隔离代码改动，不是为了基线。
 
 ## 强制规则
 

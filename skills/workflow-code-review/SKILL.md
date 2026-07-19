@@ -269,7 +269,7 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 #### 机器可读产物
 
-输出 Markdown 报告的**同一步**，Judge 额外写出一份结构化 JSON 文件，供质量门脚本（`workflow_control.py` / `check_delivery.py` 等）机器校验证据。路径由调用方在上下文中指定；Tooling / Production 场景建议 `.verify/review-report.json`。
+输出 Markdown 报告的**同一步**，Judge 额外写出一份结构化 JSON 文件，供质量门脚本（`workflow_control.py` / `check_delivery.py` 等）机器校验证据。路径由调用方在上下文中指定；Tooling / Production 场景建议 `.agentic-framework/verify/review-report.json`。
 
 ```json
 {
