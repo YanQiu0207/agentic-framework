@@ -10,3 +10,10 @@ __pycache__/
 
 # 会话遥测含本机路径和会话 ID，只保留在本地
 metrics/session-history.jsonl
+
+# OS / 编辑器
+.DS_Store
+Thumbs.db
+
+# AI 客户端本地配置
+.claude/settings.local.json
