@@ -1,12 +1,153 @@
 """Regression tests for spec drift evaluation."""
 
+import contextlib
+import io
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
-import subprocess
 
 import verify
+
+
+class _FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+class _FakeProcess:
+    pid = 4321
+
+    def __init__(
+        self,
+        clock: _FakeClock,
+        finish_at: float,
+        returncode: int = 0,
+        stdout: str = "",
+        stderr: str = "",
+    ) -> None:
+        self.clock = clock
+        self.finish_at = finish_at
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+    def communicate(self, timeout: float | None = None) -> tuple[str, str]:
+        if timeout is None:
+            return self.stdout, self.stderr
+        finish_in = self.finish_at - self.clock.now
+        if finish_in <= timeout:
+            self.clock.now += max(0.0, finish_in)
+            return self.stdout, self.stderr
+        self.clock.now += timeout
+        raise subprocess.TimeoutExpired("fake-command", timeout)
+
+
+class CommandDiagnosticsTest(unittest.TestCase):
+    """Verify bounded command diagnostics without slowing normal checks."""
+
+    def test_short_command_logs_start_and_end_without_heartbeat(self) -> None:
+        clock = _FakeClock()
+        process = _FakeProcess(clock, finish_at=0.1, stdout="ok\n")
+        diagnostics = io.StringIO()
+        with contextlib.redirect_stderr(diagnostics), mock.patch.object(
+            verify.subprocess, "Popen", return_value=process
+        ), mock.patch.object(verify.time, "monotonic", side_effect=clock.monotonic):
+            returncode, stdout, stderr = verify.run_command(
+                "short-command",
+                timeout=5,
+                check_name="short-check",
+            )
+        log = diagnostics.getvalue()
+        self.assertEqual(0, returncode)
+        self.assertEqual("ok", stdout.strip())
+        self.assertEqual("", stderr)
+        self.assertIn("start check='short-check' pid=", log)
+        self.assertIn("command=", log)
+        self.assertIn("end check='short-check'", log)
+        self.assertIn("exit=0", log)
+        self.assertIn("timeout=5s", log)
+        self.assertNotIn("heartbeat", log)
+
+    def test_long_command_emits_bounded_heartbeats(self) -> None:
+        clock = _FakeClock()
+        process = _FakeProcess(clock, finish_at=11.0)
+        diagnostics = io.StringIO()
+        with contextlib.redirect_stderr(diagnostics), mock.patch.object(
+            verify.subprocess, "Popen", return_value=process
+        ), mock.patch.object(verify.time, "monotonic", side_effect=clock.monotonic):
+            verify.run_command(
+                "long-command",
+                timeout=20,
+                check_name="heartbeat-check",
+                heartbeat_seconds=5,
+            )
+        heartbeats = [
+            line
+            for line in diagnostics.getvalue().splitlines()
+            if " heartbeat check=" in line
+        ]
+        self.assertEqual(2, len(heartbeats))
+        self.assertTrue(all("elapsed=" in line for line in heartbeats))
+
+    def test_timeout_logs_and_preserves_stdout_stderr_summary(self) -> None:
+        clock = _FakeClock()
+        process = _FakeProcess(
+            clock,
+            finish_at=100.0,
+            stdout="before-out\n",
+            stderr="before-err\n",
+        )
+        diagnostics = io.StringIO()
+        with contextlib.redirect_stderr(diagnostics), mock.patch.object(
+            verify.subprocess, "Popen", return_value=process
+        ), mock.patch.object(
+            verify.time, "monotonic", side_effect=clock.monotonic
+        ), mock.patch.object(
+            verify, "_kill_process_tree"
+        ):
+            with self.assertRaises(verify.CommandTimeout) as caught:
+                verify.run_command(
+                    "timeout-command",
+                    timeout=10,
+                    check_name="timeout-check",
+                )
+        log = diagnostics.getvalue()
+        self.assertIn("exit=TIMEOUT", log)
+        self.assertIn("elapsed=", log)
+        self.assertIn("timeout=10s", log)
+        self.assertIn("stdout=before-out", log)
+        self.assertIn("stderr=before-err", log)
+        self.assertIn("stdout=before-out", str(caught.exception))
+        self.assertIn("stderr=before-err", str(caught.exception))
+
+    def test_nonzero_exit_logs_stdout_stderr_summary(self) -> None:
+        clock = _FakeClock()
+        process = _FakeProcess(
+            clock,
+            finish_at=0.1,
+            returncode=3,
+            stdout="failed-out\n",
+            stderr="failed-err\n",
+        )
+        diagnostics = io.StringIO()
+        with contextlib.redirect_stderr(diagnostics), mock.patch.object(
+            verify.subprocess, "Popen", return_value=process
+        ), mock.patch.object(verify.time, "monotonic", side_effect=clock.monotonic):
+            returncode, _, _ = verify.run_command(
+                "failed-command",
+                timeout=2,
+                check_name="failed-check",
+            )
+        log = diagnostics.getvalue()
+        self.assertEqual(3, returncode)
+        self.assertIn("exit=3", log)
+        self.assertIn("stdout=failed-out", log)
+        self.assertIn("stderr=failed-err", log)
 
 
 class EvaluateSpecDriftTest(unittest.TestCase):

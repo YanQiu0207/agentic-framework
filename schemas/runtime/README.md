@@ -28,11 +28,18 @@
 
 Envelope 的 `attempt` 是从 `1` 开始的执行序号；`workflow_control.py` 的 `attempts` 是从 `0` 开始的已消费失败重试次数。映射固定为 `attempt = attempts + 1`。只有 `failure` 消费重试预算；`manual` 等其他控制事件不改变任一计数。
 
+## Strict Review 信任迁移
+
+Run 级 Review 使用 `scope: run`。`review_profile: strict` 的新报告应同时记录 `implementer_actor`、`judge_actor` 和 `independence_basis: process-separated-agent`。这三个字段保持 Schema 可选，以便旧 Artifact 仍可解析；旧 Artifact 和缺少独立性声明的新 Artifact 不能通过 `runtime_trust.py` 的最终 Trust Gate。
+
+参与者字段证明的是流程声明与 Artifact 一致，不是操作系统级强身份认证。最终报告不得据此宣称 Reviewer 或 Judge 的语义判断必然正确。
+
 ## 校验入口
 
 ```text
 python scripts/runtime_schema.py validate <artifact.json>
 python scripts/runtime_schema.py config-digest --profile tooling --harness codex --workflow workflow-code-generation --max-attempts 2 --verify-config verify.config.json
+python scripts/runtime_trust.py .agentic-framework/runs/<run-id> --output .agentic-framework/runs/<run-id>/trust-report.json
 ```
 
 校验成功时输出 `PASS` 或摘要并返回 `0`；输入、版本或关联非法时失败关闭并返回 `1`。

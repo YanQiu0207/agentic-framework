@@ -33,6 +33,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -52,6 +53,9 @@ class CheckResult:
 
 
 _DEFAULT_TIMEOUT = 60  # 秒；防止卡死命令永久阻塞验证流程
+_HEARTBEAT_SECONDS = 5.0
+_OUTPUT_SUMMARY_LINES = 3
+_OUTPUT_SUMMARY_CHARS = 600
 _CODE_SUFFIXES = {
     ".c",
     ".cc",
@@ -84,8 +88,42 @@ _DOC_SUFFIXES = {".md", ".mdx"}
 class CommandTimeout(Exception):
     """命令执行超时。用独立异常而非复用 returncode，避免与 expect_code=1 混淆。"""
 
-    def __init__(self, command: str, timeout: int) -> None:
-        super().__init__(f"命令超时（>{timeout}s）：{command[:80]}")
+    def __init__(
+        self,
+        command: str,
+        timeout: float,
+        elapsed: float,
+        stdout: str,
+        stderr: str,
+    ) -> None:
+        self.stdout = stdout
+        self.stderr = stderr
+        detail = _output_summary(stdout, stderr)
+        suffix = f"；{detail}" if detail else ""
+        super().__init__(
+            f"命令超时（timeout={timeout:g}s elapsed={elapsed:.1f}s）："
+            f"{command[:160]}{suffix}"
+        )
+
+
+def _output_tail(text: str) -> str:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return " | ".join(lines[-_OUTPUT_SUMMARY_LINES:])[-_OUTPUT_SUMMARY_CHARS:]
+
+
+def _output_summary(stdout: str, stderr: str) -> str:
+    parts = []
+    stdout_tail = _output_tail(stdout)
+    stderr_tail = _output_tail(stderr)
+    if stdout_tail:
+        parts.append(f"stdout={stdout_tail}")
+    if stderr_tail:
+        parts.append(f"stderr={stderr_tail}")
+    return "；".join(parts)
+
+
+def _diagnostic(message: str) -> None:
+    print(f"[verify] {message}", file=sys.stderr, flush=True)
 
 
 def _kill_process_tree(proc: subprocess.Popen) -> None:
@@ -105,8 +143,15 @@ def _kill_process_tree(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
-def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str, str]:
-    """执行 shell 命令，返回 (returncode, stdout, stderr)。超时时终止进程树并抛 CommandTimeout。"""
+def run_command(
+    command: str,
+    timeout: float = _DEFAULT_TIMEOUT,
+    check_name: str = "<unnamed>",
+    heartbeat_seconds: float = _HEARTBEAT_SECONDS,
+) -> tuple[int, str, str]:
+    """执行命令，输出有界心跳，超时时终止进程树。"""
+    if timeout <= 0 or heartbeat_seconds <= 0:
+        raise ValueError("timeout and heartbeat_seconds must be positive")
     kwargs: dict[str, Any] = {
         "shell": True,
         "stdout": subprocess.PIPE,
@@ -117,13 +162,44 @@ def run_command(command: str, timeout: int = _DEFAULT_TIMEOUT) -> tuple[int, str
     if sys.platform != "win32":
         kwargs["start_new_session"] = True  # POSIX：新进程组，方便 killpg
     proc = subprocess.Popen(command, **kwargs)
-    try:
-        stdout, stderr = proc.communicate(timeout=timeout)
+    started = time.monotonic()
+    next_heartbeat = heartbeat_seconds
+    _diagnostic(f"start check={check_name!r} pid={proc.pid} command={command}")
+    while True:
+        elapsed = time.monotonic() - started
+        remaining = timeout - elapsed
+        if remaining <= 0:
+            _kill_process_tree(proc)
+            stdout, stderr = proc.communicate()
+            elapsed = time.monotonic() - started
+            summary = _output_summary(stdout, stderr)
+            detail = f" summary={summary}" if summary else ""
+            _diagnostic(
+                f"end check={check_name!r} pid={proc.pid} exit=TIMEOUT "
+                f"elapsed={elapsed:.1f}s timeout={timeout:g}s{detail}"
+            )
+            raise CommandTimeout(command, timeout, elapsed, stdout, stderr)
+        wait_seconds = min(remaining, max(0.001, next_heartbeat - elapsed))
+        try:
+            stdout, stderr = proc.communicate(timeout=wait_seconds)
+        except subprocess.TimeoutExpired:
+            elapsed = time.monotonic() - started
+            if elapsed >= timeout:
+                continue
+            _diagnostic(
+                f"heartbeat check={check_name!r} pid={proc.pid} "
+                f"elapsed={elapsed:.1f}s timeout={timeout:g}s"
+            )
+            next_heartbeat += heartbeat_seconds
+            continue
+        elapsed = time.monotonic() - started
+        summary = _output_summary(stdout, stderr) if proc.returncode != 0 else ""
+        detail = f" summary={summary}" if summary else ""
+        _diagnostic(
+            f"end check={check_name!r} pid={proc.pid} exit={proc.returncode} "
+            f"elapsed={elapsed:.1f}s timeout={timeout:g}s{detail}"
+        )
         return proc.returncode, stdout, stderr
-    except subprocess.TimeoutExpired:
-        _kill_process_tree(proc)
-        proc.wait()
-        raise CommandTimeout(command, timeout)
 
 
 def _nonempty_lines(text: str) -> list[str]:
@@ -459,7 +535,7 @@ def evaluate_check(check: dict, baseline: dict | None) -> CheckResult:
 
     timeout = int(check.get("timeout_seconds") or _DEFAULT_TIMEOUT)
     try:
-        returncode, out, err = run_command(command, timeout=timeout)
+        returncode, out, err = run_command(command, timeout=timeout, check_name=name)
     except CommandTimeout as exc:
         # 超时独立报 error，不复用任何 returncode，避免与 expect_code 语义冲突
         return CheckResult(name, ctype, "error", str(exc))
