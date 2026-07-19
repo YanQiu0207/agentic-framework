@@ -152,12 +152,20 @@ def run_command(
     """执行命令，输出有界心跳，超时时终止进程树。"""
     if timeout <= 0 or heartbeat_seconds <= 0:
         raise ValueError("timeout and heartbeat_seconds must be positive")
+    child_env = os.environ.copy()
+    child_env.update(
+        {
+            "PYTHONUTF8": "1",
+            "PYTHONIOENCODING": "utf-8",
+        }
+    )
     kwargs: dict[str, Any] = {
         "shell": True,
         "stdout": subprocess.PIPE,
         "stderr": subprocess.PIPE,
         "encoding": "utf-8",   # 固定 UTF-8，避免 Windows GBK 等本机编码导致解码崩溃
         "errors": "replace",   # 不可解码字节替换为 U+FFFD，门禁继续产出结构化报告
+        "env": child_env,
     }
     if sys.platform != "win32":
         kwargs["start_new_session"] = True  # POSIX：新进程组，方便 killpg

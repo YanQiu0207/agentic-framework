@@ -2,13 +2,24 @@
 
 import contextlib
 import io
+import json
+import os
+import shlex
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import verify
+
+
+def _python_command(source: str) -> str:
+    arguments = [sys.executable, "-c", source]
+    if os.name == "nt":
+        return subprocess.list2cmdline(arguments)
+    return shlex.join(arguments)
 
 
 class _FakeClock:
@@ -49,6 +60,26 @@ class _FakeProcess:
 
 class CommandDiagnosticsTest(unittest.TestCase):
     """Verify bounded command diagnostics without slowing normal checks."""
+
+    def test_child_process_receives_forced_utf8_environment(self) -> None:
+        command = _python_command(
+            "import json,os; print(json.dumps({"
+            "'PYTHONUTF8': os.environ.get('PYTHONUTF8'),"
+            "'PYTHONIOENCODING': os.environ.get('PYTHONIOENCODING')}))"
+        )
+        diagnostics = io.StringIO()
+        with contextlib.redirect_stderr(diagnostics):
+            returncode, stdout, stderr = verify.run_command(
+                command,
+                timeout=10,
+                check_name="utf8-environment",
+            )
+        self.assertEqual(0, returncode)
+        self.assertEqual("", stderr)
+        self.assertEqual(
+            {"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
+            json.loads(stdout),
+        )
 
     def test_short_command_logs_start_and_end_without_heartbeat(self) -> None:
         clock = _FakeClock()
