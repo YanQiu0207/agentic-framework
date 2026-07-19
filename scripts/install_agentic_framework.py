@@ -17,8 +17,10 @@ from typing import Iterable, Sequence
 
 CLIENT_DIRS = (".codex", ".claude")
 MANIFEST_PATH = Path(".agentic-framework/manifest.json")
+DEFAULT_REGISTRY_PATH = Path.home() / ".agentic-framework" / "installations.json"
 FRAMEWORK_VERSION = "2026.07.19"
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2
+REGISTRY_SCHEMA_VERSION = 1
 
 CORE_SKILLS = {
     "bp-architecture-design",
@@ -95,7 +97,7 @@ PACK_COMMANDS = {
 TOOLING_ONLY_PACKS = {"frontend", "project-init"}
 IGNORED_PARTS = {"__pycache__", ".pytest_cache"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
-MANAGED_AGENT_FILES = {
+ACTIVE_AGENT_FILES = {
     "codebase-researcher.md",
     "comprehensive-reviewer.md",
     "magical-prompt-reviewer.md",
@@ -108,6 +110,18 @@ MANAGED_AGENT_FILES = {
 # Append-only compatibility namespaces for previously installed manifests. When a
 # source entry is retired, remove it from the install selection above but retain it
 # here so an older installation can still be safely uninstalled.
+MANAGED_AGENT_FILES = frozenset(
+    {
+        "codebase-researcher.md",
+        "comprehensive-reviewer.md",
+        "magical-prompt-reviewer.md",
+        "performance-reviewer.md",
+        "review-critic.md",
+        "robustness-reviewer.md",
+        "spec-compliance-reviewer.md",
+        "standards-reviewer.md",
+    }
+)
 MANAGED_PROFILE_SKILL_ROOTS = {
     "production": frozenset(
         {
@@ -211,11 +225,12 @@ MANAGED_PACK_COMMAND_FILES = {
 
 
 @dataclass(frozen=True)
-class CopyOperation:
-    """One source file copied to a target-relative path."""
+class LinkOperation:
+    """One source asset linked to a target-relative path."""
 
     source: Path
     relative_target: Path
+    kind: str
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -223,7 +238,7 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Install one Agentic Engineering Framework profile."
     )
-    parser.add_argument("target_dir", type=Path)
+    parser.add_argument("target_dir", type=Path, nargs="?")
     parser.add_argument("--profile", choices=("production", "tooling"))
     parser.add_argument("--uninstall", action="store_true")
     parser.add_argument(
@@ -242,6 +257,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--switch-profile", action="store_true")
+    parser.add_argument("--refresh-all", action="store_true")
+    parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY_PATH)
     return parser.parse_args(argv)
 
 
@@ -285,37 +302,53 @@ def _selected_names(profile: str, packs: set[str]) -> tuple[set[str], set[str]]:
 
 def build_operations(
     source: Path, profile: str, packs: set[str]
-) -> list[CopyOperation]:
-    """Return the explicit installation file list."""
+) -> list[LinkOperation]:
+    """Return the explicit installation link list."""
     skills, commands = _selected_names(profile, packs)
-    operations: list[CopyOperation] = []
+    operations: list[LinkOperation] = []
     for client in CLIENT_DIRS:
         for skill in sorted(skills):
             skill_root = source / "skills" / skill
-            for path in _tree_files(skill_root):
-                relative = path.relative_to(skill_root)
-                operations.append(
-                    CopyOperation(path, Path(client, "skills", skill) / relative)
-                )
-        for path in _tree_files(source / "agents"):
-            operations.append(CopyOperation(path, Path(client, "agents", path.name)))
+            if not skill_root.is_dir():
+                raise FileNotFoundError(f"Missing source directory: {skill_root}")
+            operations.append(
+                LinkOperation(skill_root, Path(client, "skills", skill), "directory")
+            )
+        for name in sorted(ACTIVE_AGENT_FILES):
+            path = source / "agents" / name
+            if not path.is_file():
+                raise FileNotFoundError(f"Missing source file: {path}")
+            operations.append(
+                LinkOperation(path, Path(client, "agents", path.name), "file")
+            )
         for command in sorted(commands):
             path = source / "commands" / command
             if not path.is_file():
                 raise FileNotFoundError(f"Missing source file: {path}")
-            operations.append(CopyOperation(path, Path(client, "commands", command)))
+            operations.append(
+                LinkOperation(path, Path(client, "commands", command), "file")
+            )
         if profile == "production":
             validator = source / "scripts" / "validate_change.py"
+            if not validator.is_file():
+                raise FileNotFoundError(f"Missing source file: {validator}")
             operations.append(
-                CopyOperation(validator, Path(client, "scripts", "validate_change.py"))
+                LinkOperation(
+                    validator,
+                    Path(client, "scripts", "validate_change.py"),
+                    "file",
+                )
             )
 
     if "telemetry" in packs:
         path = source / "scripts" / "analyze_session_metrics.py"
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing source file: {path}")
         operations.append(
-            CopyOperation(
+            LinkOperation(
                 path,
                 Path(".agentic-framework", "packs", "telemetry", path.name),
+                "file",
             )
         )
     return operations
@@ -334,7 +367,9 @@ def _is_link_or_junction(path: Path) -> bool:
     return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
-def _safe_target(target: Path, relative: str | Path) -> Path:
+def _safe_target(
+    target: Path, relative: str | Path, *, allow_leaf_link: bool = False
+) -> Path:
     root = target.absolute()
     relative_path = Path(relative)
     if relative_path.is_absolute() or ".." in relative_path.parts:
@@ -342,9 +377,14 @@ def _safe_target(target: Path, relative: str | Path) -> Path:
     current = root
     if _is_link_or_junction(current):
         raise ValueError(f"Installation target is a link or junction: {current}")
-    for part in relative_path.parts:
+    for index, part in enumerate(relative_path.parts):
         current /= part
-        if os.path.lexists(current) and _is_link_or_junction(current):
+        is_leaf = index == len(relative_path.parts) - 1
+        if (
+            os.path.lexists(current)
+            and _is_link_or_junction(current)
+            and not (allow_leaf_link and is_leaf)
+        ):
             raise ValueError(f"Managed path crosses a link or junction: {current}")
     return current
 
@@ -364,7 +404,7 @@ def _manifest_allowed_path(path_text: str, profile: str, packs: set[str]) -> boo
         commands.update(MANAGED_PACK_COMMAND_FILES[pack])
     area = path.parts[1]
     if area == "skills":
-        return len(path.parts) >= 4 and path.parts[2] in skills
+        return len(path.parts) >= 3 and path.parts[2] in skills
     if area == "agents":
         return len(path.parts) == 3 and path.parts[2] in MANAGED_AGENT_FILES
     if area == "commands":
@@ -379,11 +419,13 @@ def _manifest_allowed_path(path_text: str, profile: str, packs: set[str]) -> boo
 
 
 def _load_manifest(target: Path) -> dict | None:
+    """Load and validate a v1 copied-file or v2 linked-asset manifest."""
     path = _safe_target(target, MANIFEST_PATH)
     if not path.is_file():
         return None
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+    schema = manifest.get("schema_version")
+    if schema not in {1, MANIFEST_SCHEMA_VERSION}:
         raise ValueError("Unsupported manifest schema_version")
     if not isinstance(manifest.get("framework_version"), str):
         raise ValueError("Manifest is missing framework_version")
@@ -395,31 +437,51 @@ def _load_manifest(target: Path) -> dict | None:
         pack not in MANAGED_PACK_SKILL_ROOTS for pack in packs
     ):
         raise ValueError("Manifest has invalid packs")
-    files = manifest.get("files")
-    if not isinstance(files, list):
-        raise ValueError("Manifest files must be a list")
+
+    entries_key = "files" if schema == 1 else "links"
+    entries = manifest.get(entries_key)
+    if not isinstance(entries, list):
+        raise ValueError(f"Manifest {entries_key} must be a list")
+    if schema == MANIFEST_SCHEMA_VERSION:
+        source = manifest.get("source")
+        if not isinstance(source, str) or not Path(source).is_absolute():
+            raise ValueError("Manifest has an invalid source")
 
     seen: set[str] = set()
-    for item in files:
+    for item in entries:
         if not isinstance(item, dict):
-            raise ValueError("Manifest file entry must be an object")
+            raise ValueError("Manifest entry must be an object")
         relative = item.get("path")
-        digest = item.get("sha256")
         if (
             not isinstance(relative, str)
             or not _manifest_allowed_path(relative, profile, set(packs))
             or relative in seen
         ):
             raise ValueError(f"Manifest contains an unmanaged path: {relative}")
-        if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
-            raise ValueError(f"Manifest contains an invalid hash: {relative}")
-        _safe_target(target, relative)
+        if schema == 1:
+            digest = item.get("sha256")
+            if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+                raise ValueError(f"Manifest contains an invalid hash: {relative}")
+        else:
+            link_source = item.get("source")
+            kind = item.get("type")
+            if not isinstance(link_source, str) or not Path(link_source).is_absolute():
+                raise ValueError(f"Manifest contains an invalid source: {relative}")
+            if kind not in {"file", "directory"}:
+                raise ValueError(f"Manifest contains an invalid link type: {relative}")
+        _safe_target(target, relative, allow_leaf_link=schema == 2)
         seen.add(relative)
     return manifest
 
 
+def _manifest_entries(manifest: dict | None) -> list[dict]:
+    if not manifest:
+        return []
+    return manifest["files" if manifest["schema_version"] == 1 else "links"]
+
+
 def _managed_paths(manifest: dict | None) -> set[str]:
-    return {item["path"] for item in (manifest or {}).get("files", [])}
+    return {item["path"] for item in _manifest_entries(manifest)}
 
 
 def _forbidden_entry_paths(profile: str) -> set[Path]:
@@ -437,47 +499,89 @@ def _cross_pollution_errors(
 ) -> list[str]:
     errors: list[str] = []
     for relative in _forbidden_entry_paths(profile):
-        path = _safe_target(target, relative)
-        if not path.exists():
+        path = _safe_target(target, relative, allow_leaf_link=True)
+        if not os.path.lexists(path):
             continue
-        candidates = [path] if path.is_file() else list(_tree_files(path))
-        unmanaged = [
-            candidate
-            for candidate in candidates
-            if candidate.relative_to(target).as_posix() not in removable_paths
-        ]
-        if unmanaged:
+        if relative.as_posix() not in removable_paths:
             errors.append(str(relative))
     return errors
 
 
+def _normalized_link_path(path: str | Path) -> str:
+    """Return a comparable absolute path, including Windows extended paths."""
+    text = os.path.abspath(os.fspath(path))
+    if os.name == "nt":
+        text = text.replace("/", "\\")
+        if text.casefold().startswith("\\\\?\\unc\\"):
+            text = "\\\\" + text[8:]
+        elif text.startswith("\\\\?\\"):
+            text = text[4:]
+    return os.path.normcase(os.path.normpath(text))
+
+
+def _link_destination(path: Path) -> str:
+    return _normalized_link_path(path.parent / os.readlink(path))
+
+
+def _expected_link(path: Path, source: Path) -> bool:
+    return path.is_symlink() and _link_destination(path) == _normalized_link_path(
+        source
+    )
+
+
+def _verify_v2_links(target: Path, manifest: dict) -> None:
+    for item in manifest["links"]:
+        path = _safe_target(target, item["path"], allow_leaf_link=True)
+        if not os.path.lexists(path):
+            continue
+        if not _expected_link(path, Path(item["source"])):
+            raise FileExistsError(f"Managed link was changed or replaced: {path}")
+
+
 def _preflight(
     target: Path,
-    operations: list[CopyOperation],
+    operations: list[LinkOperation],
     old_manifest: dict | None,
     force: bool,
 ) -> None:
-    old_paths = {
-        item["path"]: item["sha256"] for item in (old_manifest or {}).get("files", [])
-    }
+    old_entries = {item["path"]: item for item in _manifest_entries(old_manifest)}
+    if old_manifest and old_manifest["schema_version"] == 2:
+        _verify_v2_links(target, old_manifest)
     for operation in operations:
         relative = operation.relative_target.as_posix()
-        path = _safe_target(target, relative)
-        if not path.exists():
+        path = _safe_target(target, relative, allow_leaf_link=True)
+        if not os.path.lexists(path):
             continue
-        if path.is_dir():
-            raise IsADirectoryError(f"Target file is a directory: {path}")
-        expected_old = old_paths.get(relative)
-        is_unchanged_managed = expected_old is not None and _hash(path) == expected_old
+        old = old_entries.get(relative)
         if (
-            not force
-            and not is_unchanged_managed
-            and _hash(path) != _hash(operation.source)
+            old is None
+            and old_manifest
+            and old_manifest["schema_version"] == 1
+            and operation.kind == "directory"
+            and path.is_dir()
         ):
-            raise FileExistsError(f"Refusing to overwrite changed target file: {path}")
+            prefix = relative + "/"
+            managed_children = {name for name in old_entries if name.startswith(prefix)}
+            actual_children = {
+                child.relative_to(target).as_posix() for child in _tree_files(path)
+            }
+            if managed_children and actual_children == managed_children:
+                continue
+        if old is None:
+            raise FileExistsError(f"Refusing to replace unmanaged target: {path}")
+        if old_manifest and old_manifest["schema_version"] == 1:
+            if path.is_dir():
+                raise IsADirectoryError(f"Managed file became a directory: {path}")
+            if not force and _hash(path) != old["sha256"]:
+                raise FileExistsError(
+                    f"Refusing to overwrite changed target file: {path}"
+                )
 
 
 def _verify_removable(target: Path, manifest: dict, force: bool) -> None:
+    if manifest["schema_version"] == 2:
+        _verify_v2_links(target, manifest)
+        return
     for item in manifest["files"]:
         path = _safe_target(target, item["path"])
         if not path.exists():
@@ -500,9 +604,10 @@ def _prune_empty_parents(path: Path, target: Path) -> None:
 
 
 def _remove_managed(target: Path, manifest: dict, dry_run: bool) -> None:
-    for item in manifest["files"]:
-        path = _safe_target(target, item["path"])
-        if not path.exists():
+    allow_link = manifest["schema_version"] == 2
+    for item in _manifest_entries(manifest):
+        path = _safe_target(target, item["path"], allow_leaf_link=allow_link)
+        if not os.path.lexists(path):
             continue
         if dry_run:
             print(f"[dry-run] remove {path}")
@@ -511,49 +616,92 @@ def _remove_managed(target: Path, manifest: dict, dry_run: bool) -> None:
             _prune_empty_parents(path, target)
 
 
-def _snapshot_files(target: Path, relatives: set[str], backup: Path) -> set[str]:
-    existing: set[str] = set()
-    for relative in relatives:
-        path = _safe_target(target, relative)
-        if not path.is_file():
+def _snapshot_entries(
+    target: Path,
+    relatives: set[str],
+    backup: Path,
+    link_type_hints: dict[str, str] | None = None,
+) -> dict[str, tuple[str, str | None]]:
+    link_type_hints = link_type_hints or {}
+    snapshot: dict[str, tuple[str, str | None]] = {}
+    for relative in sorted(relatives, key=lambda item: len(PurePosixPath(item).parts)):
+        path = _safe_target(target, relative, allow_leaf_link=True)
+        if not os.path.lexists(path):
             continue
-        destination = backup / PurePosixPath(relative)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, destination)
-        existing.add(relative)
-    return existing
+        if path.is_symlink():
+            link_type = link_type_hints.get(relative)
+            if link_type is None:
+                link_type = "directory" if path.is_dir() else "file"
+            kind = f"{link_type}_link"
+            snapshot[relative] = (kind, os.readlink(path))
+        elif path.is_file():
+            destination = backup / PurePosixPath(relative)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, destination)
+            snapshot[relative] = ("file", None)
+        elif not path.is_dir():
+            raise IsADirectoryError(f"Cannot snapshot managed entry: {path}")
+    return snapshot
 
 
 def _restore_snapshot(
-    target: Path, relatives: set[str], backup: Path, existing: set[str]
+    target: Path,
+    relatives: set[str],
+    backup: Path,
+    snapshot: dict[str, tuple[str, str | None]],
 ) -> None:
-    for relative in relatives:
-        path = _safe_target(target, relative)
-        if path.is_file():
-            path.unlink()
-            _prune_empty_parents(path, target)
-    for relative in existing:
-        source = backup / PurePosixPath(relative)
+    for relative in sorted(relatives, key=lambda item: len(PurePosixPath(item).parts)):
+        path = _safe_target(target, relative, allow_leaf_link=True)
+        if os.path.lexists(path):
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+                _prune_empty_parents(path, target)
+    for relative in sorted(snapshot, key=lambda item: len(PurePosixPath(item).parts)):
+        kind, link_target = snapshot[relative]
         destination = _safe_target(target, relative)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
+        if kind.endswith("_link"):
+            assert link_target is not None
+            destination.symlink_to(
+                link_target,
+                target_is_directory=kind == "directory_link",
+            )
+        else:
+            shutil.copy2(backup / PurePosixPath(relative), destination)
 
 
-def _copy_operation(operation: CopyOperation, destination: Path) -> None:
+def _manifest_link_type_hints(manifest: dict | None) -> dict[str, str]:
+    if not manifest or manifest["schema_version"] != MANIFEST_SCHEMA_VERSION:
+        return {}
+    return {item["path"]: item["type"] for item in manifest["links"]}
+
+
+def _create_link(operation: LinkOperation, destination: Path) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(operation.source, destination)
+    try:
+        destination.symlink_to(
+            operation.source.absolute(),
+            target_is_directory=operation.kind == "directory",
+        )
+    except OSError as error:
+        detail = str(error)
+        if os.name == "nt" and getattr(error, "winerror", None) == 1314:
+            detail = "enable Developer Mode or run with symbolic-link privilege"
+        raise OSError(
+            f"Unable to create symbolic link {destination}: {detail}. "
+            "No files were copied."
+        ) from error
 
 
-def _write_manifest(target: Path, manifest: dict) -> None:
-    path = _safe_target(target, MANIFEST_PATH)
+def _write_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(
-        dir=path.parent, prefix=".manifest-", suffix=".tmp"
+        dir=path.parent, prefix=f".{path.name}-", suffix=".tmp"
     )
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
-            json.dump(manifest, stream, ensure_ascii=False, indent=4)
+            json.dump(value, stream, ensure_ascii=False, indent=4)
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
@@ -561,6 +709,75 @@ def _write_manifest(target: Path, manifest: dict) -> None:
     except BaseException:
         temporary.unlink(missing_ok=True)
         raise
+
+
+def _write_manifest(target: Path, manifest: dict) -> None:
+    _write_json(_safe_target(target, MANIFEST_PATH), manifest)
+
+
+def _load_registry(registry_path: Path) -> dict:
+    if not registry_path.exists():
+        return {"schema_version": REGISTRY_SCHEMA_VERSION, "installations": []}
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    if registry.get("schema_version") != REGISTRY_SCHEMA_VERSION:
+        raise ValueError("Unsupported registry schema_version")
+    entries = registry.get("installations")
+    if not isinstance(entries, list):
+        raise ValueError("Registry installations must be a list")
+    seen_targets: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValueError("Registry entry must be an object")
+        source = entry.get("source")
+        target = entry.get("target")
+        profile = entry.get("profile")
+        packs = entry.get("packs")
+        if not all(isinstance(value, str) for value in (source, target)):
+            raise ValueError("Registry entry has an invalid path")
+        if not Path(source).is_absolute() or not Path(target).is_absolute():
+            raise ValueError("Registry paths must be absolute")
+        if profile not in {"production", "tooling"}:
+            raise ValueError("Registry entry has an invalid profile")
+        if not isinstance(packs, list) or any(
+            pack not in MANAGED_PACK_SKILL_ROOTS for pack in packs
+        ):
+            raise ValueError("Registry entry has invalid packs")
+        target_key = os.path.normcase(os.path.abspath(target))
+        if target_key in seen_targets:
+            raise ValueError("Registry contains duplicate installation")
+        seen_targets.add(target_key)
+    return registry
+
+
+def _update_registry(
+    registry_path: Path,
+    source: Path,
+    target: Path,
+    profile: str | None,
+    packs: set[str] | None,
+) -> None:
+    registry = _load_registry(registry_path)
+    source_text = str(source.resolve())
+    target_text = str(target.absolute())
+    target_key = os.path.normcase(os.path.abspath(target_text))
+    entries = [
+        item
+        for item in registry["installations"]
+        if os.path.normcase(os.path.abspath(item["target"])) != target_key
+    ]
+    if profile is not None:
+        entries.append(
+            {
+                "source": source_text,
+                "target": target_text,
+                "profile": profile,
+                "packs": sorted(packs or set()),
+            }
+        )
+    registry["installations"] = sorted(
+        entries, key=lambda item: (item["source"], item["target"])
+    )
+    _write_json(registry_path, registry)
 
 
 def install(
@@ -571,10 +788,12 @@ def install(
     force: bool = False,
     dry_run: bool = False,
     switch_profile: bool = False,
+    registry_path: Path | None = None,
 ) -> None:
-    """Install a profile, writing a validated managed-file manifest."""
+    """Install a profile using managed symbolic links and record it."""
     source = source.resolve()
     target = target.absolute()
+    registry_path = (registry_path or DEFAULT_REGISTRY_PATH).absolute()
     operations = build_operations(source, profile, packs)
     old_manifest = _load_manifest(target)
     if old_manifest and old_manifest["profile"] != profile and not switch_profile:
@@ -588,47 +807,56 @@ def install(
             "Opposite-profile entries are not managed by this installer: "
             + ", ".join(pollution)
         )
-
     _preflight(target, operations, old_manifest, force)
     if old_manifest:
         _verify_removable(target, old_manifest, force)
 
-    files = [
+    links = [
         {
             "path": operation.relative_target.as_posix(),
-            "sha256": _hash(operation.source),
+            "source": str(operation.source.absolute()),
+            "type": operation.kind,
         }
         for operation in operations
     ]
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "framework_version": FRAMEWORK_VERSION,
+        "source": str(source),
         "profile": profile,
         "packs": sorted(packs),
-        "files": files,
+        "links": links,
     }
     if dry_run:
         if old_manifest:
             _remove_managed(target, old_manifest, True)
         for operation in operations:
             print(
-                f"[dry-run] copy {operation.source} -> "
-                f"{_safe_target(target, operation.relative_target)}"
+                f"[dry-run] link {operation.source} -> "
+                f"{_safe_target(target, operation.relative_target, allow_leaf_link=True)}"
             )
         print(f"[dry-run] write manifest {_safe_target(target, MANIFEST_PATH)}")
         return
 
-    relative_paths = old_paths | {item["path"] for item in files}
+    relative_paths = old_paths | {item["path"] for item in links}
     relative_paths.add(MANIFEST_PATH.as_posix())
     with tempfile.TemporaryDirectory() as temporary_directory:
         backup = Path(temporary_directory)
-        existing = _snapshot_files(target, relative_paths, backup)
+        snapshot = _snapshot_entries(
+            target,
+            relative_paths,
+            backup,
+            _manifest_link_type_hints(old_manifest),
+        )
         try:
             if old_manifest:
                 _remove_managed(target, old_manifest, False)
             for operation in operations:
-                _copy_operation(
-                    operation, _safe_target(target, operation.relative_target)
+                _create_link(
+                    operation,
+                    _safe_target(
+                        target, operation.relative_target, allow_leaf_link=True
+                    ),
                 )
             post_pollution = _cross_pollution_errors(target, profile, set())
             if post_pollution:
@@ -636,8 +864,9 @@ def install(
                     "Profile installation is contaminated: " + ", ".join(post_pollution)
                 )
             _write_manifest(target, manifest)
+            _update_registry(registry_path, source, target, profile, packs)
         except BaseException:
-            _restore_snapshot(target, relative_paths, backup, existing)
+            _restore_snapshot(target, relative_paths, backup, snapshot)
             raise
 
 
@@ -646,16 +875,23 @@ def uninstall(
     target: Path,
     force: bool = False,
     dry_run: bool = False,
+    registry_path: Path | None = None,
 ) -> None:
-    """Remove only files owned by the validated installation manifest."""
-    del source  # Uninstall is intentionally independent of the current source tree.
+    """Remove only entries owned by the validated installation manifest."""
+    source = source.resolve()
     target = target.absolute()
+    registry_path = (registry_path or DEFAULT_REGISTRY_PATH).absolute()
     manifest = _load_manifest(target)
     if manifest is None:
         raise FileNotFoundError(
             f"No installation manifest: {_safe_target(target, MANIFEST_PATH)}"
         )
     _verify_removable(target, manifest, force)
+    registered_source = (
+        Path(manifest["source"])
+        if manifest["schema_version"] == MANIFEST_SCHEMA_VERSION
+        else source
+    )
     if dry_run:
         _remove_managed(target, manifest, True)
         print(f"[dry-run] remove {_safe_target(target, MANIFEST_PATH)}")
@@ -663,19 +899,102 @@ def uninstall(
     relative_paths = _managed_paths(manifest) | {MANIFEST_PATH.as_posix()}
     with tempfile.TemporaryDirectory() as temporary_directory:
         backup = Path(temporary_directory)
-        existing = _snapshot_files(target, relative_paths, backup)
+        snapshot = _snapshot_entries(
+            target,
+            relative_paths,
+            backup,
+            _manifest_link_type_hints(manifest),
+        )
         try:
             _remove_managed(target, manifest, False)
             manifest_path = _safe_target(target, MANIFEST_PATH)
             manifest_path.unlink()
             _prune_empty_parents(manifest_path, target)
+            _update_registry(registry_path, registered_source, target, None, None)
         except BaseException:
-            _restore_snapshot(target, relative_paths, backup, existing)
+            _restore_snapshot(target, relative_paths, backup, snapshot)
             raise
+
+
+def refresh_all(
+    source: Path,
+    force: bool = False,
+    dry_run: bool = False,
+    registry_path: Path | None = None,
+) -> None:
+    """Refresh all registered targets for this source after manifest confirmation."""
+    source = source.resolve()
+    registry_path = (registry_path or DEFAULT_REGISTRY_PATH).absolute()
+    registry = _load_registry(registry_path)
+    source_key = os.path.normcase(os.path.abspath(str(source)))
+    entries = [
+        item
+        for item in registry["installations"]
+        if os.path.normcase(os.path.abspath(item["source"])) == source_key
+    ]
+    failures: list[str] = []
+    for entry in entries:
+        target = Path(entry["target"])
+        try:
+            manifest = _load_manifest(target)
+            if (
+                manifest is None
+                or os.path.normcase(os.path.abspath(manifest.get("source", "")))
+                != source_key
+            ):
+                raise ValueError(
+                    "target manifest does not confirm the registered source"
+                )
+            if manifest["schema_version"] != MANIFEST_SCHEMA_VERSION:
+                raise ValueError(
+                    "legacy manifest requires an explicit single-target upgrade"
+                )
+            if manifest["profile"] != entry["profile"] or sorted(
+                manifest["packs"]
+            ) != sorted(entry["packs"]):
+                raise ValueError(
+                    "target manifest does not confirm the registered selection"
+                )
+            install(
+                source,
+                target,
+                entry["profile"],
+                set(entry["packs"]),
+                force=force,
+                dry_run=dry_run,
+                switch_profile=False,
+                registry_path=registry_path,
+            )
+            print(f"refreshed: {target}")
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            failures.append(f"{target}: {error}")
+    if failures:
+        raise RuntimeError("Refresh failed:\n" + "\n".join(failures))
 
 
 def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
+    if args.refresh_all:
+        if (
+            args.target_dir
+            or args.profile
+            or args.packs
+            or args.uninstall
+            or args.switch_profile
+        ):
+            raise ValueError(
+                "--refresh-all cannot be combined with target_dir, --profile, "
+                "--with, --uninstall, or --switch-profile"
+            )
+        refresh_all(
+            args.source,
+            force=args.force,
+            dry_run=args.dry_run,
+            registry_path=args.registry,
+        )
+        return 0
+    if args.target_dir is None:
+        raise ValueError("target_dir is required unless --refresh-all is used")
     if args.uninstall:
         if args.profile or args.packs or args.switch_profile:
             raise ValueError(
@@ -687,6 +1006,7 @@ def main(argv: Sequence[str]) -> int:
             args.target_dir,
             force=args.force,
             dry_run=args.dry_run,
+            registry_path=args.registry,
         )
         return 0
     if not args.profile:
@@ -699,6 +1019,7 @@ def main(argv: Sequence[str]) -> int:
         force=args.force,
         dry_run=args.dry_run,
         switch_profile=args.switch_profile,
+        registry_path=args.registry,
     )
     return 0
 
@@ -706,6 +1027,6 @@ def main(argv: Sequence[str]) -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main(sys.argv[1:]))
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except (OSError, ValueError, RuntimeError, json.JSONDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         raise SystemExit(1)

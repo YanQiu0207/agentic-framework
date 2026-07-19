@@ -300,7 +300,7 @@ python scripts/install_agentic_framework.py <project> \
 
 状态：**已实现并测试。**
 
-安装器采用物理复制，不是软连接，同时写入目标项目的 `.codex/` 和 `.claude/`：
+安装器采用软连接，同时写入目标项目的 `.codex/` 和 `.claude/`：
 
 ```text
 <project>/
@@ -310,17 +310,21 @@ python scripts/install_agentic_framework.py <project> \
     └── manifest.json
 ```
 
-Manifest 记录框架版本、Profile、Packs、受管文件和 SHA-256。安装器支持：
+目标 Manifest 记录框架版本、源仓库、Profile、Packs 和受管链接；用户级 `~/.agentic-framework/installations.json` 记录源仓库安装到了哪些项目。安装器支持：
 
 - Profile/Pack 白名单。
 - 显式 Profile 切换。
-- 哈希校验。
+- 已有源内容更新沿链接立即生效。
+- 通过 `--refresh-all` 批量刷新新增、删除和重命名资产。
+- 刷新前使用目标 Manifest 二次确认项目身份。
 - 事务快照和失败回滚。
 - 安全卸载。
-- 拒绝 Symlink、Junction 和 Reparse Point 穿透。
-- 旧 Skill 或 Pack 退休后仍能卸载。
+- 只允许受管叶子链接，拒绝穿过祖先 Symlink、Junction 和 Reparse Point。
+- 兼容旧版复制式 Manifest 的升级与卸载。
 
-证据：`scripts/install_agentic_framework.py:337-418,480-665`、`scripts/test_install_agentic_framework.py`。
+已有 Skill 内增加文件可随目录链接立即出现；新增 Skill、删除或重命名资产仍需执行 `--refresh-all`。目标项目中的受管内容就是框架源内容，禁止从安装路径直接编辑；框架仓库移动后需重新安装。Windows 需要具备创建软连接的权限，安装失败时不会静默回退为复制。
+
+证据：`scripts/install_agentic_framework.py`、`scripts/test_install_agentic_framework.py`。
 
 可选 Pack：
 
@@ -363,8 +367,8 @@ python skills/workflow-code-generation/scripts/lint_task_deps.py \
 结果：
 
 - Black 26.5.1：通过。
-- Pytest：129 passed、2 skipped、28 subtests passed。
-- 跳过项：Windows Symlink 权限相关测试；Windows Junction 测试实际通过。
+- Pytest：124 passed、15 skipped、28 subtests passed。
+- 跳过项：当前 Windows 环境未授予软连接创建权限，链接实装相关测试跳过；同组测试已在 WSL 真软连接环境运行，26 项通过、2 项 Windows 专用测试跳过。
 - Skill 图：31 Skills、20 Commands、8 Agents，0 错误、0 警告。
 - 双 Profile 临时安装已验证入口隔离。
 - 框架合并的 7 个 Task 均为 Completed；旧 Tooling 目录只停止独立演进，没有物理删除。
@@ -434,6 +438,12 @@ python scripts/install_agentic_framework.py <tooling-project> \
     --with frontend \
     --with project-init \
     --with telemetry
+```
+
+框架仓库已有内容更新会沿软连接立即生效。安装集合发生变化后，统一刷新当前仓库登记的所有项目：
+
+```bash
+python scripts/install_agentic_framework.py --refresh-all
 ```
 
 ## 7. 与开源框架的对比

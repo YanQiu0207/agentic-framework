@@ -45,17 +45,29 @@ python scripts/install_agentic_framework.py E:/path/to/tooling-project \
 
 目标路径使用 `.` 时，表示把框架安装到当前目录；给其他项目安装时，应填写该项目的真实路径。
 
-安装器同时写入 `.codex/` 和 `.claude/`，并在 `.agentic-framework/manifest.json` 记录 Profile、Packs、受管文件和 SHA-256。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
+安装器同时写入 `.codex/` 和 `.claude/`，并在目标项目的 `.agentic-framework/manifest.json` 记录 Profile、Packs 和受管链接。用户级 Registry 位于 `~/.agentic-framework/installations.json`，记录框架仓库安装到了哪些项目。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
 
-安装采用**文件复制**，不是软连接：Skill、Agent、Command 和脚本通过 `shutil.copy2` 写入目标项目。框架仓库更新后，目标项目不会自动变化，需要重新执行相同安装命令同步；受管文件被本地修改时默认拒绝覆盖。
+安装默认采用**软连接**，不复制框架内容：Skill 目录以及 Agent、Command、脚本文件均指向当前框架仓库。更新已有源文件后，所有已安装项目立即读取新内容；新增、删除、重命名资产或调整 Profile、Pack 后，运行一次批量刷新：
 
-安全卸载只删除 Manifest 中记录且哈希匹配的受管文件：
+```bash
+python scripts/install_agentic_framework.py --refresh-all
+```
+
+`--refresh-all` 只刷新由当前框架仓库登记的目标，并用目标 Manifest 二次确认项目身份；单个失效登记不会阻止其他项目继续刷新，但命令最终返回失败并列出问题目标。
+
+旧版复制式安装需要先对每个项目重新执行一次原安装命令。安装器会把旧 Manifest 升级为链接式 Manifest，并将项目写入用户级 Registry；此后才能使用 `--refresh-all`。
+
+> **注意**：不要在目标项目的 `.codex/` 或 `.claude/` 受管路径中直接编辑链接内容，这会直接修改框架仓库。框架仓库被移动或删除后链接会失效，需要从新位置重新安装。Windows 创建软连接需要相应权限；建议启用「开发人员模式」，安装器不会静默回退为文件复制。
+
+安装、卸载和 `--refresh-all` 会共同更新用户级 Registry，当前不支持并发执行这些命令；请等待一个安装器进程结束后再启动下一个。
+
+安全卸载只删除 Manifest 中记录且仍指向预期源的受管链接，不删除框架源文件或项目自有文件：
 
 ```bash
 python scripts/install_agentic_framework.py . --uninstall
 ```
 
-受管文件被本地修改时，重装、切换和卸载默认失败；确认要覆盖或删除时才显式传 `--force`。
+受管链接被替换为普通文件或改指向其他位置时，重装、切换和卸载都会失败；请先人工核对并恢复预期链接，`--force` 不会绕过这项链接完整性检查。该参数只为旧版复制式安装保留。安装器始终拒绝穿过目标目录中的软连接、Junction 或其他 Reparse Point 操作。
 
 ### 3. 验证
 
