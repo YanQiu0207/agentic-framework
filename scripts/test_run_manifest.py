@@ -191,6 +191,8 @@ class RunManifestTest(unittest.TestCase):
                     "dimension": "recovery",
                     "verdict": "PASS",
                     "assertions": [],
+                    "model": "test-model",
+                    "evaluation_method": "deterministic-tier-1",
                 },
                 None,
             )

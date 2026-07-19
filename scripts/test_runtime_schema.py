@@ -102,6 +102,8 @@ class RuntimeSchemaTest(unittest.TestCase):
                     "dimension": "should-trigger",
                     "verdict": "PASS",
                     "assertions": [],
+                    "model": "test-model",
+                    "evaluation_method": "deterministic-tier-1",
                 },
                 None,
             ),

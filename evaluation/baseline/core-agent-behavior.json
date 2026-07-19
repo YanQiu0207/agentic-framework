@@ -1,0 +1,33 @@
+{
+    "schema_version": 1,
+    "dimensions": {
+        "should-trigger": {
+            "minimum_cases": 12,
+            "minimum_pass_rate": 1.0
+        },
+        "should-not-trigger": {
+            "minimum_cases": 12,
+            "minimum_pass_rate": 1.0
+        },
+        "boundary": {
+            "minimum_cases": 9,
+            "minimum_pass_rate": 1.0
+        },
+        "profile-routing": {
+            "minimum_cases": 3,
+            "minimum_pass_rate": 1.0
+        },
+        "recovery": {
+            "minimum_cases": 2,
+            "minimum_pass_rate": 1.0
+        },
+        "conflicting-instructions": {
+            "minimum_cases": 2,
+            "minimum_pass_rate": 1.0
+        },
+        "evidence-skipping": {
+            "minimum_cases": 2,
+            "minimum_pass_rate": 1.0
+        }
+    }
+}

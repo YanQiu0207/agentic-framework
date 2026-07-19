@@ -17,7 +17,9 @@
                         "case_id",
                         "dimension",
                         "verdict",
-                        "assertions"
+                        "assertions",
+                        "model",
+                        "evaluation_method"
                     ],
                     "properties": {
                         "case_id": {
@@ -47,6 +49,13 @@
                             "items": {
                                 "type": "object"
                             }
+                        },
+                        "model": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "evaluation_method": {
+                            "const": "deterministic-tier-1"
                         }
                     },
                     "additionalProperties": false

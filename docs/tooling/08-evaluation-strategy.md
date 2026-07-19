@@ -14,7 +14,7 @@
 | 档 | 对应方法论 | 在本框架长什么样 | 成本 | 现状 |
 | --- | --- | --- | --- | --- |
 | **Tier 0 结构门卫** | 结构门禁 + L1 快速门卫 | `lint_skill_graph.py` / `lint_task_deps.py` / `lint_spec.py` / `check_delivery.py`：引用闭环、frontmatter 完整、档位→reviewer 映射、依赖与必填字段正确性、spec 章节完整性、交付门（任务终态 / 归档 / 工作区干净） | **零 token** | ✅ 已落地 |
-| **Tier 1 触发评估** | 触发评估（should / should-not / boundary） | 核心路由 skill 配 `evaluation/trigger-cases.md`，验 `description` 召回 / 误触发 | 低（单轮、可不用 judge） | 🟡 4 个核心路由 skill 已有 case，尚无自动 Runner |
+| **Tier 1 触发评估** | 触发评估（should / should-not / boundary） | 核心路由 Skill 配 `evaluation/trigger-cases.md`，验 `description` 召回 / 误触发 | 低（单轮、不用 Judge） | ✅ 4 个核心路由 Skill 已有用例、Runner 与逐维基线 |
 | **Tier 2 效果评估** | 效果评估 + 考题结构 + Rubric | 仅对改了 reviewer prompt / 路由逻辑的高风险改动，挑 1-2 道考题做 A/B | **高** | ⏳ 按需 |
 | **Tier 3 自进化** | skill-evolver 8 阶段 Loop | 自动迭代优化 | 黑洞 | ⛔ 暂不做（前置：先有稳定评测集） |
 
@@ -52,7 +52,7 @@ python skills/workflow-code-generation/scripts/check_delivery.py --tasks <tasks.
 
 **能力边界**：脚本只查「结构对不对、引用通不通」（客观），查不出「引用存在但语义没接对」——后者靠 review 与上层评测。
 
-## Tier 1：触发评估（已有 case，Runner 待做）
+## Tier 1：触发评估（已有用例、Runner 与基线）
 
 给**核心路由 skill** 配一个轻量评测目录，验 `description` 的召回与误触发：
 
@@ -61,7 +61,9 @@ python skills/workflow-code-generation/scripts/check_delivery.py --tasks <tasks.
 └── trigger-cases.md   # should-trigger / should-not-trigger（含 near-miss）/ boundary
 ```
 
-样板见 [`skills/workflow-code-review/evaluation/trigger-cases.md`](../../skills/workflow-code-review/evaluation/trigger-cases.md)。预期判定方式是检查执行 transcript 是否出现 Skill 的首行标记（如 `Using workflow-code-review`），不依赖 LLM Judge。当前仓库没有自动执行 case、采集 transcript 和计算命中率的 Runner，因此这些文件是评测资产，不是已运行的评测结果。
+样板见 [`skills/workflow-code-review/evaluation/trigger-cases.md`](../../skills/workflow-code-review/evaluation/trigger-cases.md)。[`scripts/evaluation_runner.py`](../../scripts/evaluation_runner.py) 复用这 4 组 Markdown 用例，通过 JSON `stdin` / `stdout` Adapter 合同自动采集 Transcript 与结构化信号，输出版本化 `eval-results.jsonl`、`summary.json` 和 `summary.md`。触发类断言直接检查 Skill 首行标记（如 `Using workflow-code-review`），其余 Tier 1 维度检查确定性信号，不依赖 LLM Judge。
+
+回归基线位于 [`evaluation/baseline/core-agent-behavior.json`](../../evaluation/baseline/core-agent-behavior.json)。Runner 对每个关键维度独立执行最小用例数与通过率门禁，并使用 AND 汇总；任一维度退化即整体失败，其他维度的高分不得抵消。
 
 已覆盖的对象：路由关键的 4 个 skill——`workflow-code-generation`（总入口）、`workflow-code-review`、`workflow-verification`、`workflow-requirements-clarification`，各自 `evaluation/trigger-cases.md`。**不全铺 24 个**，其余按需再补。
 
@@ -73,5 +75,5 @@ python skills/workflow-code-generation/scripts/check_delivery.py --tasks <tasks.
 ## 现状与下一步
 
 - ✅ Tier 0 L1 门卫已含 frontmatter 完整 + 档位映射闭环两条新校验。
-- 🟡 Tier 1 已为 4 个核心路由 Skill（code-generation / code-review / verification / requirements-clarification）准备 `trigger-cases.md`；自动 Runner 和结果基线待做，其余 Skill 按需再补。
+- ✅ Tier 1 已为 4 个核心路由 Skill（code-generation / code-review / verification / requirements-clarification）建立 `trigger-cases.md`、自动 Runner、机器结果和逐维回归基线；其余 Skill 按需再补。
 - ⏳ Tier 2 / Tier 3 不预置空壳，遇到具体高风险改动或稳定评测集后再启动。
