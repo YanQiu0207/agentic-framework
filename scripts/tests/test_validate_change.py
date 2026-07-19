@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import locale
 import os
 import shutil
 import subprocess
@@ -714,6 +715,8 @@ class ValidateChangeCliTest(unittest.TestCase):
                 check=False,
                 capture_output=True,
                 text=True,
+                encoding=locale.getencoding(),
+                errors="replace",
             )
             if command.returncode != 0:
                 self.skipTest(f"Junction creation failed: {command.stderr}")
@@ -736,6 +739,8 @@ class ValidateChangeCliTest(unittest.TestCase):
                 check=False,
                 capture_output=True,
                 text=True,
+                encoding=locale.getencoding(),
+                errors="replace",
             )
             if command.returncode != 0:
                 self.skipTest(f"Junction creation failed: {command.stderr}")
