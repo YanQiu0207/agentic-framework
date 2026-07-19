@@ -30,6 +30,7 @@
 - 定义 Harness Capability Matrix 和 Adapter 合同，明确支持、降级与失败关闭语义。
 - 定义追加式 Run Event Journal，使恢复依据事件与 Checkpoint，而不是对会话文本进行推断。
 - 定义最小 Trust Model，说明参与者、可信证据、独立性要求、用户覆盖和不可证明的边界。
+- 将 Verify、锁、Telemetry 和 Run 等本地运行产物统一收口到 `.agentic-framework/`，避免框架私有状态散落在项目目录中。
 
 ### 2.3 非目标
 
@@ -48,6 +49,7 @@
 - 中断后能从事件账本与 Checkpoint 计算恢复动作；不依赖扫描聊天记录猜测状态。
 - 每个受支持 Harness 都有明确能力声明；缺少必需能力时失败关闭，可选能力缺失时产生可观察的降级记录。
 - Trust Model 明确哪些结论只能证明「证据存在且一致」，不能证明语义判断一定正确。
+- 框架生成的本地运行状态只写入 `.agentic-framework/`；正式代码、测试、配置、Schema、OpenSpec 和文档继续由 Git 管理。
 
 ## 4. 知识影响
 

@@ -115,3 +115,29 @@
 - **When** 框架输出最终结论
 - **Then** 框架只能声明证据存在且上下文一致
 - **And** 不得把该结果表述为 Reviewer/Judge 语义判断必然正确
+
+### Requirement：本地运行产物统一收口
+
+框架必须将不纳入版本控制的本地运行产物统一写入仓库根 `.agentic-framework/`，不得继续在项目目录中新增平级私有状态目录或文件。
+
+#### Scenario：生成本地运行产物
+
+- **Given** Workflow 执行 Verification、任务写锁、Telemetry 或 Run 证据记录
+- **When** 框架写入本地运行状态
+- **Then** 产物必须分别位于 `.agentic-framework/verify/`、`.agentic-framework/locks/`、`.agentic-framework/metrics/` 或 `.agentic-framework/runs/`
+- **And** 仓库根 `.gitignore` 必须通过 `.agentic-framework/` 统一排除这些产物
+
+#### Scenario：正式项目产物保持受版本管理
+
+- **Given** 框架生成或修改 OpenSpec、Schema、代码、测试、正式配置或文档
+- **When** 判断其存储位置和 Git 状态
+- **Then** 这些产物不得写入 `.agentic-framework/`
+- **And** 不得通过框架运行产物忽略规则将其排除出 Git
+
+#### Scenario：读取迁移前的本地产物
+
+- **Given** 仓库仍存在旧 `.verify/`、相邻 `.tasks.md.lock` 或 `metrics/session-history.jsonl`
+- **When** 新版本框架查找历史基线、报告或账本
+- **Then** 可以兼容读取旧位置并给出迁移提示
+- **And** 新写入必须进入 `.agentic-framework/`
+- **And** 不得自动删除或覆盖旧产物

@@ -2,12 +2,12 @@
 
 > 当前阶段：设计已落文档，代码尚未实施。
 >
-> 任务总数：7
+> 任务总数：8
 
 ## 执行图
 
 ```text
-Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
+Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7 → Task 8
 ```
 
 ### 任务 1：[completed] 建立现状证据与设计边界
@@ -109,7 +109,9 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
 
 ### 任务 7：[pending] 固化 Trust Model 并完成端到端验证
 
-- 状态：未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - depends_on：[Task 6]
 - review_profile：strict
 - context_files：Tasks 2～6 产物、质量门合同、独立 Judge 规则和项目知识同步规范
@@ -119,7 +121,24 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
 - 验收标准：
     - [ ] 明确参与者、可信基座、独立性、人工覆盖和不可证明边界。
     - [ ] 覆盖伪造报告、替换 Artifact、串 Run、重复副作用和 Harness 能力漂移。
-    - [ ] P0/P1 全部通过 Verification、独立 Review 和知识同步后才归档。
+    - [ ] Trust Model 代码、威胁用例和迁移说明通过任务级 Verification；Run 级独立 Review 与归档在 Task 8 完成后统一执行。
+
+### 任务 8：[pending] 统一框架本地运行产物目录
+
+- 状态：未开始
+- depends_on：[Task 7]
+- review_profile：strict
+- context_files：本 Change、Verification、Workflow 控制器、Session Telemetry、`project-init` 和安装器合同
+- 文件：Verification/Review 默认路径、任务锁、Telemetry 账本、`project-init`、`.gitignore`、相关测试与文档
+- verification：新旧路径兼容测试、并发锁隔离测试、Telemetry/Verification 回归测试、`git check-ignore` 和全量 Verification
+- artifacts：统一运行目录实现、迁移说明、测试报告和路径清单
+- 验收标准：
+    - [ ] `.verify/`、`.tasks.md.lock` 和 `metrics/session-history.jsonl` 的新写入分别迁移到 `.agentic-framework/verify/`、`.agentic-framework/locks/` 和 `.agentic-framework/metrics/`。
+    - [ ] 任务锁按目标 `tasks.md` 的规范化绝对路径摘要命名，不同仓库或 Change 不发生锁名冲突。
+    - [ ] 旧路径仅兼容读取并给出迁移提示，不自动删除或覆盖。
+    - [ ] 根 `.gitignore` 使用 `.agentic-framework/` 统一排除框架运行产物，删除已被覆盖的独立忽略项。
+    - [ ] `project-init`、Skills、脚本、示例和有效长期文档统一使用新路径；历史归档证据不覆盖性改写。
+    - [ ] OpenSpec、Schema、代码、测试、`verify.config.json` 和正式文档继续受 Git 管理。
 
 ## 当前验证记录
 

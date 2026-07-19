@@ -170,6 +170,28 @@ capabilities:
 - 用户可覆盖失败关闭结果，但必须提供理由并产生不可静默删除的覆盖事件。
 - 不在第一版引入签名、远程证明、RBAC 或密钥管理。
 
+### 4.4 统一本地运行目录
+
+框架生成但不应进入 Git 的本地运行状态统一写入仓库根 `.agentic-framework/`：
+
+```text
+.agentic-framework/
+├── verify/
+├── locks/
+├── metrics/
+└── runs/
+```
+
+目录边界：
+
+- `.verify/` 迁移为 `.agentic-framework/verify/`，保存 Verification 基线、报告和 Run 级 Review 机器报告。
+- 相邻于 `tasks.md` 的 `.tasks.md.lock` 迁移为 `.agentic-framework/locks/` 下按目标文件规范化绝对路径摘要命名的锁，避免同名 Change 冲突。
+- `metrics/session-history.jsonl` 迁移为 `.agentic-framework/metrics/session-history.jsonl`，继续作为可从 Transcript 重建的本地账本，不纳入 Git。
+- Run Manifest、Event、Checkpoint 和 Artifact 继续位于 `.agentic-framework/runs/<run-id>/`。
+- 仓库根 `.gitignore` 只需用 `.agentic-framework/` 排除框架运行产物；迁移完成后删除 `.verify/`、`**/.tasks.md.lock` 和 `metrics/session-history.jsonl` 的独立忽略项。
+- `openspec/`、`schemas/runtime/`、代码、测试、`verify.config.json` 和正式文档不是本地运行状态，必须继续纳入 Git。
+- 第一版迁移只兼容读取旧位置，不再向旧位置写入；检测到旧产物时给出迁移提示，不自动删除或覆盖。
+
 ## 5. 实施顺序与依赖
 
 ```text
@@ -179,6 +201,7 @@ P0.1 Envelope/Schema
     → P1.1 Harness Capability/Adapter
     → P1.2 Event Journal/Checkpoint
     → P1.3 Trust Model 校验收口
+    → P1.4 本地运行目录迁移
 ```
 
 Event Journal 的 Schema 在 P0.1 先定义，但追加写入、重放和恢复在 P1.2 实现。这样先锁合同，再增加运行机制。
