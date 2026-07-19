@@ -33,10 +33,21 @@ class ProfileContractTest(unittest.TestCase):
     def test_removed_knowledge_skills_do_not_exist(self) -> None:
         for name in (
             "bp-cola-ddd",
-            "project-knowledge",
             "opsx-project-knowledge",
         ):
             self.assertFalse((ROOT / "skills" / name).exists())
+
+    def test_project_knowledge_keeps_code_as_truth(self) -> None:
+        """收编版 project-knowledge 只沉淀 intent，防旧「现状真相」机制回流。"""
+        text = (ROOT / "skills/project-knowledge/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for required in (
+            "不维护现状文档",
+            "交付前沉淀检查",
+        ):
+            self.assertIn(required, text)
+        self.assertNotIn("architecture/overview.md", text)
 
 
 if __name__ == "__main__":

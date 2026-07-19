@@ -230,13 +230,14 @@ python scripts/install_agentic_framework.py <project> \
 - `project-init` 能从全局配置取得知识库路径，并向项目 `AGENTS.md` 写入检索和沉淀规则。
 - 历史资料记录了 `domains/`、`issues/`、`sources/`、`changes/`、`projects/` 和 `archives/` 目录模型。
 - 历史进度结论是「骨架和工作流挂点已有，真实条目规模、两级索引和四类真实问题验收尚未完成」。
+- 2026-07-19 起：查询与写入规则集中在知识库根 `index.md`（定量检索预算 + 写入纪律），结构与预算由知识库仓库 `scripts/lint_kb.py` 机器检查，详见 `docs/tooling/14-cross-agent-shared-memory.md`。
 
-证据：`skills/project-init/SKILL.md:159-176`、`docs/tooling/09-personal-knowledge-base-plan.md:113-209,275-338`。
+证据：`skills/project-init/SKILL.md:159-177`、`docs/tooling/09-personal-knowledge-base-plan.md:113-209,275-338`。
 
 重要边界：
 
 - 知识库是外部跨项目知识资产，不是本框架的中央当前事实库。
-- 旧 `project-knowledge` 和 `opsx-project-knowledge` Skills 已废弃。
+- 旧版 `project-knowledge`（现状真相机制）和 `opsx-project-knowledge` Skills 已废弃；现行 `skills/project-knowledge` 是 2026-07-19 收编的重写版（只沉淀 intent），收编决策见 `docs/tooling/14-cross-agent-shared-memory.md` 第 6 节。
 - 本次研究没有进一步审计 `E:/work/shared-knowledge-base` 的当前内容和实际命中率，因此不能宣称知识库建设已经完成。
 
 ### 4.7 Telemetry Pack
@@ -527,7 +528,7 @@ python scripts/install_agentic_framework.py --refresh-all
 
 - Tooling 每个 Task 或产物都启动 LLM Review。
 - Production 全部 Task 完成后才进行唯一一次 Review。
-- 通过旧 `project-knowledge` 或 `opsx-project-knowledge` Skill 维护知识。
+- 通过旧版 `project-knowledge`（现状真相机制）或 `opsx-project-knowledge` Skill 维护知识；现行 `skills/project-knowledge`（intent 沉淀版）不在此列。
 - 维护 `openspec/specs/` 中央当前真相库。
 - 将 `metrics/session-history.jsonl` 提交 Git。
 - 使用 `rapid` 作为 Tooling Profile 名称。

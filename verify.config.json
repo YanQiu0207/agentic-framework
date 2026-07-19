@@ -1,0 +1,32 @@
+{
+    "_comment": "agentic-engineering-framework 的 verify 门禁配置。纯 Python 标准库脚本仓库，无编译步骤：以 pytest 全量测试为交付门槛，以 skill 引用图 lint 为工程一致性检查。",
+
+    "checks": [
+        {
+            "name": "B-tests-pass",
+            "_note": "B 类·交付门槛：scripts/ 下全部 pytest 测试必须通过（含 scripts/tests/ 子目录）。",
+            "type": "exit_code",
+            "command": "python -m pytest scripts -q",
+            "expect_code": 0,
+            "baseline_aware": false
+        },
+        {
+            "name": "B-test-count-not-decrease",
+            "_note": "B 类·交付门槛：测试数量不能异常减少（抓偷删测试）。grep 无匹配时 exit=1，用 || true 保证零匹配也退出 0。",
+            "type": "count",
+            "command": "grep -rHo \"def test_\" scripts/ || true",
+            "metric": "line_count",
+            "direction": "not_decrease",
+            "baseline_aware": true,
+            "threshold": 0
+        },
+        {
+            "name": "C-skill-graph-lint",
+            "_note": "C 类·工程一致性：skills / commands / agents 引用图校验（scripts/lint_skill_graph.py），断链或命名错误返回非 0。",
+            "type": "exit_code",
+            "command": "python scripts/lint_skill_graph.py",
+            "expect_code": 0,
+            "baseline_aware": false
+        }
+    ]
+}

@@ -46,6 +46,7 @@ PRODUCTION_SKILLS = {
     "opsx-test-generation",
 }
 TOOLING_SKILLS = {
+    "project-knowledge",
     "workflow-code-generation",
     "workflow-quick-design",
     "workflow-requirements-clarification",
@@ -154,6 +155,7 @@ MANAGED_PROFILE_SKILL_ROOTS = {
             "bp-distributed-systems",
             "bp-performance-optimization",
             "bp-skill-authoring",
+            "project-knowledge",
             "self-refinement",
             "std-cpp",
             "std-go",

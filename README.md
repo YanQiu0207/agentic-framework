@@ -135,7 +135,7 @@ Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 
 | Tooling 执行模型 | 已实现；DAG 分波、worktree、失败隔离和最终 Review | [并行执行模式](docs/tooling/03-parallel-execution-mode.md) |
 | Tooling 演进记录 | 历史设计证据，不是当前实现事实源 | [Tooling 资料索引](docs/tooling/README.md) |
 
-其中 `docs/tooling/` 来自合并前 Tooling 框架的设计快照，部分内容保留了已经废弃的 `project-knowledge` 等历史描述。判断当前行为时，以代码、Skills 和双 Profile 总体设计为准。
+其中 `docs/tooling/` 来自合并前 Tooling 框架的设计快照，部分内容保留了已经废弃的旧版 `project-knowledge`（现状真相机制）等历史描述。判断当前行为时，以代码、Skills 和双 Profile 总体设计为准。现行 `skills/project-knowledge` 是重写后的 intent 沉淀规范（2026-07-19 收编，Tooling Profile），与历史文档所指的旧版不是同一套机制。
 
 ### 手动运行变更校验
 
