@@ -26,7 +26,9 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
 
 ### 任务 2：[pending] 定义统一 Envelope 与 Artifact Schema
 
-- 状态：未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - depends_on：[Task 1]
 - review_profile：strict
 - context_files：本 Change、ADR 003、现有 Review/Verify JSON 生产与校验逻辑
