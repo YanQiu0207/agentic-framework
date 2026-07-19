@@ -538,6 +538,8 @@ python scripts/install_agentic_framework.py <tooling-project> \
 - 全文阅读：45/45 篇唯一候选；没有候选因数量上限被排除。
 - 交叉核验：当前 README、31 个 Skill、安装器、控制流、Verify、Telemetry 和测试。
 
+首次枚举完成后，工作区由外部并发任务新增了未跟踪草稿 `docs/tooling/14-cross-agent-shared-memory.md`。本文也对其 166 行内容做了补充全文阅读，但不把它计入原始 68 篇资料库基线：该文件明确标记为「待审核，审核通过后实施」，主要内容是定量预算、半自动 Delta、摘要先行和并发写纪律等建议，没有实现证据；其实施步骤还引用了已废弃的 `project-knowledge`，必须重新设计后才能考虑采纳。
+
 检索词包括：`profile`、`production`、`tooling`、`workflow`、`opsx`、`openspec`、`spec kit`、`taskmaster`、`compound`、`BMAD`、`superpowers`、`verify`、`spec drift`、`telemetry`、`frontend`、`project-init`、`knowledge`、`self-refinement`、`troubleshooting`、`worktree`、`DAG`、`review`、`deterministic`、`install` 和 `harness`。
 
 ### 10.1 全文阅读资料
@@ -587,6 +589,10 @@ python scripts/install_agentic_framework.py <tooling-project> \
 43. `E:/work/my-ai-resource/agentic-framework/docs/08-evaluation-strategy.md`
 44. `E:/work/my-ai-resource/agentic-framework/docs/10-harness-engineering-practices.md`
 45. `E:/work/my-ai-resource/agentic-framework/docs/12-development-workflow-absorption-audit.md`
+
+### 10.2 研究期间新增草稿
+
+- `docs/tooling/14-cross-agent-shared-memory.md`：已补充全文阅读，不属于首次枚举基线；当前是待审核草案，不作为功能或开发进度证据，也未随本文提交。
 
 ## 11. 不确定性
 
