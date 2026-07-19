@@ -33,7 +33,7 @@ _REQUIRED_EVIDENCE_TYPES = frozenset(
     }
 )
 _REQUIRED_INPUT_TYPES = frozenset(
-    {"agents", "skill", "spec", "task-plan", "capability-matrix"}
+    {"agents", "skill", "spec", "task-plan", "run-config", "capability-matrix"}
 )
 
 

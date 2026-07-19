@@ -59,7 +59,15 @@ class RuntimeWorkflowTest(unittest.TestCase):
             agents = repo / "AGENTS.md"
             skill = repo / "SKILL.md"
             tasks.write_text(
-                "### 任务 1：实现\n- 状态：完成\n- attempts：0\n- depends_on：[]\n",
+                "### 任务 1：实现\n"
+                "- 状态：完成\n"
+                "- attempts：0\n"
+                "- depends_on：[]\n"
+                "- review_profile：strict\n"
+                "- context_files：`spec.md`\n"
+                "- 文件：`code.py`\n"
+                "- verification：unit\n"
+                "- artifacts：report\n",
                 encoding="utf-8",
             )
             spec.write_text("**状态**: Archived\n\n# Spec\n", encoding="utf-8")
@@ -114,6 +122,22 @@ class RuntimeWorkflowTest(unittest.TestCase):
             )
             verify_path = runtime_workflow._write_artifact(run_dir, verify)
             runtime_workflow.record_quality_passed(run_dir, verify_path, "1", 1)
+            run_verify = runtime_workflow.envelope(
+                context,
+                "verify-report",
+                "verify-run",
+                {
+                    "verdict": "PASS",
+                    "total": 1,
+                    "errors": 0,
+                    "violations": 0,
+                    "spec_drift": None,
+                    "warnings": [],
+                    "results": [],
+                },
+                "workflow-verification",
+            )
+            runtime_workflow._write_artifact(run_dir, run_verify)
             review = runtime_workflow.envelope(
                 context,
                 "review-report",

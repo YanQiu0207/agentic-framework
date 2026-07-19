@@ -651,6 +651,35 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
         self.assertEqual("PASS", value["payload"]["verdict"])
         self.assertNotIn("verdict", value)
 
+    def test_cmd_verify_emits_bound_run_level_envelope(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report = Path(temp_dir) / "verify-run.json"
+            context = {
+                "run_id": "run-1",
+                "profile": "tooling",
+                "harness": "codex",
+                "commit_sha": "1" * 40,
+                "config_digest": "sha256:" + "2" * 64,
+            }
+            with mock.patch.object(
+                verify,
+                "evaluate_spec_drift",
+                return_value=verify.CheckResult(
+                    "spec-drift", "spec_drift", "pass", "ok"
+                ),
+            ), mock.patch.object(
+                verify, "knowledge_source_warnings", return_value=[]
+            ), mock.patch("builtins.print"):
+                result = verify.cmd_verify(
+                    {}, None, report, "HEAD", "", context
+                )
+            value = json.loads(report.read_text(encoding="utf-8"))
+
+        self.assertEqual(0, result)
+        self.assertEqual("verify-run", value["artifact_id"])
+        self.assertIsNone(value["task_id"])
+        self.assertIsNone(value["attempt"])
+
 
 if __name__ == "__main__":
     unittest.main()

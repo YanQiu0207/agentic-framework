@@ -63,6 +63,8 @@ class RunFixture:
         skill_path.write_text("# Workflow\n", encoding="utf-8")
         tasks_path = artifacts / "tasks.md"
         tasks_path.write_text("### Task 3\n", encoding="utf-8")
+        run_config_path = artifacts / "run-config-snapshot.json"
+        run_config_path.write_text("{}\n", encoding="utf-8")
         capability_path = artifacts / "capability-probe.json"
         capability_path.write_text("{}\n", encoding="utf-8")
         code_path = artifacts / "code.diff"
@@ -106,6 +108,16 @@ class RunFixture:
                     "path": "artifacts/tasks.md",
                     "content_digest": run_manifest.file_digest(tasks_path),
                     "task_ids": ["3"],
+                },
+                None,
+            ),
+            "run-config": envelope(
+                "input-artifact",
+                "run-config",
+                {
+                    "input_type": "run-config",
+                    "path": "artifacts/run-config-snapshot.json",
+                    "content_digest": run_manifest.file_digest(run_config_path),
                 },
                 None,
             ),
@@ -236,6 +248,7 @@ class RunManifestTest(unittest.TestCase):
                     "code",
                     "final",
                     "review",
+                    "run-config",
                     "skill",
                     "spec",
                     "task",

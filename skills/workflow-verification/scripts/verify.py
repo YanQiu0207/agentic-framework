@@ -1105,13 +1105,19 @@ def cmd_verify(
     }
     report: dict[str, Any] = payload
     if runtime_context is not None:
-        if task_id is None or attempt is None or attempt < 1:
-            print("[verify] Runtime 报告必须提供合法 task_id 和 attempt。", file=sys.stderr)
+        if (task_id is None) != (attempt is None) or (
+            attempt is not None and attempt < 1
+        ):
+            print(
+                "[verify] Runtime Task 报告必须同时提供合法 task_id 和 attempt。",
+                file=sys.stderr,
+            )
             return 2
+        artifact_id = "verify-run" if task_id is None else f"verify-{task_id}-{attempt}"
         report = {
             "schema_version": 1,
             "artifact_type": "verify-report",
-            "artifact_id": f"verify-{task_id}-{attempt}",
+            "artifact_id": artifact_id,
             "run_id": runtime_context["run_id"],
             "task_id": task_id,
             "attempt": attempt,
@@ -1194,11 +1200,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.baseline
         else None
     )
-    runtime_values = (args.run_dir, args.task_id, args.attempt)
-    if any(value is not None for value in runtime_values) and not all(
-        value is not None for value in runtime_values
-    ):
-        parser.error("--run-dir、--task-id 与 --attempt 必须同时提供")
+    if args.run_dir is None and (args.task_id is not None or args.attempt is not None):
+        parser.error("--task-id 与 --attempt 必须配合 --run-dir 使用")
+    if (args.task_id is None) != (args.attempt is None):
+        parser.error("--task-id 与 --attempt 必须同时提供或同时省略")
     runtime_context = None
     if args.run_dir is not None:
         try:
@@ -1210,9 +1215,12 @@ def main(argv: list[str] | None = None) -> int:
         default_report = Path(".agentic-framework/verify/report.json")
         requested = Path(args.report)
         if requested == default_report:
-            requested = (
-                args.run_dir / "artifacts" / f"verify-{args.task_id}-{args.attempt}.json"
+            artifact_id = (
+                "verify-run"
+                if args.task_id is None
+                else f"verify-{args.task_id}-{args.attempt}"
             )
+            requested = args.run_dir / "artifacts" / f"{artifact_id}.json"
         report_path = requested.resolve(strict=False)
         try:
             report_path.relative_to((args.run_dir / "artifacts").resolve(strict=False))

@@ -207,7 +207,13 @@ def initialize_run(
         raise RuntimeWorkflowError("run_directory_not_empty")
     run_dir.mkdir(parents=True, exist_ok=True)
     run_config = runtime_schema.build_run_config(
-        profile, harness, "workflow-code-generation", max_attempts, verify_config
+        profile,
+        harness,
+        "workflow-code-generation",
+        max_attempts,
+        verify_config,
+        required_capabilities,
+        optional_capabilities,
     )
     _write_json(run_dir / "run-config.json", run_config)
     context = {
@@ -221,6 +227,13 @@ def initialize_run(
     }
     _write_json(run_dir / "run-context.json", context)
     inputs = [
+        _snapshot_input(
+            run_dir,
+            context,
+            run_dir / "run-config.json",
+            "run-config",
+            "input-run-config",
+        ),
         _snapshot_input(run_dir, context, agents_path, "agents", "input-agents"),
         _snapshot_input(run_dir, context, skill_path, "skill", "input-skill"),
         _snapshot_input(run_dir, context, spec_path, "spec", "input-spec"),
@@ -381,14 +394,15 @@ def finalize_run(
         or payload["scope"] != "run"
     ):
         raise RuntimeWorkflowError("review_gate_failed")
-    documents = []
+    run_verifies = []
     for path in (run_dir / "artifacts").glob("*.json"):
         value = json.loads(path.read_text(encoding="utf-8"))
         if value.get("artifact_type") == "verify-report":
             load_bound_report(run_dir, path, "verify-report")
-            documents.append(value)
-    if not documents:
-        raise RuntimeWorkflowError("missing_verify_report")
+            if value["task_id"] is None:
+                run_verifies.append(value)
+    if len(run_verifies) != 1:
+        raise RuntimeWorkflowError("run_verify_report_count")
     for state in task_states:
         artifact_id = f"task-{state['task_id']}-state"
         value = envelope(
