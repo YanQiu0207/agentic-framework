@@ -1,0 +1,51 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/input-artifact.schema.json",
+    "title": "input-artifact",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "input-artifact"
+                },
+                "task_id": {
+                    "type": "null"
+                },
+                "attempt": {
+                    "type": "null"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "input_type",
+                        "path",
+                        "content_digest"
+                    ],
+                    "properties": {
+                        "input_type": {
+                            "enum": [
+                                "agents",
+                                "skill",
+                                "spec",
+                                "task-plan",
+                                "capability-matrix"
+                            ]
+                        },
+                        "path": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "content_digest": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    ]
+}

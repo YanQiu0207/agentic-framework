@@ -1,0 +1,50 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/run-manifest.schema.json",
+    "title": "run-manifest",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "run-manifest"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "base_commit_sha",
+                        "artifacts",
+                        "tasks"
+                    ],
+                    "properties": {
+                        "base_commit_sha": {
+                            "type": "string",
+                            "pattern": "^[0-9a-f]{40}$"
+                        },
+                        "artifacts": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        },
+                        "tasks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "task_id": {
+                    "type": "null"
+                },
+                "attempt": {
+                    "type": "null"
+                }
+            }
+        }
+    ]
+}

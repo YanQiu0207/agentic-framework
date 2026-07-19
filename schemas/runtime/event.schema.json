@@ -1,0 +1,71 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/event.schema.json",
+    "title": "event",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "event"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "event_id",
+                        "sequence",
+                        "event_type",
+                        "actor",
+                        "occurred_at",
+                        "input_artifact_ids",
+                        "output_artifact_ids"
+                    ],
+                    "properties": {
+                        "event_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "sequence": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "event_type": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "actor": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "occurred_at": {
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "input_artifact_ids": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "uniqueItems": true
+                        },
+                        "output_artifact_ids": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1
+                            },
+                            "uniqueItems": true
+                        },
+                        "details": {
+                            "type": "object"
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            }
+        }
+    ]
+}

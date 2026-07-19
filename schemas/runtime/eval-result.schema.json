@@ -1,0 +1,63 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/eval-result.schema.json",
+    "title": "eval-result",
+    "allOf": [
+        {
+            "$ref": "https://agentic-engineering-framework.local/schemas/runtime/run-envelope.schema.json"
+        },
+        {
+            "properties": {
+                "artifact_type": {
+                    "const": "eval-result"
+                },
+                "payload": {
+                    "type": "object",
+                    "required": [
+                        "case_id",
+                        "dimension",
+                        "verdict",
+                        "assertions"
+                    ],
+                    "properties": {
+                        "case_id": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "dimension": {
+                            "enum": [
+                                "should-trigger",
+                                "should-not-trigger",
+                                "boundary",
+                                "profile-routing",
+                                "recovery",
+                                "conflicting-instructions",
+                                "evidence-skipping"
+                            ]
+                        },
+                        "verdict": {
+                            "enum": [
+                                "PASS",
+                                "FAIL",
+                                "ERROR"
+                            ]
+                        },
+                        "assertions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "task_id": {
+                    "type": "null"
+                },
+                "attempt": {
+                    "type": "null"
+                }
+            }
+        }
+    ]
+}
