@@ -116,7 +116,9 @@ Task 1 (workflow_control.py 加 --verify-report)          Task 2 (review-report.
   - [ ] 2.2: 核对字段与现有 Markdown 报告字段的对应关系，消除歧义表述
 
 ### 任务 3: [ ] check_delivery.py 加 --review-report 证据校验
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `skills/workflow-code-generation/scripts/check_delivery.py`（修改）, `scripts/test_check_delivery.py`（修改）
 - depends_on: [Task 2]
 - review_profile: strict
