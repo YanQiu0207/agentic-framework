@@ -61,7 +61,9 @@ Task 1 (workflow_control.py 加 --verify-report)          Task 2 (review-report.
 ## 任务列表
 
 ### 任务 1: [ ] workflow_control.py 的 quality_passed 加 --verify-report 证据校验
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `skills/workflow-code-generation/scripts/workflow_control.py`（修改）, `scripts/test_workflow_control.py`（修改）
 - depends_on: []
 - review_profile: strict
@@ -90,7 +92,9 @@ Task 1 (workflow_control.py 加 --verify-report)          Task 2 (review-report.
   - [ ] 1.5: 运行测试，全部通过
 
 ### 任务 2: [ ] 定义 review-report.json schema 并写入 workflow-code-review/SKILL.md
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `skills/workflow-code-review/SKILL.md`（修改）
 - depends_on: []
 - review_profile: strict
