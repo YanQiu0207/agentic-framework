@@ -154,6 +154,7 @@ class TrustRun:
                 "input_type": "task-plan",
                 "path": "snapshots/tasks.md",
                 "content_digest": run_manifest.file_digest(tasks_path),
+                "task_ids": ["3"],
             },
             None,
         )
