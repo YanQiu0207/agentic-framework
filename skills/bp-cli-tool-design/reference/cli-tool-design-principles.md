@@ -65,7 +65,7 @@
 - 主结果写入 `stdout`。
 - 进度、提示和固定错误摘要写入 `stderr`。
 - 机器消费场景提供 `--json` 或等价格式；结构化结果中不得混入进度文本。
-- 默认输出只保留关键进度；详细命令结果进入脱敏日志或显式 `--verbose` 通道。
+- 默认输出只保留关键进度；详细命令结果仅在字段已分类且经过专用过滤器时进入日志或显式 `--verbose` 通道。
 - 未知异常不得以 `print(exc)`、`traceback.print_exc()` 等形式直接写入终端。
 - 终端错误只说明失败对象、固定摘要、日志位置和安全的排查动作。
 
@@ -86,34 +86,24 @@
 
 - 不通过 `--password value` 等参数接收凭据；优先读取权限受控文件或 `stdin`。
 - 环境变量可能被子进程继承，不作为凭据的默认首选来源。
-- 记录命令、异常或配置前，按敏感参数名和数据格式统一脱敏。
+- 未知异常只记录异常类型、步骤名和人工构造的安全上下文；不得读取或序列化其消息、`args`、异常链或 traceback。
+- 已分类异常只允许记录明确列入白名单的结构化字段，并使用该异常类型专属的过滤器；不得用通用正则处理任意异常字符串。
 - 日志只写入受控文件，不把详细异常日志同时传播到控制台 handler。
-- 脱敏失败时宁可省略字段，不记录原值。
+- 字段无法证明安全时宁可省略，不记录原值。
 - 测试使用显眼的假凭据，并断言 `stdout`、`stderr` 和日志均无明文。
 
-建议将用户终端消息与内部诊断分开：终端只输出固定摘要；日志记录异常类型、脱敏后的安全上下文和步骤名。不要依赖异常对象自身保证安全。
+建议将用户终端消息与内部诊断分开：终端只输出固定摘要；未知异常日志只记录异常类型、固定步骤名和代码内定义的安全事件字段。异常对象自身不属于安全日志输入。
 
 ## Python 3.8+ 最小模板
 
-模板展示入口边界，不规定业务框架。公开函数使用完整类型注解和 docstring；未知异常只向终端输出固定摘要，细节先脱敏再写入文件日志。
+模板展示入口边界，不规定业务框架。公开函数使用完整类型注解和 docstring；未知异常只向终端输出固定摘要，日志不读取异常消息，只记录异常类型和固定步骤名。
 
 ```python
 import argparse
 import logging
-import re
 import sys
 from pathlib import Path
 from typing import Optional, Sequence
-
-
-_SECRET_PATTERN = re.compile(
-    r"(?i)(password|token|secret|api[_-]?key)=([^\s]+)"
-)
-
-
-def redact_text(text: str) -> str:
-    """Redact common key-value secrets before text reaches a log."""
-    return _SECRET_PATTERN.sub(r"\1=<redacted>", text)
 
 
 def build_file_logger(log_path: Path) -> logging.Logger:
@@ -159,9 +149,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print("Interrupted.", file=sys.stderr)
         return 130
     except Exception as exc:  # Boundary converts unexpected failures to exit 1.
-        detail = redact_text(f"{type(exc).__name__}: {exc}")
         if logger is not None:
-            logger.error("operation failed: %s", detail)
+            logger.error(
+                "operation failed: step=run exception_type=%s",
+                type(exc).__name__,
+            )
         print(
             f"Error: operation failed. See {log_path} for details.",
             file=sys.stderr,
@@ -179,7 +171,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 ```
 
-项目若处理更多凭据格式，应扩展集中脱敏器并测试；不要把此最小正则视为完整的数据防泄漏方案。
+已分类异常若需要额外诊断字段，应为该异常定义结构化字段白名单和专用过滤器，并在独立的 `except` 分支记录；未知异常路径不得复用该分支，也不得记录 `str(exc)`。
 
 ## 测试重点
 
@@ -192,7 +184,7 @@ if __name__ == "__main__":
 - `stdout` 与 `stderr` 分流，`--json` 可稳定解析；
 - 成功、参数错误、执行失败和中断的退出码；
 - 假凭据不出现在输出和日志；
-- 未知异常的终端输出不包含异常文本，脱敏日志包含足够诊断信息。
+- 未知异常的 `stdout`、`stderr` 和日志不包含异常消息或凭据，仅日志保留异常类型、步骤名和安全事件字段。
 
 测试中注入命令执行器、文件系统目录、时间和输出流，不调用真实远程主机，不修改真实系统状态。
 
@@ -205,7 +197,7 @@ if __name__ == "__main__":
 - [ ] 高风险操作具有预演、备份、确认或显式风险开关。
 - [ ] 多资源操作使用白名单或展示通配符展开结果。
 - [ ] `stdout`、`stderr`、结构化输出和退出码契约明确。
-- [ ] 未知异常不直接输出到终端，详细日志先脱敏。
+- [ ] 未知异常不记录消息、`args`、异常链或 traceback，只记录异常类型、步骤名和人工构造的安全上下文。
 - [ ] 凭据输入、输出和日志均无明文泄漏。
 - [ ] 关键成功路径、失败路径和中断路径有测试。
 
