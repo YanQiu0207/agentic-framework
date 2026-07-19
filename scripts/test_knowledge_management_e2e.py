@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import shutil
 import sys
@@ -130,10 +131,20 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
 """,
             )
 
+            verify_report_path = tasks_path.parent / "verify-report.json"
+            _write(verify_report_path, json.dumps({"verdict": "PASS"}))
             self.assertEqual(
                 0,
                 WORKFLOW_CONTROL.main(
-                    [str(tasks_path), "event", "1", "quality_passed", "--write"]
+                    [
+                        str(tasks_path),
+                        "event",
+                        "1",
+                        "quality_passed",
+                        "--verify-report",
+                        str(verify_report_path),
+                        "--write",
+                    ]
                 ),
             )
             self.assertEqual(
