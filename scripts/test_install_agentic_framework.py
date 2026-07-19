@@ -16,6 +16,24 @@ import install_agentic_framework as installer
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _can_create_symlink(source: Path, target: Path) -> bool:
+    """Return whether a real symbolic link can be created and inspected."""
+    created = False
+    try:
+        target.symlink_to(source)
+        created = True
+        target.lstat()
+        return target.is_symlink()
+    except OSError:
+        return False
+    finally:
+        if created:
+            try:
+                target.unlink()
+            except FileNotFoundError:
+                pass
+
+
 class InstallTest(unittest.TestCase):
     """Verify link topology, registry behavior, and managed-entry safety."""
 
@@ -26,13 +44,10 @@ class InstallTest(unittest.TestCase):
         probe_source = self.root / "probe-source"
         probe_target = self.root / "probe-target"
         probe_source.write_text("probe", encoding="utf-8")
-        try:
-            probe_target.symlink_to(probe_source)
-        except OSError:
-            self.symlinks_available = False
-        else:
-            self.symlinks_available = True
-            probe_target.unlink()
+        self.symlinks_available = _can_create_symlink(
+            probe_source,
+            probe_target,
+        )
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -74,6 +89,22 @@ class InstallTest(unittest.TestCase):
         )
         self.assertEqual("directory", skill.kind)
         self.assertEqual("file", command.kind)
+
+    def test_symlink_probe_rejects_silent_creation_failure(self) -> None:
+        source = self.root / "silent-probe-source"
+        target = self.root / "silent-probe-target"
+        source.write_text("probe", encoding="utf-8")
+        with mock.patch.object(Path, "symlink_to", return_value=None):
+            self.assertFalse(_can_create_symlink(source, target))
+
+    def test_symlink_probe_preserves_existing_target(self) -> None:
+        source = self.root / "existing-probe-source"
+        target = self.root / "existing-probe-target"
+        source.write_text("source", encoding="utf-8")
+        target.write_text("existing", encoding="utf-8")
+
+        self.assertFalse(_can_create_symlink(source, target))
+        self.assertEqual("existing", target.read_text(encoding="utf-8"))
 
     def test_unregistered_agent_file_is_not_installed(self) -> None:
         source = self.root / "source"
