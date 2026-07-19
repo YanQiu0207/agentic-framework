@@ -45,7 +45,9 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
 
 ### 任务 3：[pending] 建立 Run Manifest 与证据图校验
 
-- 状态：未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - depends_on：[Task 2]
 - review_profile：strict
 - context_files：Task 2 Schema、质量门、交付门和符号链接/重解析点约束
