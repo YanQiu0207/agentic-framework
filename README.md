@@ -18,25 +18,36 @@ cd agentic-engineering-framework
 生产项目使用 Production Profile：
 
 ```bash
-python scripts/install_agentic_framework.py . --profile production
+python scripts/install_agentic_framework.py E:/path/to/production-project --profile production
 ```
 
 大型非生产工具使用 Tooling Profile：
 
 ```bash
-python scripts/install_agentic_framework.py . --profile tooling
+python scripts/install_agentic_framework.py E:/path/to/tooling-project --profile tooling
 ```
 
 Tooling 可显式增加 Pack：
 
 ```bash
-python scripts/install_agentic_framework.py . \
+python scripts/install_agentic_framework.py E:/path/to/tooling-project \
     --profile tooling \
     --with frontend \
     --with telemetry
 ```
 
+| Pack | 用途 | 可用 Profile |
+| --- | --- | --- |
+| `frontend` | 前端设计、React 规范和浏览器验证 | 仅 Tooling |
+| `project-init` | 项目初始化和跨项目共用知识库接线 | 仅 Tooling |
+| `open-code-review` | 接入外部 OCR 审查工具 | Production、Tooling |
+| `telemetry` | 会话成本和收敛情况分析 | Production、Tooling |
+
+目标路径使用 `.` 时，表示把框架安装到当前目录；给其他项目安装时，应填写该项目的真实路径。
+
 安装器同时写入 `.codex/` 和 `.claude/`，并在 `.agentic-framework/manifest.json` 记录 Profile、Packs、受管文件和 SHA-256。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
+
+安装采用**文件复制**，不是软连接：Skill、Agent、Command 和脚本通过 `shutil.copy2` 写入目标项目。框架仓库更新后，目标项目不会自动变化，需要重新执行相同安装命令同步；受管文件被本地修改时默认拒绝覆盖。
 
 安全卸载只删除 Manifest 中记录且哈希匹配的受管文件：
 
@@ -99,6 +110,19 @@ Delivery 门禁               →  全部任务完成后校验，通过后五维
 ```
 
 Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 消耗；worktree、机器验证、失败隔离和 intent 检查仍保留。
+
+## 功能与设计文档
+
+| 主题 | 当前状态 | 文档入口 |
+| --- | --- | --- |
+| 双 Profile 总体设计 | 当前合同 | [单仓库双 Profile 合并方案](docs/design-docs/framework-unification/spec.md) |
+| 机器验证 Verify | 已实现；支持 `build`、`test`、`lint`、基线对比和 spec drift | [workflow-verification](skills/workflow-verification/SKILL.md)、[配置指南](skills/workflow-verification/reference/config-guide.md) |
+| 跨项目共用知识库 | `project-init` Pack 负责接线外部知识库；框架不内置中央知识真相库 | [project-init](skills/project-init/SKILL.md)、[知识库方案快照](docs/tooling/09-personal-knowledge-base-plan.md) |
+| 会话遥测 | `telemetry` Pack 提供成本、Review 和收敛分析 | [会话遥测](docs/tooling/11-session-telemetry.md) |
+| Tooling 执行模型 | 已实现；DAG 分波、worktree、失败隔离和最终 Review | [并行执行模式](docs/tooling/03-parallel-execution-mode.md) |
+| Tooling 演进记录 | 历史设计证据，不是当前实现事实源 | [Tooling 资料索引](docs/tooling/README.md) |
+
+其中 `docs/tooling/` 来自合并前 Tooling 框架的设计快照，部分内容保留了已经废弃的 `project-knowledge` 等历史描述。判断当前行为时，以代码、Skills 和双 Profile 总体设计为准。
 
 ### 手动运行变更校验
 
