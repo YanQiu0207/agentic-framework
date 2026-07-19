@@ -1,9 +1,12 @@
 """Contract tests for Harness capability probing and adapters."""
 
 import json
+import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -11,6 +14,60 @@ import harness_runtime
 import runtime_schema
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _process_is_running(pid: int) -> bool:
+    if os.name != "nt":
+        stat_path = Path(f"/proc/{pid}/stat")
+        if stat_path.exists():
+            try:
+                if stat_path.read_text(encoding="ascii").split()[2] == "Z":
+                    return False
+            except (OSError, IndexError):
+                pass
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _force_kill_process(pid: int) -> None:
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _force_kill_process_group(pid: int) -> None:
+    if os.name == "nt":
+        _force_kill_process(pid)
+        return
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def _cleanup_runner(process: subprocess.Popen) -> None:
+    if process.poll() is not None:
+        return
+    _force_kill_process_group(process.pid)
+    try:
+        process.communicate(timeout=1)
+    except subprocess.TimeoutExpired:
+        for pipe in (process.stdout, process.stderr):
+            if pipe is not None:
+                pipe.close()
+        process.kill()
 
 
 def probe_response(harness: str, states: dict[str, str] | None = None) -> dict:
@@ -118,6 +175,112 @@ class HarnessRuntimeTest(unittest.TestCase):
         illegal["capabilities"]["subagents"]["status"] = "unknown"
         with self.assertRaises(harness_runtime.HarnessError):
             harness_runtime.validate_probe("test", illegal)
+
+    def test_adapter_json_round_trip_is_utf8_under_non_utf8_parent(self) -> None:
+        adapter_source = """
+import json
+import sys
+request = json.load(sys.stdin)
+json.dump({"echo": request["payload"]["prompt"]}, sys.stdout, ensure_ascii=False)
+"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            adapter = Path(temp_dir) / "adapter.py"
+            adapter.write_text(adapter_source, encoding="utf-8")
+            previous_python_utf8 = os.environ.get("PYTHONUTF8")
+            previous_python_io_encoding = os.environ.get("PYTHONIOENCODING")
+            os.environ["PYTHONUTF8"] = "0"
+            os.environ["PYTHONIOENCODING"] = "cp936"
+            try:
+                response = harness_runtime.SubprocessHarnessAdapter(
+                    [sys.executable, str(adapter)], timeout_seconds=5
+                ).request("evaluate", {"prompt": "中文往返"})
+            finally:
+                if previous_python_utf8 is None:
+                    os.environ.pop("PYTHONUTF8", None)
+                else:
+                    os.environ["PYTHONUTF8"] = previous_python_utf8
+                if previous_python_io_encoding is None:
+                    os.environ.pop("PYTHONIOENCODING", None)
+                else:
+                    os.environ["PYTHONIOENCODING"] = previous_python_io_encoding
+
+        self.assertEqual({"echo": "中文往返"}, response)
+
+    def test_adapter_timeout_kills_descendant_process_with_hard_deadline(self) -> None:
+        child_pid = None
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            adapter = root / "adapter.py"
+            pid_file = root / "child.pid"
+            adapter_source = f"""
+import json
+from pathlib import Path
+import subprocess
+import sys
+import time
+request = json.load(sys.stdin)
+child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+Path({str(pid_file)!r}).write_text(str(child.pid), encoding="ascii")
+time.sleep(60)
+"""
+            adapter.write_text(adapter_source, encoding="utf-8")
+            output = root / "probe.json"
+            command = [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "harness_runtime.py"),
+                "--declaration",
+                str(REPO_ROOT / "harness" / "capabilities" / "codex.json"),
+                "--adapter",
+                sys.executable,
+                "--adapter-arg",
+                str(adapter),
+                "--required",
+                "subagents",
+                "--output",
+                str(output),
+                "--adapter-timeout",
+                "0.5",
+            ]
+            process_kwargs = {
+                "stdout": subprocess.PIPE,
+                "stderr": subprocess.PIPE,
+                "encoding": "utf-8",
+                "env": {
+                    **os.environ,
+                    "PYTHONUTF8": "1",
+                    "PYTHONIOENCODING": "utf-8",
+                },
+            }
+            if os.name == "nt":
+                process_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                process_kwargs["start_new_session"] = True
+            started = time.monotonic()
+            runner = subprocess.Popen(command, **process_kwargs)
+            try:
+                try:
+                    _, stderr = runner.communicate(timeout=8)
+                except subprocess.TimeoutExpired as error:
+                    self.fail(f"adapter timeout exceeded outer hard deadline: {error}")
+                elapsed = time.monotonic() - started
+                self.assertEqual(1, runner.returncode, stderr)
+                self.assertLess(
+                    elapsed,
+                    0.5 + harness_runtime._PROCESS_CLEANUP_TIMEOUT_SECONDS + 1,
+                )
+                self.assertTrue(pid_file.exists(), "adapter did not start its child")
+                child_pid = int(pid_file.read_text(encoding="ascii"))
+                deadline = time.monotonic() + 3
+                while _process_is_running(child_pid) and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                self.assertFalse(
+                    _process_is_running(child_pid),
+                    f"adapter descendant still running: pid={child_pid}",
+                )
+            finally:
+                _cleanup_runner(runner)
+                if child_pid is not None and _process_is_running(child_pid):
+                    _force_kill_process(child_pid)
 
     def test_core_evaluation_runner_has_no_product_specific_branch(self) -> None:
         source = (
