@@ -6,13 +6,13 @@ import argparse
 import json
 import os
 import re
-import subprocess
 import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+import harness_runtime
 import runtime_schema
 
 DIMENSIONS = (
@@ -118,34 +118,18 @@ class SubprocessAdapter:
     """Invoke one Harness adapter through a JSON stdin/stdout contract."""
 
     def __init__(self, command: Sequence[str], timeout_seconds: float = 120.0):
-        if not command:
-            raise EvaluationError("adapter command is required")
-        if timeout_seconds <= 0:
-            raise EvaluationError("adapter timeout must be positive")
-        self._command = tuple(command)
-        self._timeout_seconds = timeout_seconds
+        try:
+            self._adapter = harness_runtime.SubprocessHarnessAdapter(
+                command, timeout_seconds
+            )
+        except harness_runtime.HarnessError as error:
+            raise EvaluationError("invalid Harness adapter") from error
 
     def __call__(self, case: EvalCase) -> Observation:
-        request = json.dumps(asdict(case), ensure_ascii=False)
         try:
-            completed = subprocess.run(
-                self._command,
-                input=request,
-                capture_output=True,
-                text=True,
-                timeout=self._timeout_seconds,
-                check=False,
-            )
-        except (OSError, subprocess.TimeoutExpired):
+            value = self._adapter.evaluate(asdict(case))
+        except harness_runtime.HarnessError:
             return Observation("", (), "adapter-execution-failed")
-        if completed.returncode != 0:
-            return Observation("", (), "adapter-returned-nonzero")
-        try:
-            value = json.loads(completed.stdout)
-        except json.JSONDecodeError:
-            return Observation("", (), "adapter-output-invalid-json")
-        if not isinstance(value, dict):
-            return Observation("", (), "adapter-output-not-object")
         transcript = value.get("transcript")
         signals = value.get("signals")
         if not isinstance(transcript, str) or not isinstance(signals, list):

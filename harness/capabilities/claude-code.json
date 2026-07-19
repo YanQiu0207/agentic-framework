@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "harness": "claude-code",
+  "capabilities": {
+    "subagents": {
+      "status": "unsupported",
+      "evidence": "Static declaration does not assert product support; runtime adapter probe is required."
+    },
+    "worktree_isolation": {
+      "status": "unsupported",
+      "evidence": "Static declaration does not assert product support; runtime adapter probe is required."
+    },
+    "transcript_access": {
+      "status": "unsupported",
+      "evidence": "Static declaration does not assert product support; runtime adapter probe is required."
+    },
+    "lifecycle_hooks": {
+      "status": "unsupported",
+      "evidence": "Static declaration does not assert product support; runtime adapter probe is required."
+    },
+    "structured_tool_results": {
+      "status": "unsupported",
+      "evidence": "Static declaration does not assert product support; runtime adapter probe is required."
+    }
+  }
+}

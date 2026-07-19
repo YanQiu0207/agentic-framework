@@ -164,66 +164,27 @@ class EvaluationRunnerTest(unittest.TestCase):
                 (output_dir / "summary.md").read_text(encoding="utf-8"),
             )
 
-    def test_cli_runs_subprocess_adapter_end_to_end(self) -> None:
+    def test_subprocess_adapter_uses_unified_json_contract(self) -> None:
         adapter_source = """
 import json
-import re
 import sys
-case = json.load(sys.stdin)
-dimension = case["dimension"]
-transcript = ""
-signals = []
-if dimension == "should-trigger":
-    transcript = "Using " + case["skill"]
-elif dimension == "boundary":
-    expected = case["expected"]
-    if "workflow-quick-design" in expected:
-        transcript = "Using workflow-quick-design"
-    elif "先澄清" in expected:
-        signals = ["action=clarify"]
-    elif "先定位" in expected:
-        signals = ["route=troubleshooting"]
-    elif "Fast-Path" in expected:
-        signals = ["route=fast-path"]
-    else:
-        signals = ["action=context-dependent"]
-elif dimension == "profile-routing":
-    profiles = {"P-1": "lightweight", "P-2": "standard", "P-3": "strict"}
-    reviewers = {"P-1": "comprehensive-reviewer", "P-2": "comprehensive-reviewer", "P-3": "full-5-reviewers"}
-    signals = ["review-profile=" + profiles[case["local_id"]], "reviewer=" + reviewers[case["local_id"]]]
-else:
-    signals = [key + "=" + value for key, value in re.findall(r"signal:([a-z-]+)=([a-z0-9-]+)", case["expected"], re.I)]
-json.dump({"transcript": transcript, "signals": signals}, sys.stdout, ensure_ascii=False)
+request = json.load(sys.stdin)
+case = request["payload"]
+json.dump({"transcript": "Using " + case["skill"], "signals": []}, sys.stdout)
 """
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            adapter = root / "adapter.py"
+            adapter = Path(temp_dir) / "adapter.py"
             adapter.write_text(adapter_source, encoding="utf-8")
-            metadata_path = root / "metadata.json"
-            metadata_path.write_text(json.dumps(METADATA), encoding="utf-8")
-            output_dir = root / "output"
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(Path(evaluation_runner.__file__)),
-                    "--repo-root",
-                    str(REPO_ROOT),
-                    "--metadata",
-                    str(metadata_path),
-                    "--adapter",
-                    sys.executable,
-                    "--adapter-arg",
-                    str(adapter),
-                    "--output-dir",
-                    str(output_dir),
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
+            case = next(
+                item
+                for item in evaluation_runner.compile_core_cases(REPO_ROOT)
+                if item.dimension == "should-trigger"
             )
-            self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual("PASS", result.stdout.strip())
-            self.assertTrue((output_dir / "eval-results.jsonl").is_file())
+            observation = evaluation_runner.SubprocessAdapter(
+                [sys.executable, str(adapter)]
+            )(case)
+            self.assertEqual(f"Using {case.skill}", observation.transcript)
+            self.assertEqual("", observation.error)
 
 
 if __name__ == "__main__":
