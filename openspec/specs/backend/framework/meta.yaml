@@ -7,7 +7,7 @@ services:
         generated_at: 2026-07-20
         status: active
     workflow-control:
-        source_ref: git:767cf8111e6f8959861fa77e373f2c0a71557307
+        source_ref: git:f6e448bb0e9a01220ad9e095964bec914ce92c62
         source_paths:
             - skills/workflow-code-generation/SKILL.md
             - skills/workflow-code-generation/scripts/
