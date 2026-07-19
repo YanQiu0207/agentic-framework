@@ -55,7 +55,7 @@ class CheckResult:
     new_items: list[str] = field(default_factory=list)  # 相对基线的新增违规行
 
 
-_DEFAULT_TIMEOUT = 60  # 秒；防止卡死命令永久阻塞验证流程
+_DEFAULT_TIMEOUT = 120  # 秒；为约 55 秒的全量验证保留负载余量，同时防止永久阻塞
 _HEARTBEAT_SECONDS = 5.0
 _OUTPUT_SUMMARY_LINES = 3
 _OUTPUT_SUMMARY_CHARS = 600

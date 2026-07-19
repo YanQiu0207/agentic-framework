@@ -37,7 +37,7 @@ cp <skill-dir>/reference/verify.config.example.json verify.config.json
 | `metric` | count | 否 | `line_count`（输出行数）或 `stdout_int`（输出本身是数字），默认 `line_count` |
 | `direction` | count | 否 | `not_decrease`（不得减少）/ `not_increase`（不得增加），默认 `not_decrease` |
 | `threshold` | count | **是** | 整数。无基线时作绝对判定；有基线时作绝对下 / 上限保障 |
-| `timeout_seconds` | 全部 | 否 | 正整数，默认 60 |
+| `timeout_seconds` | 全部 | 否 | 正整数，默认 120 |
 
 ## 三类检查
 
