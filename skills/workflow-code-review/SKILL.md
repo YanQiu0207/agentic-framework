@@ -269,16 +269,33 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 #### 机器可读产物
 
-输出 Markdown 报告的**同一步**，Judge 额外写出一份结构化 JSON 文件，供质量门脚本（`workflow_control.py` / `check_delivery.py` 等）机器校验证据。路径由调用方在上下文中指定；Tooling / Production 场景建议 `.agentic-framework/verify/review-report.json`。
+输出 Markdown 报告的**同一步**，Judge 额外写出一份符合 `review-report.schema.json` 的 Envelope，供质量门脚本机器校验证据。调用方必须提供 `run-context.json`；Judge 复制其中的 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`，并把以下裁决字段写入 `payload`。Run 级报告固定写入 `.agentic-framework/runs/<run-id>/artifacts/review-run.json`。缺少 Run Context 时不得输出可放行的旧式顶层 `PASS` JSON。
 
 ```json
 {
-  "verdict": "PASS",
-  "p0_count": 0,
-  "p1_count": 0,
-  "scope": "task",
-  "review_profile": "standard",
-  "round": 0
+  "schema_version": 1,
+  "artifact_type": "review-report",
+  "artifact_id": "review-run",
+  "run_id": "<run-id>",
+  "task_id": null,
+  "attempt": null,
+  "profile": "tooling",
+  "harness": "codex",
+  "producer": "workflow-code-review",
+  "commit_sha": "<40-hex>",
+  "config_digest": "sha256:<64-hex>",
+  "created_at": "<RFC3339>",
+  "payload": {
+    "verdict": "PASS",
+    "p0_count": 0,
+    "p1_count": 0,
+    "scope": "run",
+    "review_profile": "strict",
+    "round": 0,
+    "implementer_actor": "<implementer-agent-id>",
+    "judge_actor": "<judge-agent-id>",
+    "independence_basis": "process-separated-agent"
+  }
 }
 ```
 

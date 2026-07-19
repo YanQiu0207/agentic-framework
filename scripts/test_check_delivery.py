@@ -152,7 +152,8 @@ class CheckDeliveryTest(unittest.TestCase):
                         str(report),
                     ]
                 )
-        self.assertEqual(0, result)
+        self.assertEqual(1, result)
+        self.assertIn("旧无绑定 Review PASS 不得放行", stdout.getvalue())
         self.assertIn("知识影响：未命中；理由：只修改局部日志", stdout.getvalue())
 
     def test_main_standard_pair_remains_compatible(self) -> None:
@@ -195,7 +196,7 @@ class CheckDeliveryTest(unittest.TestCase):
                         str(report),
                     ]
                 )
-        self.assertEqual(0, result)
+        self.assertEqual(1, result)
 
 
 class CheckReviewReportTest(unittest.TestCase):
@@ -285,7 +286,7 @@ class MainReviewReportTest(unittest.TestCase):
             check_delivery.main(["--repo", str(repo)])
         self.assertNotEqual(0, ctx.exception.code)
 
-    def test_fast_path_passes_with_valid_report(self) -> None:
+    def test_fast_path_rejects_unbound_legacy_pass_report(self) -> None:
         repo = self._clean_repo()
         report = repo / "review-report.json"
         report.write_text(
@@ -321,7 +322,7 @@ class MainReviewReportTest(unittest.TestCase):
                 "hit",
             ]
         )
-        self.assertEqual(0, code)
+        self.assertEqual(1, code)
 
     def test_bad_report_fails_overall(self) -> None:
         repo = self._clean_repo()

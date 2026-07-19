@@ -23,7 +23,17 @@ _BINDING_FIELDS = (
     "config_digest",
 )
 _REQUIRED_EVIDENCE_TYPES = frozenset(
-    {"input-artifact", "task-state", "verify-report", "review-report"}
+    {
+        "code-result",
+        "final-report",
+        "input-artifact",
+        "review-report",
+        "task-state",
+        "verify-report",
+    }
+)
+_REQUIRED_INPUT_TYPES = frozenset(
+    {"agents", "skill", "spec", "task-plan", "capability-matrix"}
 )
 
 
@@ -135,6 +145,23 @@ def _validate_input_snapshot(
         issues.append(f"input_digest_mismatch:{snapshot_path}")
 
 
+def _validate_code_snapshot(
+    run_dir: Path, artifact: dict[str, Any], issues: list[str]
+) -> None:
+    if artifact["artifact_type"] != "code-result":
+        return
+    snapshot_path = artifact["payload"]["path"]
+    try:
+        snapshot = secure_run_path(run_dir, snapshot_path)
+    except ManifestError as error:
+        issues.extend(f"code_{issue}" for issue in error.issues)
+        return
+    if not snapshot.is_file():
+        issues.append(f"missing_code_snapshot:{snapshot_path}")
+    elif file_digest(snapshot) != artifact["payload"]["content_digest"]:
+        issues.append(f"code_digest_mismatch:{snapshot_path}")
+
+
 def _validate_relations(
     artifacts: dict[str, dict[str, Any]], relations: list[dict[str, str]]
 ) -> list[str]:
@@ -172,6 +199,72 @@ def _validate_relations(
             for spec_id in spec_ids
         ):
             issues.append(f"missing_spec_binding:{artifact_id}")
+    return issues
+
+
+def _validate_complete_evidence(
+    artifacts: dict[str, dict[str, Any]], relations: list[dict[str, str]]
+) -> list[str]:
+    """Require rule inputs, the complete task plan, and final-report reachability."""
+    issues: list[str] = []
+    inputs = {
+        artifact["payload"]["input_type"]: artifact
+        for artifact in artifacts.values()
+        if artifact["artifact_type"] == "input-artifact"
+    }
+    for input_type in sorted(_REQUIRED_INPUT_TYPES - inputs.keys()):
+        issues.append(f"missing_input_type:{input_type}")
+
+    task_plan = inputs.get("task-plan")
+    if task_plan is not None:
+        planned = set(task_plan["payload"].get("task_ids", []))
+        actual = {
+            artifact["task_id"]
+            for artifact in artifacts.values()
+            if artifact["artifact_type"] == "task-state"
+        }
+        if not planned:
+            issues.append("task_plan_missing_task_ids")
+        for task_id in sorted(planned - actual):
+            issues.append(f"missing_planned_task:{task_id}")
+        for task_id in sorted(actual - planned):
+            issues.append(f"unplanned_task:{task_id}")
+
+    finals = [
+        artifact
+        for artifact in artifacts.values()
+        if artifact["artifact_type"] == "final-report"
+    ]
+    if len(finals) != 1:
+        issues.append(f"final_report_count:{len(finals)}")
+        return issues
+    adjacency: dict[str, set[str]] = {}
+    for relation in relations:
+        adjacency.setdefault(relation["source_artifact_id"], set()).add(
+            relation["target_artifact_id"]
+        )
+    reachable: set[str] = set()
+    pending = [finals[0]["artifact_id"]]
+    while pending:
+        source = pending.pop()
+        for target in adjacency.get(source, set()):
+            if target not in reachable:
+                reachable.add(target)
+                pending.append(target)
+    required_ids = {
+        artifact_id
+        for artifact_id, artifact in artifacts.items()
+        if artifact["artifact_type"]
+        in {
+            "code-result",
+            "input-artifact",
+            "review-report",
+            "task-state",
+            "verify-report",
+        }
+    }
+    for artifact_id in sorted(required_ids - reachable):
+        issues.append(f"final_evidence_unreachable:{artifact_id}")
     return issues
 
 
@@ -258,6 +351,7 @@ def validate_manifest(run_dir: Path, manifest: dict[str, Any]) -> None:
                 issues.append(f"binding_{field}_mismatch:{artifact_id}")
         documents[artifact_id] = artifact
         _validate_input_snapshot(run_dir, artifact, issues)
+        _validate_code_snapshot(run_dir, artifact, issues)
     found_paths = set(_artifact_files(run_dir))
     for orphan_path in sorted(found_paths - set(entry_paths)):
         issues.append(f"orphan_artifact:{orphan_path}")
@@ -266,6 +360,9 @@ def validate_manifest(run_dir: Path, manifest: dict[str, Any]) -> None:
         issues.append(f"missing_evidence_type:{missing_type}")
     issues.extend(_validate_task_bindings(documents, manifest["payload"]["tasks"]))
     issues.extend(_validate_relations(documents, manifest["payload"]["relations"]))
+    issues.extend(
+        _validate_complete_evidence(documents, manifest["payload"]["relations"])
+    )
     if issues:
         raise ManifestError(issues)
 
