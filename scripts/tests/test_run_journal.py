@@ -15,7 +15,6 @@ sys.path.insert(0, str(SCRIPTS))
 
 import run_journal
 
-
 NOW = "2026-07-19T00:00:00Z"
 SHA = "a" * 40
 DIGEST = "sha256:" + "b" * 64
@@ -135,6 +134,25 @@ class RunJournalTest(unittest.TestCase):
         with self.assertRaisesRegex(run_journal.JournalError, "missing_idempotency"):
             run_journal.append_event(self.journal, event(2, "artifact-produced"))
 
+    def test_idempotency_rejects_changed_immutable_envelope_bindings(self) -> None:
+        first = event(1, "artifact-produced", key="artifact:1")
+        run_journal.append_event(self.journal, first)
+        mutations = {
+            "schema_version": 2,
+            "commit_sha": "c" * 40,
+            "config_digest": "sha256:" + "d" * 64,
+            "producer": "other-runtime",
+        }
+        for field, value in mutations.items():
+            with self.subTest(field=field):
+                duplicate = copy.deepcopy(first)
+                duplicate["artifact_id"] = f"retry-{field}"
+                duplicate["payload"]["event_id"] = f"retry-{field}"
+                duplicate["payload"]["sequence"] = 2
+                duplicate[field] = value
+                with self.assertRaises(run_journal.JournalError):
+                    run_journal.append_event(self.journal, duplicate)
+
     def test_interrupted_replace_preserves_previous_journal(self) -> None:
         run_journal.append_event(self.journal, event(1))
         previous = self.journal.read_bytes()
@@ -153,9 +171,7 @@ class RunJournalTest(unittest.TestCase):
 
     def test_failure_consumes_retry_and_next_event_uses_next_attempt(self) -> None:
         run_journal.append_event(self.journal, event(1, "task-failed"))
-        run_journal.append_event(
-            self.journal, event(2, "task-started", attempt=2)
-        )
+        run_journal.append_event(self.journal, event(2, "task-started", attempt=2))
         replay = run_journal.replay_journal(self.journal)
         self.assertEqual({"state": "running", "attempts": 1}, replay.tasks["1"])
 
@@ -163,7 +179,9 @@ class RunJournalTest(unittest.TestCase):
         run_journal.append_event(self.journal, event(1))
         checkpoint = run_journal.write_checkpoint(self.root, self.journal)
         run_journal.append_event(self.journal, event(2, "task-quality-passed"))
-        run_journal.validate_checkpoint(checkpoint, run_journal.read_events(self.journal))
+        run_journal.validate_checkpoint(
+            checkpoint, run_journal.read_events(self.journal)
+        )
         value = json.loads(checkpoint.read_text(encoding="utf-8"))
         value["journal_digest"] = DIGEST
         checkpoint.write_text(json.dumps(value), encoding="utf-8")
@@ -205,20 +223,52 @@ class RunJournalTest(unittest.TestCase):
             )
 
     def test_recovery_rejects_git_fact_that_conflicts_with_tasks(self) -> None:
-        run_event = event(1, "run-started", task_id=None)
-        run_journal.append_event(self.journal, run_event)
+        run_journal.append_event(self.journal, event(1, "task-retried"))
         checkpoint = run_journal.write_checkpoint(self.root, self.journal)
-        empty_manifest = manifest()
-        empty_manifest["payload"]["tasks"] = []
         with mock.patch.object(run_journal.run_manifest, "validate_manifest"):
             with self.assertRaisesRegex(run_journal.JournalError, "git_tasks_conflict"):
                 run_journal.recovery_plan(
                     self.journal,
                     checkpoint,
                     tasks("未开始"),
-                    empty_manifest,
+                    manifest("pending"),
                     {1},
                 )
+
+    def test_recovery_rejects_tasks_missing_from_any_state_source(self) -> None:
+        run_journal.append_event(self.journal, event(1))
+        checkpoint = run_journal.write_checkpoint(self.root, self.journal)
+        cases = []
+        manifest_with_extra = manifest()
+        manifest_with_extra["payload"]["tasks"].append(
+            {
+                "task_id": "2",
+                "attempt": 1,
+                "state": "pending",
+                "artifact_ids": [],
+            }
+        )
+        cases.append((tasks(), manifest_with_extra, "missing_task_event:2"))
+        cases.append(
+            (
+                tasks()
+                + "\n### 任务 2：额外\n\n"
+                + "- depends_on：[1]\n- 文件：`scripts/example.py`\n"
+                + "- review_profile：standard\n- context_files：`proposal.md`\n"
+                + "- verification：unit\n- artifacts：report\n"
+                + "- attempts：0\n- 状态：未开始\n",
+                manifest(),
+                "missing_task_event:2",
+            )
+        )
+        for tasks_text, value, expected in cases:
+            with self.subTest(expected=expected), mock.patch.object(
+                run_journal.run_manifest, "validate_manifest"
+            ):
+                with self.assertRaisesRegex(run_journal.JournalError, expected):
+                    run_journal.recovery_plan(
+                        self.journal, checkpoint, tasks_text, value, set()
+                    )
 
     def test_user_override_is_an_explicit_reasoned_event(self) -> None:
         base = event(1)

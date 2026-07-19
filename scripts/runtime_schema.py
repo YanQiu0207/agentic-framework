@@ -42,13 +42,17 @@ def build_run_config(
     workflow: str,
     max_attempts: int,
     verify_config_path: Path | None,
+    required_capabilities: Sequence[str] = (),
+    optional_capabilities: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Build the complete run-config document whose bytes define config_digest."""
     if max_attempts < 0:
         raise RuntimeSchemaError("max_attempts must be non-negative")
-    if verify_config_path is None or not verify_config_path.exists():
+    if verify_config_path is None:
         verify_config: object = DEFAULT_VERIFY_CONFIG
     else:
+        if not verify_config_path.is_file():
+            raise RuntimeSchemaError("verify.config.json does not exist")
         try:
             verify_config = json.loads(verify_config_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -59,6 +63,8 @@ def build_run_config(
         "harness": harness,
         "max_attempts": max_attempts,
         "profile": profile,
+        "required_capabilities": sorted(required_capabilities),
+        "optional_capabilities": sorted(optional_capabilities),
         "verify_config": verify_config,
         "workflow": workflow,
     }
@@ -228,6 +234,8 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     digest_parser.add_argument("--workflow", required=True)
     digest_parser.add_argument("--max-attempts", type=int, required=True)
     digest_parser.add_argument("--verify-config", type=Path)
+    digest_parser.add_argument("--required", action="append", default=[])
+    digest_parser.add_argument("--optional", action="append", default=[])
     return parser.parse_args(argv)
 
 
@@ -246,6 +254,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.workflow,
             args.max_attempts,
             args.verify_config,
+            args.required,
+            args.optional,
         )
         print(config_digest(run_config))
         return 0

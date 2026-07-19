@@ -117,7 +117,18 @@ def _same_effect(left: dict[str, Any], right: dict[str, Any]) -> bool:
     ignored = {"event_id", "sequence", "occurred_at"}
     left_payload = {k: v for k, v in left["payload"].items() if k not in ignored}
     right_payload = {k: v for k, v in right["payload"].items() if k not in ignored}
-    envelope = ("run_id", "task_id", "attempt", "profile", "harness")
+    envelope = (
+        "schema_version",
+        "artifact_type",
+        "run_id",
+        "task_id",
+        "attempt",
+        "profile",
+        "harness",
+        "producer",
+        "commit_sha",
+        "config_digest",
+    )
     return left_payload == right_payload and all(left[k] == right[k] for k in envelope)
 
 
@@ -276,34 +287,57 @@ def recovery_plan(
     errors = lint_task_deps.field_errors(tasks)
     if errors:
         raise JournalError(f"invalid_tasks:{errors[0]}")
-    manifest_tasks = {item["task_id"]: item for item in manifest["payload"]["tasks"]}
-    for task_id, state in replay.tasks.items():
-        try:
-            numeric_id = int(task_id)
-        except ValueError as error:
-            raise JournalError(f"invalid_task_id:{task_id}") from error
-        if numeric_id not in tasks:
-            raise JournalError(f"event_tasks_conflict:{task_id}")
-        tasks_state = lint_task_deps.parse_state(
-            lint_task_deps.field(tasks[numeric_id]["body"], "状态")
-        )
-        if tasks_state != _TASK_STATE[state["state"]]:
-            raise JournalError(f"event_tasks_state_conflict:{task_id}")
-        attempts_text = lint_task_deps.field(tasks[numeric_id]["body"], "attempts")
-        attempts = int(attempts_text or "0")
-        if attempts != state["attempts"]:
-            raise JournalError(f"event_tasks_attempt_conflict:{task_id}")
-        manifest_task = manifest_tasks.get(task_id)
-        if manifest_task is None:
-            raise JournalError(f"event_manifest_task_conflict:{task_id}")
-        if manifest_task["state"] != state["state"] or manifest_task[
-            "attempt"
-        ] != runtime_schema.attempt_for_attempts(state["attempts"]):
-            raise JournalError(f"event_manifest_task_conflict:{task_id}")
+    validate_task_sources(replay, tasks_text, manifest)
     try:
         return workflow_control.plan_recovery(tasks, merged_task_ids)
     except ValueError as error:
         raise JournalError(f"git_tasks_conflict:{error}") from error
+
+
+def validate_task_sources(
+    replay: ReplayResult,
+    tasks_text: str,
+    manifest: dict[str, Any],
+) -> None:
+    """Require Journal, task plan, and Manifest to describe the same tasks."""
+    tasks = lint_task_deps.parse_tasks(tasks_text)
+    errors = lint_task_deps.field_errors(tasks)
+    if errors:
+        raise JournalError(f"invalid_tasks:{errors[0]}")
+    manifest_tasks = {item["task_id"]: item for item in manifest["payload"]["tasks"]}
+    task_ids = set(replay.tasks) | set(manifest_tasks) | {str(item) for item in tasks}
+    conflicts = []
+    for task_id in sorted(task_ids, key=lambda value: (not value.isdigit(), value)):
+        try:
+            numeric_id = int(task_id)
+        except ValueError as error:
+            raise JournalError(f"invalid_task_id:{task_id}") from error
+        state = replay.tasks.get(task_id)
+        manifest_task = manifest_tasks.get(task_id)
+        task = tasks.get(numeric_id)
+        if state is None:
+            conflicts.append(f"missing_task_event:{task_id}")
+        if manifest_task is None:
+            conflicts.append(f"missing_manifest_task:{task_id}")
+        if task is None:
+            conflicts.append(f"missing_task_plan_task:{task_id}")
+        if state is None or manifest_task is None or task is None:
+            continue
+        tasks_state = lint_task_deps.parse_state(
+            lint_task_deps.field(task["body"], "状态")
+        )
+        if tasks_state != _TASK_STATE[state["state"]]:
+            conflicts.append(f"event_tasks_state_conflict:{task_id}")
+        attempts_text = lint_task_deps.field(task["body"], "attempts")
+        attempts = int(attempts_text or "0")
+        if attempts != state["attempts"]:
+            conflicts.append(f"event_tasks_attempt_conflict:{task_id}")
+        if manifest_task["state"] != state["state"] or manifest_task[
+            "attempt"
+        ] != runtime_schema.attempt_for_attempts(state["attempts"]):
+            conflicts.append(f"event_manifest_task_conflict:{task_id}")
+    if conflicts:
+        raise JournalError(";".join(conflicts))
 
 
 def make_user_action_event(
