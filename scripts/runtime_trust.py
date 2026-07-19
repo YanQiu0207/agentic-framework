@@ -13,6 +13,7 @@ from typing import Any, Sequence
 import harness_runtime
 import run_journal
 import run_manifest
+import runtime_schema
 
 VERIFIED_CLAIMS = (
     "artifact-schema-path-digest-and-run-binding",
@@ -89,18 +90,77 @@ def _validate_strict_review(
         issues.append("invalid_independence_basis")
 
 
-def _capability_snapshot(
-    run_dir: Path, manifest: dict[str, Any], documents: dict[str, dict[str, Any]]
+def _validate_verify(documents: dict[str, dict[str, Any]]) -> None:
+    verifies = [
+        document
+        for document in documents.values()
+        if document["artifact_type"] == "verify-report" and document["task_id"] is None
+    ]
+    if len(verifies) != 1:
+        raise TrustError(["verify_report_count"])
+    payload = verifies[0]["payload"]
+    if (
+        payload["verdict"] != "PASS"
+        or payload["errors"] != 0
+        or payload["violations"] != 0
+    ):
+        raise TrustError(["verify_gate_failed"])
+
+
+def _input_artifact(
+    documents: dict[str, dict[str, Any]], input_type: str
 ) -> dict[str, Any]:
     candidates = [
         document
         for document in documents.values()
         if document["artifact_type"] == "input-artifact"
-        and document["payload"]["input_type"] == "capability-matrix"
+        and document["payload"]["input_type"] == input_type
     ]
     if len(candidates) != 1:
-        raise TrustError(["capability_snapshot_count"])
-    path = run_manifest.secure_run_path(run_dir, candidates[0]["payload"]["path"])
+        raise TrustError([f"{input_type}_snapshot_count"])
+    return candidates[0]
+
+
+def _read_input_text(
+    run_dir: Path, artifact: dict[str, Any], invalid_issue: str
+) -> str:
+    path = run_manifest.secure_run_path(run_dir, artifact["payload"]["path"])
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise TrustError([invalid_issue]) from error
+
+
+def _trusted_run_config(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    documents: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    artifact = _input_artifact(documents, "run-config")
+    try:
+        value = json.loads(
+            _read_input_text(run_dir, artifact, "invalid_run_config_snapshot")
+        )
+        runtime_schema.validate_document(value, "run-config")
+    except (json.JSONDecodeError, runtime_schema.RuntimeSchemaError) as error:
+        raise TrustError(["invalid_run_config_snapshot"]) from error
+    if runtime_schema.config_digest(value) != manifest["config_digest"]:
+        raise TrustError(["run_config_digest_mismatch"])
+    if value["profile"] != manifest["profile"]:
+        raise TrustError(["run_config_profile_mismatch"])
+    if value["harness"] != manifest["harness"]:
+        raise TrustError(["run_config_harness_mismatch"])
+    return value
+
+
+def _capability_snapshot(
+    run_dir: Path,
+    manifest: dict[str, Any],
+    documents: dict[str, dict[str, Any]],
+    run_config: dict[str, Any],
+) -> dict[str, Any]:
+    candidate = _input_artifact(documents, "capability-matrix")
+    path = run_manifest.secure_run_path(run_dir, candidate["payload"]["path"])
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
@@ -133,32 +193,46 @@ def _capability_snapshot(
                 "harness": manifest["harness"],
                 "capabilities": capabilities,
             },
-            value.get("required_capabilities", []),
-            value.get("optional_capabilities", []),
+            run_config["required_capabilities"],
+            run_config["optional_capabilities"],
         )
     except harness_runtime.HarnessError as error:
         raise TrustError(["invalid_capability_snapshot"]) from error
     if gated["verdict"] != "PASS":
         raise TrustError(["capability_gate_failed"])
-    for field in ("verdict", "blocking_capabilities", "degradations"):
+    for field in (
+        "required_capabilities",
+        "optional_capabilities",
+        "verdict",
+        "blocking_capabilities",
+        "degradations",
+    ):
         if value.get(field) != gated[field]:
             raise TrustError([f"capability_report_{field}_mismatch"])
     return value
 
 
 def _validate_journal(
-    run_dir: Path, manifest: dict[str, Any], artifact_ids: set[str]
+    run_dir: Path,
+    manifest: dict[str, Any],
+    documents: dict[str, dict[str, Any]],
+    degradations: list[dict[str, Any]],
 ) -> list[dict[str, str]]:
     journal_path = run_dir / "events.jsonl"
     events = run_journal.read_events(journal_path)
     if not events:
         raise TrustError(["missing_journal_events"])
-    run_journal.replay_events(events)
+    replay = run_journal.replay_events(events)
     checkpoints = sorted((run_dir / "checkpoints").glob("checkpoint-*.json"))
     if not checkpoints:
         raise TrustError(["missing_checkpoint"])
     run_journal.validate_checkpoint(checkpoints[-1], events)
+    task_plan = _input_artifact(documents, "task-plan")
+    tasks_text = _read_input_text(run_dir, task_plan, "invalid_task_plan_snapshot")
+    run_journal.validate_task_sources(replay, tasks_text, manifest)
+    artifact_ids = set(documents)
     overrides = []
+    observed_degradations = []
     for event in events:
         for field in _BINDING_FIELDS:
             if event[field] != manifest[field]:
@@ -169,6 +243,16 @@ def _validate_journal(
         if unknown:
             raise TrustError([f"event_unknown_artifact:{min(unknown)}"])
         event_type = event["payload"]["event_type"]
+        if event_type == "capability-degraded":
+            details = event["payload"].get("details", {})
+            observed_degradations.append(
+                {
+                    "event_type": event_type,
+                    "capability": details.get("capability"),
+                    "status": details.get("status"),
+                    "evidence": details.get("evidence"),
+                }
+            )
         if not event_type.startswith("user-"):
             continue
         action = event_type.removeprefix("user-")
@@ -188,6 +272,10 @@ def _validate_journal(
                 "reason": reason,
             }
         )
+    if observed_degradations != degradations:
+        raise TrustError(["capability_degradation_event_mismatch"])
+    if overrides and overrides[-1]["action"] in {"reject", "cancel"}:
+        raise TrustError([f"user_{overrides[-1]['action']}"])
     return overrides
 
 
@@ -199,12 +287,16 @@ def validate_run(run_dir: Path) -> dict[str, Any]:
         )
         run_manifest.validate_manifest(run_dir, manifest)
         documents = _artifact_documents(run_dir, manifest)
+        _validate_verify(documents)
         issues: list[str] = []
         _validate_strict_review(documents, issues)
         if issues:
             raise TrustError(issues)
-        _capability_snapshot(run_dir, manifest, documents)
-        overrides = _validate_journal(run_dir, manifest, set(documents))
+        run_config = _trusted_run_config(run_dir, manifest, documents)
+        capability = _capability_snapshot(run_dir, manifest, documents, run_config)
+        overrides = _validate_journal(
+            run_dir, manifest, documents, capability["degradations"]
+        )
     except TrustError:
         raise
     except run_manifest.ManifestError as error:
@@ -221,6 +313,7 @@ def validate_run(run_dir: Path) -> dict[str, Any]:
         "verdict": "PASS",
         "verified_claims": list(VERIFIED_CLAIMS),
         "unprovable_claims": list(UNPROVABLE_CLAIMS),
+        "capability_degradations": capability["degradations"],
         "user_overrides": overrides,
     }
 

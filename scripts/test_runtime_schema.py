@@ -192,11 +192,19 @@ class RuntimeSchemaTest(unittest.TestCase):
                 runtime_schema.config_digest(second),
             )
             self.assertEqual(
-                "sha256:39e034248e0915379a797dde4093341993b1c51f2b9439111043a182dc0870a3",
+                "sha256:4cb83ae6da62cb55d280d6c2a54b7583a701e479f5e4584358a43cee10aaaa27",
                 runtime_schema.config_digest(first),
             )
             self.assertEqual(
-                {"profile", "harness", "workflow", "max_attempts", "verify_config"},
+                {
+                    "profile",
+                    "harness",
+                    "workflow",
+                    "max_attempts",
+                    "verify_config",
+                    "required_capabilities",
+                    "optional_capabilities",
+                },
                 set(first),
             )
             changed = copy.deepcopy(first)
@@ -211,6 +219,16 @@ class RuntimeSchemaTest(unittest.TestCase):
             "tooling", "codex", "workflow-code-generation", 2, None
         )
         self.assertEqual({"checks": []}, config["verify_config"])
+
+    def test_explicit_missing_verify_config_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "verify.config.json"
+            with self.assertRaisesRegex(
+                runtime_schema.RuntimeSchemaError, "does not exist"
+            ):
+                runtime_schema.build_run_config(
+                    "tooling", "codex", "workflow-code-generation", 2, missing
+                )
 
     def test_attempt_mapping_covers_first_retry_and_manual(self) -> None:
         self.assertEqual(1, runtime_schema.attempt_for_attempts(0))

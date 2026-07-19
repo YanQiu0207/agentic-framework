@@ -8,7 +8,9 @@
         "harness",
         "workflow",
         "max_attempts",
-        "verify_config"
+        "verify_config",
+        "required_capabilities",
+        "optional_capabilities"
     ],
     "properties": {
         "profile": {
@@ -34,6 +36,22 @@
             "default": {
                 "checks": []
             }
+        },
+        "required_capabilities": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            },
+            "uniqueItems": true
+        },
+        "optional_capabilities": {
+            "type": "array",
+            "items": {
+                "type": "string",
+                "minLength": 1
+            },
+            "uniqueItems": true
         }
     },
     "additionalProperties": false

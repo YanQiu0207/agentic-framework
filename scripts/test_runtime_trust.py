@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import harness_runtime
 import run_journal
 import run_manifest
+import runtime_schema
 import runtime_trust
 from test_run_manifest import CREATED_AT, RunFixture, envelope, write_json
 
@@ -67,6 +68,8 @@ def journal_event(
     *,
     key: str | None = None,
     details: dict | None = None,
+    task_id: str | None = None,
+    config_digest: str | None = None,
 ) -> dict:
     payload = {
         "event_id": f"event-{sequence}",
@@ -81,7 +84,10 @@ def journal_event(
         payload["idempotency_key"] = key
     if details is not None:
         payload["details"] = details
-    return envelope("event", f"event-{sequence}", payload, None)
+    value = envelope("event", f"event-{sequence}", payload, task_id)
+    if config_digest is not None:
+        value["config_digest"] = config_digest
+    return value
 
 
 class TrustRun:
@@ -90,9 +96,39 @@ class TrustRun:
     def __init__(self, root: Path, include_override: bool = True):
         self.root = root
         self.fixture = RunFixture(root)
+        snapshots = root / "snapshots"
+        snapshots.mkdir()
+        self.run_config = runtime_schema.build_run_config(
+            "tooling",
+            "codex",
+            "workflow-code-generation",
+            2,
+            None,
+            ["subagents"],
+            ["lifecycle_hooks"],
+        )
+        self.config_digest = runtime_schema.config_digest(self.run_config)
+        run_config_path = snapshots / "run-config.json"
+        write_json(run_config_path, self.run_config)
+        tasks_path = snapshots / "tasks.md"
+        tasks_path.write_text(
+            "### 任务 3：Trust Test\n\n"
+            "- depends_on：[]\n"
+            "- review_profile：strict\n"
+            "- context_files：`proposal.md`\n"
+            "- 文件：`scripts/runtime_trust.py`\n"
+            "- verification：unit\n"
+            "- artifacts：report\n"
+            "- attempts：0\n"
+            "- 状态：完成\n",
+            encoding="utf-8",
+        )
         review = self.fixture.documents["review"]
         review["task_id"] = None
         review["attempt"] = None
+        verify = self.fixture.documents["verify"]
+        verify["task_id"] = None
+        verify["attempt"] = None
         review["payload"].update(
             {
                 "scope": "run",
@@ -101,7 +137,26 @@ class TrustRun:
                 "independence_basis": "process-separated-agent",
             }
         )
-        write_json(root / "artifacts/review.json", review)
+        self.fixture.documents["run-config"] = envelope(
+            "input-artifact",
+            "run-config",
+            {
+                "input_type": "run-config",
+                "path": "snapshots/run-config.json",
+                "content_digest": run_manifest.file_digest(run_config_path),
+            },
+            None,
+        )
+        self.fixture.documents["task-plan"] = envelope(
+            "input-artifact",
+            "task-plan",
+            {
+                "input_type": "task-plan",
+                "path": "snapshots/tasks.md",
+                "content_digest": run_manifest.file_digest(tasks_path),
+            },
+            None,
+        )
 
         self.capability_path = root / "artifacts/capability-probe.json"
         write_json(self.capability_path, probe_report("run-1"))
@@ -116,18 +171,37 @@ class TrustRun:
             None,
         )
         self.fixture.documents["capability"] = capability
-        write_json(root / "artifacts/capability.json", capability)
+        for name, document in self.fixture.documents.items():
+            document["config_digest"] = self.config_digest
+            write_json(root / f"artifacts/{name}.json", document)
+        self.fixture.metadata["config_digest"] = self.config_digest
         self.manifest = self.fixture.generate()
 
         self.journal = root / "events.jsonl"
-        run_journal.append_event(self.journal, journal_event(1, "run-started"))
+        run_journal.append_event(
+            self.journal,
+            journal_event(1, "run-started", config_digest=self.config_digest),
+        )
+        for sequence, event_type in enumerate(
+            ("task-started", "task-quality-passed", "task-merged"), 2
+        ):
+            run_journal.append_event(
+                self.journal,
+                journal_event(
+                    sequence,
+                    event_type,
+                    task_id="3",
+                    config_digest=self.config_digest,
+                ),
+            )
         if include_override:
             run_journal.append_event(
                 self.journal,
                 journal_event(
-                    2,
+                    5,
                     "user-override",
                     details={"reason": "用户承担风险并要求继续"},
+                    config_digest=self.config_digest,
                 ),
             )
         run_journal.write_checkpoint(root, self.journal)
@@ -202,12 +276,17 @@ class RuntimeTrustTest(unittest.TestCase):
     def test_duplicate_side_effect_is_deduplicated_or_conflicts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             run = TrustRun(Path(temp_dir), include_override=False)
-            effect = journal_event(2, "artifact-produced", key="publish:artifact")
+            effect = journal_event(
+                5,
+                "artifact-produced",
+                key="publish:artifact",
+                config_digest=run.config_digest,
+            )
             _, appended = run_journal.append_event(run.journal, effect)
             retry = copy.deepcopy(effect)
             retry["artifact_id"] = "event-retry"
             retry["payload"]["event_id"] = "event-retry"
-            retry["payload"]["sequence"] = 3
+            retry["payload"]["sequence"] = 6
             _, appended_again = run_journal.append_event(run.journal, retry)
             self.assertTrue(appended)
             self.assertFalse(appended_again)
@@ -231,12 +310,123 @@ class RuntimeTrustTest(unittest.TestCase):
             with self.assertRaisesRegex(runtime_trust.TrustError, "degradations"):
                 runtime_trust.validate_run(run.root)
 
+    def test_capability_degradation_requires_matching_event_and_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run = TrustRun(Path(temp_dir), include_override=False)
+            capabilities = probe_report("run-1")["capabilities"]
+            capabilities["lifecycle_hooks"]["status"] = "degraded"
+            gated = harness_runtime.gate_capabilities(
+                {
+                    "schema_version": 1,
+                    "harness": "codex",
+                    "capabilities": capabilities,
+                },
+                ["subagents"],
+                ["lifecycle_hooks"],
+            )
+            gated.update(
+                {
+                    "run_id": "run-1",
+                    "evidence_source": "runtime-adapter-probe",
+                    "declaration_capabilities": copy.deepcopy(capabilities),
+                }
+            )
+            run.replace_capability(gated)
+            with self.assertRaisesRegex(
+                runtime_trust.TrustError, "degradation_event_mismatch"
+            ):
+                runtime_trust.validate_run(run.root)
+
+            degradation = gated["degradations"][0]
+            run_journal.append_event(
+                run.journal,
+                journal_event(
+                    5,
+                    "capability-degraded",
+                    details={
+                        key: degradation[key]
+                        for key in ("capability", "status", "evidence")
+                    },
+                    config_digest=run.config_digest,
+                ),
+            )
+            run_journal.write_checkpoint(run.root, run.journal)
+            report = runtime_trust.validate_run(run.root)
+            self.assertEqual(gated["degradations"], report["capability_degradations"])
+
     def test_user_override_without_reason_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             run = TrustRun(Path(temp_dir), include_override=False)
-            run_journal.append_event(run.journal, journal_event(2, "user-override"))
+            run_journal.append_event(
+                run.journal,
+                journal_event(5, "user-override", config_digest=run.config_digest),
+            )
             run_journal.write_checkpoint(run.root, run.journal)
             with self.assertRaisesRegex(runtime_trust.TrustError, "user_override"):
+                runtime_trust.validate_run(run.root)
+
+    def test_failed_verify_is_rejected_even_with_user_override(self) -> None:
+        for verdict, errors, violations in (("FAIL", 0, 1), ("ERROR", 1, 0)):
+            with self.subTest(verdict=verdict), tempfile.TemporaryDirectory() as temp:
+                run = TrustRun(Path(temp))
+                verify = copy.deepcopy(run.fixture.documents["verify"])
+                verify["payload"].update(
+                    {
+                        "verdict": verdict,
+                        "errors": errors,
+                        "violations": violations,
+                    }
+                )
+                run.replace_artifact("verify", verify)
+                with self.assertRaisesRegex(runtime_trust.TrustError, "verify_gate"):
+                    runtime_trust.validate_run(run.root)
+
+    def test_capability_requirements_cannot_be_weakened_by_probe_report(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run = TrustRun(Path(temp_dir))
+            report = probe_report("run-1")
+            report["required_capabilities"] = []
+            report["optional_capabilities"] = []
+            run.replace_capability(report)
+            with self.assertRaisesRegex(
+                runtime_trust.TrustError, "required_capabilities"
+            ):
+                runtime_trust.validate_run(run.root)
+
+    def test_reject_or_cancel_latest_user_decision_blocks_pass(self) -> None:
+        for action in ("reject", "cancel"):
+            with self.subTest(action=action), tempfile.TemporaryDirectory() as temp:
+                run = TrustRun(Path(temp), include_override=False)
+                run_journal.append_event(
+                    run.journal,
+                    journal_event(
+                        5,
+                        f"user-{action}",
+                        details={"reason": "用户终止运行"},
+                        config_digest=run.config_digest,
+                    ),
+                )
+                run_journal.write_checkpoint(run.root, run.journal)
+                with self.assertRaisesRegex(runtime_trust.TrustError, f"user_{action}"):
+                    runtime_trust.validate_run(run.root)
+
+    def test_missing_task_event_is_rejected_by_trust_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run = TrustRun(Path(temp_dir))
+            events = [
+                item
+                for item in run_journal.read_events(run.journal)
+                if item["task_id"] is None
+            ]
+            for sequence, item in enumerate(events, 1):
+                item["payload"]["sequence"] = sequence
+            run.journal.write_bytes(
+                b"".join(run_journal._canonical(item) + b"\n" for item in events)
+            )
+            for checkpoint in (run.root / "checkpoints").glob("*.json"):
+                checkpoint.unlink()
+            run_journal.write_checkpoint(run.root, run.journal)
+            with self.assertRaisesRegex(runtime_trust.TrustError, "missing_task_event"):
                 runtime_trust.validate_run(run.root)
 
     def test_cli_outputs_machine_report_and_fails_closed(self) -> None:
