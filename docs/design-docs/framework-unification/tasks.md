@@ -50,7 +50,7 @@
 - verification：全量测试、Skill 图、Profile 安装测试通过；Production 只执行一次最终五维集成 Review，不重复启动整体初审
 - artifacts：README 路由、治理规则、验收记录
 - 文件：`README.md`、`CONTRIBUTING.md`
-- 验收记录：共运行 104 项测试，102 项通过，2 项 Symlink 权限相关测试跳过；Skill 图、Task 图、Spec Lint、Black 和双 Profile 临时安装均通过；五维 Review、定向复审和 Review Critic 均为 PASS
+- 验收记录：使用 `pytest -q` 共收集 131 项测试，129 项通过，2 项 Symlink 权限相关测试跳过，另有 28 个 Subtest 通过；Skill 图、Task 图、Spec Lint、Black 26.5.1 和双 Profile 临时安装均通过；五维 Review、定向复审和 Review Critic 均为 PASS
 - 状态：完成
 
 ### 任务 6：非破坏性退役旧目录

@@ -26,7 +26,6 @@ import sys
 from pathlib import Path
 from typing import Iterable
 
-
 # 强位置引用：动词 / 链路箭头后的 kebab token（至少两段，避免单词误命中）
 KEBAB = r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+"
 VERB_REF = re.compile(r"(?:加载|调用|运行|执行|使用|派)\s*[`/]?(" + KEBAB + r")`?")
@@ -59,7 +58,9 @@ def collect_nodes(root: Path) -> tuple[dict[str, Path], set[str], set[str], list
         if fm_end == -1:
             name_errors.append(f"{skill_md}: frontmatter 未闭合")
             continue
-        fm_text = "\n".join(lines[:fm_end])  # 只在 frontmatter 区判定，避免正文 name:/description: 干扰
+        fm_text = "\n".join(
+            lines[:fm_end]
+        )  # 只在 frontmatter 区判定，避免正文 name:/description: 干扰
         match = FRONTMATTER_NAME.search(fm_text)
         declared = match.group(1).strip() if match else None
         if declared != sub.name:
@@ -176,7 +177,9 @@ def frontmatter_end(lines: list[str]) -> int:
     return -1
 
 
-def outgoing_edges(text: str, targets: set[str], self_name: str) -> list[tuple[str, int, str]]:
+def outgoing_edges(
+    text: str, targets: set[str], self_name: str
+) -> list[tuple[str, int, str]]:
     """Yield (target, lineno, snippet) for references to other nodes in `text`.
 
     跳过 frontmatter（description 里的散文提及不算出边）和 URL 行（参考来源链接），
@@ -205,8 +208,10 @@ def print_graph(skills: dict[str, Path], known: set[str], files: list[Path]) -> 
     """Emit a Markdown reference graph for LLM review of missing / spurious links."""
     blobs = {path: read(path) for path in files}
     print("# Skill 引用图\n")
-    print("> 由 lint_skill_graph.py --graph 生成。出边带行号 + 原文，便于判断是\n"
-          "> 「工作流里真加载」还是「仅链路图 / description 提及」。供 LLM 判定遗漏与多余。\n")
+    print(
+        "> 由 lint_skill_graph.py --graph 生成。出边带行号 + 原文，便于判断是\n"
+        "> 「工作流里真加载」还是「仅链路图 / description 提及」。供 LLM 判定遗漏与多余。\n"
+    )
     for name in sorted(skills):
         skill_md = skills[name]
         text = read(skill_md)
@@ -237,9 +242,13 @@ def print_graph(skills: dict[str, Path], known: set[str], files: list[Path]) -> 
 def main(argv: list[str]) -> int:
     """Run the linter and report errors / warnings."""
     if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认非 UTF-8，避免中文乱码
+        sys.stdout.reconfigure(
+            encoding="utf-8"
+        )  # Windows 控制台默认非 UTF-8，避免中文乱码
 
-    parser = argparse.ArgumentParser(description="校验 agentic-framework 的 skill 引用图")
+    parser = argparse.ArgumentParser(
+        description="校验 agentic-framework 的 skill 引用图"
+    )
     parser.add_argument(
         "--root",
         type=Path,

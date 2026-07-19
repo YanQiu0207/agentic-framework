@@ -21,9 +21,7 @@ class SkillGraphTest(unittest.TestCase):
                 "调用 `known-skill` skill，再调用 `missing-skill` skill",
                 encoding="utf-8",
             )
-            errors = lint_skill_graph.find_command_target_errors(
-                root, {"known-skill"}
-            )
+            errors = lint_skill_graph.find_command_target_errors(root, {"known-skill"})
         self.assertEqual(1, len(errors))
         self.assertIn("missing-skill", errors[0])
 
@@ -36,9 +34,12 @@ class SkillGraphTest(unittest.TestCase):
             (skill / "SKILL.md").write_text(text, encoding="utf-8")
             skills, _, _, errors = lint_skill_graph.collect_nodes(root)
         self.assertIn("frontmatter 未闭合", errors[0])
-        self.assertEqual([], lint_skill_graph.outgoing_edges(
-            text, {"known-skill", "broken-skill"}, "broken-skill"
-        ))
+        self.assertEqual(
+            [],
+            lint_skill_graph.outgoing_edges(
+                text, {"known-skill", "broken-skill"}, "broken-skill"
+            ),
+        )
         self.assertIn("broken-skill", skills)
 
 

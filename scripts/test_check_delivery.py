@@ -10,7 +10,9 @@ sys.path.insert(
     0,
     str(
         Path(__file__).resolve().parents[1]
-        / "skills" / "workflow-code-generation" / "scripts"
+        / "skills"
+        / "workflow-code-generation"
+        / "scripts"
     ),
 )
 import check_delivery

@@ -32,9 +32,7 @@ def tasks_text(
     """Build the minimum task document used by control-flow tests."""
     sections = []
     for task_id in states:
-        deps = ", ".join(
-            f"Task {dependency}" for dependency in dependencies[task_id]
-        )
+        deps = ", ".join(f"Task {dependency}" for dependency in dependencies[task_id])
         sections.append(
             f"### 任务 {task_id}：测试\n\n"
             f"- 状态：{states[task_id]}\n"
@@ -56,9 +54,7 @@ class WorkflowControlTest(unittest.TestCase):
         self.assertEqual([[1, 2], [3]], workflow_control.build_waves(tasks))
 
     def test_same_wave_failure_is_isolated_end_to_end(self) -> None:
-        text = tasks_text(
-            {1: "进行中", 2: "进行中"}, {1: [], 2: []}, attempts=2
-        )
+        text = tasks_text({1: "进行中", 2: "进行中"}, {1: [], 2: []}, attempts=2)
         tasks = lint_task_deps.parse_tasks(text)
         failed = workflow_control.apply_event(tasks, 1, "failure")
         passed = workflow_control.apply_event(tasks, 2, "quality_passed")
@@ -91,9 +87,7 @@ class WorkflowControlTest(unittest.TestCase):
             {1: "需人工", 2: "未开始", 3: "未开始"},
             {1: [], 2: [1], 3: [2]},
         )
-        decisions = workflow_control.propagate_blocked(
-            lint_task_deps.parse_tasks(text)
-        )
+        decisions = workflow_control.propagate_blocked(lint_task_deps.parse_tasks(text))
         self.assertEqual([2, 3], [decision.task_id for decision in decisions])
 
     def test_retry_count_persists_and_survives_reload(self) -> None:
@@ -113,22 +107,16 @@ class WorkflowControlTest(unittest.TestCase):
             {1: "完成", 2: "进行中", 3: "阻塞"},
             {1: [], 2: [1], 3: [2]},
         )
-        actions = workflow_control.plan_recovery(
-            lint_task_deps.parse_tasks(text), {2}
-        )
+        actions = workflow_control.plan_recovery(lint_task_deps.parse_tasks(text), {2})
         self.assertEqual(
             ["skip", "complete", "unblock"], [item.action for item in actions]
         )
 
     def test_self_dependency_and_missing_field_fail_closed(self) -> None:
-        self_dep = lint_task_deps.parse_tasks(
-            tasks_text({1: "未开始"}, {1: [1]})
-        )
+        self_dep = lint_task_deps.parse_tasks(tasks_text({1: "未开始"}, {1: [1]}))
         with self.assertRaisesRegex(ValueError, "循环"):
             workflow_control.build_waves(self_dep)
-        missing = lint_task_deps.parse_tasks(
-            "### 任务 1：测试\n- 状态：未开始\n"
-        )
+        missing = lint_task_deps.parse_tasks("### 任务 1：测试\n- 状态：未开始\n")
         with self.assertRaisesRegex(ValueError, "缺少 depends_on"):
             workflow_control.build_waves(missing)
         with self.assertRaisesRegex(ValueError, "缺少 depends_on"):
@@ -140,9 +128,7 @@ class WorkflowControlTest(unittest.TestCase):
             workflow_control.apply_event(completed, 1, "merge_success")
         running = lint_task_deps.parse_tasks(tasks_text({1: "进行中"}, {1: []}))
         with self.assertRaisesRegex(ValueError, "换行"):
-            workflow_control.apply_event(
-                running, 1, "failure", "x\n- 状态：完成"
-            )
+            workflow_control.apply_event(running, 1, "failure", "x\n- 状态：完成")
 
     def test_unblock_requires_completed_dependencies(self) -> None:
         ready = lint_task_deps.parse_tasks(
@@ -167,9 +153,7 @@ class WorkflowControlTest(unittest.TestCase):
     def test_cli_uses_atomic_writer_and_persists_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
-            path.write_text(
-                tasks_text({1: "进行中"}, {1: []}), encoding="utf-8"
-            )
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
             result = workflow_control.main(
                 [str(path), "event", "1", "failure", "--write"]
             )
@@ -192,9 +176,7 @@ class WorkflowControlTest(unittest.TestCase):
             path.write_bytes(original.encode("utf-8"))
             path.chmod(0o640)
             original_mode = path.stat().st_mode & 0o777
-            workflow_control.main(
-                [str(path), "event", "1", "failure", "--write"]
-            )
+            workflow_control.main([str(path), "event", "1", "failure", "--write"])
             data = path.read_bytes()
             self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
             self.assertEqual(original_mode, path.stat().st_mode & 0o777)
@@ -231,9 +213,7 @@ class WorkflowControlTest(unittest.TestCase):
     def test_waiting_writer_succeeds_after_lock_release(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
-            path.write_text(
-                tasks_text({1: "进行中"}, {1: []}), encoding="utf-8"
-            )
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
             with workflow_control._task_write_lock(path, 0):
                 helper = (
                     "import os, sys\n"
@@ -268,9 +248,7 @@ class WorkflowControlTest(unittest.TestCase):
                 self.assertIsNone(process.poll())
             _, stderr = process.communicate(timeout=3)
             self.assertEqual(0, process.returncode, stderr)
-            self.assertIn(
-                "- attempts：1", path.read_text(encoding="utf-8")
-            )
+            self.assertIn("- attempts：1", path.read_text(encoding="utf-8"))
 
     def test_invalid_lock_timeout_fails_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -290,16 +268,12 @@ class WorkflowControlTest(unittest.TestCase):
                         ]
                     )
                     self.assertEqual(2, result)
-                    self.assertEqual(
-                        original, path.read_text(encoding="utf-8")
-                    )
+                    self.assertEqual(original, path.read_text(encoding="utf-8"))
 
     def test_windows_try_lock_reraises_unexpected_os_error(self) -> None:
         stream = mock.Mock()
         locking = mock.Mock(side_effect=OSError(errno.EIO, "I/O error"))
-        fake_msvcrt = types.SimpleNamespace(
-            LK_NBLCK=1, LK_UNLCK=2, locking=locking
-        )
+        fake_msvcrt = types.SimpleNamespace(LK_NBLCK=1, LK_UNLCK=2, locking=locking)
         with mock.patch.object(workflow_control.os, "name", "nt"), mock.patch.dict(
             sys.modules, {"msvcrt": fake_msvcrt}
         ):
@@ -308,12 +282,8 @@ class WorkflowControlTest(unittest.TestCase):
 
     def test_windows_try_lock_treats_access_denied_as_contention(self) -> None:
         stream = mock.Mock()
-        locking = mock.Mock(
-            side_effect=OSError(errno.EACCES, "lock violation")
-        )
-        fake_msvcrt = types.SimpleNamespace(
-            LK_NBLCK=1, LK_UNLCK=2, locking=locking
-        )
+        locking = mock.Mock(side_effect=OSError(errno.EACCES, "lock violation"))
+        fake_msvcrt = types.SimpleNamespace(LK_NBLCK=1, LK_UNLCK=2, locking=locking)
         with mock.patch.object(workflow_control.os, "name", "nt"), mock.patch.dict(
             sys.modules, {"msvcrt": fake_msvcrt}
         ):
@@ -322,13 +292,9 @@ class WorkflowControlTest(unittest.TestCase):
     def test_reason_with_backslashes_does_not_corrupt_state_line(self) -> None:
         for reason in (r"C:\1foo", r"\g<0>", r"\1\2"):
             with self.subTest(reason=reason):
-                text = tasks_text(
-                    {1: "进行中"}, {1: []}, attempts=2
-                )
+                text = tasks_text({1: "进行中"}, {1: []}, attempts=2)
                 tasks = lint_task_deps.parse_tasks(text)
-                decision = workflow_control.apply_event(
-                    tasks, 1, "failure", reason
-                )
+                decision = workflow_control.apply_event(tasks, 1, "failure", reason)
                 updated = workflow_control.update_task_state(text, decision)
                 self.assertIn(f"- 状态：需人工（{reason}）", updated)
                 reparsed = lint_task_deps.parse_tasks(updated)
@@ -357,9 +323,7 @@ class WorkflowControlTest(unittest.TestCase):
 
     def test_manual_resolved_event_completes_manual_task(self) -> None:
         text = tasks_text({1: "需人工"}, {1: []})
-        text = text.replace(
-            "- attempts：0", "- attempts：0\n- control_stage：manual"
-        )
+        text = text.replace("- attempts：0", "- attempts：0\n- control_stage：manual")
         tasks = lint_task_deps.parse_tasks(text)
         decision = workflow_control.apply_event(
             tasks, 1, "manual_resolved", "已人工修复并合并"
@@ -386,9 +350,7 @@ class WorkflowControlTest(unittest.TestCase):
         )
 
     def test_plan_recovery_rejects_contradicting_merge_facts(self) -> None:
-        pending = lint_task_deps.parse_tasks(
-            tasks_text({1: "未开始"}, {1: []})
-        )
+        pending = lint_task_deps.parse_tasks(tasks_text({1: "未开始"}, {1: []}))
         with self.assertRaisesRegex(ValueError, "矛盾"):
             workflow_control.plan_recovery(pending, {1})
         blocked = lint_task_deps.parse_tasks(tasks_text({1: "阻塞"}, {1: []}))
@@ -450,9 +412,7 @@ class WorkflowControlTest(unittest.TestCase):
     def test_load_strips_bom_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
-            path.write_bytes(
-                tasks_text({1: "未开始"}, {1: []}).encode("utf-8-sig")
-            )
+            path.write_bytes(tasks_text({1: "未开始"}, {1: []}).encode("utf-8-sig"))
             text, tasks = workflow_control._load(path)
             self.assertFalse(text.startswith("﻿"))
             self.assertIn(1, tasks)
