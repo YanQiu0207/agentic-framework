@@ -77,7 +77,9 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
 
 ### 任务 5：[pending] 定义 Harness Capability Matrix 与 Adapter
 
-- 状态：未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - depends_on：[Task 4]
 - review_profile：standard
 - context_files：本 Change、安装器 Profile/Pack 合同、Codex 与 Claude Code 接入文档
