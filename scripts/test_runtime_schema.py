@@ -51,7 +51,12 @@ class RuntimeSchemaTest(unittest.TestCase):
         documents = [
             artifact(
                 "run-manifest",
-                {"base_commit_sha": COMMIT_SHA, "artifacts": [], "tasks": []},
+                {
+                    "base_commit_sha": COMMIT_SHA,
+                    "artifacts": [],
+                    "tasks": [],
+                    "relations": [],
+                },
                 None,
             ),
             artifact("task-state", {"state": "running", "attempts": 0}),
@@ -126,7 +131,12 @@ class RuntimeSchemaTest(unittest.TestCase):
     def test_illegal_task_attempt_associations_fail_closed(self) -> None:
         run_level = artifact(
             "run-manifest",
-            {"base_commit_sha": COMMIT_SHA, "artifacts": [], "tasks": []},
+            {
+                "base_commit_sha": COMMIT_SHA,
+                "artifacts": [],
+                "tasks": [],
+                "relations": [],
+            },
             None,
         )
         run_level["attempt"] = 1
