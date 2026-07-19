@@ -70,7 +70,7 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 ### 2. 构建共享上下文
 
-- 在 `docs/design-docs/` 下搜索相关 `spec.md` 和 `tasks.md`
+- 在 `openspec/changes/` 下搜索相关 `proposal.md`、`design.md`、Delta 和 `tasks.md`
 - 确定审查文件、上下文文件（caller/callee/接口定义）
 - 根据文件类型和目录确定适用 skill；若改动涉及架构边界 / 模块划分或组件接口 / 数据模型设计，相应将 `bp-architecture-design` / `bp-component-design` 加入 `{skill_list}`
 - 提炼与本次 review 相关的 spec/task 摘要

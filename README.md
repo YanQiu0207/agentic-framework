@@ -39,7 +39,7 @@ python scripts/install_agentic_framework.py E:/path/to/tooling-project \
 | Pack | 用途 | 可用 Profile |
 | --- | --- | --- |
 | `frontend` | 前端设计、React 规范和浏览器验证 | 仅 Tooling |
-| `project-init` | 项目初始化和跨项目共用知识库接线 | 仅 Tooling |
+| `project-init` | 项目初始化、项目知识库和跨项目公共知识库接线 | Production、Tooling |
 | `open-code-review` | 接入外部 OCR 审查工具 | Production、Tooling |
 | `telemetry` | 会话成本和收敛情况分析 | Production、Tooling |
 
@@ -85,7 +85,7 @@ Agent 应该会加载 `workflow-code-review` skill 并按照定义的审查流�
 | --- | --- | --- |
 | 适用场景 | 进入生产环境的功能、修复和架构变更 | 大型非生产工具 |
 | 入口 | `/opsx-requirements-clarification` | `/requirements-clarification` 或 `/quick-design` |
-| Artifact | `openspec/changes/<name>/` | `docs/design-docs/<module>/<feature>/` |
+| Artifact | `openspec/changes/<name>/` | `openspec/changes/<name>/` |
 | 执行节奏 | 逐阶段批准、逐 Task 推进 | Tasks 批准后 DAG 分波自主执行 |
 | Task Review | 普通 Task 单综合审核；高风险 Task 五维审核 | 不启动 LLM Review |
 | 最终 Review | 固定五维集成审核 | 全部完成后一次风险分级审核 |
@@ -107,7 +107,7 @@ Delivery 门禁               →  全部任务完成后校验，通过后五维
 
 门禁由 `scripts/validate_change.py` 提供，只检查文件、任务依赖、状态和覆盖映射等确定性规则。Skill 从自身目录向上定位 `../../scripts/validate_change.py`，因此安装时必须同步复制根目录的 `scripts/` 目录。
 
-本框架不维护 `openspec/specs/` 中央规范库：**代码是当前实现的唯一事实源**，Change Artifacts 只记录本次变更的需求、设计、任务和决策背景。
+本框架维护受控的 `openspec/specs/` 长期辅助知识库；**代码、Schema、配置、测试和运行证据仍是当前实现事实源**。Change Artifacts 记录本次变更契约，并在归档前同步已验证、具有长期价值的 Delta。
 
 ### Tooling 工作流
 
@@ -128,14 +128,14 @@ Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 
 | 主题 | 当前状态 | 文档入口 |
 | --- | --- | --- |
 | 框架特性、开发进展与开源对比 | 当前综合说明 | [框架特性、进展与框架对比](docs/framework-features-status-and-comparison.md) |
-| 双 Profile 总体设计 | 当前合同 | [单仓库双 Profile 合并方案](docs/design-docs/framework-unification/spec.md) |
+| 双 Profile 总体设计 | 当前合同 | [单仓库双 Profile 合并方案](openspec/specs/backend/engineering/tech/framework-unification.md) |
 | 机器验证 Verify | 已实现；支持 `build`、`test`、`lint`、基线对比和 spec drift | [workflow-verification](skills/workflow-verification/SKILL.md)、[配置指南](skills/workflow-verification/reference/config-guide.md) |
-| 项目知识库与跨项目公共知识库 | 统一方案已批准、尚未实施；目标是统一双 Profile 的 `openspec/` Artifact、项目长期 Specs、Change Delta 和公共知识晋升 | [统一方案](docs/design-docs/knowledge-management/spec.md)、[实施任务](docs/design-docs/knowledge-management/tasks.md) |
+| 项目知识库与跨项目公共知识库 | 已实现：双 Profile 统一 `openspec/` Artifact、项目长期 Specs、Change Delta、归档门禁和公共知识晋升 | [统一方案](openspec/specs/backend/engineering/tech/knowledge-management.md)、[实施任务](openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md) |
 | 会话遥测 | `telemetry` Pack 提供成本、Review 和收敛分析 | [会话遥测](docs/tooling/11-session-telemetry.md) |
 | Tooling 执行模型 | 已实现；DAG 分波、worktree、失败隔离和最终 Review | [并行执行模式](docs/tooling/03-parallel-execution-mode.md) |
 | Tooling 演进记录 | 历史设计证据，不是当前实现事实源 | [Tooling 资料索引](docs/tooling/README.md) |
 
-其中 `docs/tooling/` 来自合并前 Tooling 框架的设计快照，部分内容保留了已经废弃的旧版 `project-knowledge`（现状真相机制）等历史描述。判断当前行为时，以代码、Skills 和双 Profile 总体设计为准。现行 `skills/project-knowledge` 是重写后的 intent 沉淀规范（2026-07-19 收编，Tooling Profile），与历史文档所指的旧版不是同一套机制。
+其中 `docs/tooling/` 来自合并前 Tooling 框架的设计快照，部分内容保留了已经废弃的旧版 `project-knowledge` 等历史描述。判断当前行为时，以代码、Skills 和双 Profile 总体设计为准。现行 `skills/project-knowledge` 是 Production 与 Tooling 共用的项目知识路由和归档规范，与历史文档所指的旧版不是同一套机制。
 
 ### 手动运行变更校验
 

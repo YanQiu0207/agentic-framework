@@ -2,7 +2,7 @@
 
 **作者**：Codex
 **日期**：2026-07-19
-**状态**：Approved（设计已确认，尚未实施）
+**状态**：Archived
 
 ---
 
@@ -449,7 +449,7 @@ openspec/
 | DAG、Worktree 和失败恢复 | 按 Production 策略 | 中大型任务使用 Tooling 控制器 |
 | Machine Verification | 强制 | Standard 及以上强制 |
 
-当前「禁止中央 `openspec/specs/`」和「Archive 只移动 Change」的规则需要被本方案替代。长期 Specs 是辅助知识，不是当前实现事实源。
+原「禁止中央 `openspec/specs/`」和「Archive 只移动 Change」的规则已由本方案替代。长期 Specs 是辅助知识，不是当前实现事实源；相关 Skill、脚本和迁移任务按 `tasks.md` 分阶段实施。
 
 ## 13. `project-init` 契约
 
@@ -589,4 +589,3 @@ openspec/
 - 当前 Production Change 契约：`skills/opsx-*/SKILL.md`。
 - 当前 Tooling 项目知识契约：`skills/project-knowledge/SKILL.md`。
 - 架构决策：[ADR 002](../../adr/002-unify-project-knowledge-layout.md)。
-

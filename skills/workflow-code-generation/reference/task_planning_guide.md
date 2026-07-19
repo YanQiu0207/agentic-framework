@@ -1,14 +1,14 @@
 # 任务拆解指南
 
-> 本指南用于将 spec.md 的设计方案拆解为结构化的实施任务清单（tasks.md）。
+> 本指南用于将 proposal.md、design.md 和 Change Delta 的方案拆解为结构化的实施任务清单（tasks.md）。
 >
-> **前置条件**：调用本指南前，SKILL.md 已确保 spec.md 存在且完整。本指南不负责检查 spec 的存在性或质量，只负责拆解。
+> **前置条件**：调用本指南前，SKILL.md 已确保 proposal.md 存在且完整，Standard 路径的 design.md 已完成。本指南不负责检查 spec 的存在性或质量，只负责拆解。
 
 ## 拆解流程
 
-### 第一步：深入理解 spec
+### 第一步：深入理解 Change
 
-1. 完整读取 spec.md
+1. 完整读取 proposal.md、design.md（如有）和 `specs/` 下所有 Delta
 2. 识别所有设计决策和关键约束
 3. 提取可交付产物清单（新文件、修改文件、删除文件）
 4. 识别 spec 中明确提出的验收标准
@@ -93,9 +93,9 @@ Status FooBar(const Request& req, Response* resp) {
 
 #### 原则 5：spec 全覆盖
 
-- 每个 spec 的设计章节必须有对应的任务覆盖
-- **每拆完一个 spec 章节对应的任务，立即更新覆盖映射表**
-- 在任务列表末尾提供 spec 章节 → 任务的映射表
+- proposal.md、design.md 和每个 Delta 的章节必须有对应的任务覆盖
+- **每拆完一个文档章节对应的任务，立即更新覆盖映射表**
+- 在任务列表末尾提供文档章节 → 任务的映射表
 - 如果某个 spec 章节无法映射到任务，需说明原因
 
 #### 原则 6：安全变更序——先建后迁后删
@@ -141,7 +141,7 @@ Status FooBar(const Request& req, Response* resp) {
 ```markdown
 # 实施任务清单
 
-> 由 spec.md 生成
+> 由 proposal.md / design.md / Delta 生成
 > 任务总数: N
 > 核心原则: [一句话概括拆解策略，例如"先建后迁后删——先构建新接口，迁移调用方，最后清理旧代码"]
 
@@ -184,7 +184,7 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 - 文件: `path/to/file1.cc`（新建/修改/删除）, `path/to/file2.h`（修改）
 - depends_on: []
 - review_profile: standard
-- spec 映射: spec 章节 X.Y.Z
+- 文档映射: proposal.md / design.md / Delta 章节 X.Y.Z
 - 说明: 详细说明这个任务要做什么
 - context_files:
   - `path/to/file1.cc` — 直接修改目标，理解现有实现
@@ -208,7 +208,7 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 - 文件: `path/to/file3.cc`（修改）
 - depends_on: [Task 1]
 - review_profile: lightweight
-- spec 映射: spec 章节 X.Y.Z
+- 文档映射: proposal.md / design.md / Delta 章节 X.Y.Z
 - 说明: ...
 - context_files:
   - `path/to/file3.cc` — 直接修改目标
@@ -224,12 +224,28 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
   - [ ] 2.2: 调用 `workflow-test-generation` 为本任务核心逻辑生成测试
   - [ ] 2.3: 运行测试，全部通过
 
-## Spec 覆盖映射
+## 文档覆盖映射
 
-| Spec 章节 | 任务 | 说明 |
+| 文档章节 | 任务 | 说明 |
 |-----------|------|------|
 | X.1 | Task 1, 2 | ... |
 | X.2 | Task 3, 4 | ... |
+
+## 知识同步
+
+| Delta | 长期目标 | 动作 | 状态 | 索引更新 |
+| --- | --- | --- | --- | --- |
+| `specs/<relative-path>` | `openspec/specs/<relative-path>` | ADDED / MODIFIED / REMOVED / RENAMED | Pending | TODO |
+
+无长期知识影响时删除表格数据行，并写明「无长期知识影响：<理由>」。
+
+## 知识冲突
+
+- 结论：待核对。归档前写「无冲突」，或记录双方证据并标记 `Resolved`。
+
+## 实际 Diff 核对
+
+- 核对状态：Pending。归档前记录实际 Diff、Change 和测试证据的核对命令与 PASS 结论。
 ```
 
 ## 质量自检
@@ -241,7 +257,7 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 | 1 | **依赖 DAG 无环 + 无并行冲突 + 必填字段齐全** | 跑 `python <本 skill 目录>/scripts/lint_task_deps.py <tasks.md>` 机器校验：无 dangling 依赖、无环、无「改同一文件却无依赖关系」的并行冲突，且每个任务的必填字段（review_profile / context_files / verification / artifacts / 状态）齐全合法 |
 | 2 | **每个任务编译可通过** | 逐个检查每个任务引用的类型/函数是否已在前序任务或现有代码中定义/声明（含占位桩） |
 | 3 | **每个任务有 verification** | `verification` 可操作（可 grep / 可编译 / 可运行），无"确保正确"类描述；**测试通过必须作为验收标准之一** |
-| 4 | **spec 全覆盖** | 映射表无空白行 |
+| 4 | **文档全覆盖** | 映射表无空白行 |
 | 5 | **粒度合理** | 无单行任务，无跨 5+ 模块任务 |
 | 6 | **变更序安全** | 不存在"先删后建"导致中间态编译失败的情况 |
 | 7 | **构建系统同步** | 新文件有对应的构建配置更新步骤 |
@@ -251,12 +267,13 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 | 11 | **context_files 完整** | 每个任务的 `context_files` 包含直接修改文件 + 上游调用方 + 下游消费方，且精确到函数级 |
 | 12 | **review 档位明确** | 每个任务都有 `review_profile`，且高风险任务不得标为 `lightweight` |
 | 13 | **artifacts 明确** | 每个任务都有 `artifacts`，列出代码、测试、文档、截图或报告产物 |
+| 14 | **知识同步可归档** | 每个 Delta 都有唯一长期目标、动作、状态和索引更新记录；无影响时有明确理由 |
 
 ## 硬性规则
 
 1. **本阶段只生成任务清单**：输出 `tasks.md`，不修改其他任何文件，不写代码。生成完 tasks.md 后再进入编码阶段
 2. **必须先读代码**：不理解现有代码就拆任务是禁止的
-3. **必须引用 spec**：每个任务的 `spec 映射` 字段必须有值
+3. **必须引用 Change 文档**：每个任务的 `spec 映射` 字段必须有值
 4. **必须可编译**：每个任务完成后代码库必须可编译（占位桩必须符合桩规范）
 5. **依赖必须 DAG**：如果发现循环依赖，重新拆分任务直到消除
 6. **verification 必须可操作**：不能是"确保正确"之类的模糊描述；每个任务必须包含可运行的测试命令作为 verification

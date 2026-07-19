@@ -36,10 +36,21 @@ TASK_REVIEW_STATUS_RE = re.compile(
 SECTION_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<title>.+?)\s*$")
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
 CHANGE_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
+MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+GENERATED_KNOWLEDGE_NAMES = {
+    "overview.md",
+    "interfaces.md",
+    "architecture.md",
+    "dependencies.md",
+    "storage.md",
+    "config.md",
+}
 QUICK_STATUS_RE = re.compile(
     r"^\s*(?:\*\*)?状态(?:\*\*)?\s*[:：]\s*Quick\s+Draft\s*$",
     re.IGNORECASE,
 )
+KNOWLEDGE_ROOTS = {"business", "frontend", "backend", "common"}
+COMPLETED_SYNC_STATUSES = {"completed", "complete", "done", "pass", "已完成"}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -203,6 +214,24 @@ def _section_has_content(lines: Sequence[str], alternatives: Sequence[str]) -> b
     return False
 
 
+def _section_lines(lines: Sequence[str], title: str) -> tuple[list[str], int]:
+    """Return the body and source line of a Markdown section."""
+    normalized = _normalized_section_title(title)
+    for index, line in enumerate(lines):
+        match = SECTION_RE.match(line)
+        if not match or _normalized_section_title(match.group("title")) != normalized:
+            continue
+        level = len(match.group("marks"))
+        body: list[str] = []
+        for content_line in lines[index + 1 :]:
+            next_heading = SECTION_RE.match(content_line)
+            if next_heading and len(next_heading.group("marks")) <= level:
+                break
+            body.append(content_line)
+        return body, index + 1
+    return [], 1
+
+
 def _is_placeholder(value: str) -> bool:
     stripped = value.strip().strip("`*")
     return not stripped or stripped in {"-", "待填写", "TODO", "TBD"}
@@ -353,19 +382,6 @@ def _execution_record(lines: Sequence[str], kind: str) -> tuple[bool, int]:
 
 def _validate_common(repo: Path, change: Path) -> list[Finding]:
     findings: list[Finding] = []
-    central_specs = repo / "openspec" / "specs"
-    if central_specs.exists():
-        findings.append(
-            _finding(
-                "OPSX001",
-                central_specs,
-                repo,
-                1,
-                "禁止创建 openspec/specs/ 中央规范库。",
-                "删除中央规范库；当前实现必须从代码读取。",
-            )
-        )
-
     reparse_point = _find_reparse_point(change)
     if reparse_point is not None:
         findings.append(
@@ -380,7 +396,7 @@ def _validate_common(repo: Path, change: Path) -> list[Finding]:
         )
 
     expected_parent = (repo / "openspec" / "changes").resolve()
-    if change.parent != expected_parent:
+    if change.parent.resolve() != expected_parent:
         findings.append(
             _finding(
                 "OPSX002",
@@ -402,6 +418,161 @@ def _validate_common(repo: Path, change: Path) -> list[Finding]:
                 "使用至少两个小写英文片段，例如 add-validation。",
             )
         )
+    return findings
+
+
+def _frontmatter_fields(path: Path) -> dict[str, str]:
+    """Read simple top-level frontmatter fields from a Markdown file."""
+    lines = _read_text(path).splitlines()
+    if not lines or lines[0].strip() != "---":
+        return {}
+    fields: dict[str, str] = {}
+    active_key = ""
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return fields
+        if line[:1].isspace():
+            if active_key and line.strip().startswith("-"):
+                item = line.strip()[1:].strip()
+                if item:
+                    fields[active_key] = " ".join(
+                        value for value in (fields.get(active_key), item) if value
+                    )
+            continue
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        active_key = key.strip()
+        fields[active_key] = value.strip()
+    return {}
+
+
+def _yaml_metadata_fields(path: Path, entity_name: str) -> dict[str, str]:
+    """Extract source metadata for one module/service from a YAML registry."""
+    lines = _read_text(path).splitlines()
+    entity_pattern = re.compile(rf"^(?P<indent>\s*){re.escape(entity_name)}\s*:\s*$")
+    start = -1
+    entity_indent = 0
+    for index, line in enumerate(lines):
+        match = entity_pattern.match(line)
+        if match:
+            start = index + 1
+            entity_indent = len(match.group("indent"))
+            break
+    if start < 0:
+        return {}
+
+    fields: dict[str, str] = {}
+    active_key = ""
+    for line in lines[start:]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent <= entity_indent:
+            break
+        if stripped.startswith("-") and active_key:
+            item = stripped[1:].strip()
+            if item:
+                fields[active_key] = " ".join(
+                    value for value in (fields.get(active_key), item) if value
+                )
+            continue
+        if ":" not in stripped:
+            continue
+        key, value = stripped.split(":", 1)
+        active_key = key.strip()
+        if active_key in {"source_ref", "source_paths", "generated_at"}:
+            fields[active_key] = value.strip()
+    return fields
+
+
+def _generated_metadata(document: Path, root: Path) -> dict[str, str]:
+    """Return per-file metadata, falling back to the nearest domain meta.yaml."""
+    fields = _frontmatter_fields(document)
+    current = document.parent
+    while current == root or root in current.parents:
+        registry = current / "meta.yaml"
+        if registry.is_file():
+            entity_name = document.parent.name
+            for key, value in _yaml_metadata_fields(registry, entity_name).items():
+                if not fields.get(key):
+                    fields[key] = value
+            break
+        if current == root:
+            break
+        current = current.parent
+    return fields
+
+
+def _validate_project_knowledge(repo: Path) -> list[Finding]:
+    """Validate the minimum project knowledge skeleton before archive."""
+    findings: list[Finding] = []
+    openspec = repo / "openspec"
+    required_indexes = (
+        openspec / "index.md",
+        openspec / "specs" / "index.md",
+        openspec / "issues" / "index.md",
+    )
+    for index in required_indexes:
+        if not index.is_file():
+            findings.append(
+                _finding(
+                    "OPSX049",
+                    index,
+                    repo,
+                    1,
+                    "项目知识库缺少必需索引。",
+                    "创建 openspec/index.md、specs/index.md 和 issues/index.md。",
+                )
+            )
+
+    for index in openspec.rglob("index.md") if openspec.is_dir() else ():
+        for line_number, line in enumerate(_read_text(index).splitlines(), start=1):
+            for raw_target in MARKDOWN_LINK_RE.findall(line):
+                target = raw_target.strip().strip("<>").split("#", 1)[0]
+                if not target or re.match(r"^(?:https?|mailto):", target):
+                    continue
+                linked = (index.parent / target).resolve()
+                if not linked.exists():
+                    findings.append(
+                        _finding(
+                            "OPSX050",
+                            index,
+                            repo,
+                            line_number,
+                            f"知识索引链接目标不存在：{raw_target}",
+                            "修正索引链接或创建目标条目后再归档。",
+                        )
+                    )
+
+    specs = openspec / "specs"
+    generated_roots = (specs / "frontend", specs / "backend")
+    for root in generated_roots:
+        if not root.is_dir():
+            continue
+        for document in root.rglob("*.md"):
+            if document.name not in GENERATED_KNOWLEDGE_NAMES:
+                continue
+            if "custom" in document.relative_to(root).parts:
+                continue
+            fields = _generated_metadata(document, root)
+            missing = [
+                field
+                for field in ("source_ref", "source_paths", "generated_at")
+                if not fields.get(field)
+            ]
+            if missing:
+                findings.append(
+                    _finding(
+                        "OPSX051",
+                        document,
+                        repo,
+                        1,
+                        "自动生成知识缺少来源元数据：" + ", ".join(missing),
+                        "补充 source_ref、source_paths 和 generated_at frontmatter。",
+                    )
+                )
     return findings
 
 
@@ -470,7 +641,7 @@ def _validate_artifacts(repo: Path, change: Path) -> tuple[list[Finding], str]:
                         )
                     )
         else:
-            spec_files = list((change / "specs").glob("*/spec.md"))
+            spec_files = list((change / "specs").rglob("*.md"))
             if not any(_nonempty_file(path) for path in spec_files):
                 findings.append(
                     _finding(
@@ -478,7 +649,7 @@ def _validate_artifacts(repo: Path, change: Path) -> tuple[list[Finding], str]:
                         change / "specs",
                         repo,
                         1,
-                        "Standard 路径至少需要一个非空 specs/<capability>/spec.md。",
+                        "Standard 路径至少需要一个非空 specs/ 下的 Delta Markdown。",
                         "创建本次变更的 Requirements Spec。",
                     )
                 )
@@ -495,6 +666,193 @@ def _validate_artifacts(repo: Path, change: Path) -> tuple[list[Finding], str]:
                     )
                 )
     return findings, change_type
+
+
+def _delta_targets(repo: Path, change: Path) -> tuple[list[Finding], dict[str, str]]:
+    """Validate deterministic Delta paths and return source-to-target mappings."""
+    findings: list[Finding] = []
+    mappings: dict[str, str] = {}
+    specs_root = change / "specs"
+    if not specs_root.is_dir():
+        return findings, mappings
+    for delta in specs_root.rglob("*.md"):
+        if not _nonempty_file(delta):
+            continue
+        relative = delta.relative_to(specs_root)
+        if len(relative.parts) < 2 or relative.parts[0] not in KNOWLEDGE_ROOTS:
+            findings.append(
+                _finding(
+                    "OPSX042",
+                    delta,
+                    repo,
+                    1,
+                    "Delta 路径不能映射到受控长期 Specs。",
+                    "将 Delta 放到 specs/business、frontend、backend 或 common 下，并镜像长期目标路径。",
+                )
+            )
+            continue
+        source = delta.relative_to(change).as_posix()
+        mappings[source] = (Path("openspec/specs") / relative).as_posix()
+    return findings, mappings
+
+
+def _knowledge_sync_rows(lines: Sequence[str]) -> list[tuple[int, list[str]]]:
+    body, heading_line = _section_lines(lines, "知识同步")
+    rows: list[tuple[int, list[str]]] = []
+    for offset, line in enumerate(body, start=1):
+        if not line.strip().startswith("|"):
+            continue
+        cells = [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 5 or all(set(cell) <= {"-", ":"} for cell in cells):
+            continue
+        if cells[0].casefold() in {"delta", "增量"}:
+            continue
+        rows.append((heading_line + offset, cells))
+    return rows
+
+
+def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
+    """Validate archive knowledge bookkeeping without doing semantic merges."""
+    _, mappings = _delta_targets(repo, change)
+    findings: list[Finding] = []
+    proposal_path = change / "proposal.md"
+    tasks_path = change / "tasks.md"
+    proposal_lines = (
+        _read_text(proposal_path).splitlines() if proposal_path.is_file() else []
+    )
+    impact_body, impact_line = _section_lines(proposal_lines, "知识影响")
+    impact_text = "\n".join(impact_body).strip()
+    if not impact_text or _is_placeholder(impact_text):
+        findings.append(
+            _finding(
+                "OPSX043",
+                proposal_path,
+                repo,
+                impact_line,
+                "Proposal 缺少明确的知识影响结论。",
+                "添加「知识影响」章节，列出受影响长期知识，或写明无影响及理由。",
+            )
+        )
+    no_impact = bool(re.search(r"无长期知识影响\s*[:：,，;；-]\s*\S", impact_text))
+    if mappings and no_impact:
+        findings.append(
+            _finding(
+                "OPSX043",
+                proposal_path,
+                repo,
+                impact_line,
+                "Proposal 声明无长期知识影响，但 Change 包含 Delta。",
+                "修正知识影响结论，或移除不应长期同步的 Delta。",
+            )
+        )
+
+    tasks_lines = _read_text(tasks_path).splitlines() if tasks_path.is_file() else []
+    rows = _knowledge_sync_rows(tasks_lines)
+    row_mappings: dict[str, tuple[str, str, str, int]] = {}
+    for line_number, cells in rows:
+        source, target, action, status, index_update = cells[:5]
+        if source in row_mappings:
+            findings.append(
+                _finding(
+                    "OPSX044",
+                    tasks_path,
+                    repo,
+                    line_number,
+                    f"知识同步源 {source} 存在重复映射。",
+                    "每个 Delta 或知识产物只保留一条同步记录。",
+                )
+            )
+        row_mappings[source] = (target, action, status, line_number)
+        if action.casefold() not in {"added", "modified", "removed", "renamed"}:
+            findings.append(
+                _finding(
+                    "OPSX044",
+                    tasks_path,
+                    repo,
+                    line_number,
+                    "知识同步动作不是 ADDED、MODIFIED、REMOVED 或 RENAMED。",
+                    "记录标准知识同步动作。",
+                )
+            )
+        if status.casefold() not in COMPLETED_SYNC_STATUSES:
+            findings.append(
+                _finding(
+                    "OPSX045",
+                    tasks_path,
+                    repo,
+                    line_number,
+                    f"知识 {source} 的同步尚未完成。",
+                    "人工核对并同步项目知识后，将状态更新为 Completed。",
+                )
+            )
+        if _is_placeholder(index_update):
+            findings.append(
+                _finding(
+                    "OPSX046",
+                    tasks_path,
+                    repo,
+                    line_number,
+                    "知识同步记录缺少索引更新结果或无需更新理由。",
+                    "在「索引更新」列记录目标索引，或写明无需更新及理由。",
+                )
+            )
+    for source, expected_target in mappings.items():
+        row = row_mappings.get(source)
+        if row is None or row[0] != expected_target:
+            findings.append(
+                _finding(
+                    "OPSX044",
+                    tasks_path,
+                    repo,
+                    1,
+                    f"Delta {source} 缺少准确的长期目标映射。",
+                    f"在「知识同步」表中映射到 {expected_target}。",
+                )
+            )
+            continue
+    if not mappings and not no_impact and not rows:
+        findings.append(
+            _finding(
+                "OPSX044",
+                tasks_path,
+                repo,
+                1,
+                "知识影响非空，但没有可校验的 Delta 映射。",
+                "补充镜像 Delta 和知识同步记录，或在 Proposal 中说明无影响及理由。",
+            )
+        )
+
+    conflict_body, conflict_line = _section_lines(tasks_lines, "知识冲突")
+    conflict_text = "\n".join(conflict_body).strip()
+    resolved = "无冲突" in conflict_text or bool(
+        re.search(r"状态\s*[:：]\s*(?:Resolved|已解决)\b", conflict_text, re.IGNORECASE)
+    )
+    if not resolved:
+        findings.append(
+            _finding(
+                "OPSX047",
+                tasks_path,
+                repo,
+                conflict_line,
+                "知识冲突检查缺失或仍未解决。",
+                "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+            )
+        )
+    diff_body, diff_line = _section_lines(tasks_lines, "实际 Diff 核对")
+    if not re.search(
+        r"(?:PASS|退出码\s*0|已核对)", "\n".join(diff_body), re.IGNORECASE
+    ):
+        findings.append(
+            _finding(
+                "OPSX048",
+                tasks_path,
+                repo,
+                diff_line,
+                "缺少实际 Diff 与 Change/测试证据的核对记录。",
+                "在「实际 Diff 核对」章节记录命令或证据及 PASS 结论。",
+            )
+        )
+    return findings
 
 
 def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[Finding]:
@@ -900,7 +1258,8 @@ def validate_change(
         raise InvocationError(f"仓库目录不存在：{repo}")
     change = change.absolute() if change.is_absolute() else (repo / change).absolute()
     reparse_component = _find_reparse_path_component(repo, change)
-    if reparse_component is not None:
+    allowed_openspec_link = (repo / "openspec").absolute()
+    if reparse_component is not None and reparse_component != allowed_openspec_link:
         raise InvocationError(
             f"Change 路径不得经过符号链接、Junction 或其他重解析点：{reparse_component}"
         )
@@ -916,11 +1275,15 @@ def validate_change(
         return ValidationResult(phase, "standard", tuple(findings))
     artifact_findings, change_type = _validate_artifacts(repo, change)
     findings.extend(artifact_findings)
+    delta_findings, _ = _delta_targets(repo, change)
+    findings.extend(delta_findings)
     findings.extend(_validate_plan(repo, change, change_type))
     if phase == "delivery":
         findings.extend(_validate_delivery(repo, change, "PENDING"))
     elif phase == "archive":
         findings.extend(_validate_delivery(repo, change, "PASS"))
+        findings.extend(_validate_archive_knowledge(repo, change))
+        findings.extend(_validate_project_knowledge(repo))
         assert archive_target is not None
         archive_target = (
             archive_target if archive_target.is_absolute() else repo / archive_target

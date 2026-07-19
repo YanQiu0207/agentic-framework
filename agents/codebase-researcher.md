@@ -20,7 +20,7 @@ model: inherit
 
 ### 第二步：系统化调查
 
-调查前先查 `docs/arch-snapshots/<module>/`：`vcs_ref` 与当前版本库一致的快照直接作为导航起点，避免从零重推；已过期的快照仅作线索，结论以代码为准。
+调查前先读 `openspec/index.md`，再按端、业务域和模块定位 `openspec/specs/` 中已有的代码派生知识。`source_ref` 与当前版本库一致的内容可作为导航起点；已过期内容仅作线索，结论以代码为准。知识与代码冲突时必须在报告中同时给出双方证据和不确定性。
 
 使用结构化方法：
 
@@ -57,18 +57,18 @@ model: inherit
 
 报告完成后，评估本次探索的信息密度：
 
-**符合以下任意一条，主动询问用户是否落地到 `docs/arch-snapshots/<module>/`：**
+**符合以下任意一条，主动询问用户是否落地到 `openspec/specs/<端>/<业务域>/<模块或服务>/`：**
 - 产出了模块整体概览（职责、边界、主要组件）
 - 梳理了跨模块的调用链或数据流
 - 发现了重要的设计模式或关键权衡
 
 询问方式（若涉及多模块，依次询问每个主要模块）：
-> 「本次探索产出了 [module] 的 [结构概览 / 调用链 / 设计洞察]，是否落地到 docs/arch-snapshots/[module]/？
-> - structure track：模块边界、接口、数据流（有时效性，版本库提交后失效）
-> - insights track：设计模式、关键权衡（长期有效；若涉及不可逆决策或多模块约束，可直接升格为 ADR）
+> 「本次探索产出了 [module] 的 [结构概览 / 调用链 / 设计洞察]，是否落地到 `openspec/specs/<frontend|backend>/<domain>/<module>/`？
+> - 代码派生文档：模块边界、接口、架构、依赖、存储或配置（有时效性，记录 `source_ref` 和 `source_paths`）
+> - `custom/`：人工背景、约束、决策和踩坑（自动生成任务禁止覆盖）
 > 可分开选择。」
 
-若探索涉及多模块，跨模块调用链写入调用发起方（caller 侧）的 structure track，并在文件头注明依赖模块。
+若探索涉及多模块，跨模块调用链写入调用发起方（caller 侧）的代码派生文档，并在文件头注明依赖模块。
 
 **落地前执行 Overlap 检测**（按 project-knowledge 规范加载后执行）：
 - 先获取当前 `vcs_ref`：git 仓库用 `git rev-parse HEAD`（写为 `git:<hash>`）；SVN 用 `svn info --show-item last-changed-revision`（写为 `svn:<revision>`）；无版本控制写 `N/A`
@@ -76,7 +76,7 @@ model: inherit
 - 已有文件但 `vcs_ref` 已过期或为 `N/A` → 告知用户并询问「更新 / 跳过」
 - 无文件 → 直接写入
 
-**用户确认后方可写入，不自动写入。** frontmatter 必填字段：`module`、`vcs_ref`、`generated_at`、`track`、`expires_hint`。
+**用户确认后方可写入，不自动写入。** 先根据源码路径明确端、业务域和模块；无法唯一确定目标时必须询问，不得猜测。代码派生内容必填 `source_ref`、`source_paths` 和 `generated_at`，自动任务不得覆盖 `custom/`。
 
 **以下情况跳过此步，不询问：**
 - 探索范围仅限单个文件内，且未产出跨文件调用关系或模块级概览

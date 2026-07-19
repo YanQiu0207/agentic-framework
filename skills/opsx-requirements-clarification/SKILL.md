@@ -1,6 +1,6 @@
 ---
 name: opsx-requirements-clarification
-description: OpenSpec 需求澄清。初始化活跃 Change 目录，生成 proposal.md 和 capability specs。只负责明确「要解决什么问题」，禁止在本阶段讨论设计方案。
+description: OpenSpec 需求澄清。初始化活跃 Change 目录，生成 proposal.md 和镜像长期知识路径的 Delta Specs。只负责明确「要解决什么问题」，禁止在本阶段讨论设计方案。
 ---
 
 > 输出一行：`Using opsx-requirements-clarification`
@@ -46,8 +46,7 @@ description: OpenSpec 需求澄清。初始化活跃 Change 目录，生成 prop
 openspec/changes/<change-name>/
 ├── proposal.md             # 为什么改、改什么
 └── specs/
-    └── [capability]/
-        └── spec.md         # 增量规范（ADDED / MODIFIED / REMOVED）
+    └── <长期 Specs 相对路径>.md  # 增量规范（ADDED / MODIFIED / REMOVED / RENAMED）
 ```
 
 ## 触发条件
@@ -59,6 +58,13 @@ openspec/changes/<change-name>/
 ---
 
 ## 工作流程
+
+### Step -1：读取项目知识路由
+
+先读取 `openspec/index.md`，再按其中索引定向读取相关的
+`openspec/specs/business/`、历史 Change 和 `openspec/issues/`。只加载与当前需求直接相关的条目，
+并回到代码、Schema、配置、测试或运行证据核实现状。知识仅用于辅助理解；发现冲突时，必须同时
+记录知识结论、代码证据、版本信息和不确定性，禁止静默选择任意一方。
 
 ### Step 0：确定变更名称，初始化目录
 
@@ -183,10 +189,13 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 
 **实时更新**：确认后，更新两处：
 1. `proposal.md` 的 `3.1 功能性需求`（高层描述）
-2. 识别受影响的 capability，为每个创建 `specs/<capability>/spec.md`：
+2. 识别受影响的长期知识路径，为每个创建镜像 Delta：
    - 复制 `skills/opsx-requirements-clarification/reference/spec_capability_template.md`
-   - 填写状态（ADDED/MODIFIED/REMOVED）和详细规范内容
-   - capability 名称由 AI 根据领域判断，如有疑问询问用户
+   - 路径必须镜像 `openspec/specs/` 下的目标相对路径，例如
+     `openspec/changes/<change>/specs/business/order/rules.md` 对应
+     `openspec/specs/business/order/rules.md`
+   - 填写状态（ADDED/MODIFIED/REMOVED/RENAMED）和详细规范内容
+   - 无长期知识影响时，在 `proposal.md` 的「知识影响」章节明确说明理由，不创建占位 Delta
 
 ### Step 5：确认非功能性需求
 
@@ -224,7 +233,7 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 **目标**：回顾三个产出文件的完整性，确认无遗漏。
 
 **操作**：
-1. 读取 `proposal.md` 和所有 `specs/*/spec.md`
+1. 读取 `proposal.md` 和 `specs/` 下所有 Delta Markdown
 2. 向用户展示摘要，确认无需补充或修改
 3. 如有修改，更新对应内容
 
@@ -236,7 +245,7 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
   openspec/changes/<change-name>/
   ├── proposal.md（背景、目标、需求概览）
   └── specs/
-      └── <capability>/spec.md（增量规范）
+      └── <长期 Specs 相对路径>.md（增量规范）
 
 如果准备好了，说「开始设计」进入 system design 阶段。
 如果改动低风险且不需要独立 Design，先将 Proposal 明确标记为 `Quick Draft`，再进入编码。
@@ -259,6 +268,7 @@ Plan 门禁要求 `tasks.md`，而本 Skill 只负责需求产物，不得为通
 5. **禁止生成设计内容**：设计方案由 `opsx-system-design` skill 负责
 6. **实时更新文件**：每个步骤结束后立即更新对应内容，不要等到最后一次性写入
 7. **不维护当前实现副本**：`proposal.md` 只记录本次变更 intent，当前实现必须从代码读取，不得从历史 Archive 推断
+8. **知识路径可映射**：Change-local Delta 必须镜像 `openspec/specs/` 的长期目标路径
 
 ## 反模式
 

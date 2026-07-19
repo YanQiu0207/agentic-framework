@@ -19,7 +19,7 @@
 5. **Production 尚缺真实生产项目验收**：当前测试能证明框架合同和确定性脚本工作，不能证明生产项目中的缺陷率、交付效率或 Token ROI。
 6. **可靠性与安全治理已落地**：Tooling 写状态使用跨进程锁和原子替换；安装器提供事务回滚；未跟踪任务产物采用非破坏性废弃和会话历史恢复规则。
 
-当前总合同见 `docs/design-docs/framework-unification/spec.md:14-31,97-126`；实现边界审计见 `docs/tooling/12-development-workflow-absorption-audit.md:3-32,141-188`。
+当前总合同见 `openspec/specs/backend/engineering/tech/framework-unification.md`；实现边界审计见 `docs/tooling/12-development-workflow-absorption-audit.md:3-32,141-188`。
 
 ## 2. 状态与证据口径
 
@@ -37,7 +37,7 @@
 证据优先级为：
 
 1. 当前代码和测试。
-2. `docs/design-docs/framework-unification/spec.md` 当前合同。
+2. `openspec/specs/backend/engineering/tech/framework-unification.md` 当前合同。
 3. 已归档的 Feature Spec、Tasks 和 ADR。
 4. `docs/tooling/` 历史设计快照。
 
@@ -56,17 +56,17 @@
 
 证据：`README.md:70-112`、`scripts/install_agentic_framework.py:23-95,266-320`。
 
-### 3.2 代码是当前实现事实源
+### 3.2 代码是当前实现事实源，长期 Specs 辅助理解
 
-框架不维护 `openspec/specs/` 中央规范库：
+框架维护受控的 `openspec/specs/` 长期辅助知识库，但它不替代当前实现证据：
 
 - 代码描述当前模块、接口、数据流和行为。
 - Change Artifact 描述本次为什么改、准备改什么。
-- ADR 描述长期决策及权衡。
+- 长期 Specs 保存业务背景、人工约束和带来源版本的代码派生知识。
 - Archive 保存历史变更证据。
-- 架构快照只作有时效性的导航，不与代码争夺当前真相。
+- 知识与代码冲突时必须展示双方证据和不确定性，不得静默选择。
 
-证据：`README.md:98`、`docs/design-docs/framework-unification/spec.md:97-116`。
+证据：`openspec/specs/backend/engineering/tech/knowledge-management.md`、`openspec/specs/backend/engineering/tech/framework-unification.md`。
 
 ### 3.3 LLM 与确定性程序分工
 
@@ -212,33 +212,35 @@ python scripts/install_agentic_framework.py <project> \
 
 当前限制：浏览器、页面环境和项目依赖需要目标项目提供；仓库内没有代表真实业务页面质量的统一 E2E 基准。
 
-### 4.6 project-init 与跨项目共用知识库
+### 4.6 `project-init` 与统一知识管理
 
-`project-init` 状态：**已实现但可选，仅 Tooling。**
+`project-init` 状态：**已实现，Production 与 Tooling 共用。**
 
 它负责：
 
 - Git 或 Git+SVN 初始化。
-- 创建 `.gitignore`、`CLAUDE.md`、`AGENTS.md`、README 和 Docs 骨架。
+- 创建 `.gitignore`、`CLAUDE.md`、`AGENTS.md`、README 和最小 `openspec/` 骨架。
 - 写入版本管理约束。
-- 接线外部跨项目共用知识库。
+- 支持项目内知识库，或外部私有目录通过链接映射为项目 `openspec/`。
+- 独立询问是否接线跨项目公共知识库。
 - 创建首次提交。
 
-知识库状态：**部分实现。**
+知识管理状态：**框架合同与机器门禁已实现；外部公共库内容治理仍需独立执行。**
 
-- 设计采用 Markdown + Git + 分层索引 + 按需检索 + 增量更新。
-- `project-init` 能从全局配置取得知识库路径，并向项目 `AGENTS.md` 写入检索和沉淀规则。
-- 历史资料记录了 `domains/`、`issues/`、`sources/`、`changes/`、`projects/` 和 `archives/` 目录模型。
-- 历史进度结论是「骨架和工作流挂点已有，真实条目规模、两级索引和四类真实问题验收尚未完成」。
-- 2026-07-19 起：查询与写入规则集中在知识库根 `index.md`（定量检索预算 + 写入纪律），结构与预算由知识库仓库 `scripts/lint_kb.py` 机器检查，详见 `docs/tooling/14-cross-agent-shared-memory.md`。
+- 两个 Profile 统一使用 `openspec/specs/`、`openspec/changes/` 和 `openspec/issues/`。
+- 长期 Specs 只辅助理解；当前实现仍以代码、Schema、配置、测试和运行证据核实，冲突必须显式报告。
+- Change 使用镜像路径记录 Delta；Archive 前必须完成知识影响、同步状态、实际 Diff 和冲突门禁。
+- `project-knowledge` 为 Shared Core，统一需求、设计、编码、测试、Review、排障和归档的读写路由。
+- 公共知识候选必须留在项目内或交付报告，经用户确认、泛化和脱敏后才能进入公共库。
+- 框架提供公共库只读校验器和迁移指南；当前真实公共库仍有 9 条元数据债务和 2 条索引违规，框架任务未直接改写外部仓库。
 
-证据：`skills/project-init/SKILL.md:159-177`、`docs/tooling/09-personal-knowledge-base-plan.md:113-209,275-338`。
+证据：`openspec/specs/backend/engineering/tech/knowledge-management.md`、`skills/project-init/SKILL.md`、`skills/project-knowledge/SKILL.md`、`scripts/validate_change.py`、`scripts/validate_shared_knowledge.py`。
 
 重要边界：
 
-- 知识库是外部跨项目知识资产，不是本框架的中央当前事实库。
-- 旧版 `project-knowledge`（现状真相机制）和 `opsx-project-knowledge` Skills 已废弃；现行 `skills/project-knowledge` 是 2026-07-19 收编的重写版（只沉淀 intent），收编决策见 `docs/tooling/14-cross-agent-shared-memory.md` 第 6 节。
-- 本次研究没有进一步审计 `E:/work/shared-knowledge-base` 的当前内容和实际命中率，因此不能宣称知识库建设已经完成。
+- 项目知识库与跨项目公共知识库严格分域；「项目私有」是检索作用域，不等于文件系统安全隔离。
+- 公共知识只能作为通用参考，不能覆盖项目代码事实或活跃 Change。
+- 外部公共库内容债务修复和真实查询效果仍需在该独立仓库完成并提交。
 
 ### 4.7 Telemetry Pack
 
@@ -332,7 +334,7 @@ python scripts/install_agentic_framework.py <project> \
 | Pack | 状态 | Profile | 用途 |
 | --- | --- | --- | --- |
 | `frontend` | 已实现 | Tooling | 前端设计、React 规范和浏览器验证 |
-| `project-init` | 已实现 | Tooling | 项目初始化和外部知识库接线 |
+| `project-init` | 已实现 | Production、Tooling | 项目初始化、项目知识库和公共知识库接线 |
 | `open-code-review` | 已实现薄封装 | Production、Tooling | 调用已安装的外部 OCR CLI |
 | `telemetry` | 第一层已实现 | Production、Tooling | 离线会话分析 |
 

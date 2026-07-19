@@ -1,6 +1,6 @@
 # Agentic Engineering Framework 单仓库双 Profile 最终方案
 
-**状态**：Approved
+**状态**：Superseded（当前合同已迁移到 `openspec/specs/backend/engineering/tech/framework-unification.md`）
 
 **日期**：2026-07-19
 
@@ -27,7 +27,7 @@
 - 把 Production 与 Tooling 强行合成一条工作流。
 - 在目标项目中默认同时安装两套生命周期入口。
 - 用双向同步、定期复制或 Git subtree 长期维护两个实现副本。
-- 恢复 `openspec/specs/` 中央现行规范库。
+- 把受控的 `openspec/specs/` 当作当前实现事实源。
 - 把两套 Tasks 控制逻辑合成一个巨型状态机。
 - 按「文件较新」直接覆盖同名共享文件。
 
@@ -61,7 +61,7 @@
 2. 机器 Verification 与 LLM Review 是并列质量门，不能互相替代。
 3. Tooling 的速度来自删除重复 Review、重复审批和重复编排，而不是删除 worktree、Verify 或失败隔离。
 4. 确定性脚本应负责状态、依赖、恢复、锁和门禁，LLM 负责语义判断。
-5. 代码是当前实现事实源；文档主要保存 intent、权衡和本次变更目标。
+5. 代码、Schema、配置、测试和运行证据是当前实现事实源；文档保存本次变更契约、长期辅助知识、intent 和权衡。
 
 需要由最新决策覆盖的旧规则：
 
@@ -83,9 +83,8 @@ E:\github\agentic-engineering-framework
 
 ### 3.2 两个 Profile，不是一条流水线的两个开关
 
-Production 与 Tooling 的差异不只是 Review 严格度，还包括：
+Production 与 Tooling 共享 Artifact 协议，但生命周期差异不只是 Review 严格度，还包括：
 
-- Artifact 模型。
 - 人工介入点。
 - 执行策略。
 - 归档要求。
@@ -98,22 +97,25 @@ Production 与 Tooling 的差异不只是 Review 严格度，还包括：
 
 | 信息 | 权威来源 |
 | --- | --- |
-| 当前模块、接口、数据流和运行行为 | 代码 |
-| 本次变更的需求、设计和验收 | Change Artifacts 或 Tooling Spec |
+| 用户当前明确要求 | 当前任务目标 |
+| 本次变更的需求、设计和验收 | 活跃 Change Artifacts |
+| 当前模块、接口、数据流、配置和运行行为 | 代码、Schema、配置、测试和运行证据 |
 | Production 当前执行状态 | 活跃 Change 的 `tasks.md`；校验器只读，不维护平行状态 |
 | Tooling 当前执行状态 | `tasks.md`；`workflow_control.py` 负责校验和原子写回，不另建平行状态 |
-| 重大长期决策和放弃方案 | ADR |
-| 时效性导航材料 | 带 `vcs_ref` 的架构快照 |
+| 项目长期 Specs、重大决策和时效性导航材料 | 辅助理解，不是当前实现事实源 |
+| 项目 Issues 和跨项目公共知识 | 排障与通用参考，不是当前实现事实源 |
 | Review、Verify 和运行证据 | 绑定本次 change、commit 或 run 的报告 |
-| 历史变更 | Archive |
+| 历史变更 | Archive，仅作为历史证据 |
 
-禁止创建：
+允许维护受控的项目长期辅助知识：
 
 ```text
 openspec/specs/
 ```
 
-Production 的 `specs/` 只能存在于单次 Change 目录中，不是当前实现真相。
+`openspec/specs/` 与 Change-local `specs/` 的路径、Delta 和归档同步语义以[统一知识管理方案](../knowledge-management/spec.md)为准。长期 Specs 只辅助理解项目背景、业务规则和人工上下文，不能覆盖当前代码事实。
+
+知识与代码、Schema、配置、测试或运行证据冲突时，必须同时报告知识结论、代码证据、版本信息和仍然存在的不确定性。未经确认，不得静默选择任意一方，也不得自动改写代码或人工知识。活跃 Change 属于本次任务契约，不按普通辅助知识处理；交付前必须验证实现是否满足 Change。
 
 ### 3.4 删除重复成本，不删除质量门
 
@@ -167,6 +169,7 @@ Requirements Clarification
     → Delivery 门禁
     → 一次五维 Strict 集成 Review
     → 必要时定向 Re-review
+    → 长期知识影响检查与 Delta 同步
     → Archive 门禁
 ```
 
@@ -182,7 +185,7 @@ Requirements Clarification
 - 首轮存在 P0/P1 才进入修复循环。
 - 修复后重跑受影响的构建、测试和 Delivery，再执行定向 re-review。
 - 定向 re-review 最多两轮，仍未通过则转人工。
-- Archive 只移动本次 Change，不生成或同步中央 Specs。
+- Archive 前必须完成知识影响检查；只将已验证且值得长期保留的 Delta 同步到 `openspec/specs/`，冲突未解决时不得静默合并。
 - 发布、回滚、灰度、数据迁移、安全、兼容性和容量检查按风险条件启用，不在首轮合并中建设完整发布平台。
 
 ### 5.4 变更目录
@@ -206,6 +209,8 @@ openspec/changes/<change-name>/
 └── tasks.md
 ```
 
+两个 Profile 的 Change 均位于 `openspec/changes/<change-name>/`。Change-local `specs/` 镜像长期 `openspec/specs/` 的相对路径；Production 与 Tooling 可以选择不同的文档完整度，但不能另建第二套 Artifact 根目录。
+
 ## 6. Tooling Profile
 
 ### 6.1 定位
@@ -228,6 +233,7 @@ Tasks 获批
     → 全局 Machine Verification
     → 一次风险分级 Code Review
     → 必要时定向 Re-review
+    → 长期知识影响检查与 Delta 同步
     → 交付和 intent 检查
 ```
 
@@ -242,6 +248,7 @@ Tasks 获批
   - 普通风险：`standard`。
   - 高风险：自动升级为 `strict`。
 - P0/P1 才触发修复；修复后只执行定向 re-review。
+- Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree 和失败恢复策略中。
 - 速度优化不得通过删除 Verification、worktree、失败接管或 intent 检查实现。
 
 ## 7. Shared Core
@@ -263,7 +270,7 @@ Tasks 获批
 
 一项规则只有同时满足以下条件才进入 Core：
 
-1. 与 Production、Tooling 的 Artifact 模型无关。
+1. 适用于 Production、Tooling 共用的 Artifact 协议，或与 Artifact 无关。
 2. 不改变任一 Profile 的人工介入点。
 3. 不依赖某个 Profile 独有的状态字段。
 4. 两个 Profile 都能通过测试证明其价值。
@@ -274,7 +281,7 @@ Tasks 获批
 
 - `bp-cola-ddd`。
 - 旧 `project-knowledge` 中与代码事实源冲突的机制。
-- OPSX Artifact 和 Archive 规则。
+- Production 专属的 Artifact 门禁和 Archive 审批策略。
 - Tooling 的 waves、attempts、control stage 和写锁状态。
 - Profile 专属的触发和路由规则。
 
@@ -453,7 +460,7 @@ task
 - 全部 `opsx-*`。
 - `validate_change.py` 及 Fixtures。
 - OPSX Commands。
-- 无中央规范库和代码事实源方案文档。
+- 受控长期 Specs、Change Delta、归档同步和代码事实源方案文档。
 
 ### 14.3 Tooling
 
@@ -572,7 +579,8 @@ E:\work\my-ai-resource\agentic-framework
 ### 16.2 Production
 
 - Standard 和 Quick 均通过 Plan、Delivery、Archive 门禁。
-- 不生成或维护中央 `openspec/specs/`。
+- 受控维护 `openspec/specs/`，并始终将其定位为辅助知识而不是当前实现事实源。
+- Archive 前完成知识影响检查和已验证 Delta 同步；知识冲突不得静默处理。
 - 缺少或失效的 Verify 配置失败关闭。
 - 普通 Task 使用单综合审核，高风险 Task 使用五维审核，每个 Task 首轮仅一次。
 - 全部任务完成后执行一次五维 Strict 集成审核。
@@ -581,6 +589,7 @@ E:\work\my-ai-resource\agentic-framework
 ### 16.3 Tooling
 
 - Fast-Path、Quick 和完整路径路由正常。
+- Quick 和完整路径使用统一的 `openspec/changes/` Artifact；长期知识使用 `openspec/specs/`。
 - DAG 分波、失败隔离、worktree、锁和恢复正常。
 - task 级不启动 LLM Review。
 - 全部任务完成后只执行一次分级首轮 Review。
@@ -599,7 +608,8 @@ E:\work\my-ai-resource\agentic-framework
 至少覆盖：
 
 - Production Standard 和 Quick 成功链路。
-- Production 中央 Specs 拒绝链路。
+- 双 Profile 统一 Artifact 与独立生命周期合同测试。
+- 长期 Specs 辅助边界、知识冲突显式报告和 Archive Delta 同步测试。
 - Production 缺失 Verify 配置失败链路。
 - Tooling 并行成功链路。
 - Tooling 上游失败、下游阻塞链路。
@@ -711,7 +721,7 @@ E:\work\my-ai-resource\agentic-framework\docs
 | --- | --- | --- | --- |
 | 场景隔离 | 必须显式选择一个 Profile，禁止默认双装 | 支持 `opsx\|workflow\|all` | 采用本方案，避免入口竞争 |
 | Review 次数 | Production 风险分档 Task Review + 最终五维集成 Review；Tooling 每个 Run 一次 | Tooling 仍写「每产物分级」 | 采用本方案，在生产质量与 Tooling Token 成本之间隔离策略 |
-| 中央规范库 | 明确不建立，以代码为当前实现事实源 | 同样不建立 | 一致 |
+| 长期 Specs | 建立受控 `openspec/specs/`，但只作为辅助知识；当前实现仍以代码和运行证据为准 | 不建立中央 Specs | 采用本方案，通过冲突报告和归档门禁控制漂移风险 |
 | 资产边界 | Core、Profile、Pack、Delete 分类 | 主要按两轨直接搬入 | 采用本方案，防止 `project-knowledge`、`bp-cola-ddd` 回流 |
 | 安装治理 | Manifest、受管文件哈希、切换约束 | 目录复制和三档安装 | 采用本方案 |
 | 落地复杂度 | 原设计建议物理迁移到 `core/`、`profiles/` | 保持顶层平铺 | 第一阶段吸收平铺布局，先用安装清单形成逻辑边界，避免无价值的大规模路径搬迁 |

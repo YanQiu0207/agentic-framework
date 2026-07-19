@@ -130,6 +130,36 @@ class InstallTest(unittest.TestCase):
             (target / ".codex" / "scripts" / "validate_change.py").is_symlink()
         )
 
+    def test_shared_project_skills_are_installed_for_both_profiles(self) -> None:
+        for profile in ("production", "tooling"):
+            with self.subTest(profile=profile):
+                operations = installer.build_operations(REPO_ROOT, profile, set())
+                targets = {
+                    operation.relative_target.as_posix() for operation in operations
+                }
+                for client in installer.CLIENT_DIRS:
+                    self.assertIn(
+                        f"{client}/skills/project-init",
+                        targets,
+                    )
+                    self.assertIn(
+                        f"{client}/skills/project-knowledge",
+                        targets,
+                    )
+                    self.assertIn(
+                        f"{client}/commands/project-init.md",
+                        targets,
+                    )
+
+    def test_legacy_project_init_pack_is_safe_for_production(self) -> None:
+        operations = installer.build_operations(
+            REPO_ROOT,
+            "production",
+            {"project-init"},
+        )
+        targets = [operation.relative_target for operation in operations]
+        self.assertEqual(len(targets), len(set(targets)))
+
     def test_source_content_change_is_immediately_visible(self) -> None:
         self._require_symlinks()
         source = self.root / "source"

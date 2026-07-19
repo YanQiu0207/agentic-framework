@@ -1,0 +1,8 @@
+services:
+    install-agentic-framework:
+        source_ref: git:677a4fd
+        source_paths:
+            - scripts/install_agentic_framework.py
+            - scripts/test_install_agentic_framework.py
+        generated_at: 2026-07-19
+        status: active

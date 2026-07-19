@@ -1,6 +1,6 @@
 ---
 name: workflow-quick-design
-description: 轻量级系统设计工作流，适用于内部工具、小型服务等不需要完整 spec 流程的场景。AI 可主动提出设计方案，产出简化版 spec.md（Quick Draft）。
+description: 轻量级系统设计工作流，适用于内部工具、小型服务等不需要完整 spec 流程的场景。AI 可主动提出设计方案，产出简化版 proposal.md（Quick Draft）。
 ---
 
 > 输出一行：`Using workflow-quick-design`
@@ -49,9 +49,10 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 ### Step 2：代码调研（新系统可跳过）
 
 如果是在已有系统上扩展，AI **自主**调研相关代码：
-- 先查已有知识：相关 ADR 与 `docs/issues/` 踩坑；AGENTS.md 已接线共用知识库时查其 `domains/`
+- 先读 `openspec/index.md`，再按索引定向读取相关长期 Specs、历史 Change 与 `openspec/issues/`；AGENTS.md 已接线公共知识库时，仅在需要通用方法时查询其 `domains/`
 - 读取相关模块结构、接口、依赖关系
 - 记录影响设计的技术约束
+- 用代码、Schema、配置、测试或运行证据核实现状；知识与代码冲突时同时报告双方证据和不确定性
 
 调研完成后，用一段简短摘要（3-5 条 bullet）告知用户，然后进入 Step 3。
 
@@ -95,28 +96,30 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 
 **如果用户对方案有重大异议**（不是细节调整，而是方向性不同），重新回到 Step 3。
 
-### Step 5：写入 spec.md
+### Step 5：写入 proposal.md
 
 用户确认后，立即写入文件。
 
-文档固定写入 `docs/design-docs/<module>/<feature>/`，不依赖中央规范库或额外知识管理 Skill。
+文档固定写入 `openspec/changes/<change-name>/`。新 Change 禁止写入旧的 `docs/design-docs/`；旧路径只在迁移任务中读取。
 
-**文件路径**：`docs/design-docs/<module>/<tool-name>/spec.md`（与标准 spec 路径相同）
+根据已批准的目标生成唯一的小写 kebab-case `<change-name>`；如果名称可能映射到多个含义，写入前先让用户确认。
 
-使用 [reference/quick-spec-template.md](reference/quick-spec-template.md) 作为模板，只填写有内容的字段，无需关注空白章节。
+**文件路径**：`openspec/changes/<change-name>/proposal.md`（与 Standard 路径相同）
+
+使用 [reference/quick-proposal-template.md](reference/quick-proposal-template.md) 作为模板，只填写有内容的字段，无需关注空白章节。
 
 写完后告知用户文件路径，然后直接进入 Step 6。
 
 ### Step 6：UI 设计检测（仅前端场景）
 
-检查 spec.md 是否涉及前端 UI（含以下任一特征：新页面 / 新组件 / 用户操作路径 / `.tsx` 产物）：
+检查 proposal.md 是否涉及前端 UI（含以下任一特征：新页面 / 新组件 / 用户操作路径 / `.tsx` 产物）：
 
 - **是** → 进入前端链路：`workflow-frontend-design`（定方向）→ `bp-frontend-layout`（搭页面骨架）→ 完成 `ui-spec.md` 后再进入 Step 7。
 - **否** → 直接进入 Step 7。
 
 ### Step 7：拆分任务（tasks.md）
 
-根据用户已批准的任务概要生成 `tasks.md`（与 spec.md 同目录），不得新增超出批准范围的任务。
+根据用户已批准的任务概要生成 `tasks.md`（与 proposal.md 同目录），不得新增超出批准范围的任务。
 
 读取 [reference/task_planning_guide.md](../workflow-code-generation/reference/task_planning_guide.md) 并严格按其流程执行：
 
@@ -130,7 +133,7 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 
 立即加载 `workflow-code-generation`。
 
-此时 spec.md + tasks.md 均已存在，`workflow-code-generation` 将从步骤 4（加载编码规范）直接进入执行段，不会再次要求创建或审批任务。
+此时 proposal.md + tasks.md 均已存在，`workflow-code-generation` 将从步骤 4（加载编码规范）直接进入执行段，不会再次要求创建或审批任务。
 
 ---
 
@@ -139,11 +142,11 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 1. **Brief 信息不足时不要开始设计**：缺少问题描述或关键约束时，先问清楚
 2. **AI 先提方案**：不要反问「你有什么思路」，直接给方案让用户评审
 3. **说明权衡**：每个设计决策要说明为什么选这个，放弃了什么
-4. **写入用户确认的内容**：spec.md 内容必须是用户已确认的方案，不要把探讨中的内容写进去
-5. **不要写空章节**：quick-spec 模板中未用到的章节直接省略
+4. **写入用户确认的内容**：proposal.md 内容必须是用户已确认的方案，不要把探讨中的内容写进去
+5. **不要写空章节**：Quick Proposal 模板中未用到的章节直接省略
 6. **设计与任务只批准一次**：Step 3 同时展示方案和任务概要，用户确认后视为二者均获批准
 7. **tasks.md 不重复审批**：只能按已批准概要落盘；范围发生实质变化时返回 Step 4
-8. **前端 UI 先出设计方案和布局骨架**：spec.md 涉及前端 UI → 拆 tasks 前先调 `workflow-frontend-design`，并通过 `bp-frontend-layout` 获得 ui-spec.md 后再拆
+8. **前端 UI 先出设计方案和布局骨架**：proposal.md 涉及前端 UI → 拆 tasks 前先调 `workflow-frontend-design`，并通过 `bp-frontend-layout` 获得 ui-spec.md 后再拆
 9. **前端 tasks 必须闭环**：已生成 ui-spec.md 时，tasks.md 必须包含实现、测试、最终浏览器验证任务
 
 ## 反模式
@@ -153,7 +156,7 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 | 问用户「你想怎么设计？」 | AI 直接提出方案，用户评审 |
 | 把 5 个问题分 5 轮问 | 一次问完所有信息 |
 | 方案描述过于抽象（「用微服务架构」） | 给出具体组件和接口 |
-| 方案确认后不写文件 | 立即写入 spec.md |
+| 方案确认后不写文件 | 立即写入 proposal.md |
 | 强迫用户填所有章节 | 只填有内容的章节 |
 | 只展示设计，批准后再要求用户审批 tasks | 设计与任务概要一起展示、一次批准 |
 | tasks.md 生成后再次等用户确认 | 与批准概要一致则直接调用 workflow-code-generation；范围变化才重新确认 |

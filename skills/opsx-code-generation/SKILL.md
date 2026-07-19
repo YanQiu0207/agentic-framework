@@ -30,16 +30,24 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 
 在 `openspec/changes/` 下查找变更目录，确认 `proposal.md` 存在：
 
-- `proposal.md` 存在且完整 → **仔细通读全文**，同时读取 `design.md`（如有）和所有 `specs/*/spec.md`
+- `proposal.md` 存在且完整 → **仔细通读全文**，同时读取 `design.md`（如有）和 `specs/` 下所有 Delta Markdown
 - `proposal.md` 状态为 `Quick Draft` → 检查是否至少包含问题、目标、核心方案、验收标准；满足则可进入任务规划，否则调用 `opsx-quick-design` 补齐
 - `proposal.md` 不存在/不完整 → **调用 `opsx-requirements-clarification`**（禁止自行澄清）
 
 **强制**：`proposal.md` 与 `tasks.md` 同时存在时，编码前必须完整读取两者。
 
+同时先读取 `openspec/index.md`，再定向读取当前 Change 涉及模块或服务的 `custom/constraints.md`、
+`custom/pitfalls.md` 和相关 Issues，然后回到代码核实现状。知识与代码冲突时必须在任务上下文中
+记录双方证据和不确定性，不得静默修改代码或知识。
+
 ### 步骤 2：检查/创建 tasks.md
 
 - **已存在** → 进入步骤 3
 - **不存在** → **先读取** [reference/task_planning_guide.md](reference/task_planning_guide.md)，然后严格按其流程创建 `tasks.md`
+
+`tasks.md` 必须包含「知识同步」章节：逐项记录 Change Delta、长期目标路径、同步动作和状态；
+若无长期知识影响，记录明确理由。知识同步是归档门禁的一部分，不改变 Production 的人工批准、
+逐 Task Review 和最终集成 Review。
 
 > 🚨 **创建 tasks.md 后必须停下来等用户确认。** 展示任务列表，然后**停止并等待用户回复**。禁止自动进入步骤 3。
 

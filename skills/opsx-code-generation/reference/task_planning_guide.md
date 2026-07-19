@@ -174,6 +174,22 @@ Task 2 (描述)  ← 依赖 Task 1
 - 构建执行记录：TODO（完成后写「命令；退出码 0」，无需构建时写「N/A：理由」）
 - 测试执行记录：TODO（完成后写「命令；退出码 0」，无需测试时写「N/A：理由」）
 
+## 知识同步
+
+| Delta | 长期目标 | 动作 | 状态 | 索引更新 |
+| --- | --- | --- | --- | --- |
+| `specs/<relative-path>` | `openspec/specs/<relative-path>` | ADDED / MODIFIED / REMOVED / RENAMED | Pending | TODO |
+
+无长期知识影响时删除表格数据行，并写明「无长期知识影响：<理由>」。
+
+## 知识冲突
+
+- 结论：待核对。归档前写「无冲突」，或记录双方证据并标记 `Resolved`。
+
+## 实际 Diff 核对
+
+- 核对状态：Pending。归档前记录实际 Diff、Change 和测试证据的核对命令与 PASS 结论。
+
 ## 文档覆盖映射
 
 | 文档条目 | 任务 | 说明 |
@@ -200,6 +216,7 @@ Task 2 (描述)  ← 依赖 Task 1
 | 9 | **跨切面无遗漏** | 错误码/日志/配置等有统一定义任务，且排在使用方前面 |
 | 10 | **context 完整** | 每个任务的 context 包含直接修改文件 + 上游 + 下游，精确到函数级 |
 | 11 | **Task Review 完整** | 每个任务都有 `Review Profile: standard\|strict` 和 `Task Review: Pending` |
+| 12 | **知识同步可归档** | 每个 Delta 都有唯一长期目标、动作、状态和索引更新记录；无影响时有明确理由 |
 
 ## 硬性规则
 

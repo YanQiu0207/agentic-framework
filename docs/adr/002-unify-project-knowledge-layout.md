@@ -44,7 +44,7 @@ Production 使用 `openspec/changes/`，Tooling 使用 `docs/design-docs/`，两
 ## 后果
 
 - 需要修改两个 Profile 的 Workflow、模板、验证器和安装归属，不是小范围文档调整。
-- 当前禁止 `openspec/specs/` 和 Archive 只移动目录的合同需要更新。
+- 原「禁止 `openspec/specs/`」和「Archive 只移动目录」合同已由统一知识管理合同替代。
 - Tooling 现有 `docs/design-docs/`、`docs/adr/`、`docs/arch-snapshots/` 和 `docs/issues/` 需要安全迁移，旧内容不能直接删除。
 - 归档增加知识影响检查和 Delta 合并成本，但可以减少跨任务重复理解。
 - 长期知识可能与代码漂移，因此必须保留来源版本、按需复核和冲突报告机制。
@@ -61,4 +61,3 @@ Production 使用 `openspec/changes/`，Tooling 使用 `docs/design-docs/`，两
 
 - [项目知识库与跨项目公共知识库统一方案](../design-docs/knowledge-management/spec.md)
 - [实施任务清单](../design-docs/knowledge-management/tasks.md)
-

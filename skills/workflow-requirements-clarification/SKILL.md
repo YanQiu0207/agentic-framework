@@ -1,6 +1,6 @@
 ---
 name: workflow-requirements-clarification
-description: 需求澄清。只负责明确"要解决什么问题"，生成 spec.md 的前三章节（背景、目标、需求）。禁止在本阶段讨论设计方案——设计是 workflow-system-design skill 的职责。
+description: 需求澄清。只负责明确"要解决什么问题"，生成 proposal.md 的需求章节（背景、目标、需求）。禁止在本阶段讨论设计方案——设计是 workflow-system-design skill 的职责。
 ---
 
 > 输出一行：`Using workflow-requirements-clarification`
@@ -50,7 +50,7 @@ description: 需求澄清。只负责明确"要解决什么问题"，生成 spec
 
 - 用户描述功能需求但缺乏具体细节
 - 用户请求开发新功能
-- `spec.md` 不存在或需求章节为空
+- `proposal.md` 不存在或需求章节为空
 
 ---
 
@@ -83,30 +83,35 @@ description: 需求澄清。只负责明确"要解决什么问题"，生成 spec
 
 ## 工作流程
 
-### Step 0: 评估复杂度并创建 spec
+### Step 0: 评估复杂度并创建 Proposal
 
 | 复杂度 | 信号 | 处理方式 |
 |--------|------|----------|
-| **简单** | bug fix、配置调整、单点修改 | 不创建 spec，1-2 轮对话后直接进入 code-generation |
-| **中等** | 涉及多文件、单模块功能 | 创建 spec |
-| **复杂** | 跨模块、新特性、架构变更 | 创建 spec |
+| **简单** | bug fix、配置调整、单点修改 | 不创建 Proposal，1-2 轮对话后直接进入 code-generation |
+| **中等** | 涉及多文件、单模块功能 | 创建 Proposal |
+| **复杂** | 跨模块、新特性、架构变更 | 创建 Proposal |
 
-**中等及以上**：立即创建目录并复制模板：
+**中等及以上**：先根据目标确认唯一的 `<change-name>`（小写 kebab-case，如
+`add-refund-flow`），再创建目录并复制模板：
 
 ```bash
-mkdir -p docs/design-docs/<module>/<feature>/
-cp skills/workflow-requirements-clarification/reference/spec_template.md \
-   docs/design-docs/<module>/<feature>/spec.md
+mkdir -p openspec/changes/<change-name>/
+cp skills/workflow-requirements-clarification/reference/proposal_template.md \
+   openspec/changes/<change-name>/proposal.md
 ```
 
-路径规则：根据功能所属模块确定。文件名必须是 `spec.md`。
+创建前先读取 `openspec/index.md`，再按索引定向读取相关的
+`openspec/specs/business/`、历史 Change 和 `openspec/issues/`。知识只辅助理解；
+必须用代码、Schema、配置、测试或运行证据核实现状，发现冲突时同时报告双方证据和不确定性。
+
+目录名表达本次 Change，不再按模块嵌套。文件名必须是 `proposal.md`。
 
 ### Step 1: 代码调研（AI 自主完成）
 
 **目标**：理解现有实现，不询问用户
 
 **AI 操作**：
-1. 检索已有知识：查项目 `docs/`（相关 ADR、`design-docs/` 历史相似 feature、`issues/` 踩坑）；AGENTS.md 已接线共用知识库时，经其根 `index.md` 两跳查 `domains/` 与 `issues/`
+1. 复用 Step 0 已定位的项目知识；仅在需要通用方法或项目知识未命中时，经公共库根 `index.md` 定向查询 `domains/` 与 `issues/`
 2. 调用 `codebase-researcher` subagent 深度调研相关代码（模块结构、接口、依赖关系、数据流）
 3. 识别相关模块、接口、数据结构
 4. 生成现状分析摘要（含命中的已有知识）
@@ -131,7 +136,7 @@ cp skills/workflow-requirements-clarification/reference/spec_template.md \
 
 **结束条件**：用户确认理解正确。**必须等用户确认后才能进入 Step 2**。
 
-**实时更新 spec**：用户确认后，更新 spec.md 的 `1.2 现状分析` 和 `1.3 主要使用场景`。
+**实时更新 Proposal**：用户确认后，更新 proposal.md 的 `1.2 现状分析` 和 `1.3 主要使用场景`。
 
 ### Step 2: 澄清背景与问题
 
@@ -149,7 +154,7 @@ cp skills/workflow-requirements-clarification/reference/spec_template.md \
 
 **结束条件**：用户能清晰回答"要解决什么问题"，AI 复述确认无误。
 
-**实时更新 spec**：确认后，更新 spec.md 的 `1.1 问题描述`。
+**实时更新 Proposal**：确认后，更新 proposal.md 的 `1.1 问题描述`。
 
 ### Step 3: 明确目标与边界
 
@@ -171,7 +176,7 @@ cp skills/workflow-requirements-clarification/reference/spec_template.md \
 
 **结束条件**：用户给出明确、可衡量的目标和边界。
 
-**实时更新 spec**：确认后，更新 spec.md 的 `2. 目标` 和 `2.1 非目标`。
+**实时更新 Proposal**：确认后，更新 proposal.md 的 `2. 目标` 和 `2.1 非目标`。
 
 ### Step 4: 明确功能性需求
 
@@ -191,7 +196,14 @@ cp skills/workflow-requirements-clarification/reference/spec_template.md \
 
 **结束条件**：用户给出具体的功能列表，AI 复述确认无误。
 
-**实时更新 spec**：确认后，更新 spec.md 的 `3.1 功能性需求`。
+**实时更新 Proposal**：确认后，更新 proposal.md 的 `3.1 功能性需求`。
+
+同时填写 `4. 知识影响`：
+
+- 命中长期知识时，在 `openspec/changes/<change-name>/specs/` 下创建镜像
+  `openspec/specs/` 相对路径的 Delta。
+- 无长期知识影响时，写明「无长期知识影响：<理由>」，不创建占位 Delta。
+- 知识只辅助理解；发现知识与代码冲突时记录双方证据，不静默修改任意一方。
 
 ### Step 5: 确认非功能性需求
 
@@ -224,20 +236,20 @@ cp skills/workflow-requirements-clarification/reference/spec_template.md \
 
 **结束条件**：用户确认关键约束，或明确表示"没有其他约束"。
 
-**实时更新 spec**：确认后，更新 spec.md 的 `3.2 非功能性需求`。
+**实时更新 Proposal**：确认后，更新 proposal.md 的 `3.2 非功能性需求`。
 
 ### Step 6: 最终确认
 
 **目标**：回顾 spec 前三章节的完整性，确认无遗漏。
 
 **操作**：
-1. 读取 spec.md 前三章节内容
+1. 读取 proposal.md 前三章节内容
 2. 向用户展示摘要，确认无需补充或修改
 3. 如有修改，更新对应章节内容
 
 **结束语**：
 ```
-spec.md 前三章节已完成：docs/design-docs/<module>/<feature>/spec.md
+proposal.md 的需求章节已完成：openspec/changes/<change-name>/proposal.md
 （已填写：1. 背景、2. 目标、3. 需求）
 
 如果准备好了，说"开始设计"进入 system design 阶段。
@@ -249,24 +261,24 @@ spec.md 前三章节已完成：docs/design-docs/<module>/<feature>/spec.md
 
 1. **AI 自主调研代码背景**：现有实现、代码路径等信息 AI 必须自己读代码获取
 2. **只问用户需求信息**：为什么做、做什么、不做什么、约束条件
-3. **只填前三章节**：spec.md 只填写 1. 背景、2. 目标、3. 需求
-4. **正确的文件路径**：`docs/design-docs/<module>/<feature>/spec.md`
+3. **只填需求与知识影响**：proposal.md 只填写背景、目标、需求和知识影响；设计写入独立的 `design.md`
+4. **正确的文件路径**：`openspec/changes/<change-name>/proposal.md`
 5. **禁止生成后续章节**：设计方案由 `workflow-system-design` skill 负责
-6. **必须使用 cp 复制模板**：禁止从头创建 spec.md
-7. **实时更新 spec**：每个步骤结束后立即更新对应章节，不要等到最后一次性写入
+6. **必须使用 cp 复制模板**：禁止从头创建 Proposal.md
+7. **实时更新 Proposal**：每个步骤结束后立即更新对应章节，不要等到最后一次性写入
 
 ## 反模式
 
 | ❌ 错误做法 | ✅ 正确做法 |
 |------------|-----------|
 | 问用户"现有实现是怎样的" | AI 自己读代码调研 |
-| 从头创建 spec.md | **必须用 `cp` 复制模板** |
-| 生成到宿主工具私有目录 | 生成到 `docs/design-docs/` |
-| 文件名 `xxx-spec.md` | 文件名必须是 `spec.md` |
+| 从头创建 Proposal.md | **必须用 `cp` 复制模板** |
+| 生成到宿主工具私有目录或旧目录 | 生成到 `openspec/changes/<change-name>/` |
+| 文件名 `xxx-spec.md` 或 `spec.md` | 文件名必须是 `proposal.md` |
 | 填写设计方案章节 | 只填前三章节 |
 | 一次问多个问题 | 每轮只问一个核心问题 |
 | 所有步骤完成后才写 spec | 每步结束后实时更新对应章节 |
 
 ## 参考资料
 
-- [完整 spec 模板](reference/spec_template.md)
+- [Proposal 模板](reference/proposal_template.md)

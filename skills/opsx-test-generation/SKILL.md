@@ -27,14 +27,18 @@ description: OpenSpec 测试生成。基于 design.md 的测试计划章节或�
 
 在 `openspec/changes/` 下查找当前变更目录，尝试读取 `design.md`：
 
+先读取 `openspec/index.md`，再定向读取当前 Change 相关的业务规则、`openspec/specs/common/`
+契约和 `openspec/issues/`。测试预期不能只从当前实现反推；知识仍只用于辅助理解，与代码、Schema、
+测试或运行证据冲突时必须报告双方证据和不确定性。
+
 **有 `design.md`**：
 1. 读取「2. 测试计划」章节
 2. 测试计划明确 → 进入 Step 2
-3. 测试计划不完整 → 补充读取 `proposal.md` 和 `specs/*/spec.md`，自行判断
+3. 测试计划不完整 → 补充读取 `proposal.md` 和 `specs/` 下所有 Delta Markdown，自行判断
 
 **无 `design.md`**（为已有代码补测试，或变更较简单未生成 `design.md`）：
 - 读取 `proposal.md` 的需求概览和验收标准
-- 如有 `specs/*/spec.md`，读取其中的验收标准条目
+- 如有 Change-local Delta，读取其中的验收标准条目
 - 如仍不足，询问用户要测哪些函数/类，基于代码生成
 
 ## Step 2：确定测试类型
