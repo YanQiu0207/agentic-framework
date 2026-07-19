@@ -54,15 +54,17 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 
 ### 步骤 2：查找 / 确认 spec
 
-查找 `docs/design-docs/<module>/<feature>/spec.md`，**完整性由脚本判定，不由 AI 自述**：跑 `python <本 skill 目录>/scripts/lint_spec.py <spec.md> --phase code`（Quick Draft 自动按简化章节校验）。
-- 通过 → **通读全文**（非只读关注章节），确认理解。
-- 未通过 → 按缺失位置路由：1～3 章缺失或占位 → **调用 `workflow-requirements-clarification`**（禁止自行澄清）；第 4 章缺失或占位 → 调用 `workflow-system-design`；Quick Draft 缺节 → 调用 `workflow-quick-design` 补齐。
-- 不存在 → 调用 `workflow-requirements-clarification`。
+查找 `openspec/changes/<change-name>/proposal.md`：
+- Standard：完整读取 `proposal.md`、`design.md`、`specs/` 下的 Delta 和 `tasks.md`；缺 Proposal 路由到 `workflow-requirements-clarification`，缺 Design 路由到 `workflow-system-design`。
+- Quick：`proposal.md` 标记 `Quick Draft`，允许不创建 `design.md` 和 Delta；缺必要章节时调用 `workflow-quick-design`。
+- 旧 `spec.md` 和 `docs/design-docs/` 只允许迁移读取，任何新 Change 禁止写入旧 Artifact。
 
-**强制**：`spec.md` 与 `tasks.md` 同时存在时，编码前必须完整读取两者。
+**强制**：`proposal.md` 与 `tasks.md` 同时存在时，编码前必须完整读取；存在 `design.md` 和 Delta 时也必须完整读取。
+
+同时读取 `openspec/index.md`，再按当前 Task 定向读取相关模块 `custom/` 约束和踩坑；随后回到代码核实现状。知识与代码冲突时必须显式报告双方证据，不得静默修改任意一方。
 
 **前端分支检查**：任务涉及 `.tsx` 文件或 UI 页面时：
-- 同目录下存在 `ui-spec.md` → 与 `spec.md` 一起**强制通读**，`ui-spec.md` 是视觉与布局契约，代码实现须与其对齐。
+- 同目录下存在 `ui-spec.md` → 与 `proposal.md`、`design.md` 和 Delta 一起**强制通读**，`ui-spec.md` 是视觉与布局契约，代码实现须与其对齐。
 - 同目录下不存在 `ui-spec.md` → **立即停止**，提示用户先运行 `/frontend-design` 生成视觉方案，再回到本工作流。
 
 ### 步骤 3：检查 / 创建 tasks.md
@@ -123,10 +125,10 @@ tasks.md 经用户批准后，执行下放给 agent：**主会话只编排，不
 2. **机器验证**：对合并结果整体跑 `workflow-verification`。有 config 时必须传 `--baseline <repo-root>/.verify/baseline.json --diff-base <base_sha>`；无 config 时必须传 `--diff-base <base_sha>` 触发内置 spec drift 检查。FAIL → 派 fix agent 修复后重验；仍 FAIL 标 `需人工`。
 3. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证。失败则修复并回到第 2 步重验。
 4. **一次最终审核**：对本次全部变更调用一次 `workflow-code-review`（`mode: initial`，`review_profile` 取各 task 中最高档位）。`strict` 必须由未参与实现的独立 Judge 裁决。存在 keep 的 P0 / P1 时派 fix agent 修复、重跑受影响的验证，再按 `mode: re-review` 只复核 finding 和修复 diff；最多 2 轮，禁止启动第二次全量首审。
-5. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)，并逐条核销步骤 3 / Phase 1 预留的「intent 沉淀」任务。
-6. **归档**：把 `spec.md` 头部 `状态` 改为 `Archived`（文件原地保留）。
+5. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)，执行统一知识影响检查，并逐条核销步骤 3 / Phase 1 预留的「intent 沉淀」任务。命中长期知识影响时记录目标 `openspec/specs/` 或 `openspec/issues/` 及同步状态；Fast-Path 未创建 Change 时必须说明无长期知识影响的理由。
+6. **知识同步与归档**：加载 `project-knowledge`，对照实际 Diff 和验证证据完成 Delta、索引、Issues 与冲突检查；知识同步任务未完成时禁止归档。通过后把 `proposal.md` 头部 `状态` 改为 `Archived`，并将整个 Change 移到 `openspec/changes/archive/YYYY-MM-DD-<change-name>/`。
 7. **提交归档产物**：将工作区本次残留的全部改动（fix 修复、spec / tasks / ADR / issues 等文档）提交本地 git，提交信息关联 feature，交付时工作区必须干净；push / `svn commit` 仍由用户决定。
-8. **交付门（机器判定）**：跑 `python <本 skill 目录>/scripts/check_delivery.py --tasks <tasks.md> --spec <spec.md>`——校验任务全部终态且附原因、spec 已归档、工作区干净。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
+8. **交付门（机器判定）**：对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --tasks <archived-tasks.md> --spec <archived-proposal.md>`——校验任务全部终态且附原因、Proposal 已归档、工作区干净。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
 9. 按[「统一交付证据格式」](#统一交付证据格式)交付，等用户验收 `需人工` / `阻塞` 项的处理。
 
 ## 统一交付证据格式
@@ -160,7 +162,7 @@ tasks.md 经用户批准后，执行下放给 agent：**主会话只编排，不
 
 > 🚨 **Fast-Path 与步骤 6 共用 · 强制**：
 
-逐条检查「架构决策」「放弃方案」「新增红线约束」三个信号，并逐行作答「命中 → 已沉淀到 <具体 ADR / spec 章节>」或「未命中」。命中则更新相关 `spec.md` 或 ADR；当前无法完成时在 `tasks.md` 建「intent 沉淀」任务。
+逐条检查「架构决策」「放弃方案」「新增红线约束」三个信号，并逐行作答「命中 → 已沉淀到 <具体 ADR / spec 章节>」或「未命中」。命中则更新相关 `proposal.md`、`design.md` 或长期 Specs；当前无法完成时在 `tasks.md` 建「intent 沉淀」任务。
 
 ---
 
@@ -176,7 +178,7 @@ tasks.md 经用户批准后，执行下放给 agent：**主会话只编排，不
 
 ## 用户跳过 spec 时
 
-必须生成简化版 spec.md（标 `状态: Quick Draft`）。**禁止无 spec 修改中等+代码。** 该路径交付前同样受步骤 6 约束。
+必须生成简化版 `proposal.md`（标 `状态: Quick Draft`）。**禁止无 Proposal 修改中等及以上代码。** 该路径交付前同样受步骤 6 约束。
 
 ## 恢复中断
 

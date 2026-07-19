@@ -60,12 +60,18 @@ description: OpenSpec 系统设计。当 proposal.md 已完整但 design.md 不�
 
 ## 工作流程
 
+### Step -1：读取项目知识路由
+
+先读取 `openspec/index.md`，再按当前 Change 定向读取相关业务域、`openspec/specs/common/`、
+模块或服务 `custom/` 以及 `openspec/issues/`。不得默认扫描整个知识库。知识仅辅助理解，当前实现
+必须由代码和运行证据核实；如有冲突，必须展示双方证据、版本和不确定性后再请用户裁决。
+
 ### Step 0：代码调研 + 需求摘要（AI 自主完成）
 
 **目标**：理解现有实现 + 确认对需求的理解。
 
 **AI 操作**：
-1. 读取 `proposal.md`（背景、目标、需求概览）和所有 `specs/*/spec.md`
+1. 读取 `proposal.md`（背景、目标、需求概览）和 `specs/` 下所有 Delta 文件
 2. 调用 `codebase-researcher` subagent 深度调研相关代码
 3. 生成摘要向用户确认
 

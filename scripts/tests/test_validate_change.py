@@ -236,11 +236,28 @@ class ValidateChangeCliTest(unittest.TestCase):
             r"(?i)(code review|review|评审)",
         )
 
-    def test_forbidden_central_specs_are_rejected(self) -> None:
-        """The repository must not contain an openspec/specs truth store."""
-        result = self.run_validator("forbidden-central-specs", "plan")
-        self.assertEqual(1, result.returncode)
-        self.assertIn("openspec/specs", result.stdout + result.stderr)
+    def test_long_term_specs_are_allowed(self) -> None:
+        """A project may keep auxiliary long-term knowledge under openspec/specs."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            long_term_spec = (
+                temporary_repo / "openspec/specs/business/validator/spec.md"
+            )
+            long_term_spec.parent.mkdir(parents=True)
+            long_term_spec.write_text("# Auxiliary knowledge\n", encoding="utf-8")
+            result = self.run_repo(temporary_repo, "plan")
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_delta_path_must_mirror_a_controlled_knowledge_root(self) -> None:
+        """A Change Delta must map deterministically into long-term Specs."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            valid = temporary_repo / CHANGE / "specs/business/validator/spec.md"
+            invalid = temporary_repo / CHANGE / "specs/validator/spec.md"
+            invalid.parent.mkdir(parents=True, exist_ok=True)
+            valid.replace(invalid)
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX042", rules)
 
     def test_json_output_is_machine_readable(self) -> None:
         """JSON mode emits structured success and failure results."""
@@ -280,6 +297,104 @@ class ValidateChangeCliTest(unittest.TestCase):
             )
             result = self.run_repo(temporary_repo, "archive", target=archive_target())
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_archive_requires_completed_knowledge_sync(self) -> None:
+        """A mapped Delta cannot be archived while its sync is pending."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "Code Review：Pending",
+                "Code Review：PASS",
+            )
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "| specs/business/validator/spec.md | "
+                "openspec/specs/business/validator/spec.md | ADDED | Completed |",
+                "| specs/business/validator/spec.md | "
+                "openspec/specs/business/validator/spec.md | ADDED | Pending |",
+            )
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX045", rules)
+
+    def test_archive_requires_exact_delta_target_and_conflict_record(self) -> None:
+        """Archive fails closed on a wrong target or unresolved conflict record."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "Code Review：Pending",
+                "Code Review：PASS",
+            )
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "openspec/specs/business/validator/spec.md",
+                "openspec/specs/business/wrong/spec.md",
+            )
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "- 结论：无冲突。",
+                "- 状态：Pending",
+            )
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX044", rules)
+            self.assertIn("OPSX047", rules)
+
+    def test_archive_requires_knowledge_impact_index_and_diff_records(self) -> None:
+        """Archive bookkeeping must be complete before the directory is moved."""
+        cases = (
+            ("proposal.md", "## 5. 知识影响", "## 5. 任务影响", "OPSX043"),
+            (
+                "tasks.md",
+                "openspec/specs/index.md 已更新",
+                "TODO",
+                "OPSX046",
+            ),
+            (
+                "tasks.md",
+                "- 已核对实际 Diff、Change 和测试证据：PASS。",
+                "- 核对状态：Pending。",
+                "OPSX048",
+            ),
+        )
+        for relative_path, old, new, expected_rule in cases:
+            with self.subTest(rule=expected_rule):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    self.rewrite(
+                        temporary_repo,
+                        "tasks.md",
+                        "Code Review：Pending",
+                        "Code Review：PASS",
+                    )
+                    self.rewrite(temporary_repo, relative_path, old, new)
+                    result = self.run_repo(
+                        temporary_repo,
+                        "archive",
+                        json_output=True,
+                        target=archive_target(),
+                    )
+                    rules = {
+                        item["rule_id"] for item in json.loads(result.stdout)["errors"]
+                    }
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn(expected_rule, rules)
 
     def test_quick_requires_explicit_status(self) -> None:
         """Only explicit status metadata selects the Quick path."""
@@ -506,6 +621,107 @@ class ValidateChangeCliTest(unittest.TestCase):
             self.assertEqual(1, result.returncode)
             combined = " ".join(item["message"] for item in errors)
             self.assertRegex(combined, r"(?i)(acceptance|验收|映射)")
+
+    def test_archive_requires_project_knowledge_indexes(self) -> None:
+        """Archive fails when the minimum openspec index skeleton is incomplete."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            (temporary_repo / "openspec" / "specs" / "index.md").unlink()
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            errors = json.loads(result.stdout)["errors"]
+            self.assertIn("OPSX049", {item["rule_id"] for item in errors})
+
+    def test_archive_validates_generated_knowledge_metadata(self) -> None:
+        """Generated frontend/backend documents identify their code sources."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            generated = (
+                temporary_repo
+                / "openspec"
+                / "specs"
+                / "backend"
+                / "orders"
+                / "order-service"
+                / "interfaces.md"
+            )
+            generated.parent.mkdir(parents=True)
+            generated.write_text("# Interfaces\n", encoding="utf-8")
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            errors = json.loads(result.stdout)["errors"]
+            self.assertIn("OPSX051", {item["rule_id"] for item in errors})
+
+            (generated.parent.parent / "meta.yaml").write_text(
+                """services:
+    order-service:
+        source_ref: git:abc123
+        source_paths:
+            - services/orders/
+        generated_at: 2026-07-19
+""",
+                encoding="utf-8",
+            )
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            errors = json.loads(result.stdout)["errors"]
+            self.assertNotIn("OPSX051", {item["rule_id"] for item in errors})
+
+            other = generated.parent.parent / "other-service" / "interfaces.md"
+            other.parent.mkdir()
+            other.write_text("# Other interfaces\n", encoding="utf-8")
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            errors = json.loads(result.stdout)["errors"]
+            self.assertIn("OPSX051", {item["rule_id"] for item in errors})
+
+    def test_external_openspec_link_is_allowed(self) -> None:
+        """The project-level openspec link is the sole allowed path reparse point."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            openspec = temporary_repo / "openspec"
+            external = temporary_repo.parent / "external-openspec"
+            shutil.move(str(openspec), str(external))
+            try:
+                openspec.symlink_to(external, target_is_directory=True)
+            except OSError as error:
+                self.skipTest(f"directory symlink unavailable: {error}")
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+            self.assertEqual(0, result.returncode, result.stdout)
+
+    @unittest.skipUnless(os.name == "nt", "Windows Junction regression test")
+    def test_external_openspec_junction_is_allowed(self) -> None:
+        """A Windows Junction may implement the project-level openspec link."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            openspec = temporary_repo / "openspec"
+            external = temporary_repo.parent / "external-openspec-junction"
+            shutil.move(str(openspec), str(external))
+            command = subprocess.run(
+                ["cmd", "/c", "mklink", "/J", str(openspec), str(external)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            if command.returncode != 0:
+                self.skipTest(f"Junction creation failed: {command.stderr}")
+            try:
+                result = self.run_repo(temporary_repo, "plan", json_output=True)
+                self.assertEqual(0, result.returncode, result.stdout)
+            finally:
+                openspec.rmdir()
 
     @unittest.skipUnless(os.name == "nt", "Windows Junction regression test")
     def test_specs_junction_outside_change_fails_plan(self) -> None:

@@ -18,8 +18,8 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
 
 `verify.py` 总会检查本次 git diff：
 
-- 改了代码文件，且无法证明相关 `spec.md` / `ui-spec.md` / `tasks.md` / ADR 已更新 → FAIL。
-- 相关性只做机械判定：`tasks.md` 中出现代码路径，或代码文件位于同一规格目录下；判不出相关时必须传 `--spec-drift-reason "<原因>"`。
+- 改了代码文件，且无法证明相关活跃 Change（`spec.md` / `ui-spec.md` / `tasks.md`）或长期 `openspec/specs/`、`openspec/issues/` 已按知识影响更新 → FAIL。
+- 相关性只做机械判定：`tasks.md` 中出现代码路径，或代码文件位于同一规格目录下；判不出相关时必须传 `--spec-drift-reason "<原因>"`。旧 `docs/design-docs/` 只作为迁移输入，不作为新改动的规格写入目标。
 - 标准 / 下放流程必须在 Phase 0 记录 `base_sha`，后续验证显式传 `--diff-base <base_sha>`；禁止在已提交 / 已合并后的 clean 工作区裸用默认 `HEAD` 作为基准。
 - 报告写入 `.verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
 
@@ -75,7 +75,7 @@ python <skill-dir>/scripts/verify.py --baseline .verify/baseline.json
 3. **exit 1**（代码问题：编译错 / 测试挂 / 新增违规）→ 回实现改代码重跑，有限轮次仍 FAIL → 标 `需人工` + 附输出。**不停其他并行 task**。
 4. **exit 2**（门禁自身坏了：工具缺失 / 正则非法 / 基线损坏）→ 改代码没用，直接标 `需人工` 排查配置 / 环境。
 5. 无 config → 只跑内置门禁，汇报「未做项目自定义机器验证」，并提示可运行 `/verify-config` 初始化。
-6. `spec_drift` FAIL → 更新对应规格 / 任务 / ADR，或补 `--spec-drift-reason` 后重跑。
+6. `spec_drift` FAIL → 更新对应 Change、长期 Specs、Issues 或知识同步任务，或补 `--spec-drift-reason` 后重跑。
 
 ## 与 workflow-code-generation 集成
 

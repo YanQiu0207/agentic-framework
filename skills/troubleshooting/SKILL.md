@@ -102,6 +102,11 @@ cp skills/troubleshooting/reference/troubleshooting-log-template.md \
 - 相关数据结构和状态流转
 - 上下游模块的交互方式
 
+调研前先读 `openspec/index.md`，再定向查询 `openspec/issues/` 和相关模块的
+`custom/pitfalls.md`。项目记录未命中，且问题明显属于语言、框架、工具、网络或操作系统时，
+再查询跨项目公共 `issues/`。知识只辅助形成待验证假设；与代码、日志或运行证据冲突时必须
+同时报告双方证据和不确定性。
+
 **信息不足时主动追问，不要猜测。**
 
 ### 2. 假设-验证循环
@@ -135,6 +140,8 @@ cp skills/troubleshooting/reference/troubleshooting-log-template.md \
 ## 案例沉淀
 
 复杂/代表性问题排查后，按 [case_template.md](reference/cases/case_template.md) 沉淀到 `reference/cases/<module>/`。
+
+项目专属且已验证的故障写入 `openspec/issues/`；跨项目候选只在交付报告中列出，未经用户确认、泛化和脱敏不得写入公共知识库。
 
 ---
 

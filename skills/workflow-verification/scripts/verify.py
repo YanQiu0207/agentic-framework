@@ -169,8 +169,16 @@ def _is_code_file(path_text: str) -> bool:
 
 def _is_spec_file(path_text: str) -> bool:
     path = Path(path_text)
-    parts = {part.lower() for part in path.parts}
+    lower_parts = tuple(part.lower() for part in path.parts)
+    parts = set(lower_parts)
     name = path.name.lower()
+    if (
+        path.suffix.lower() in _DOC_SUFFIXES
+        and len(lower_parts) >= 2
+        and lower_parts[0] == "openspec"
+        and lower_parts[1] in {"specs", "issues"}
+    ):
+        return True
     if name in _SPEC_FILE_NAMES:
         return True
     if path.suffix.lower() in _DOC_SUFFIXES and parts.intersection({"adr", "adrs"}):
@@ -243,7 +251,13 @@ def _related_spec_files(code_files: list[str], spec_files: list[str]) -> list[st
     related: set[str] = set()
     for spec_file in spec_files:
         path = Path(spec_file)
-        if path.name.lower() == "tasks.md":
+        lower_parts = tuple(part.lower() for part in path.parts)
+        is_knowledge_document = (
+            len(lower_parts) >= 2
+            and lower_parts[0] == "openspec"
+            and lower_parts[1] in {"specs", "issues"}
+        )
+        if path.name.lower() == "tasks.md" or is_knowledge_document:
             try:
                 body = path.read_text(encoding="utf-8", errors="replace")
             except OSError:

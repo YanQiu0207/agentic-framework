@@ -66,10 +66,10 @@ workflow-frontend-design（定方向 / 出概念 / 产出 ui-spec）
 
 ### Step 1：读取 spec
 
-确认 `docs/design-docs/<module>/<feature>/spec.md` 存在。不存在则停止：
+确认 `openspec/changes/<change-name>/proposal.md` 存在。不存在则停止：
 
 ```text
-缺少 spec.md，无法提取 UI 需求。请先运行 /requirements-clarification 或 /quick-design 生成功能规格，再调用本工作流。
+缺少 proposal.md，无法提取 UI 需求。请先运行 /requirements-clarification 或 /quick-design 生成功能规格，再调用本工作流。
 ```
 
 读取：
@@ -84,7 +84,7 @@ workflow-frontend-design（定方向 / 出概念 / 产出 ui-spec）
 
 先判断档位，再生成单文件 HTML：
 
-- 路径：`docs/design-docs/<module>/<feature>/ui-mockup-A.html`。
+- 路径：`openspec/changes/<change-name>/ui-mockup-A.html`。
 - Tailwind CDN，可直接打开。
 - 轻量档只生成 1 个方案。
 - 重型档生成 2-3 个方案，方向必须明显不同，但业务事实一致。
@@ -119,7 +119,7 @@ workflow-frontend-design（定方向 / 出概念 / 产出 ui-spec）
 
 用户选定方案后，先**加载 `bp-frontend-layout`**，确定页面类型、区域划分、主操作位置、容器模型、section 节奏和响应式塌缩，把结果写进下方模板的「布局骨架」section。轻量档可以压缩描述，但不得省略实现必需信息。
 
-随后写入 `docs/design-docs/<module>/<feature>/ui-spec.md`，**每个 section 必须填实，不得只留空标题**：
+随后写入 `openspec/changes/<change-name>/ui-spec.md`，**每个 section 必须填实，不得只留空标题**：
 
 ```markdown
 # UI 规格：<feature>
@@ -167,7 +167,7 @@ workflow-frontend-design（定方向 / 出概念 / 产出 ui-spec）
 输出：
 
 ```text
-UI 规格已产出：docs/design-docs/<module>/<feature>/ui-spec.md
+UI 规格已产出：openspec/changes/<change-name>/ui-spec.md
 正在进入代码实现阶段，加载 workflow-code-generation。
 tasks.md 必须包含实现任务、测试任务和最终浏览器验证任务。
 ```

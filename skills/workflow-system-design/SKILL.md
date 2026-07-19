@@ -1,6 +1,6 @@
 ---
 name: workflow-system-design
-description: 系统设计。当 spec.md 前三章节（背景、目标、需求）已完整但设计章节为空时调用。按 spec.md 章节顺序逐个与用户讨论，每轮只处理一个 section。
+description: 系统设计。当 proposal.md 的需求章节已完整但 design.md 不存在或为空时调用。按 design.md 章节顺序逐个与用户讨论，每轮只处理一个 section。
 ---
 
 > 输出一行：`Using workflow-system-design`
@@ -47,7 +47,8 @@ AI 通过提问帮助用户发现问题和权衡：
 
 ## 前置条件
 
-- `spec.md` 已存在且**第 1-3 节**（背景、目标、需求）完整——完整性用 `python <workflow-code-generation 目录>/scripts/lint_spec.py <spec.md> --phase design` 机器判定，非 0 视为不完整
+- `proposal.md` 已存在且背景、目标、需求和验收标准完整
+- `design.md` 不存在时，从 `reference/design_template.md` 复制创建；旧 `spec.md` 只允许迁移读取，不作为新写入目标
 - 如果不存在或不完整 → **停止，切换到 `workflow-requirements-clarification` Skill**
 
 ## 触发条件
@@ -94,7 +95,7 @@ AI 通过提问帮助用户发现问题和权衡：
    - 有遗漏 → 引导："你考虑过 X 情况吗？"
    - 有风险 → 质疑："这样做可能会导致 Y，你怎么看？"
    - 有权衡 → 追问："A 和 B 你选择 A，为什么？"
-6. 用户完善后，复述确认，更新 spec.md
+6. 用户完善后，复述确认，更新 design.md
 ```
 
 ### 苏格拉底式引导示例
@@ -151,17 +152,18 @@ AI：（加载规范，生成建议）
 **目标**：理解现有实现 + 确认对需求的理解
 
 **AI 操作**：
-1. 读取 spec.md 的 1-3 章节
-2. 检索已有知识：相关 ADR（已定决策约束设计空间，方案不得与之冲突）、`docs/issues/` 踩坑；AGENTS.md 已接线共用知识库时查其 `domains/`
-3. 调用 `codebase-researcher` subagent 深度调研相关代码（模块结构、接口、依赖链、技术约束）
-4. 生成摘要向用户确认
+1. 读取 proposal.md 的需求章节
+2. 先读 `openspec/index.md`，再按索引定向读取相关业务 Specs、共享契约、模块 `custom/`、历史 Change 和 `openspec/issues/`；AGENTS.md 已接线公共知识库时，仅在需要通用方法时查询其 `domains/`
+3. 用代码、Schema、配置、测试或运行证据核实现状；知识与代码冲突时同时报告双方证据、版本和不确定性，不静默选择任意一方
+4. 调用 `codebase-researcher` subagent 深度调研相关代码（模块结构、接口、依赖链、技术约束）
+5. 生成摘要向用户确认
 
 **向用户汇报（必须）**：
 ```
-我已读完 spec.md 并调研了相关代码：
+我已读完 proposal.md 并调研了相关代码：
 
 **需求理解**：
-- 问题：[复述 spec.md 中的问题]
+- 问题：[复述 proposal.md 中的问题]
 - 目标：[复述目标]
 - 关键约束：[复述非功能需求]
 
@@ -192,13 +194,13 @@ AI：（加载规范，生成建议）
 AI："4.2.3 数据模型这个 section，你的需求涉及新的数据结构吗？不涉及可以跳过。"
 ```
 
-用户跳过时，在 spec.md 标注 `N/A - 本需求不适用`。
+用户跳过时，在 design.md 标注 `N/A - 本需求不适用`。
 
-### Step 3: 更新 spec.md
+### Step 3: 更新 design.md
 
 每个 section 完成后：
 1. 复述用户设计内容，确认理解正确
-2. 将**用户确认的内容**写入 spec.md
+2. 将**用户确认的内容**写入 design.md
 3. 更新 todo 状态
 4. 进入下一个 section
 
@@ -213,8 +215,8 @@ AI："4.2.3 数据模型这个 section，你的需求涉及新的数据结构吗
 5. **生成前必须追问**：即使用户请求帮助，也要先追问确认约束和目标
 6. **每轮一个 section**：按顺序逐个讨论
 7. **严格顺序约束**：4.1 未完成前禁止讨论或写入 4.2/4.3，4.2 未完成前禁止讨论或写入 4.3（详见 section-guide）
-8. **内容粒度自检**：写入 spec.md 前检查内容是否属于当前 section 的抽象层级，具体函数名/调用点清单属于 4.3，类/接口签名属于 4.2（详见 section-guide）
-9. **只记录确认内容**：spec.md 内容必须是用户确认的
+8. **内容粒度自检**：写入 design.md 前检查内容是否属于当前 section 的抽象层级，具体函数名/调用点清单属于 4.3，类/接口签名属于 4.2（详见 section-guide）
+9. **只记录确认内容**：design.md 内容必须是用户确认的
 
 ## 反模式
 
@@ -232,10 +234,10 @@ AI："4.2.3 数据模型这个 section，你的需求涉及新的数据结构吗
 
 ## 设计完成后
 
-**前端分支检查**：spec.md 涉及前端 UI（新页面 / 新组件 / 用户操作路径 / `.tsx` 产物）时，进入编码前**先调用 `workflow-frontend-design`** 生成 `ui-spec.md`，再回到本流程。这与 `workflow-quick-design` 的前端分支对齐，避免到 `workflow-code-generation` 步骤 2 才因缺少 ui-spec 被动停下。
+**前端分支检查**：proposal.md 或 design.md 涉及前端 UI（新页面 / 新组件 / 用户操作路径 / `.tsx` 产物）时，进入编码前**先调用 `workflow-frontend-design`** 生成 `ui-spec.md`，再回到本流程。这与 `workflow-quick-design` 的前端分支对齐，避免到 `workflow-code-generation` 步骤 2 才因缺少 ui-spec 被动停下。
 
 ```
-spec.md 设计部分已完成。
+design.md 已完成。
 
 你可以：
 - 说"开始编码"进入 code generation 阶段（涉及前端 UI 时先走 /frontend-design 生成 ui-spec.md）
@@ -246,3 +248,4 @@ spec.md 设计部分已完成。
 ## 参考资料
 
 - [Section 引导指南](reference/section-guide.md)
+- [Design 模板](reference/design_template.md)

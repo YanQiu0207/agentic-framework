@@ -20,6 +20,7 @@ import lint_task_deps
 
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
+_TASK_DOCUMENT_NAME = "tasks.md"
 
 
 @dataclass(frozen=True)
@@ -452,6 +453,8 @@ def update_task_state(text: str, decision: TaskDecision) -> str:
 
 
 def _load(path: Path) -> tuple[str, dict[int, dict]]:
+    if path.name != _TASK_DOCUMENT_NAME:
+        raise ValueError(f"任务文档必须命名为 {_TASK_DOCUMENT_NAME}")
     text = path.read_bytes().decode("utf-8-sig")
     tasks = lint_task_deps.parse_tasks(text)
     if not tasks:

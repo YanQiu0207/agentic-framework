@@ -1,6 +1,6 @@
 ---
 name: workflow-test-generation
-description: 测试生成。基于 spec.md 或被测代码，生成单元测试、集成测试、性能测试。当用户请求生成测试、TDD 模式触发；也由 workflow-code-generation 在每个 task 执行流程内嵌调用（owner/implementer 写测试，无人值守）。
+description: 测试生成。基于活跃 Change 或被测代码，生成单元测试、集成测试、性能测试。当用户请求生成测试、TDD 模式触发；也由 workflow-code-generation 在每个 task 执行流程内嵌调用（owner/implementer 写测试，无人值守）。
 ---
 
 > 输出一行：`Using workflow-test-generation`
@@ -26,19 +26,23 @@ description: 测试生成。基于 spec.md 或被测代码，生成单元测试�
 
 > **完整流程**和**测试策略设计**执行本步骤。**快速补测试**跳过（用户已指定了被测代码）。
 
-尝试读取 `docs/design-docs/<module>/<feature>/spec.md`：
+先读取 `openspec/index.md`，再尝试读取
+`openspec/changes/<change-name>/proposal.md`、`design.md` 和 Delta。按测试范围定向读取相关
+`openspec/specs/business/`、`openspec/specs/common/` 和 `openspec/issues/`，并用代码与测试证据核实知识：
 
-**有 spec.md**：
+**有活跃 Change**：
 1. 读取 "7. 测试计划"
 2. 测试计划明确 → 进入 Step 2
 3. 测试计划不完整 → 补充读取 "2. 目标"、"3. 需求"、"4. 设计方案"，自行判断
 
-**无 spec.md**（为已有代码补测试）：
+**无活跃 Change**（为已有代码补测试）：
 - 询问用户要测哪些函数/类，基于代码生成
+
+知识与代码冲突时必须同时报告知识结论和代码证据；不能把知识或当前实现直接当作预期行为。
 
 ## Step 1.5: 前置条件检查（仅 E2E）
 
-如果代码涉及前端 UI 流程（`.tsx` 文件或 spec.md 有用户操作路径），检查 E2E 前置条件：
+如果代码涉及前端 UI 流程（`.tsx` 文件或 proposal.md 或 design.md 有用户操作路径），检查 E2E 前置条件：
 
 ```
 检测到前端 UI 场景。
@@ -62,7 +66,7 @@ description: 测试生成。基于 spec.md 或被测代码，生成单元测试�
 |------|----------|
 | 纯函数、无外部依赖 | 单元测试 |
 | 端到端流程、多组件交互 | 集成测试 |
-| spec.md 有性能指标要求 | 性能测试 |
+| proposal.md 或 design.md 有性能指标要求 | 性能测试 |
 | 前端 UI 核心用户流程（.tsx 文件 / spec 有操作路径） | E2E 测试（Playwright） |
 
 ## Step 3: 制定测试计划
@@ -83,7 +87,7 @@ description: 测试生成。基于 spec.md 或被测代码，生成单元测试�
 3. [pending] IntegrationTest - 端到端流程
 ```
 
-> **测试策略设计路径**到此结束。将测试计划输出为 spec.md 测试计划章节的内容，不进入 Step 4。
+> **测试策略设计路径**到此结束。将测试计划输出为 design.md 测试计划章节的内容，不进入 Step 4。
 
 ## Step 4: 逐个生成测试
 

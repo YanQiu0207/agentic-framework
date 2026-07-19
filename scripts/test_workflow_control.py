@@ -169,6 +169,62 @@ class WorkflowControlTest(unittest.TestCase):
                 ],
             )
 
+    def test_cli_writes_unified_change_tasks_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = (
+                Path(temp_dir) / "openspec" / "changes" / "example-change" / "tasks.md"
+            )
+            path.parent.mkdir(parents=True)
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
+            result = workflow_control.main(
+                [str(path), "event", "1", "quality_passed", "--write"]
+            )
+            self.assertEqual(0, result)
+            self.assertIn(
+                "- control_stage：quality_passed",
+                path.read_text(encoding="utf-8"),
+            )
+
+    def test_legacy_tasks_path_remains_readable_for_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = (
+                Path(temp_dir)
+                / "docs"
+                / "design-docs"
+                / "module"
+                / "legacy-change"
+                / "tasks.md"
+            )
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                tasks_text({1: "完成", 2: "未开始"}, {1: [], 2: [1]}),
+                encoding="utf-8",
+            )
+            self.assertEqual(0, workflow_control.main([str(path), "waves"]))
+            self.assertEqual(
+                0,
+                workflow_control.main([str(path), "recover", "--merged", "1"]),
+            )
+
+    def test_rejects_nonstandard_task_document_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "work-items.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            self.assertEqual(2, workflow_control.main([str(path), "waves"]))
+
+    def test_knowledge_sync_task_uses_normal_dag_and_recovery(self) -> None:
+        text = tasks_text(
+            {1: "完成", 2: "未开始", 3: "未开始"},
+            {1: [], 2: [1], 3: [2]},
+        ).replace("任务 2：测试", "任务 2：同步长期知识")
+        tasks = lint_task_deps.parse_tasks(text)
+        self.assertEqual([2], workflow_control.dispatchable_tasks(tasks))
+        actions = workflow_control.plan_recovery(tasks, set())
+        self.assertEqual(
+            ["skip", "dispatch", "wait"],
+            [action.action for action in actions],
+        )
+
     def test_atomic_write_preserves_permissions_and_crlf(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"

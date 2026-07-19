@@ -5,5 +5,8 @@ __pycache__/
 # verify 门禁的本地产物（基线与报告）
 .verify/
 
+# Workflow 控制器的本地任务锁
+**/.tasks.md.lock
+
 # 会话遥测含本机路径和会话 ID，只保留在本地
 metrics/session-history.jsonl

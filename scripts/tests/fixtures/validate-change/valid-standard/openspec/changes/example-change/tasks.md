@@ -41,3 +41,17 @@
 
 - 构建命令：`python -m py_compile scripts/validate_change.py`，退出码 0。
 - 测试命令：`python -m unittest discover -s scripts/tests -p "test_*.py"`，退出码 0。
+
+## 知识同步
+
+| Delta | 长期目标 | 动作 | 状态 | 索引更新 |
+| --- | --- | --- | --- | --- |
+| specs/business/validator/spec.md | openspec/specs/business/validator/spec.md | ADDED | Completed | openspec/specs/index.md 已更新 |
+
+## 知识冲突
+
+- 结论：无冲突。
+
+## 实际 Diff 核对
+
+- 已核对实际 Diff、Change 和测试证据：PASS。

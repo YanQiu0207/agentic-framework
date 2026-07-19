@@ -29,6 +29,8 @@ CORE_SKILLS = {
     "bp-distributed-systems",
     "bp-performance-optimization",
     "bp-skill-authoring",
+    "project-init",
+    "project-knowledge",
     "self-refinement",
     "std-cpp",
     "std-go",
@@ -46,7 +48,6 @@ PRODUCTION_SKILLS = {
     "opsx-test-generation",
 }
 TOOLING_SKILLS = {
-    "project-knowledge",
     "workflow-code-generation",
     "workflow-quick-design",
     "workflow-requirements-clarification",
@@ -56,6 +57,7 @@ TOOLING_SKILLS = {
 CORE_COMMANDS = {
     "code-review.md",
     "performance-optimization.md",
+    "project-init.md",
     "reflect.md",
     "skill-authoring.md",
     "troubleshooting.md",
@@ -95,7 +97,7 @@ PACK_COMMANDS = {
     "open-code-review": set(),
     "telemetry": set(),
 }
-TOOLING_ONLY_PACKS = {"frontend", "project-init"}
+TOOLING_ONLY_PACKS = {"frontend"}
 IGNORED_PARTS = {"__pycache__", ".pytest_cache"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
 ACTIVE_AGENT_FILES = {
@@ -138,6 +140,8 @@ MANAGED_PROFILE_SKILL_ROOTS = {
             "opsx-requirements-clarification",
             "opsx-system-design",
             "opsx-test-generation",
+            "project-init",
+            "project-knowledge",
             "self-refinement",
             "std-cpp",
             "std-go",
@@ -155,6 +159,7 @@ MANAGED_PROFILE_SKILL_ROOTS = {
             "bp-distributed-systems",
             "bp-performance-optimization",
             "bp-skill-authoring",
+            "project-init",
             "project-knowledge",
             "self-refinement",
             "std-cpp",
@@ -182,6 +187,7 @@ MANAGED_PROFILE_COMMAND_FILES = {
             "opsx-system-design.md",
             "opsx-test-generation.md",
             "performance-optimization.md",
+            "project-init.md",
             "reflect.md",
             "skill-authoring.md",
             "troubleshooting.md",
@@ -192,6 +198,7 @@ MANAGED_PROFILE_COMMAND_FILES = {
             "code-generation.md",
             "code-review.md",
             "performance-optimization.md",
+            "project-init.md",
             "quick-design.md",
             "reflect.md",
             "requirements-clarification.md",

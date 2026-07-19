@@ -30,6 +30,50 @@ class ProfileContractTest(unittest.TestCase):
         self.assertIn("一次最终审核", text)
         self.assertIn("禁止启动第二次全量首审", text)
 
+    def test_profiles_share_change_artifact_contract(self) -> None:
+        """Both profiles create Proposal, Design, Delta, and Tasks artifacts."""
+        production = (ROOT / "skills/opsx-code-generation/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        tooling = (ROOT / "skills/workflow-code-generation/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for text in (production, tooling):
+            for required in (
+                "openspec/changes/",
+                "proposal.md",
+                "design.md",
+                "tasks.md",
+                "specs/",
+            ):
+                self.assertIn(required, text)
+        self.assertIn("旧 `spec.md`", tooling)
+        self.assertIn("禁止写入旧 Artifact", tooling)
+
+    def test_change_templates_include_knowledge_bookkeeping(self) -> None:
+        """Proposal and Tasks templates cannot omit knowledge lifecycle fields."""
+        templates = (
+            ROOT
+            / "skills/opsx-requirements-clarification/reference/proposal_template.md",
+            ROOT / "skills/opsx-quick-design/reference/quick-proposal-template.md",
+            ROOT
+            / "skills/workflow-requirements-clarification/reference/proposal_template.md",
+            ROOT / "skills/workflow-quick-design/reference/quick-proposal-template.md",
+        )
+        for template in templates:
+            with self.subTest(template=template):
+                self.assertIn("知识影响", template.read_text(encoding="utf-8"))
+        task_guides = (
+            ROOT / "skills/opsx-code-generation/reference/task_planning_guide.md",
+            ROOT / "skills/workflow-code-generation/reference/task_planning_guide.md",
+        )
+        for guide in task_guides:
+            with self.subTest(guide=guide):
+                text = guide.read_text(encoding="utf-8")
+                self.assertIn("## 知识同步", text)
+                self.assertIn("## 知识冲突", text)
+                self.assertIn("## 实际 Diff 核对", text)
+
     def test_removed_knowledge_skills_do_not_exist(self) -> None:
         for name in (
             "bp-cola-ddd",
@@ -37,17 +81,44 @@ class ProfileContractTest(unittest.TestCase):
         ):
             self.assertFalse((ROOT / "skills" / name).exists())
 
-    def test_project_knowledge_keeps_code_as_truth(self) -> None:
-        """收编版 project-knowledge 只沉淀 intent，防旧「现状真相」机制回流。"""
-        text = (ROOT / "skills/project-knowledge/SKILL.md").read_text(
-            encoding="utf-8"
-        )
+    def test_project_knowledge_uses_shared_openspec_contract(self) -> None:
+        """Shared project-knowledge 锁定统一读写、冲突与晋升边界。"""
+        text = (ROOT / "skills/project-knowledge/SKILL.md").read_text(encoding="utf-8")
         for required in (
-            "不维护现状文档",
-            "交付前沉淀检查",
+            "Production 与 Tooling 的 Shared Core 合同",
+            "openspec/index.md",
+            "唯一建议写入位置",
+            "知识与代码冲突",
+            "同时展示双方证据和不确定性",
+            "不得覆盖、重写、移动或删除任何 `custom/` 文件",
+            "Change Delta 与 Archive",
+            "用户明确确认后",
+            "公共 `changes/` 只记录公共知识库自身治理",
+            "交付前 intent 沉淀检查",
         ):
             self.assertIn(required, text)
-        self.assertNotIn("architecture/overview.md", text)
+        for forbidden in (
+            "docs/design-docs/",
+            "docs/issues/",
+            "候选写入共用库 `changes/",
+        ):
+            self.assertNotIn(forbidden, text)
+
+    def test_project_init_uses_unified_private_openspec_layout(self) -> None:
+        text = (ROOT / "skills/project-init/SKILL.md").read_text(encoding="utf-8")
+        for required in (
+            "Production",
+            "Tooling",
+            "openspec/index.md",
+            "openspec/specs/index.md",
+            "openspec/issues/index.md",
+            "外部私有目录",
+            "链接恢复",
+            "单独询问公共知识库接线",
+            "不得覆盖",
+        ):
+            self.assertIn(required, text)
+        self.assertNotIn("docs/design-docs/", text)
 
 
 if __name__ == "__main__":
