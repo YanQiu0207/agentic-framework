@@ -11,11 +11,13 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import os
 import re
 import sys
 from pathlib import Path
 from typing import Sequence
-from urllib.parse import unquote, urlparse
+
+from markdown_links import LINK_PATTERN, resolve_local_link
 
 SOURCE_AREAS = (
     "docs/design-docs",
@@ -24,7 +26,7 @@ SOURCE_AREAS = (
     "docs/issues",
     "docs/arch-snapshots",
 )
-LINK_PATTERN = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+IGNORED_DIRECTORIES = frozenset({".git", ".worktrees", ".venv", "node_modules"})
 
 
 @dataclasses.dataclass(frozen=True)
@@ -60,7 +62,9 @@ def _slug(parts: tuple[str, ...]) -> str:
 
 def _proposed_target(source: str) -> tuple[str | None, str, str]:
     path = Path(source)
-    relative = path.relative_to(*path.parts[:2])
+    if len(path.parts) < 3:
+        raise ValueError(f"Legacy 路径至少需要包含来源目录和文件名：{source}")
+    relative = path.relative_to(Path(*path.parts[:2]))
     if source.startswith("docs/design-docs/"):
         parent_parts = relative.parent.parts
         change_name = f"legacy-{_slug(parent_parts)}"
@@ -100,34 +104,49 @@ def _legacy_files(repo: Path) -> list[Path]:
         root = repo / area
         if not root.is_dir():
             continue
-        files.extend(path for path in root.rglob("*") if path.is_file())
+        files.extend(_walk_files(root))
     return sorted(set(files), key=lambda path: _as_posix(path, repo))
 
 
 def _markdown_files(repo: Path) -> list[Path]:
-    ignored = {".git", ".worktrees", ".venv", "node_modules"}
     return sorted(
-        (
-            path
-            for path in repo.rglob("*.md")
-            if path.is_file() and not ignored.intersection(path.relative_to(repo).parts)
-        ),
+        _walk_files(repo, suffix=".md"),
         key=lambda path: _as_posix(path, repo),
     )
 
 
-def _resolve_link(source: Path, target: str) -> Path | None:
-    raw = target.strip().strip("<>").split("#", 1)[0]
-    if not raw:
-        return None
-    parsed = urlparse(raw)
-    if parsed.scheme:
-        return None
-    return (source.parent / Path(unquote(raw))).resolve()
+def _raise_walk_error(error: OSError) -> None:
+    raise error
+
+
+def _walk_files(root: Path, suffix: str | None = None) -> list[Path]:
+    """Return files below ``root`` without entering ignored or linked dirs."""
+    if root.is_symlink():
+        return []
+    files: list[Path] = []
+    for current, directories, names in os.walk(
+        root,
+        followlinks=False,
+        onerror=_raise_walk_error,
+    ):
+        current_path = Path(current)
+        directories[:] = [
+            name
+            for name in directories
+            if name not in IGNORED_DIRECTORIES
+            and not (current_path / name).is_symlink()
+        ]
+        files.extend(
+            current_path / name
+            for name in names
+            if suffix is None or Path(name).suffix == suffix
+        )
+    return files
 
 
 def _reference_index(repo: Path, legacy: set[Path]) -> dict[Path, list[Reference]]:
     references = {path.resolve(): [] for path in legacy}
+    legacy_candidates = [(_as_posix(path, repo), path.resolve()) for path in legacy]
     seen: set[tuple[Path, str, int]] = set()
     for document in _markdown_files(repo):
         lines = document.read_text(encoding="utf-8-sig").splitlines()
@@ -135,13 +154,12 @@ def _reference_index(repo: Path, legacy: set[Path]) -> dict[Path, list[Reference
         for line_number, line in enumerate(lines, start=1):
             targets: set[Path] = set()
             for raw_target in LINK_PATTERN.findall(line):
-                target = _resolve_link(document, raw_target)
+                target = resolve_local_link(document, raw_target)
                 if target in references:
                     targets.add(target)
-            for legacy_path in legacy:
-                relative = _as_posix(legacy_path, repo)
+            for relative, legacy_path in legacy_candidates:
                 if relative in line:
-                    targets.add(legacy_path.resolve())
+                    targets.add(legacy_path)
             for target in targets:
                 key = (target, document_name, line_number)
                 if key in seen or target == document.resolve():
@@ -151,6 +169,14 @@ def _reference_index(repo: Path, legacy: set[Path]) -> dict[Path, list[Reference
                     Reference(document_name, line_number, line.strip())
                 )
     return references
+
+
+def _is_superseded_marker(path: Path) -> bool:
+    """Return whether a README is a directory-level migration marker."""
+    if path.name.lower() != "readme.md":
+        return False
+    text = path.read_text(encoding="utf-8-sig")
+    return bool(re.search(r"\*\*状态\*\*[：:]\s*Superseded\b", text))
 
 
 def build_plan(repo: Path) -> dict[str, object]:
@@ -163,7 +189,14 @@ def build_plan(repo: Path) -> dict[str, object]:
     mappings: list[Mapping] = []
     for source_path in legacy_files:
         source = _as_posix(source_path, repo)
-        target, status, reason = _proposed_target(source)
+        if _is_superseded_marker(source_path):
+            target, status, reason = (
+                None,
+                "marker-only",
+                "目录级 Superseded 治理标记原地保留，不复制到当前知识库。",
+            )
+        else:
+            target, status, reason = _proposed_target(source)
         mappings.append(
             Mapping(
                 source=source,
@@ -171,8 +204,8 @@ def build_plan(repo: Path) -> dict[str, object]:
                 status=status,
                 reason=reason,
                 superseded_marker=(
-                    "复制并核对引用后，在旧文档头部标记 Superseded；"
-                    "未经用户授权不得修改。"
+                    "复制并核对引用后，在来源目录 README.md 统一标记 Superseded，"
+                    "并保留逐文件迁移映射；未经用户授权不得删除。"
                 ),
                 references=tuple(reference_index[source_path.resolve()]),
             )

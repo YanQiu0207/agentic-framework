@@ -11,7 +11,8 @@ import argparse
 import re
 import sys
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+
+from markdown_links import LINK_PATTERN, resolve_local_link
 
 ENTRY_DIRS = ("domains", "issues")
 REQUIRED_ENTRY_FIELDS = (
@@ -22,7 +23,6 @@ REQUIRED_ENTRY_FIELDS = (
     "excludes",
 )
 ALLOWED_STATUSES = {"provisional", "verified", "uncertain", "deprecated"}
-LINK_PATTERN = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 PROJECT_CANDIDATE_HEADINGS = re.compile(
     r"^#{1,6}\s*(?:跨项目|项目)?知识(?:晋升)?候选(?:[:：].*)?$", re.MULTILINE
 )
@@ -34,15 +34,25 @@ PROJECT_CANDIDATE_KINDS = {
 }
 
 
-def _read(path: Path) -> str:
+def _read_file(path: Path) -> str:
     """Read a UTF-8 Markdown file, accepting an optional BOM."""
     return path.read_text(encoding="utf-8-sig")
 
 
-def _frontmatter(path: Path, problems: list[str]) -> dict[str, str] | None:
+def _read(path: Path, cache: dict[Path, str]) -> str:
+    """Return cached UTF-8 text so each document is read at most once."""
+    key = path.resolve()
+    if key not in cache:
+        cache[key] = _read_file(path)
+    return cache[key]
+
+
+def _frontmatter(
+    path: Path, problems: list[str], cache: dict[Path, str]
+) -> dict[str, str] | None:
     """Return simple top-level frontmatter fields or report malformed input."""
     relative = path.as_posix()
-    lines = _read(path).splitlines()
+    lines = _read(path, cache).splitlines()
     if not lines or lines[0].strip() != "---":
         problems.append(f"{relative}：缺少 frontmatter")
         return None
@@ -64,7 +74,9 @@ def _relative(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
-def _check_entries(root: Path, problems: list[str]) -> None:
+def _check_entries(
+    root: Path, problems: list[str], cache: dict[Path, str]
+) -> None:
     """Check the metadata contract for public knowledge entries."""
     for area in ENTRY_DIRS:
         directory = root / area
@@ -74,7 +86,7 @@ def _check_entries(root: Path, problems: list[str]) -> None:
             if entry.name == "index.md":
                 continue
             relative = _relative(entry, root)
-            fields = _frontmatter(entry, problems)
+            fields = _frontmatter(entry, problems, cache)
             if fields is None:
                 continue
             missing = [key for key in REQUIRED_ENTRY_FIELDS if not fields.get(key)]
@@ -90,19 +102,6 @@ def _check_entries(root: Path, problems: list[str]) -> None:
                 )
             if fields.get("scope", "").lower() == "project":
                 problems.append(f"{relative}：公共条目禁止 scope: project")
-
-
-def _link_target(raw_target: str, source: Path) -> Path | None:
-    """Resolve a local Markdown link; return None for ordinary web links."""
-    target = raw_target.strip().strip("<>").split("#", 1)[0]
-    if not target:
-        return None
-    parsed = urlparse(target)
-    if parsed.scheme in {"http", "https", "mailto"}:
-        return None
-    if parsed.scheme == "file":
-        return Path(unquote(parsed.path))
-    return source.parent / Path(unquote(target))
 
 
 def _is_within(path: Path, root: Path) -> bool:
@@ -121,13 +120,17 @@ def _points_to_projects(path: Path, root: Path) -> bool:
     return bool(relative.parts and relative.parts[0].lower() == "projects")
 
 
-def _check_index_boundaries(root: Path, problems: list[str]) -> None:
+def _check_index_boundaries(
+    root: Path, problems: list[str], cache: dict[Path, str]
+) -> None:
     """Reject private or project-scoped targets from public indexes."""
     for index in sorted(root.rglob("index.md")):
         relative = _relative(index, root)
-        for line_number, line in enumerate(_read(index).splitlines(), start=1):
+        for line_number, line in enumerate(
+            _read(index, cache).splitlines(), start=1
+        ):
             for raw_target in LINK_PATTERN.findall(line):
-                target = _link_target(raw_target, index)
+                target = resolve_local_link(index, raw_target)
                 if target is None:
                     continue
                 if not _is_within(target, root):
@@ -142,7 +145,9 @@ def _check_index_boundaries(root: Path, problems: list[str]) -> None:
                     )
 
 
-def _check_entry_boundaries(root: Path, problems: list[str]) -> None:
+def _check_entry_boundaries(
+    root: Path, problems: list[str], cache: dict[Path, str]
+) -> None:
     """Reject project-private or repository-external links from public entries."""
     for area in ENTRY_DIRS:
         directory = root / area
@@ -150,9 +155,11 @@ def _check_entry_boundaries(root: Path, problems: list[str]) -> None:
             continue
         for entry in sorted(directory.rglob("*.md")):
             relative = _relative(entry, root)
-            for line_number, line in enumerate(_read(entry).splitlines(), start=1):
+            for line_number, line in enumerate(
+                _read(entry, cache).splitlines(), start=1
+            ):
                 for raw_target in LINK_PATTERN.findall(line):
-                    target = _link_target(raw_target, entry)
+                    target = resolve_local_link(entry, raw_target)
                     if target is None:
                         continue
                     if not _is_within(target, root):
@@ -167,31 +174,35 @@ def _check_entry_boundaries(root: Path, problems: list[str]) -> None:
                         )
 
 
-def _check_root_index(root: Path, problems: list[str]) -> None:
+def _check_root_index(
+    root: Path, problems: list[str], cache: dict[Path, str]
+) -> None:
     """Ensure the retired projects area is absent from daily navigation."""
     index = root / "index.md"
     if not index.is_file():
         problems.append("index.md：根索引不存在")
         return
-    for line_number, line in enumerate(_read(index).splitlines(), start=1):
+    for line_number, line in enumerate(_read(index, cache).splitlines(), start=1):
         for raw_target in LINK_PATTERN.findall(line):
-            target = _link_target(raw_target, index)
+            target = resolve_local_link(index, raw_target)
             if target is not None and _points_to_projects(target, root):
                 problems.append(
                     f"index.md:{line_number}：projects/ 不得作为日常索引入口"
                 )
 
 
-def _check_changes(root: Path, problems: list[str]) -> None:
+def _check_changes(
+    root: Path, problems: list[str], cache: dict[Path, str]
+) -> None:
     """Reject deterministic markers of project promotion candidates."""
     changes = root / "changes"
     if not changes.is_dir():
         return
     for entry in sorted(changes.rglob("*.md")):
         relative = _relative(entry, root)
-        text = _read(entry)
+        text = _read(entry, cache)
         local_problems: list[str] = []
-        fields = _frontmatter(entry, local_problems)
+        fields = _frontmatter(entry, local_problems, cache)
         if fields:
             if fields.get("scope", "").lower() == "project":
                 problems.append(f"{relative}：公共 changes/ 禁止 scope: project")
@@ -208,11 +219,12 @@ def validate(root: Path) -> list[str]:
     """Return all deterministic shared knowledge contract violations."""
     root = root.resolve()
     problems: list[str] = []
-    _check_root_index(root, problems)
-    _check_index_boundaries(root, problems)
-    _check_entry_boundaries(root, problems)
-    _check_entries(root, problems)
-    _check_changes(root, problems)
+    cache: dict[Path, str] = {}
+    _check_root_index(root, problems, cache)
+    _check_index_boundaries(root, problems, cache)
+    _check_entry_boundaries(root, problems, cache)
+    _check_entries(root, problems, cache)
+    _check_changes(root, problems, cache)
     return problems
 
 
@@ -226,12 +238,15 @@ def main(argv: list[str]) -> int:
     )
     parser.add_argument("--root", type=Path, required=True, help="公共知识库根目录")
     args = parser.parse_args(argv)
-    root = args.root.resolve()
-    if not root.is_dir() or not (root / "domains").is_dir():
-        print(f"error: {root} 不是可用的公共知识库", file=sys.stderr)
+    try:
+        root = args.root.resolve()
+        if not root.is_dir() or not (root / "domains").is_dir():
+            print(f"error: {root} 不是可用的公共知识库", file=sys.stderr)
+            return 2
+        problems = validate(root)
+    except (OSError, UnicodeError, RecursionError, RuntimeError) as error:
+        print(f"error: 无法校验公共知识库：{error}", file=sys.stderr)
         return 2
-
-    problems = validate(root)
     for problem in problems:
         print(f"violation: {problem}")
     print(f"checked root={root} | violations={len(problems)} | mode=read-only")

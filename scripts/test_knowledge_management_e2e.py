@@ -1,9 +1,7 @@
-#!/usr/bin/env python3
 """Exercise the unified project and shared knowledge contracts end to end."""
 
 from __future__ import annotations
 
-import importlib.util
 import os
 import shutil
 import sys
@@ -11,34 +9,17 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
-from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
-WORKFLOW_SCRIPTS_DIR = REPO_ROOT / "skills" / "workflow-code-generation" / "scripts"
 FIXTURE_ROOT = SCRIPTS_DIR / "tests" / "fixtures" / "validate-change" / "valid-standard"
 CHANGE = Path("openspec/changes/example-change")
 
-for import_path in (SCRIPTS_DIR, WORKFLOW_SCRIPTS_DIR):
-    if str(import_path) not in sys.path:
-        sys.path.insert(0, str(import_path))
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 
 import validate_change  # noqa: E402
 import validate_shared_knowledge  # noqa: E402
-
-
-def _load_workflow_control() -> ModuleType:
-    module_path = WORKFLOW_SCRIPTS_DIR / "workflow_control.py"
-    spec = importlib.util.spec_from_file_location("e2e_workflow_control", module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"无法加载工作流控制器：{module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-WORKFLOW_CONTROL = _load_workflow_control()
 
 
 def _write(path: Path, content: str) -> None:
@@ -64,12 +45,12 @@ excludes: binary protocols and non-JSON transports
 
 
 class KnowledgeManagementE2ETest(unittest.TestCase):
-    """Validate the cross-profile knowledge lifecycle in disposable projects."""
+    """Validate shared project and public knowledge contracts in disposable roots."""
 
-    def test_production_archive_gate_and_delta_sync(self) -> None:
-        """A Production Change maps its Delta before a safe archive move."""
+    def test_shared_standard_change_archive_gate_and_delta_sync(self) -> None:
+        """A shared Standard Change passes its archive gate and syncs its Delta."""
         with tempfile.TemporaryDirectory() as temp_dir:
-            repo = Path(temp_dir) / "production-project"
+            repo = Path(temp_dir) / "standard-change-project"
             shutil.copytree(FIXTURE_ROOT, repo)
             change = repo / CHANGE
             tasks_path = change / "tasks.md"
@@ -105,46 +86,6 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
             )
             self.assertFalse(change.exists())
             self.assertTrue((target / "tasks.md").is_file())
-
-    def test_tooling_standard_uses_unified_artifact_and_controller(self) -> None:
-        """Tooling state transitions operate on openspec/changes/tasks.md."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tasks_path = (
-                Path(temp_dir)
-                / "tooling-project"
-                / "openspec"
-                / "changes"
-                / "add-knowledge-route"
-                / "tasks.md"
-            )
-            _write(
-                tasks_path,
-                """# 实施任务清单
-
-### 任务 1：实现统一知识路由
-
-- 状态：进行中
-- attempts：0
-- control_stage：running
-- depends_on：[]
-""",
-            )
-
-            self.assertEqual(
-                0,
-                WORKFLOW_CONTROL.main(
-                    [str(tasks_path), "event", "1", "quality_passed", "--write"]
-                ),
-            )
-            self.assertEqual(
-                0,
-                WORKFLOW_CONTROL.main(
-                    [str(tasks_path), "event", "1", "merge_success", "--write"]
-                ),
-            )
-            persisted = tasks_path.read_text(encoding="utf-8")
-            self.assertIn("- 状态：完成", persisted)
-            self.assertIn("- control_stage：completed", persisted)
 
     def test_external_private_link_is_transparent_and_breakage_is_detectable(
         self,
@@ -223,6 +164,48 @@ kind: promotion-candidate
             problems = validate_shared_knowledge.validate(root)
             self.assertTrue(any("projects/" in problem for problem in problems))
             self.assertTrue(any("项目知识候选" in problem for problem in problems))
+
+    def test_public_index_cannot_bridge_two_projects_private_content(self) -> None:
+        """Public indexes exclude both projects and reject bridge links."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            shared = root / "shared"
+            project_a = root / "project-a"
+            project_b = root / "project-b"
+            _write(project_a / "openspec" / "index.md", "# A\n\nprivate-token-a\n")
+            _write(project_b / "openspec" / "index.md", "# B\n\nprivate-token-b\n")
+            _write(shared / "index.md", "# 公共知识库\n\n- [工具知识](domains/tooling/)\n")
+            _write(shared / "domains" / "index.md", "# 领域索引\n")
+            _write(
+                shared / "domains" / "tooling" / "utf8-json.md",
+                _valid_public_entry(),
+            )
+            (shared / "issues").mkdir(parents=True)
+            (shared / "changes").mkdir()
+
+            public_text = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in shared.rglob("*.md")
+            )
+            self.assertNotIn("private-token-a", public_text)
+            self.assertNotIn("private-token-b", public_text)
+            self.assertEqual([], validate_shared_knowledge.validate(shared))
+
+            _write(
+                shared / "index.md",
+                "# 公共知识库\n\n"
+                "- [项目 A](../project-a/openspec/index.md)\n"
+                "- [项目 B](../project-b/openspec/index.md)\n",
+            )
+            self.assertEqual(
+                [
+                    "index.md:3：公共索引链接越出公共库 -> "
+                    "../project-a/openspec/index.md",
+                    "index.md:4：公共索引链接越出公共库 -> "
+                    "../project-b/openspec/index.md",
+                ],
+                validate_shared_knowledge.validate(shared),
+            )
 
     def test_confirmed_generalised_public_entry_passes_validator(self) -> None:
         """A reviewed, generalised public entry satisfies the public contract."""

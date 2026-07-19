@@ -7,7 +7,7 @@
 - **工作区干净**（总是检查）：`git status --porcelain` 必须为空——
   代码与归档产物（spec / tasks / ADR / issues）都已提交本地 git。
 
-Fast-Path（无 spec / tasks）只传 `--repo`，仅检查工作区。
+Fast-Path（无 spec / tasks）还必须传结构化知识影响结论；`none` 必须附理由。
 非 0 退出即禁止宣布交付；输出应原样贴进交付报告。
 """
 
@@ -83,6 +83,15 @@ def check_git_clean(repo: Path) -> list[str]:
     return []
 
 
+def check_knowledge_impact(impact: str | None, reason: str) -> list[str]:
+    """Fast-Path 必须声明知识影响；无影响时必须说明理由。"""
+    if impact is None:
+        return ["Fast-Path 缺少 --knowledge-impact hit|none"]
+    if impact == "none" and not reason.strip():
+        return ["--knowledge-impact none 必须提供 --knowledge-impact-reason"]
+    return []
+
+
 def main(argv: list[str]) -> int:
     """Run the delivery gate and report per-check results."""
     if hasattr(sys.stdout, "reconfigure"):
@@ -92,10 +101,44 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--tasks", type=Path, help="tasks.md 路径（标准流程必传）")
     parser.add_argument("--spec", type=Path, help="spec.md 路径（标准流程必传）")
     parser.add_argument("--repo", type=Path, default=Path("."), help="git 仓库根，默认当前目录")
+    parser.add_argument(
+        "--knowledge-impact",
+        choices=("hit", "none"),
+        help="Fast-Path 的长期知识影响结论",
+    )
+    parser.add_argument(
+        "--knowledge-impact-reason",
+        default="",
+        help="知识无影响的理由；--knowledge-impact none 时必填",
+    )
     args = parser.parse_args(argv)
+
+    if (args.tasks is None) != (args.spec is None):
+        print(
+            "error: --tasks 与 --spec 必须同时提供（Standard）或同时省略（Fast-Path）",
+            file=sys.stderr,
+        )
+        return 2
 
     errors: list[str] = []
     checks = 0
+
+    if args.tasks is None and args.spec is None:
+        checks += 1
+        found = check_knowledge_impact(
+            args.knowledge_impact, args.knowledge_impact_reason
+        )
+        errors.extend(found)
+        print(
+            ("ERROR  " + "；".join(found))
+            if found
+            else (
+                "PASS   Fast-Path 知识影响：命中"
+                if args.knowledge_impact == "hit"
+                else "PASS   Fast-Path 知识影响：未命中；"
+                f"理由：{args.knowledge_impact_reason.strip()}"
+            )
+        )
 
     for label, path, checker in (
         ("tasks.md 全部任务处于终态且附原因", args.tasks, check_tasks),

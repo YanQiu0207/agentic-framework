@@ -15,7 +15,7 @@ description: Production 与 Tooling 共用的项目知识路由与归档规范�
 2. **当前事实必须核实**：模块、接口、数据流和运行行为以代码、Schema、配置、测试与运行证据为准。
 3. **活跃 Change 是本次任务契约**：实现和验收必须对照当前 `openspec/changes/<change>/`；它不是普通知识。
 4. **冲突必须显式报告**：知识与当前事实不一致时，同时展示双方证据和不确定性，不得静默选择、覆盖或宣布任意一方错误。
-5. **项目知识保持项目作用域**：其他项目不得主动检索当前项目的 `openspec/`。
+5. **项目知识保持项目作用域**：Agent 只能从当前项目的逻辑根和已接线的公共知识库主动检索，不得把兄弟项目目录加入检索范围。该规则是人工操作边界，不是文件系统 ACL；保密需求仍需权限或执行环境隔离。
 6. **公共知识不得自动写入**：候选只保留在当前项目或交付报告；只有用户明确确认后才能晋升。
 7. **人工知识不可被自动覆盖**：代码或 Schema 派生任务不得覆盖任何 `custom/` 内容。
 
@@ -124,6 +124,7 @@ openspec/
 | 前端模块人工背景、约束和踩坑 | `openspec/specs/frontend/<domain>/<module>/custom/` |
 | 后端服务代码派生事实 | `openspec/specs/backend/<domain>/<service>/` 的对应生成文件 |
 | 后端服务人工背景、约束和踩坑 | `openspec/specs/backend/<domain>/<service>/custom/` |
+| 前端模块或后端服务的代码来源元数据 | 对应模块或服务目录的 `meta.yaml` |
 | 前后端共享协议 | `openspec/specs/common/protocols/` |
 | 共享数据模型 | `openspec/specs/common/data-models/` |
 | 统一错误码语义 | `openspec/specs/common/error-codes/` |
@@ -143,6 +144,7 @@ openspec/
 模块或服务目录可按需包含：
 
 ```text
+meta.yaml
 overview.md
 interfaces.md
 architecture.md
@@ -162,6 +164,17 @@ config.md
 ### 6.2 人工知识
 
 `custom/` 保存背景、约束、决策理由、例外和踩坑。修改前必须读取原文；与代码冲突时先按第 4 节报告，经确认后才能更新内容、适用范围或状态。
+
+`custom/` 的权威文件清单如下；同类知识不得另起近义文件名：
+
+```text
+custom/
+├── constraints.md    # 长期约束、红线和适用边界
+├── decisions.md      # 长期有效的决策及理由
+└── pitfalls.md       # 已验证的踩坑与规避方式
+```
+
+不属于以上三类的人工知识先留在当前 Change，确认形成新的长期知识类型后，必须先更新本节合同再新增文件名。
 
 ## 7. Change Delta 与 Archive
 

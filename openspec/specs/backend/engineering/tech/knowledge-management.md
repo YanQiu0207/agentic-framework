@@ -371,6 +371,11 @@ services:
         status: active
 ```
 
+`meta.yaml` 是代码来源元数据的唯一建议位置。Verification 必须核对其中的
+`source_ref` 和 `source_paths`：来源路径存在晚于来源版本的提交、来源版本不可解析或
+来源路径不可用时输出非阻塞 `WARN`，但不改变总判定。该检查只覆盖已提交的 Git
+历史，不覆盖工作区未提交修改。
+
 ### 10.2 自动生成文件
 
 `overview.md`、`interfaces.md`、`architecture.md`、`dependencies.md`、`storage.md` 和 `config.md` 可以由代码或 Schema 生成，但必须：
@@ -493,6 +498,7 @@ openspec/
 - `workflow-code-generation` 和 `workflow_control.py` 继续保留 DAG、Waves、Worktree、锁和恢复语义，但状态写入统一的 `tasks.md`。
 - `workflow-test-generation` 和 `workflow-verification` 使用相同的知识、Change 和 Spec Drift 路径。
 - Tooling 的 Fast-Path 可以不创建 Change，但必须说明为什么没有长期知识影响。
+- Fast-Path 交付门必须传入结构化的 `hit` 或 `none`；`none` 必须附理由。
 
 ## 15. 机器验证
 
@@ -513,6 +519,7 @@ openspec/
 - 公共条目包含来源、状态、适用范围和不适用范围。
 - 公共索引不得链接项目私有目录。
 - `scope` 字段只作结构提示，不能替代人工脱敏和泛化检查。
+- 公共知识校验器发现合同违规时返回 `1`；读取、编码或遍历错误返回 `2`。
 
 检索文件数和行数先作为观测指标，不作为首版硬失败条件；积累真实问题数据后再校准预算。
 
@@ -527,7 +534,13 @@ openspec/
 | `docs/arch-snapshots/<module>/` | 对应端、业务域和模块的代码派生文档 |
 | `docs/issues/` | `openspec/issues/` |
 
-迁移必须先建立映射和引用检查，不得直接删除旧目录。旧文档先标记 `Superseded` 或保留跳转入口，确认所有引用和工作流已切换后再由用户决定是否移除。
+迁移必须先建立映射和引用检查，不得直接删除旧目录。迁移器不得使用
+`PurePath.relative_to()` 的多段位置参数，并且必须剪枝忽略目录、不跟随目录链接。
+已迁移的旧目录通过目录级 `README.md` 标记 `Superseded` 并提供逐文件映射，不要求
+改写历史文件原有生命周期状态；确认所有引用和工作流已切换后，再由用户决定是否移除。
+
+「项目私有」表示公共索引及其校验器不会主动桥接项目正文，Agent 的主动检索范围由
+操作合同约束；它不表示文件系统 ACL 或进程级安全隔离。
 
 ### 16.2 历史方案迁移
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import validate_shared_knowledge
 
@@ -116,6 +117,19 @@ class SharedKnowledgeValidatorTest(unittest.TestCase):
         self.assertIn("公共条目不得链接 projects/", joined)
         self.assertIn("公共条目链接越出公共库", joined)
 
+    def test_rejects_absolute_file_uri_outside_public_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(str(Path(temp_dir) / "shared"))
+            outside = Path(temp_dir) / "private" / "project.md"
+            outside.parent.mkdir()
+            outside.write_text("private", encoding="utf-8")
+            (root / "index.md").write_text(
+                f"[Private]({outside.as_uri()})\n", encoding="utf-8"
+            )
+            problems = validate_shared_knowledge.validate(root)
+        self.assertEqual(1, len(problems))
+        self.assertIn("公共索引链接越出公共库", problems[0])
+
     def test_rejects_project_scope_in_public_entries(self) -> None:
         """Public domains and issues cannot declare project scope."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -138,6 +152,67 @@ class SharedKnowledgeValidatorTest(unittest.TestCase):
             with self.assertRaises(SystemExit) as raised:
                 validate_shared_knowledge.main(["--root", str(root), "--fix"])
         self.assertEqual(2, raised.exception.code)
+
+    def test_main_returns_one_for_contract_violations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            (root / "index.md").write_text(
+                "[Projects](projects/)\n", encoding="utf-8"
+            )
+            result = validate_shared_knowledge.main(["--root", str(root)])
+        self.assertEqual(1, result)
+
+    def test_main_returns_two_for_non_utf8_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            (root / "domains" / "testing" / "entry.md").write_bytes(b"\x81")
+            result = validate_shared_knowledge.main(["--root", str(root)])
+        self.assertEqual(2, result)
+
+    def test_main_returns_two_for_read_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            with mock.patch.object(
+                validate_shared_knowledge,
+                "_read_file",
+                side_effect=OSError("read failed"),
+            ):
+                result = validate_shared_knowledge.main(["--root", str(root)])
+        self.assertEqual(2, result)
+
+    def test_main_returns_two_for_traversal_errors(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            with mock.patch.object(
+                Path, "rglob", side_effect=RecursionError("directory loop")
+            ):
+                result = validate_shared_knowledge.main(["--root", str(root)])
+        self.assertEqual(2, result)
+
+    def test_main_returns_two_for_root_resolution_errors(self) -> None:
+        with mock.patch.object(Path, "resolve", side_effect=OSError("boom")):
+            result = validate_shared_knowledge.main(["--root", "shared"])
+        self.assertEqual(2, result)
+
+    def test_each_markdown_file_is_read_at_most_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = self._root(temp_dir)
+            calls: dict[Path, int] = {}
+            original_read = validate_shared_knowledge._read_file
+
+            def counted_read(path: Path) -> str:
+                resolved = path.resolve()
+                calls[resolved] = calls.get(resolved, 0) + 1
+                return original_read(path)
+
+            with mock.patch.object(
+                validate_shared_knowledge, "_read_file", side_effect=counted_read
+            ):
+                problems = validate_shared_knowledge.validate(root)
+
+        self.assertEqual([], problems)
+        self.assertTrue(calls)
+        self.assertTrue(all(count == 1 for count in calls.values()))
 
 
 if __name__ == "__main__":

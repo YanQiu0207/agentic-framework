@@ -63,7 +63,7 @@
 
 - 当前仓库已建立 `openspec/index.md`、`openspec/specs/index.md` 和 `openspec/issues/index.md`。
 - 双 Profile 与知识管理当前合同已迁入 `openspec/specs/backend/engineering/tech/`。
-- 5 组历史设计产物已复制到 `openspec/changes/archive/`；旧 `docs/design-docs/` 保留并标记停止写入。
+- 5 组历史设计产物已复制到 `openspec/changes/archive/`；已迁移的 `docs/design-docs/`、`docs/adr/` 和 `docs/incidents/` 均由目录级 `README.md` 标记 `Superseded`、停止写入并指向当前入口，不要求逐文件改写原历史状态。
 - ADR 002 已复制到长期 Specs；迁移未删除、移动或覆盖旧文件。
 - Tooling 与 Production 的新 Artifact 都使用 `proposal.md`、`design.md`、`specs/` 和 `tasks.md`；Profile 合同测试锁定该边界。
 
@@ -97,7 +97,8 @@ checked root=E:\work\shared-knowledge-base | violations=0 | mode=read-only
 ## 自动化回归
 
 - 全量 `pytest scripts -q`：155 passed，17 skipped，39 subtests passed。
-- E2E：覆盖 Production Archive/Delta、Tooling 控制器、外置链接、冲突阻断、公共私有边界和确认后条目校验。
+- E2E：覆盖共享 Standard Change Artifact 的 Archive/Delta、外置链接、冲突阻断、双项目公共索引边界和确认后条目校验。Production 与 Tooling Profile 的独立边界由 `scripts/test_profile_contracts.py` 验证，Tooling 控制流由 `scripts/test_workflow_control.py` 验证，不由共享 Artifact 测试推断。
+- 私有边界验收仅证明公共索引及其 Validator 不会桥接两个项目的私有正文。Agent 主动检索范围另由 `project-knowledge` 人工合同约束；这些机制都不是文件系统 ACL，有保密需求时仍需独立的权限或执行环境隔离。
 - Windows 无目录符号链接权限时，外置链接用例条件跳过；`project-init` 合同要求实际初始化失败闭合，不得静默复制降级。
 
 ## 未扩大声明
