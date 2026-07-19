@@ -2,6 +2,7 @@
 
 > 对照对象：本专题总结的 Harness 实践（见 [01-source-summary.md](01-source-summary.md)）与本框架 agentic-engineering-framework 的当前实现。
 > 证据以 `file:line` 标注，可直接跳转核对。
+> **更新**：本文档识别的 gap 1（客观门禁脚本）与 gap 2（基线对比）已实现为 `skills/workflow-verification/`，详见第 3 节。其余对照结论仍按原分析保留。
 
 ## 1. 定位差异
 
@@ -15,7 +16,7 @@
 | 编排者 | 独立 PM Agent（Orchestrator） | 主 Agent / Workflow Skill（无独立 PM 角色） |
 | 平台 | 强绑 Cursor | Agent-Agnostic（Claude Code / Cursor / CodeBuddy / Codex 通用） |
 
-结论：文章里大部分「可落地点」，本框架已经有了，而且做得更细。真正的 gap 集中在「可执行脚本门禁」。
+结论：文章里大部分「可落地点」，本框架已经有了，而且做得更细。原分析发现的 gap 集中在「可执行脚本门禁」，该 gap 已实现（见第 3 节）。
 
 ## 2. 主对照表
 
@@ -33,23 +34,25 @@
 | 上下文纪律 / 按需加载 | ✅ 已有，理论化 | L1 / L2 / L3 三层渐进式披露（`agentic_engineering.md:384`） |
 | Memory 靠边站、知识进仓库 | ✅ 已有 | Docs as Code + Knowledge as Code（实践 1.2 / 5） |
 | 复杂度路由 | ✅ 文章没有，本框架更先进 | `skills/workflow-code-generation/SKILL.md:14`、`skills/workflow-requirements-clarification/SKILL.md:86` |
-| **总验证脚本（硬门禁）** | ❌ 缺 | 全 repo 无 `.ps1` / `.py` / `.sh`（Glob 验证） |
-| **基线对比（前后 diff）** | ❌ 缺 | 同上，依赖脚本 |
+| **总验证脚本（硬门禁）** | ✅ 已实现 | `skills/workflow-verification/scripts/verify.py`；`code-generation` 流程 review PASS 后强制触发（`skills/workflow-verification/SKILL.md:12-104`） |
+| **基线对比（前后 diff）** | ✅ 已实现 | `--save-baseline` / 默认 diff 模式，只追新增违规（`skills/workflow-verification/scripts/verify.py:295-369`） |
 | 流程定义文件 + 流程校验脚本 | 🟡 设计取舍 | 流程写在 `SKILL.md`，无独立状态机文件 |
 | per-Agent 模型分档 | ➖ 不适用 | 刻意 Agent-Agnostic，模型配置交平台 |
 | MCP 外接 | ➖ 对等 | 双方都列为未来 |
 
-## 3. 真正值得补的 gap（按价值排序）
+## 3. 原 gap（已实现）
 
-### gap 1：客观门禁脚本（最大缺口）
+### gap 1：客观门禁脚本（原最大缺口，已实现）
 
-文章把「能判定的就该脚本化」作为核心——总验证脚本是它眼里最关键的基础设施。本框架靠 subagent 评审 + 测试收口，但**没有一个不可辩解的可执行门禁**。
+文章把「能判定的就该脚本化」作为核心——总验证脚本是它眼里最关键的基础设施。本框架当时靠 subagent 评审 + 测试收口，没有一个不可辩解的可执行门禁。
 
-关键洞察：本框架的 L3 设计**本就预留了 `scripts/` 槽位**（`agentic_engineering.md:388` 明写「scripts/（可执行脚本）」），**只是一个都没填**。所以补脚本**不破坏 Agent-Agnostic**——框架核心仍是纯 Markdown，具体项目在 Skill 的 `scripts/` 下挂 verify 脚本即可。这是「设计已支持、实践未兑现」的典型。
+关键洞察（分析时成立，指导了实现方向）：本框架的 L3 设计**本就预留了 `scripts/` 槽位**（`agentic_engineering.md:388` 明写「scripts/（可执行脚本）」），当时只是一个都没填。补脚本**不破坏 Agent-Agnostic**——框架核心仍是纯 Markdown，具体项目在 Skill 的 `scripts/` 下挂 verify 脚本即可。
 
-### gap 2：基线对比
+**现状**：`skills/workflow-verification/` 已落地，`verify.py` 提供 `exit_code` / `count` / `forbid_pattern` 三类检查，`code-generation` 流程在 review PASS 后强制触发门禁，未过不进汇报。
 
-与 gap 1 同源。有了能产出结构化报告的 verify 脚本，基线对比只是「跑两次 + 存一次 + diff 一次」的薄封装。专治 AI 拿「历史遗留」甩锅。
+### gap 2：基线对比（已实现）
+
+与 gap 1 同源。`verify.py` 支持 `--save-baseline` 采基线、默认模式与基线 diff，只追新增违规，专治 AI 拿「历史遗留」甩锅；「测试数量异常减少」通过 `count` 类检查覆盖。
 
 ## 4. 不建议盲目补的（是设计取舍，不是缺陷）
 

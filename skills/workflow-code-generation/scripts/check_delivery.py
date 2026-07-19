@@ -7,13 +7,15 @@
 - **工作区干净**（总是检查）：`git status --porcelain` 必须为空——
   代码与归档产物（spec / tasks / ADR / issues）都已提交本地 git。
 
-Fast-Path（无 spec / tasks）还必须传结构化知识影响结论；`none` 必须附理由。
+Fast-Path（无 spec / tasks）还必须传 Run 级 Review 报告与结构化知识影响结论；
+`none` 必须附理由。
 非 0 退出即禁止宣布交付；输出应原样贴进交付报告。
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -46,7 +48,7 @@ def check_tasks(text: str) -> list[str]:
                 f"任务 {tid} 状态为 `{state}`，未到终态（完成 / 需人工 / 阻塞）"
             )
         elif state in NEEDS_REASON:
-            note = value[len(state):].strip(" \t:：，,()（）-")
+            note = value[len(state) :].strip(" \t:：，,()（）-")
             reason = lint_task_deps.field(info["body"], "原因")
             if not note and not reason:
                 errors.append(
@@ -62,6 +64,41 @@ def check_spec(text: str) -> list[str]:
     if status != "Archived":
         return [f"spec 状态为 `{status or '缺失'}`，交付前应改为 Archived"]
     return []
+
+
+def check_review_report(path: Path) -> list[str]:
+    """Review 报告须符合 Run 级机器可读产物契约。"""
+    if not path.is_file():
+        return [f"找不到 Review 报告 {path}"]
+    try:
+        report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
+    except (OSError, ValueError) as error:
+        return [f"Review 报告解析失败：{error}"]
+
+    if not isinstance(report, dict):
+        return ["Review 报告顶层结构必须是 JSON 对象"]
+
+    errors: list[str] = []
+    if report.get("verdict") != "PASS":
+        errors.append(f"Review 报告 verdict 不是 PASS：{report.get('verdict')!r}")
+    for field in ("p0_count", "p1_count"):
+        count = report.get(field)
+        if not isinstance(count, int) or isinstance(count, bool) or count != 0:
+            errors.append(f"Review 报告 {field} 必须为整数 0：{count!r}")
+    if report.get("scope") != "run":
+        errors.append(f"Review 报告 scope 不是 run：{report.get('scope')!r}")
+    if report.get("review_profile") not in {"lightweight", "standard", "strict"}:
+        errors.append(
+            "Review 报告 review_profile 非法：" f"{report.get('review_profile')!r}"
+        )
+    round_number = report.get("round")
+    if (
+        not isinstance(round_number, int)
+        or isinstance(round_number, bool)
+        or round_number < 0
+    ):
+        errors.append(f"Review 报告 round 必须为非负整数：{round_number!r}")
+    return errors
 
 
 def check_git_clean(repo: Path) -> list[str]:
@@ -95,12 +132,16 @@ def check_knowledge_impact(impact: str | None, reason: str) -> list[str]:
 def main(argv: list[str]) -> int:
     """Run the delivery gate and report per-check results."""
     if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认非 UTF-8，避免中文乱码
+        sys.stdout.reconfigure(
+            encoding="utf-8"
+        )  # Windows 控制台默认非 UTF-8，避免中文乱码
 
     parser = argparse.ArgumentParser(description="交付前确定性门禁")
     parser.add_argument("--tasks", type=Path, help="tasks.md 路径（标准流程必传）")
     parser.add_argument("--spec", type=Path, help="spec.md 路径（标准流程必传）")
-    parser.add_argument("--repo", type=Path, default=Path("."), help="git 仓库根，默认当前目录")
+    parser.add_argument(
+        "--repo", type=Path, default=Path("."), help="git 仓库根，默认当前目录"
+    )
     parser.add_argument(
         "--knowledge-impact",
         choices=("hit", "none"),
@@ -110,6 +151,12 @@ def main(argv: list[str]) -> int:
         "--knowledge-impact-reason",
         default="",
         help="知识无影响的理由；--knowledge-impact none 时必填",
+    )
+    parser.add_argument(
+        "--review-report",
+        type=Path,
+        required=True,
+        help="workflow-code-review 产出的 review-report.json 路径（Fast-Path 亦必传）",
     )
     args = parser.parse_args(argv)
 
@@ -157,7 +204,20 @@ def main(argv: list[str]) -> int:
     checks += 1
     found = check_git_clean(args.repo)
     errors.extend(found)
-    print(("ERROR  " + "；".join(found)) if found else "PASS   工作区干净（代码与归档产物已提交）")
+    print(
+        ("ERROR  " + "；".join(found))
+        if found
+        else "PASS   工作区干净（代码与归档产物已提交）"
+    )
+
+    checks += 1
+    found = check_review_report(args.review_report)
+    errors.extend(found)
+    print(
+        ("ERROR  " + "；".join(found))
+        if found
+        else "PASS   Review 报告 verdict=PASS 且 P0/P1=0"
+    )
 
     print(f"\nchecks={checks} | errors={len(errors)}")
     return 1 if errors else 0

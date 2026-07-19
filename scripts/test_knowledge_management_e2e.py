@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+import json
 import os
 import shutil
 import sys
@@ -9,17 +11,34 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
+WORKFLOW_SCRIPTS_DIR = REPO_ROOT / "skills" / "workflow-code-generation" / "scripts"
 FIXTURE_ROOT = SCRIPTS_DIR / "tests" / "fixtures" / "validate-change" / "valid-standard"
 CHANGE = Path("openspec/changes/example-change")
 
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+for import_path in (SCRIPTS_DIR, WORKFLOW_SCRIPTS_DIR):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
 import validate_change  # noqa: E402
 import validate_shared_knowledge  # noqa: E402
+
+
+def _load_workflow_control() -> ModuleType:
+    module_path = WORKFLOW_SCRIPTS_DIR / "workflow_control.py"
+    spec = importlib.util.spec_from_file_location("e2e_workflow_control", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载工作流控制器：{module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+WORKFLOW_CONTROL = _load_workflow_control()
 
 
 def _write(path: Path, content: str) -> None:
@@ -86,6 +105,56 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
             )
             self.assertFalse(change.exists())
             self.assertTrue((target / "tasks.md").is_file())
+
+    def test_tooling_standard_uses_unified_artifact_and_controller(self) -> None:
+        """Tooling state transitions operate on openspec/changes/tasks.md."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tasks_path = (
+                Path(temp_dir)
+                / "tooling-project"
+                / "openspec"
+                / "changes"
+                / "add-knowledge-route"
+                / "tasks.md"
+            )
+            _write(
+                tasks_path,
+                """# 实施任务清单
+
+### 任务 1：实现统一知识路由
+
+- 状态：进行中
+- attempts：0
+- control_stage：running
+- depends_on：[]
+""",
+            )
+
+            verify_report_path = tasks_path.parent / "verify-report.json"
+            _write(verify_report_path, json.dumps({"verdict": "PASS"}))
+            self.assertEqual(
+                0,
+                WORKFLOW_CONTROL.main(
+                    [
+                        str(tasks_path),
+                        "event",
+                        "1",
+                        "quality_passed",
+                        "--verify-report",
+                        str(verify_report_path),
+                        "--write",
+                    ]
+                ),
+            )
+            self.assertEqual(
+                0,
+                WORKFLOW_CONTROL.main(
+                    [str(tasks_path), "event", "1", "merge_success", "--write"]
+                ),
+            )
+            persisted = tasks_path.read_text(encoding="utf-8")
+            self.assertIn("- 状态：完成", persisted)
+            self.assertIn("- control_stage：completed", persisted)
 
     def test_external_private_link_is_transparent_and_breakage_is_detectable(
         self,
@@ -174,7 +243,9 @@ kind: promotion-candidate
             project_b = root / "project-b"
             _write(project_a / "openspec" / "index.md", "# A\n\nprivate-token-a\n")
             _write(project_b / "openspec" / "index.md", "# B\n\nprivate-token-b\n")
-            _write(shared / "index.md", "# 公共知识库\n\n- [工具知识](domains/tooling/)\n")
+            _write(
+                shared / "index.md", "# 公共知识库\n\n- [工具知识](domains/tooling/)\n"
+            )
             _write(shared / "domains" / "index.md", "# 领域索引\n")
             _write(
                 shared / "domains" / "tooling" / "utf8-json.md",
@@ -184,8 +255,7 @@ kind: promotion-candidate
             (shared / "changes").mkdir()
 
             public_text = "\n".join(
-                path.read_text(encoding="utf-8")
-                for path in shared.rglob("*.md")
+                path.read_text(encoding="utf-8") for path in shared.rglob("*.md")
             )
             self.assertNotIn("private-token-a", public_text)
             self.assertNotIn("private-token-b", public_text)

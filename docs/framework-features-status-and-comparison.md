@@ -92,7 +92,7 @@
 | worktree 隔离 | 已接线，依赖宿主执行 | 中高风险 Tooling Task 使用独立 worktree | 仓库没有自建 Git/worktree Runner |
 | Fast-Path | 已接线，依赖语义判断 | 小改动由主会话直接完成 | 尚无稳定自动判级和端到端效果评测 |
 
-Tooling 确定性内核实现了 Task 解析、拓扑分波、状态转换、阻塞、恢复、写锁和原子写回，但明确不直接调用 Agent、Git、Review 或 Verify。证据：`docs/tooling/design-docs/workflow-code-generation/deterministic-control-flow/spec.md:32-44,95-181`。
+Tooling 确定性内核实现了 Task 解析、拓扑分波、状态转换、阻塞、恢复、写锁和原子写回，但明确不直接调用 Agent、Git、Review 或 Verify。它会在 `quality_passed` 状态转换前校验 Verify 报告，在 Run 交付前由 `check_delivery.py` 校验 Review 报告；这能证明存在结构化 PASS 产物，但不能证明报告的语义判断正确。证据：`docs/tooling/design-docs/workflow-code-generation/deterministic-control-flow/spec.md:32-44,95-181`、`skills/workflow-code-generation/scripts/workflow_control.py`、`skills/workflow-code-generation/scripts/check_delivery.py`。
 
 现有资料只有仓库测试、框架迁移和少量历史会话证据，没有统一的真实项目采纳率、成功率或长期缺陷数据。因此，DAG、状态和锁可以判断为「确定性代码已实现」，worktree、Dispatch 和 Review 只能判断为「宿主编排已接线」。
 
@@ -130,8 +130,8 @@ Requirements
 | 阶段 | 主要检查 |
 | --- | --- |
 | Plan | Change 路径、Proposal、Standard/Quick Artifact、Task 依赖、环、覆盖关系 |
-| Delivery | Task 完成状态、构建/测试记录、任务 Review 元数据、覆盖映射 |
-| Archive | Delivery 条件、最终 Review、归档目标和命名 |
+| Delivery | Task 完成状态、构建/测试记录、任务 Review 元数据与结构化报告证据、覆盖映射 |
+| Archive | Delivery 条件、最终 Review 结构化报告证据、归档目标和命名 |
 
 稳定退出码为：`0` 通过，`1` 规则违规，`2` 调用或校验器内部错误。证据：`docs/design-docs/opsx/code-first-deterministic-validation/spec.md:182-320`。
 
@@ -166,10 +166,11 @@ Tooling：
 - 只有 P0/P1 触发修复。
 - Re-review 只检查原 Finding 与修复 Diff，不得扩大范围。
 - 最多两轮定向复审，仍不通过则转人工。
+- Judge 在 Markdown 报告之外同步生成 `review-report.json`；Tooling 的 `check_delivery.py` 与 Production 的 `validate_change.py` 会校验 `verdict` 及 P0/P1 计数。
 
 证据：`skills/workflow-code-review/SKILL.md:14-57`、`docs/tooling/adr/003-review-fix-loop-convergence.md:13-42`。
 
-当前限制：Reviewer、Critic 和 Judge 的定义及路由合同已经存在，但实际 Subagent 启动依赖宿主 CLI，框架没有独立 Review 服务。
+当前限制：Reviewer、Critic 和 Judge 的定义及路由合同已经存在，但实际 Subagent 启动依赖宿主 CLI，框架没有独立 Review 服务。结构化证据门只能确认报告文件存在且字段满足放行条件，无法验证 Reviewer/Judge 的语义判断一定正确。
 
 ### 4.4 Machine Verification 与 Spec Drift
 

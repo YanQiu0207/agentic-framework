@@ -45,7 +45,7 @@ python scripts/lint_skill_graph.py --graph  # 输出引用图，交 LLM 判语�
 # 以下三道门随 workflow-code-generation skill 分发（skills/workflow-code-generation/scripts/）
 python skills/workflow-code-generation/scripts/lint_task_deps.py <tasks.md> # tasks.md 依赖与必填字段
 python skills/workflow-code-generation/scripts/lint_spec.py <spec.md> --phase design|code  # spec 章节完整性门
-python skills/workflow-code-generation/scripts/check_delivery.py --tasks <tasks.md> --spec <spec.md>  # 交付门
+python skills/workflow-code-generation/scripts/check_delivery.py --tasks <tasks.md> --spec <spec.md> --review-report <review-report.json>  # 交付门
 ```
 
 流程门禁的挂点：`lint_spec.py` 挂在 `workflow-system-design` 前置条件（design）与 `workflow-code-generation` 步骤 2（code）；`lint_task_deps.py` 挂在任务规划检查表与执行段 Phase 0；`check_delivery.py` 挂在交付收尾（标准流程与 Fast-Path），非 0 禁止宣布交付。三道门随 skill 安装进目标项目，模板按兄弟 skill 目录解析。这三道门把「AI 自述完成」替换为机器判定；「AI 必须跑门禁」本身仍靠工作流指令遵循，客户端 hook 层强制（如 Claude Code Stop hook）另行立项评估。

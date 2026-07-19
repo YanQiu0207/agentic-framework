@@ -33,6 +33,10 @@ TASK_REVIEW_STATUS_RE = re.compile(
     r"^-\s*Task\s+Review\s*[:：]\s*(\S.*?)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+TASK_REVIEW_REPORT_RE = re.compile(
+    r"^-\s*Review\s+Report\s*[:：]\s*(\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 SECTION_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<title>.+?)\s*$")
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
 CHANGE_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
@@ -130,6 +134,76 @@ def _finding(
     hint: str,
 ) -> Finding:
     return Finding(rule_id, _relative_path(path, repo), line, message, hint)
+
+
+def _validate_review_report(
+    path_text: str, repo: Path, expected_scope: str
+) -> list[str]:
+    """Validate a review-report.json referenced by a Review Report field.
+
+    Returns a list of descriptive error messages; an empty list means the
+    referenced report exists, parses as JSON, and records a passing verdict
+    with zero P0/P1 findings.
+    """
+    path_value = path_text.strip()
+    if not path_value or _is_placeholder(path_value):
+        return ["Review Report 路径为空或为占位符。"]
+    relative_path = Path(path_value)
+    if relative_path.is_absolute() or ".." in relative_path.parts:
+        return ["Review Report 路径必须是仓库根目录内的相对路径。"]
+    repo_root = repo.resolve()
+    report_path = repo_root / relative_path
+    reparse_component = _find_reparse_path_component(repo_root, report_path)
+    if reparse_component is not None:
+        return [
+            "Review Report 路径不得经过符号链接或重解析点："
+            f"{_relative_path(reparse_component, repo_root)}。"
+        ]
+    try:
+        report_path.resolve().relative_to(repo_root)
+    except (OSError, ValueError):
+        return ["Review Report 路径必须位于仓库根目录内。"]
+    if not report_path.is_file():
+        return [f"Review Report 文件不存在：{path_value}。"]
+    try:
+        raw = report_path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeError) as error:
+        return [f"Review Report 文件无法读取：{path_value}（{error}）。"]
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as error:
+        return [f"Review Report 不是合法 JSON：{path_value}（{error}）。"]
+    if not isinstance(data, dict):
+        return [f"Review Report 顶层结构必须是 JSON 对象：{path_value}。"]
+
+    errors: list[str] = []
+    verdict = data.get("verdict")
+    if verdict != "PASS":
+        errors.append(f"Review Report 的 verdict 必须为 PASS，当前为 {verdict!r}。")
+    for field in ("p0_count", "p1_count"):
+        count = data.get(field)
+        if not isinstance(count, int) or isinstance(count, bool) or count != 0:
+            errors.append(f"Review Report 的 {field} 必须为 0，当前为 {count!r}。")
+    if data.get("scope") != expected_scope:
+        errors.append(
+            f"Review Report 的 scope 必须为 {expected_scope}，"
+            f"当前为 {data.get('scope')!r}。"
+        )
+    if data.get("review_profile") not in {"lightweight", "standard", "strict"}:
+        errors.append(
+            "Review Report 的 review_profile 非法，当前为 "
+            f"{data.get('review_profile')!r}。"
+        )
+    round_number = data.get("round")
+    if (
+        not isinstance(round_number, int)
+        or isinstance(round_number, bool)
+        or round_number < 0
+    ):
+        errors.append(
+            "Review Report 的 round 必须为非负整数，" f"当前为 {round_number!r}。"
+        )
+    return errors
 
 
 def _nonempty_file(path: Path) -> bool:
@@ -327,12 +401,25 @@ def _completed_status(status: str) -> bool:
     return status.casefold() in {"x", "completed", "complete", "done"}
 
 
-def _review_status(lines: Sequence[str]) -> tuple[str | None, int]:
-    for line_number, line in enumerate(lines, start=1):
+def _header_review_status(
+    lines: Sequence[str], header_end: int
+) -> tuple[str | None, int]:
+    """Return the unique Code Review status from unfenced header metadata."""
+    matches: list[tuple[str, int]] = []
+    fence: str | None = None
+    for line_number, line in enumerate(lines[:header_end], start=1):
+        marker = line.lstrip()[:3]
+        if marker in {"```", "~~~"}:
+            fence = None if fence == marker else marker
+            continue
+        if fence is not None:
+            continue
         match = REVIEW_RE.search(line)
         if match:
-            return match.group(1).upper(), line_number
-    return None, 1
+            matches.append((match.group(1).upper(), line_number))
+    if len(matches) != 1:
+        return None, matches[0][1] if matches else 1
+    return matches[0]
 
 
 def _mapping_rows(lines: Sequence[str]) -> list[tuple[int, list[str]]]:
@@ -1079,6 +1166,33 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
                     "完成 Task 级独立审核并将状态更新为 PASS。",
                 )
             )
+        elif require_completed:
+            report_matches = list(TASK_REVIEW_REPORT_RE.finditer(metadata_text))
+            if len(report_matches) != 1:
+                findings.append(
+                    _finding(
+                        "OPSX038",
+                        tasks_path,
+                        repo,
+                        task.line,
+                        f"Task {task.number} 的 Task Review 为 PASS 但缺少合法的 Review Report 字段。",
+                        "添加「- Review Report: <path>」指向 Task 级 review-report.json。",
+                    )
+                )
+            else:
+                for message in _validate_review_report(
+                    report_matches[0].group(1), repo, "task"
+                ):
+                    findings.append(
+                        _finding(
+                            "OPSX038",
+                            tasks_path,
+                            repo,
+                            task.line,
+                            f"Task {task.number} 的 Review Report 无效：{message}",
+                            "确认 review-report.json 存在且 verdict 为 PASS、P0/P1 计数为 0。",
+                        )
+                    )
         if require_completed and not _completed_status(task.status):
             findings.append(
                 _finding(
@@ -1189,8 +1303,9 @@ def _validate_delivery(
     if not _nonempty_file(tasks_path):
         return findings
 
-    _, lines = _parse_tasks(tasks_path)
-    review_status, review_line = _review_status(lines)
+    tasks, lines = _parse_tasks(tasks_path)
+    header_end = tasks[0].line - 1 if tasks else len(lines)
+    review_status, review_line = _header_review_status(lines, header_end)
     if review_status != expected_review:
         findings.append(
             _finding(
@@ -1202,6 +1317,34 @@ def _validate_delivery(
                 f"将文档头部的 Code Review 状态更新为 {expected_review}。",
             )
         )
+    elif expected_review == "PASS":
+        header_text = _metadata_text(lines[:header_end])
+        report_matches = list(TASK_REVIEW_REPORT_RE.finditer(header_text))
+        if len(report_matches) != 1:
+            findings.append(
+                _finding(
+                    "OPSX032",
+                    tasks_path,
+                    repo,
+                    review_line,
+                    "Code Review 为 PASS 但变更头部缺少合法的 Review Report 字段。",
+                    "在变更头部添加「- Review Report: <path>」指向集成级 review-report.json。",
+                )
+            )
+        else:
+            for message in _validate_review_report(
+                report_matches[0].group(1), repo, "integration"
+            ):
+                findings.append(
+                    _finding(
+                        "OPSX032",
+                        tasks_path,
+                        repo,
+                        review_line,
+                        f"变更 Code Review 的 Review Report 无效：{message}",
+                        "确认 review-report.json 存在且 verdict 为 PASS、P0/P1 计数为 0。",
+                    )
+                )
     build_ok, build_line = _execution_record(lines, "构建")
     if not build_ok:
         findings.append(

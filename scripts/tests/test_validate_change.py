@@ -749,6 +749,267 @@ class ValidateChangeCliTest(unittest.TestCase):
             finally:
                 specs.rmdir()
 
+    def write_report(self, repo: Path, name: str, payload: str) -> None:
+        """Overwrite a review-report fixture under the repository review dir."""
+        path = repo / "review-reports" / name
+        self.assertTrue(path.parent.is_dir(), path.parent)
+        path.write_text(payload, encoding="utf-8")
+
+    def test_task_review_report_evidence_is_enforced_at_delivery(self) -> None:
+        """A PASS Task Review requires a real passing review-report.json."""
+        needs_changes = json.dumps(
+            {"verdict": "NEEDS_CHANGES", "p0_count": 0, "p1_count": 0}
+        )
+        p0_positive = json.dumps({"verdict": "PASS", "p0_count": 1, "p1_count": 0})
+        p1_positive = json.dumps({"verdict": "PASS", "p0_count": 0, "p1_count": 2})
+        wrong_scope = json.dumps(
+            {
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+        )
+        for case in (
+            "missing_field",
+            "missing_file",
+            "invalid_json",
+            "bad_verdict",
+            "p0_positive",
+            "p1_positive",
+            "wrong_scope",
+            "absolute_path",
+            "parent_path",
+        ):
+            with self.subTest(case=case):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    if case == "missing_field":
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "- Review Report: review-reports/task-1-review.json\n",
+                            "",
+                        )
+                    elif case == "missing_file":
+                        (
+                            temporary_repo / "review-reports" / "task-1-review.json"
+                        ).unlink()
+                    elif case == "invalid_json":
+                        self.write_report(
+                            temporary_repo, "task-1-review.json", "{ not json"
+                        )
+                    elif case == "bad_verdict":
+                        self.write_report(
+                            temporary_repo, "task-1-review.json", needs_changes
+                        )
+                    elif case == "p0_positive":
+                        self.write_report(
+                            temporary_repo, "task-1-review.json", p0_positive
+                        )
+                    elif case == "p1_positive":
+                        self.write_report(
+                            temporary_repo, "task-1-review.json", p1_positive
+                        )
+                    elif case == "wrong_scope":
+                        self.write_report(
+                            temporary_repo, "task-1-review.json", wrong_scope
+                        )
+                    elif case in {"absolute_path", "parent_path"}:
+                        external_report = temporary_repo.parent / "external-review.json"
+                        external_report.write_text(
+                            json.dumps(
+                                {
+                                    "verdict": "PASS",
+                                    "p0_count": 0,
+                                    "p1_count": 0,
+                                    "scope": "task",
+                                    "review_profile": "standard",
+                                    "round": 0,
+                                }
+                            ),
+                            encoding="utf-8",
+                        )
+                        path_text = (
+                            str(external_report)
+                            if case == "absolute_path"
+                            else "../external-review.json"
+                        )
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "review-reports/task-1-review.json",
+                            path_text,
+                        )
+                    result = self.run_repo(temporary_repo, "delivery", json_output=True)
+                    errors = json.loads(result.stdout)["errors"]
+                    rules = {item["rule_id"] for item in errors}
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("OPSX038", rules)
+                    if case in {"absolute_path", "parent_path"}:
+                        self.assertTrue(
+                            any("相对路径" in item["message"] for item in errors),
+                            errors,
+                        )
+
+    def test_valid_task_review_report_produces_no_new_finding(self) -> None:
+        """A satisfied Task Review report leaves delivery clean of OPSX038."""
+        result = self.run_validator("valid-standard", "delivery", json_output=True)
+        rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertNotIn("OPSX038", rules)
+
+    def test_change_review_report_evidence_is_enforced_at_archive(self) -> None:
+        """A PASS Code Review requires a real passing integration report."""
+        needs_changes = json.dumps(
+            {"verdict": "NEEDS_CHANGES", "p0_count": 0, "p1_count": 0}
+        )
+        p0_positive = json.dumps({"verdict": "PASS", "p0_count": 3, "p1_count": 0})
+        p1_positive = json.dumps({"verdict": "PASS", "p0_count": 0, "p1_count": 1})
+        wrong_scope = json.dumps(
+            {
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "task",
+                "review_profile": "standard",
+                "round": 0,
+            }
+        )
+        for case in (
+            "missing_field",
+            "missing_file",
+            "invalid_json",
+            "bad_verdict",
+            "p0_positive",
+            "p1_positive",
+            "wrong_scope",
+            "duplicate_field",
+            "fenced_only",
+            "duplicate_review_status",
+            "fenced_review_status",
+        ):
+            with self.subTest(case=case):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    self.rewrite(
+                        temporary_repo,
+                        "tasks.md",
+                        "Code Review：Pending",
+                        "Code Review：PASS",
+                    )
+                    if case == "missing_field":
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "- Review Report: review-reports/review-report.json\n",
+                            "",
+                        )
+                    elif case == "missing_file":
+                        (
+                            temporary_repo / "review-reports" / "review-report.json"
+                        ).unlink()
+                    elif case == "invalid_json":
+                        self.write_report(
+                            temporary_repo, "review-report.json", "not json"
+                        )
+                    elif case == "bad_verdict":
+                        self.write_report(
+                            temporary_repo, "review-report.json", needs_changes
+                        )
+                    elif case == "p0_positive":
+                        self.write_report(
+                            temporary_repo, "review-report.json", p0_positive
+                        )
+                    elif case == "p1_positive":
+                        self.write_report(
+                            temporary_repo, "review-report.json", p1_positive
+                        )
+                    elif case == "wrong_scope":
+                        self.write_report(
+                            temporary_repo, "review-report.json", wrong_scope
+                        )
+                    elif case == "duplicate_field":
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "## 任务列表",
+                            "- Review Report: review-reports/review-report.json\n\n## 任务列表",
+                        )
+                    elif case == "fenced_only":
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "- Review Report: review-reports/review-report.json\n",
+                            "",
+                        )
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "## 任务列表",
+                            "```text\n- Review Report: review-reports/review-report.json\n```\n\n## 任务列表",
+                        )
+                    elif case == "duplicate_review_status":
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "## 任务列表",
+                            "> Code Review：Pending\n\n## 任务列表",
+                        )
+                    elif case == "fenced_review_status":
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "> Code Review：PASS\n",
+                            "",
+                        )
+                        self.rewrite(
+                            temporary_repo,
+                            "tasks.md",
+                            "## 任务列表",
+                            "```text\nCode Review: PASS\n```\n\n## 任务列表",
+                        )
+                    result = self.run_repo(
+                        temporary_repo,
+                        "archive",
+                        json_output=True,
+                        target=archive_target(),
+                    )
+                    rules = {
+                        item["rule_id"] for item in json.loads(result.stdout)["errors"]
+                    }
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("OPSX032", rules)
+                    if case in {
+                        "duplicate_review_status",
+                        "fenced_review_status",
+                    }:
+                        self.assertTrue(
+                            any(
+                                "Code Review 状态" in item["message"]
+                                for item in json.loads(result.stdout)["errors"]
+                            )
+                        )
+
+    def test_valid_change_review_report_allows_archive(self) -> None:
+        """A satisfied integration report keeps archive clean of OPSX032."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "Code Review：Pending",
+                "Code Review：PASS",
+            )
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertNotIn("OPSX032", rules)
+
 
 if __name__ == "__main__":
     unittest.main()

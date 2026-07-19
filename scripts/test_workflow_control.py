@@ -1,6 +1,7 @@
 """Tests for deterministic workflow control."""
 
 import errno
+import json
 import os
 import subprocess
 import sys
@@ -76,6 +77,112 @@ class WorkflowControlTest(unittest.TestCase):
             lint_task_deps.parse_tasks(text), 1, "merge_success"
         )
         self.assertEqual("完成", merged.state)
+
+    def test_validate_verify_report_requires_pass_verdict(self) -> None:
+        workflow_control._validate_verify_report({"verdict": "PASS"})
+        with self.assertRaisesRegex(ValueError, "PASS"):
+            workflow_control._validate_verify_report({"verdict": "NEEDS_CHANGES"})
+        with self.assertRaisesRegex(ValueError, "PASS"):
+            workflow_control._validate_verify_report({})
+        with self.assertRaisesRegex(ValueError, "JSON 对象"):
+            workflow_control._validate_verify_report([])
+
+    def test_quality_passed_without_verify_report_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            original = tasks_text({1: "进行中"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+            result = workflow_control.main(
+                [str(path), "event", "1", "quality_passed", "--write"]
+            )
+            self.assertEqual(2, result)
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+    def test_quality_passed_with_missing_report_file_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            original = tasks_text({1: "进行中"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+            missing_report = Path(temp_dir) / "missing-report.json"
+            result = workflow_control.main(
+                [
+                    str(path),
+                    "event",
+                    "1",
+                    "quality_passed",
+                    "--write",
+                    "--verify-report",
+                    str(missing_report),
+                ]
+            )
+            self.assertEqual(2, result)
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+    def test_quality_passed_with_invalid_json_report_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            original = tasks_text({1: "进行中"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+            report_path = Path(temp_dir) / "report.json"
+            report_path.write_text("{not valid json", encoding="utf-8")
+            result = workflow_control.main(
+                [
+                    str(path),
+                    "event",
+                    "1",
+                    "quality_passed",
+                    "--write",
+                    "--verify-report",
+                    str(report_path),
+                ]
+            )
+            self.assertEqual(2, result)
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+    def test_quality_passed_with_non_pass_verdict_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            original = tasks_text({1: "进行中"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+            report_path = Path(temp_dir) / "report.json"
+            report_path.write_text(
+                json.dumps({"verdict": "NEEDS_CHANGES"}), encoding="utf-8"
+            )
+            result = workflow_control.main(
+                [
+                    str(path),
+                    "event",
+                    "1",
+                    "quality_passed",
+                    "--write",
+                    "--verify-report",
+                    str(report_path),
+                ]
+            )
+            self.assertEqual(2, result)
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+    def test_quality_passed_with_pass_verdict_writes_state_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
+            report_path = Path(temp_dir) / "report.json"
+            report_path.write_text(json.dumps({"verdict": "PASS"}), encoding="utf-8")
+            result = workflow_control.main(
+                [
+                    str(path),
+                    "event",
+                    "1",
+                    "quality_passed",
+                    "--write",
+                    "--verify-report",
+                    str(report_path),
+                ]
+            )
+            self.assertEqual(0, result)
+            persisted = path.read_text(encoding="utf-8")
+            self.assertIn("- 状态：进行中", persisted)
+            self.assertIn("- control_stage：quality_passed", persisted)
 
     def test_merge_requires_persisted_quality_passed_stage(self) -> None:
         running = lint_task_deps.parse_tasks(tasks_text({1: "进行中"}, {1: []}))
@@ -176,8 +283,18 @@ class WorkflowControlTest(unittest.TestCase):
             )
             path.parent.mkdir(parents=True)
             path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
+            report_path = Path(temp_dir) / "report.json"
+            report_path.write_text(json.dumps({"verdict": "PASS"}), encoding="utf-8")
             result = workflow_control.main(
-                [str(path), "event", "1", "quality_passed", "--write"]
+                [
+                    str(path),
+                    "event",
+                    "1",
+                    "quality_passed",
+                    "--write",
+                    "--verify-report",
+                    str(report_path),
+                ]
             )
             self.assertEqual(0, result)
             self.assertIn(

@@ -18,7 +18,6 @@ from pathlib import Path
 
 import lint_task_deps
 
-
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _TASK_DOCUMENT_NAME = "tasks.md"
 
@@ -47,9 +46,7 @@ class RecoveryAction:
 def _states(tasks: dict[int, dict]) -> dict[int, str]:
     states = {}
     for task_id, task in tasks.items():
-        state = lint_task_deps.parse_state(
-            lint_task_deps.field(task["body"], "状态")
-        )
+        state = lint_task_deps.parse_state(lint_task_deps.field(task["body"], "状态"))
         if state is None:
             raise ValueError(f"任务 {task_id} 缺少合法状态")
         states[task_id] = state
@@ -85,9 +82,7 @@ def _kahn_waves(tasks: dict[int, dict]) -> list[list[int]]:
     waves = []
     while remaining:
         wave = sorted(
-            task_id
-            for task_id in remaining
-            if tasks[task_id]["deps"] <= completed
+            task_id for task_id in remaining if tasks[task_id]["deps"] <= completed
         )
         if not wave:
             raise ValueError("任务依赖存在循环")
@@ -113,6 +108,18 @@ def _validate_reason(reason: str) -> None:
         raise ValueError("原因不能包含换行符")
 
 
+def _validate_verify_report(report: object) -> None:
+    """Reject a parsed workflow-verification report whose verdict isn't PASS.
+
+    Pure validation only: `report` must already be a parsed dict, so this
+    can be unit-tested without touching the filesystem.
+    """
+    if not isinstance(report, dict):
+        raise ValueError("verify 报告顶层结构必须是 JSON 对象")
+    if report.get("verdict") != "PASS":
+        raise ValueError("verify 报告 verdict 不是 PASS：" f"{report.get('verdict')!r}")
+
+
 def build_waves(tasks: dict[int, dict]) -> list[list[int]]:
     """Build stable topological waves from parsed tasks."""
     return _validate_dependencies(tasks)
@@ -126,10 +133,7 @@ def dispatchable_tasks(tasks: dict[int, dict]) -> list[int]:
         task_id
         for task_id in sorted(tasks)
         if states[task_id] == "未开始"
-        and all(
-            states[dependency] == "完成"
-            for dependency in tasks[task_id]["deps"]
-        )
+        and all(states[dependency] == "完成" for dependency in tasks[task_id]["deps"])
     ]
 
 
@@ -150,9 +154,7 @@ def _require_completed_dependencies(
 ) -> None:
     """Raise unless every dependency of task_id is already 完成."""
     states = _states(tasks)
-    if any(
-        states[dependency] != "完成" for dependency in tasks[task_id]["deps"]
-    ):
+    if any(states[dependency] != "完成" for dependency in tasks[task_id]["deps"]):
         raise ValueError(
             f"任务 {task_id} 的前置依赖尚未全部完成，无法从 {state} 执行 {event}"
         )
@@ -166,30 +168,18 @@ def _handle_start(
     attempts: int,
 ) -> TaskDecision:
     _require_completed_dependencies(tasks, task_id, state, "start")
-    return TaskDecision(
-        task_id, "进行中", "dispatch", reason, attempts, "running"
-    )
+    return TaskDecision(task_id, "进行中", "dispatch", reason, attempts, "running")
 
 
-def _handle_quality_passed(
-    task_id: int, reason: str, attempts: int
-) -> TaskDecision:
-    return TaskDecision(
-        task_id, "进行中", "merge", reason, attempts, "quality_passed"
-    )
+def _handle_quality_passed(task_id: int, reason: str, attempts: int) -> TaskDecision:
+    return TaskDecision(task_id, "进行中", "merge", reason, attempts, "quality_passed")
 
 
-def _handle_merge_success(
-    task_id: int, reason: str, attempts: int
-) -> TaskDecision:
-    return TaskDecision(
-        task_id, "完成", "complete", reason, attempts, "completed"
-    )
+def _handle_merge_success(task_id: int, reason: str, attempts: int) -> TaskDecision:
+    return TaskDecision(task_id, "完成", "complete", reason, attempts, "completed")
 
 
-def _handle_merge_failure(
-    task_id: int, reason: str, attempts: int
-) -> TaskDecision:
+def _handle_merge_failure(task_id: int, reason: str, attempts: int) -> TaskDecision:
     return TaskDecision(task_id, "需人工", "manual", reason, attempts, "manual")
 
 
@@ -199,12 +189,8 @@ def _handle_manual(task_id: int, reason: str, attempts: int) -> TaskDecision:
     return TaskDecision(task_id, "需人工", "manual", reason, attempts, "manual")
 
 
-def _handle_manual_resolved(
-    task_id: int, reason: str, attempts: int
-) -> TaskDecision:
-    return TaskDecision(
-        task_id, "完成", "complete", reason, attempts, "completed"
-    )
+def _handle_manual_resolved(task_id: int, reason: str, attempts: int) -> TaskDecision:
+    return TaskDecision(task_id, "完成", "complete", reason, attempts, "completed")
 
 
 def _handle_unblock(
@@ -215,9 +201,7 @@ def _handle_unblock(
     attempts: int,
 ) -> TaskDecision:
     _require_completed_dependencies(tasks, task_id, state, "unblock")
-    return TaskDecision(
-        task_id, "未开始", "unblock", reason, attempts, "pending"
-    )
+    return TaskDecision(task_id, "未开始", "unblock", reason, attempts, "pending")
 
 
 def _handle_failure(
@@ -225,13 +209,9 @@ def _handle_failure(
 ) -> TaskDecision:
     attempts += 1
     if attempts <= max_attempts:
-        return TaskDecision(
-            task_id, "进行中", "retry", reason, attempts, "running"
-        )
+        return TaskDecision(task_id, "进行中", "retry", reason, attempts, "running")
     exhausted = reason or f"修复次数已耗尽（{attempts - 1}/{max_attempts}）"
-    return TaskDecision(
-        task_id, "需人工", "manual", exhausted, attempts, "manual"
-    )
+    return TaskDecision(task_id, "需人工", "manual", exhausted, attempts, "manual")
 
 
 def apply_event(
@@ -252,9 +232,7 @@ def apply_event(
     attempts = _attempts(tasks[task_id])
     stage = _control_stage(tasks[task_id], state)
     if (state, stage, event) not in _VALID_TRANSITIONS:
-        raise ValueError(
-            f"任务 {task_id} 不允许从 {state}/{stage} 执行 {event}"
-        )
+        raise ValueError(f"任务 {task_id} 不允许从 {state}/{stage} 执行 {event}")
     if event == "start":
         return _handle_start(tasks, task_id, state, reason, attempts)
     if event == "quality_passed":
@@ -336,9 +314,7 @@ def _recovery_action_for(
     if state == "进行中" and task_id in merged_task_ids:
         return RecoveryAction(task_id, "complete", "任务分支已合并")
     if state == "进行中":
-        return RecoveryAction(
-            task_id, "inspect", "任务未合并，检查产物和质量门"
-        )
+        return RecoveryAction(task_id, "inspect", "任务未合并，检查产物和质量门")
     if state == "阻塞" and deps_complete:
         return RecoveryAction(task_id, "unblock", "全部上游已完成")
     if state == "未开始" and deps_complete:
@@ -361,8 +337,7 @@ def plan_recovery(
     actions = []
     for task_id in sorted(tasks):
         deps_complete = all(
-            effective[dependency] == "完成"
-            for dependency in tasks[task_id]["deps"]
+            effective[dependency] == "完成" for dependency in tasks[task_id]["deps"]
         )
         actions.append(
             _recovery_action_for(
@@ -391,9 +366,7 @@ def _task_bounds(text: str, task_id: int) -> tuple[int, int]:
 
 def _field_pattern(name: str) -> re.Pattern[str]:
     """Build a MULTILINE pattern that captures a field line's indent."""
-    return re.compile(
-        r"^([ \t]*)-[ \t]*" + name + r"[ \t]*[:：][^\r\n]*", re.MULTILINE
-    )
+    return re.compile(r"^([ \t]*)-[ \t]*" + name + r"[ \t]*[:：][^\r\n]*", re.MULTILINE)
 
 
 def _replace_or_insert_after(
@@ -410,9 +383,7 @@ def _replace_or_insert_after(
     backreference template.
     """
     if pattern.search(body):
-        return pattern.sub(
-            lambda match: f"{match.group(1)}{line_text}", body, count=1
-        )
+        return pattern.sub(lambda match: f"{match.group(1)}{line_text}", body, count=1)
     return anchor.sub(
         lambda match: (f"{match.group(0)}{newline}{match.group(1)}{line_text}"),
         body,
@@ -462,11 +433,18 @@ def _load(path: Path) -> tuple[str, dict[int, dict]]:
     return text, tasks
 
 
+def _load_verify_report(path: Path | None) -> dict:
+    """Read, parse, and validate the verify report required by quality_passed."""
+    if path is None:
+        raise ValueError("quality_passed 事件必须提供 --verify-report")
+    report = json.loads(path.read_text(encoding="utf-8"))
+    _validate_verify_report(report)
+    return report
+
+
 def _atomic_write(path: Path, text: str) -> None:
     original_mode = stat.S_IMODE(path.stat().st_mode)
-    descriptor, temp_name = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}."
-    )
+    descriptor, temp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
             stream.write(text)
@@ -536,9 +514,7 @@ def _task_write_lock(path: Path, timeout: float):
         while not _try_lock(stream):
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError(
-                    f"等待写锁 {lock_path} 超时（{timeout:g} 秒）"
-                )
+                raise TimeoutError(f"等待写锁 {lock_path} 超时（{timeout:g} 秒）")
             time.sleep(min(_LOCK_POLL_INTERVAL_SECONDS, remaining))
         try:
             yield
@@ -546,9 +522,7 @@ def _task_write_lock(path: Path, timeout: float):
             _unlock(stream)
 
 
-def _write_decisions(
-    path: Path, text: str, decisions: list[TaskDecision]
-) -> None:
+def _write_decisions(path: Path, text: str, decisions: list[TaskDecision]) -> None:
     for decision in decisions:
         text = update_task_state(text, decision)
     _atomic_write(path, text)
@@ -580,6 +554,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     event_parser.add_argument("--reason", default="")
     event_parser.add_argument("--write", action="store_true")
     event_parser.add_argument("--lock-timeout", type=float, default=10.0)
+    event_parser.add_argument("--verify-report", type=Path, default=None)
     block_parser = subparsers.add_parser("block", help="传播下游阻塞")
     block_parser.add_argument("--write", action="store_true")
     block_parser.add_argument("--lock-timeout", type=float, default=10.0)
@@ -593,9 +568,9 @@ def main(argv: list[str]) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
         if hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(
-                encoding="utf-8"
-            )  # 避免 Windows 控制台中文乱码
+            sys.stdout.reconfigure(encoding="utf-8")  # 避免 Windows 控制台中文乱码
+        if args.command == "event" and args.event == "quality_passed":
+            _load_verify_report(args.verify_report)
         is_write = args.command in {"event", "block"} and args.write
         if is_write:
             with _task_write_lock(args.tasks_md, args.lock_timeout):
@@ -634,8 +609,7 @@ def main(argv: list[str]) -> int:
                 output = [asdict(decision) for decision in decisions]
             else:
                 output = [
-                    asdict(action)
-                    for action in plan_recovery(tasks, set(args.merged))
+                    asdict(action) for action in plan_recovery(tasks, set(args.merged))
                 ]
     except (OSError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)

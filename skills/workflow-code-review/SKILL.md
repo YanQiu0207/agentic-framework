@@ -266,3 +266,29 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 ## Follow-up Notes
 - [少量不够进入正式 finding 但值得提醒的事项]
 ```
+
+#### 机器可读产物
+
+输出 Markdown 报告的**同一步**，Judge 额外写出一份结构化 JSON 文件，供质量门脚本（`workflow_control.py` / `check_delivery.py` 等）机器校验证据。路径由调用方在上下文中指定；Tooling / Production 场景建议 `.verify/review-report.json`。
+
+```json
+{
+  "verdict": "PASS",
+  "p0_count": 0,
+  "p1_count": 0,
+  "scope": "task",
+  "review_profile": "standard",
+  "round": 0
+}
+```
+
+这份 JSON 与上方 Markdown 报告是**同一次裁决的两种呈现形式**，不是允许 Judge 分别下两个可能不同的结论。每个字段都必须能从 Markdown 报告直接推导：
+
+| 字段 | 取值 | 来源 |
+| --- | --- | --- |
+| `verdict` | `PASS` / `NEEDS_CHANGES` | 与「总体结论」字段完全一致 |
+| `p0_count` | 整数 | 「正式问题」区 P0 的数量（不含 P2、不含 Follow-up Notes） |
+| `p1_count` | 整数 | 「正式问题」区 P1 的数量（不含 P2、不含 Follow-up Notes） |
+| `scope` | `task` / `integration` / `run` | 与「审核 Scope」定义一致 |
+| `review_profile` | `lightweight` / `standard` / `strict` | 与调用方传入的档位一致 |
+| `round` | 整数 | 与「轮次」字段一致：首审为 0，复审第 N 轮记 N |
