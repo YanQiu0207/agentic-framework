@@ -26,9 +26,10 @@ Adapter 只负责宿主调用、Transcript 和工具结果转换；Workflow 只�
 ## 启动门
 
 ```text
-python scripts/harness_runtime.py --declaration harness/capabilities/codex.json --adapter <adapter> --required subagents --optional transcript_access --output <probe-report.json>
+python scripts/harness_runtime.py --declaration harness/capabilities/codex.json --adapter <adapter> --required subagents --optional transcript_access --run-id <run-id> --output <probe-report.json>
 ```
 
 - 必需能力只有 `supported` 才放行；`degraded` 和 `unsupported` 都失败关闭。
 - 可选能力为 `degraded` 或 `unsupported` 时继续执行，但生成 `capability-degraded` 证据记录。
 - Adapter 未返回完整词汇、合法状态或证据时，探测整体失败，不回退到静态猜测。
+- 进入最终 Trust Gate 的探测报告必须使用 `--run-id` 绑定本次 Run；旧的无 Run 绑定报告可单独查看，但不能作为最终放行证据。

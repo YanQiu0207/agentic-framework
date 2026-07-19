@@ -162,6 +162,7 @@ def startup_probe(
     adapter: SubprocessHarnessAdapter,
     required: Sequence[str],
     optional: Sequence[str],
+    run_id: str = "",
 ) -> dict[str, Any]:
     """Probe at startup; static declarations never override observed results."""
     harness = declaration["harness"]
@@ -169,6 +170,8 @@ def startup_probe(
     report = gate_capabilities(observed, required, optional)
     report["declaration_capabilities"] = declaration["capabilities"]
     report["evidence_source"] = "runtime-adapter-probe"
+    if run_id:
+        report["run_id"] = run_id
     return report
 
 
@@ -199,6 +202,7 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--required", action="append", default=[])
     parser.add_argument("--optional", action="append", default=[])
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--run-id")
     return parser.parse_args(argv)
 
 
@@ -210,7 +214,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         adapter = SubprocessHarnessAdapter(
             [args.adapter, *args.adapter_arg], args.adapter_timeout
         )
-        report = startup_probe(declaration, adapter, args.required, args.optional)
+        report = startup_probe(
+            declaration,
+            adapter,
+            args.required,
+            args.optional,
+            args.run_id or "",
+        )
         _atomic_write_json(args.output, report)
         print(report["verdict"])
         return 0 if report["verdict"] == "PASS" else 1
