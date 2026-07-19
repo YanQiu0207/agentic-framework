@@ -93,7 +93,9 @@ Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7
 
 ### 任务 6：[pending] 实现 Run Event Journal 与恢复
 
-- 状态：未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - depends_on：[Task 5]
 - review_profile：strict
 - context_files：Task 2 Event Schema、Task 3 Manifest、`workflow_control.py` 和现有恢复测试
