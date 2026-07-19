@@ -61,6 +61,24 @@ class _FakeProcess:
 class CommandDiagnosticsTest(unittest.TestCase):
     """Verify bounded command diagnostics without slowing normal checks."""
 
+    def test_evaluate_check_uses_default_timeout_with_headroom(self) -> None:
+        with mock.patch.object(
+            verify, "run_command", return_value=(0, "", "")
+        ) as run_command:
+            result = verify.evaluate_check(
+                {
+                    "name": "default-timeout",
+                    "type": "forbid_pattern",
+                    "command": "scan",
+                },
+                baseline=None,
+            )
+
+        self.assertEqual("pass", result.status)
+        run_command.assert_called_once_with(
+            "scan", timeout=120, check_name="default-timeout"
+        )
+
     def test_child_process_receives_forced_utf8_environment(self) -> None:
         command = _python_command(
             "import json,os; print(json.dumps({"
