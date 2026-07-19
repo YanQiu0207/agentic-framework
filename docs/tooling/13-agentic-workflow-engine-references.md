@@ -275,7 +275,7 @@ class Executor(Protocol):
 不允许调用方只发送 `quality_passed`：
 
 - Review Executor 必须返回结构化报告路径、结论和 finding 摘要。
-- Verify Executor 必须返回 `.verify/report.json`、检查项和退出码。
+- Verify Executor 必须返回 `.agentic-framework/verify/report.json`、检查项和退出码。
 - Merge Executor 在执行前验证 Review/Verify Artifact 属于同一 task、attempt 和 commit。
 - 所有证据绑定 `run_id + task_id + attempt + commit_sha`。
 

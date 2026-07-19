@@ -426,6 +426,48 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
         self.assertEqual("PASS", payload["verdict"])
         self.assertEqual(1, len(payload["warnings"]))
 
+    def test_verify_paths_write_new_and_read_legacy_without_overwrite(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            legacy = root / ".verify" / "baseline.json"
+            legacy.parent.mkdir()
+            legacy.write_text('{"legacy": true}\n', encoding="utf-8")
+            before = legacy.read_text(encoding="utf-8")
+
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                read_path = verify.resolve_verify_read_path(
+                    Path(".agentic-framework/verify/baseline.json"), root
+                )
+                write_path = verify.resolve_verify_write_path(
+                    Path(".verify/report.json"), root
+                )
+
+            self.assertEqual(legacy, read_path)
+            self.assertEqual(
+                root / ".agentic-framework" / "verify" / "report.json",
+                write_path,
+            )
+            self.assertEqual(before, legacy.read_text(encoding="utf-8"))
+            self.assertIn("仅兼容读取", stderr.getvalue())
+
+    def test_main_defaults_report_to_runtime_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            old_cwd = Path.cwd()
+            try:
+                os.chdir(root)
+                with mock.patch.object(verify, "load_config", return_value={}), mock.patch.object(
+                    verify, "cmd_verify", return_value=0
+                ) as cmd_verify:
+                    self.assertEqual(0, verify.main([]))
+            finally:
+                os.chdir(old_cwd)
+
+            self.assertEqual(
+                root / ".agentic-framework" / "verify" / "report.json",
+                cmd_verify.call_args.args[2],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

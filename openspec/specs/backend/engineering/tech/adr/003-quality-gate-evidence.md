@@ -8,8 +8,8 @@ Tooling 的 `workflow_control.py`（`quality_passed` 事件）与 Production 的
 
 ## 决策
 
-1. Tooling Task 级 `quality_passed` 新增必填 `--verify-report <path>`，读取并校验 `.verify/report.json` 的 `verdict == "PASS"`。
-2. Tooling Run 级 `check_delivery.py` 新增必填 `--review-report <path>`，读取并校验新引入的 `.verify/review-report.json` 的 `verdict == "PASS"` 且 `p0_count == p1_count == 0`；该文件由 `workflow-code-review` Step 7 在现有 Markdown 报告之外额外产出。
+1. Tooling Task 级 `quality_passed` 新增必填 `--verify-report <path>`，读取并校验 `.agentic-framework/verify/report.json` 的 `verdict == "PASS"`。
+2. Tooling Run 级 `check_delivery.py` 新增必填 `--review-report <path>`，读取并校验新引入的 `.agentic-framework/verify/review-report.json` 的 `verdict == "PASS"` 且 `p0_count == p1_count == 0`；该文件由 `workflow-code-review` Step 7 在现有 Markdown 报告之外额外产出。
 3. Production `validate_change.py` 的 OPSX038（Task 级）与 OPSX032（集成级）同样要求 `tasks.md` 声明 `- Review Report: <path>` 字段，并校验对应文件满足同一契约。
 4. 两个 Profile 统一到同一套证据文件字段：`verdict` / `p0_count` / `p1_count` / `scope` / `review_profile` / `round`。
 

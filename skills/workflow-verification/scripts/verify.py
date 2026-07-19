@@ -9,10 +9,10 @@
 
 用法：
     # 改动前：采集基线
-    python verify.py --save-baseline .verify/baseline.json
+    python verify.py --save-baseline .agentic-framework/verify/baseline.json
 
     # 改动后：验证并与基线对比
-    python verify.py --baseline .verify/baseline.json
+    python verify.py --baseline .agentic-framework/verify/baseline.json
 
     # 不带基线：所有检查按绝对标准判定
     python verify.py
@@ -38,6 +38,9 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
+
+RUNTIME_VERIFY_DIR = Path(".agentic-framework/verify")
+LEGACY_VERIFY_DIR = Path(".verify")
 
 
 @dataclass
@@ -831,6 +834,54 @@ def cmd_save_baseline(config: dict, out_path: Path) -> int:
     return 0
 
 
+def _relative_to_or_none(path: Path, directory: Path) -> Path | None:
+    try:
+        return path.relative_to(directory)
+    except ValueError:
+        return None
+
+
+def resolve_verify_write_path(path: Path, repo_root: Path) -> Path:
+    """Redirect writes from the legacy verify directory to the runtime directory."""
+    root = repo_root.resolve(strict=False)
+    resolved = path if path.is_absolute() else root / path
+    resolved = resolved.resolve(strict=False)
+    legacy_dir = (root / LEGACY_VERIFY_DIR).resolve(strict=False)
+    suffix = _relative_to_or_none(resolved, legacy_dir)
+    if suffix is None:
+        return resolved
+    runtime = (root / RUNTIME_VERIFY_DIR / suffix).resolve(strict=False)
+    print(
+        f"[verify] 旧路径 {resolved} 仅兼容读取；新产物写入 {runtime}。",
+        file=sys.stderr,
+    )
+    return runtime
+
+
+def resolve_verify_read_path(path: Path, repo_root: Path) -> Path:
+    """Read the requested path, falling back to its legacy counterpart."""
+    root = repo_root.resolve(strict=False)
+    resolved = path if path.is_absolute() else root / path
+    resolved = resolved.resolve(strict=False)
+    runtime_dir = (root / RUNTIME_VERIFY_DIR).resolve(strict=False)
+    legacy_dir = (root / LEGACY_VERIFY_DIR).resolve(strict=False)
+    runtime_suffix = _relative_to_or_none(resolved, runtime_dir)
+    legacy_suffix = _relative_to_or_none(resolved, legacy_dir)
+    fallback = legacy_dir / runtime_suffix if runtime_suffix is not None else None
+    if legacy_suffix is not None:
+        fallback = runtime_dir / legacy_suffix
+    selected = resolved
+    if not resolved.exists() and fallback is not None and fallback.exists():
+        selected = fallback
+    if _relative_to_or_none(selected, legacy_dir) is not None:
+        print(
+            f"[verify] 检测到旧 Verification 产物 {selected}；"
+            "仅兼容读取，请迁移到 .agentic-framework/verify/。",
+            file=sys.stderr,
+        )
+    return selected
+
+
 def cmd_verify(
     config: dict,
     baseline_path: Path | None,
@@ -1004,7 +1055,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="verify.config.json", help="配置文件路径")
     parser.add_argument("--save-baseline", metavar="PATH", help="采集基线并写入该路径")
     parser.add_argument("--baseline", metavar="PATH", help="对比用的基线路径")
-    parser.add_argument("--report", default=".verify/report.json", help="结构化报告输出路径")
+    parser.add_argument(
+        "--report",
+        default=".agentic-framework/verify/report.json",
+        help="结构化报告输出路径",
+    )
     parser.add_argument(
         "--diff-base",
         default="HEAD",
@@ -1021,13 +1076,19 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(Path(args.config), require=require_config)
 
     if args.save_baseline:
-        return cmd_save_baseline(config, Path(args.save_baseline))
+        save_path = resolve_verify_write_path(Path(args.save_baseline), Path.cwd())
+        return cmd_save_baseline(config, save_path)
 
-    baseline_path = Path(args.baseline) if args.baseline else None
+    baseline_path = (
+        resolve_verify_read_path(Path(args.baseline), Path.cwd())
+        if args.baseline
+        else None
+    )
+    report_path = resolve_verify_write_path(Path(args.report), Path.cwd())
     return cmd_verify(
         config,
         baseline_path,
-        Path(args.report),
+        report_path,
         args.diff_base,
         args.spec_drift_reason,
     )

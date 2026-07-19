@@ -1,6 +1,7 @@
 """Tests for deterministic workflow control."""
 
 import errno
+import io
 import json
 import os
 import subprocess
@@ -267,14 +268,7 @@ class WorkflowControlTest(unittest.TestCase):
             self.assertEqual(0, result)
             persisted = path.read_text(encoding="utf-8")
             self.assertIn("- attempts：1", persisted)
-            self.assertEqual(
-                [],
-                [
-                    item
-                    for item in path.parent.glob(".tasks.md.*")
-                    if item.name != ".tasks.md.lock"
-                ],
-            )
+            self.assertEqual([], list(path.parent.glob(".tasks.md.*")))
 
     def test_cli_writes_unified_change_tasks_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -357,6 +351,7 @@ class WorkflowControlTest(unittest.TestCase):
     def test_contending_writer_times_out_without_changing_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
+            (Path(temp_dir) / ".git").mkdir()
             original = tasks_text({1: "进行中"}, {1: []})
             path.write_text(original, encoding="utf-8")
             with workflow_control._task_write_lock(path, 0):
@@ -379,13 +374,14 @@ class WorkflowControlTest(unittest.TestCase):
                     env={**os.environ, "PYTHONUTF8": "1"},
                 )
             self.assertEqual(2, result.returncode)
-            self.assertIn(str(path.parent / ".tasks.md.lock"), result.stderr)
+            self.assertIn(str(workflow_control._task_lock_path(path)), result.stderr)
             self.assertIn("0.1 秒", result.stderr)
             self.assertEqual(original, path.read_text(encoding="utf-8"))
 
     def test_waiting_writer_succeeds_after_lock_release(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
+            (Path(temp_dir) / ".git").mkdir()
             path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
             with workflow_control._task_write_lock(path, 0):
                 helper = (
@@ -393,7 +389,7 @@ class WorkflowControlTest(unittest.TestCase):
                     f"sys.path.insert(0, {str(Path(workflow_control.__file__).parent)!r})\n"
                     "import workflow_control\n"
                     "path = workflow_control.Path(sys.argv[1])\n"
-                    "lock_path = path.parent / f'.{path.name}.lock'\n"
+                    "lock_path = workflow_control._task_lock_path(path)\n"
                     "with lock_path.open('a+b') as stream:\n"
                     "    stream.seek(0)\n"
                     "    if workflow_control._try_lock(stream):\n"
@@ -422,6 +418,52 @@ class WorkflowControlTest(unittest.TestCase):
             _, stderr = process.communicate(timeout=3)
             self.assertEqual(0, process.returncode, stderr)
             self.assertIn("- attempts：1", path.read_text(encoding="utf-8"))
+
+    def test_lock_path_uses_repository_runtime_directory_and_target_digest(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory(
+        ) as second:
+            roots = [Path(first), Path(second)]
+            paths = []
+            for root in roots:
+                (root / ".git").mkdir()
+                path = root / "openspec" / "changes" / "same-name" / "tasks.md"
+                path.parent.mkdir(parents=True)
+                paths.append(path)
+
+            first_lock = workflow_control._task_lock_path(paths[0])
+            second_lock = workflow_control._task_lock_path(paths[1])
+            self.assertEqual(
+                roots[0] / ".agentic-framework" / "locks", first_lock.parent
+            )
+            self.assertRegex(first_lock.name, r"^[0-9a-f]{64}\.lock$")
+            self.assertNotEqual(first_lock.name, second_lock.name)
+
+            other_change = (
+                roots[0] / "openspec" / "changes" / "other" / "tasks.md"
+            )
+            self.assertNotEqual(
+                first_lock.name,
+                workflow_control._task_lock_path(other_change).name,
+            )
+
+    def test_existing_legacy_lock_is_read_only_compatibility_input(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".git").mkdir()
+            path = root / "tasks.md"
+            legacy = root / ".tasks.md.lock"
+            legacy.write_bytes(b"legacy-lock")
+            before = legacy.read_bytes()
+
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                with workflow_control._task_write_lock(path, 0):
+                    pass
+
+            self.assertEqual(before, legacy.read_bytes())
+            self.assertIn("仅兼容加锁读取", stderr.getvalue())
+            self.assertTrue(workflow_control._task_lock_path(path).is_file())
 
     def test_invalid_lock_timeout_fails_without_writing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
