@@ -500,13 +500,18 @@ def finalize_run(
         "blocked": "task-blocked",
     }
     for state in task_states:
+        event_type = state_events.get(state["state"])
+        if event_type is None:
+            raise RuntimeWorkflowError(
+                f"non_terminal_task_state:{state['task_id']}:{state['state']}"
+            )
         events = run_journal.read_events(journal)
         run_journal.append_event(
             journal,
             _event(
                 context,
                 len(events) + 1,
-                state_events[state["state"]],
+                event_type,
                 task_id=state["task_id"],
                 attempt=runtime_schema.attempt_for_attempts(state["attempts"]),
             ),
