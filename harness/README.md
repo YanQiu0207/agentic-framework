@@ -23,6 +23,19 @@ Runner 通过标准输入发送单个 JSON 对象：
 
 Adapter 只负责宿主调用、Transcript 和工具结果转换；Workflow 只消费统一接口，不包含 Codex 或 Claude Code 产品分支。
 
+## 仓库内 Adapter
+
+当前提供两个第一方 Adapter：
+
+```text
+Claude Code：python scripts/claude_code_adapter.py
+Codex：      python scripts/codex_adapter.py
+```
+
+两者使用相同的 JSON 合同，但能力矩阵必须分别反映对应 Harness 的可验证能力。Claude Code Adapter 报告当前 Claude Code 编排能力；Codex Adapter 默认只报告 Transcript 和结构化工具结果，未验证的 subagents、worktree isolation 与 lifecycle hooks 统一报告为 `unsupported`。因此 Codex 使用需要这些能力的 Workflow 时，应先走 Workflow 的 fallback 编排模式；必需能力被声明为 `unsupported` 时，Runtime 必须失败关闭。
+
+Adapter 不负责替代主 Agent 执行任务。任务仍由当前 Harness 会话和 Workflow 编排器执行；Adapter 负责把宿主能力转换成 Runtime 可校验的 Capability Matrix 和协议响应。
+
 ## 启动门
 
 ```text

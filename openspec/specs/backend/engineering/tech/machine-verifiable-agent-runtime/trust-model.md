@@ -77,7 +77,55 @@ Run 级 Review 必须满足：
 
 局部低风险改动可走 Fast-Path 交付门（无 `--run-dir`）：校验 lightweight Review、机器验证报告、工作区干净与知识影响结论后输出 `fast-path-pass`。该裁决**不是** Run 级 Trust Gate PASS，仅证明上述四项本地检查通过；它显式不声明 `strict-independent-review`、`run-manifest-evidence-graph` 与 `harness-capability-probe`。任何要求独立审查或完整证据链的交付必须走 `--run-dir` 的 strict 路径，不得用 `fast-path-pass` 替代。
 
-## 6. 迁移说明
+## 6. Skill 接入矩阵
+
+当前仓库中，完整 Runtime 不是所有 Skill 的统一前置条件，而是由 `workflow-code-generation` 作为主编排入口强制接入：
+
+| Skill | Runtime 要求 | 具体位置与作用 |
+| --- | --- | --- |
+| `workflow-code-generation` | 完整 Run 路径强制使用；低风险 Fast-Path 可不创建 Run | `SKILL.md:121` 要求 Phase 0 先执行 `workflow_control.py ... init-run`，冻结输入、探测 Harness、创建 Journal；`SKILL.md:128` 要求整体 Verify 传入 `--run-dir`；`SKILL.md:134` 以 `check_delivery.py --run-dir` 执行 Manifest、Journal、Harness 与 Trust Gate 校验。 |
+| `workflow-code-review` | Run 级 Review 需要 Runtime Context | `SKILL.md:272` 要求调用方提供 `run-context.json`，并将 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest` 写入 Review Envelope；缺少 Context 时不得生成可放行的旧式顶层 `PASS` JSON。 |
+| `workflow-verification` | 支持接入 Runtime，但不是所有独立 Verify 场景都强制创建完整 Run | `scripts/verify.py` 支持 `--run-dir`、`--task-id` 和 `--attempt`，用于生成绑定到 Run/Task/Attempt 的 Verify Artifact；是否必须传入由上层 `workflow-code-generation` 的流程决定。 |
+
+因此，当前最准确的调用链是：
+
+```text
+workflow-code-generation
+    → workflow_control.py init-run
+    → workflow-verification（Run 级 Verify）
+    → workflow-code-review（Run 级 Review）
+    → check_delivery.py
+    → runtime_trust.validate_run（Trust Gate）
+```
+
+`workflow-code-review` 和 `workflow-verification` 是 Runtime 证据链的参与者，但当前没有证据表明它们各自的独立入口都必须无条件执行完整 Runtime。Fast-Path 是明确的例外：它只输出有界的 `fast-path-pass`，不能表述为完整 Trust Gate PASS。
+
+### Claude Code、Runtime 与 Adapter 的关系
+
+三者不是同一层的组件：
+
+| 组件 | 所在层 | 主要职责 | 不负责的事情 |
+| --- | --- | --- | --- |
+| Claude Code | Agent Harness 与主编排会话 | 读取任务、派发 Task、调用工具、修改代码、运行测试并收集结果 | 不直接替代 Runtime 的 Manifest、Journal 和 Trust Gate 校验 |
+| Runtime | 工作流控制与信任协议层 | 创建 Run Context，冻结输入，记录 Artifact 和事件，执行能力门、质量门与最终 Trust Gate | 不负责理解业务语义，也不证明 Reviewer 或 Judge 的结论必然正确 |
+| Adapter | Runtime 与 Harness 之间的协议边界 | 以子进程 JSON 合同向 Runtime 报告当前 Harness 能力，并在协议需要时转换工具结果 | 当前实现不负责派发任务；任务由 Claude Code 主会话通过 Task 工具执行 |
+
+当前调用关系为：
+
+```text
+Claude Code 主会话
+    ├── 通过 Task 工具执行和编排任务
+    └── 由 Runtime 启动 claude_code_adapter.py 进行能力探测
+
+Runtime
+    ├── 读取 Adapter 返回的 Capability Matrix
+    ├── 创建并校验 Run Context、Manifest、Journal 和 Artifact
+    └── 执行最终 Trust Gate
+```
+
+因此，Adapter 不是「另一个 Claude Code」，也不是当前任务的执行引擎；它是一个可执行的协议桥，使 Runtime 能够把 Claude Code 的宿主能力转换成可校验、可记录的运行证据。当前实现的事实来源是 `scripts/claude_code_adapter.py`、`scripts/harness_runtime.py` 和 `scripts/runtime_workflow.py`。
+
+## 7. 迁移说明
 
 1. 旧 Review Artifact 仍可按 Schema 解析，但缺少 `scope: run` 或 actor 独立性声明时不能通过最终 Trust Gate。
 2. 新的 Strict Run Review 同步填写 `implementer_actor`、`judge_actor` 和 `independence_basis`。旧 Artifact 不原地改写。
@@ -85,7 +133,7 @@ Run 级 Review 必须满足：
 4. 每次 Run 把实际探测报告作为 `input_type: capability-matrix` 的快照登记到 Manifest，不能只引用仓库静态声明。
 5. 归档前由主编排执行 Run 级独立 Strict Review；通过后把本候选同步到长期目标路径并更新相关索引，再归档 Change。
 
-## 7. 当前收口状态
+## 8. 当前收口状态
 
 - Task 级实现与端到端威胁测试：由 Task 7 完成并提供机器验证证据。
 - Run 级独立 Strict Review：等待主编排在 Tasks 2～7 合并后执行。

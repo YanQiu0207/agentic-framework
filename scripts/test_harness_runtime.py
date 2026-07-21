@@ -119,6 +119,35 @@ class HarnessRuntimeTest(unittest.TestCase):
             set(declarations[1]["capabilities"]),
         )
 
+    def test_first_party_adapters_return_valid_probe_responses(self) -> None:
+        request = json.dumps(
+            {
+                "contract_version": 1,
+                "operation": "probe",
+                "payload": {"harness": "codex", "capabilities": []},
+            }
+        )
+        for harness, adapter_name in (
+            ("codex", "codex_adapter.py"),
+            ("claude-code", "claude_code_adapter.py"),
+        ):
+            with self.subTest(harness=harness):
+                result = subprocess.run(
+                    [sys.executable, str(REPO_ROOT / "scripts" / adapter_name)],
+                    input=request.replace('"codex"', f'"{harness}"'),
+                    capture_output=True,
+                    encoding="utf-8",
+                    check=False,
+                )
+                self.assertEqual(0, result.returncode, result.stderr)
+                response = json.loads(result.stdout)
+                self.assertEqual(1, response["contract_version"])
+                self.assertEqual(harness, response["harness"])
+                self.assertEqual(
+                    set(harness_runtime.CAPABILITIES),
+                    set(response["capabilities"]),
+                )
+
     def test_runtime_probe_overrides_static_default_and_passes_required(self) -> None:
         declaration = harness_runtime.load_declaration(
             REPO_ROOT / "harness" / "capabilities" / "codex.json"
