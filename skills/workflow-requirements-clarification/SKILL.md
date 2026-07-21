@@ -91,20 +91,25 @@ description: 需求澄清。只负责明确"要解决什么问题"，生成 prop
 | **中等** | 涉及多文件、单模块功能 | 创建 Proposal |
 | **复杂** | 跨模块、新特性、架构变更 | 创建 Proposal |
 
-**中等及以上**：先根据目标确认唯一的 `<change-name>`（小写 kebab-case，如
-`add-refund-flow`），再创建目录并复制模板：
+**中等及以上**：先读取归档目录中的工单号推荐值，再向用户确认纯数字工单号和唯一的
+`<change-name>`（小写 kebab-case，如 `add-refund-flow`），再创建目录并复制模板：
 
 ```bash
-mkdir -p openspec/changes/<change-name>/
+recommended_ticket=$(python <agent-config-dir>/scripts/suggest_ticket_number.py openspec/changes/archive)
+# 向用户展示 recommended_ticket，并等待用户确认或输入其他纯数字工单号
+mkdir -p openspec/changes/<ticket>-<change-name>/
 cp skills/workflow-requirements-clarification/reference/proposal_template.md \
-   openspec/changes/<change-name>/proposal.md
+   openspec/changes/<ticket>-<change-name>/proposal.md
 ```
+
+`workflow-*` 默认推荐脚本输出的工单号，但最终以用户确认值为准；工单号必须是纯数字。
 
 创建前先读取 `openspec/index.md`，再按索引定向读取相关的
 `openspec/specs/business/`、历史 Change 和 `openspec/issues/`。知识只辅助理解；
 必须用代码、Schema、配置、测试或运行证据核实现状，发现冲突时同时报告双方证据和不确定性。
 
-目录名表达本次 Change，不再按模块嵌套。文件名必须是 `proposal.md`。
+目录名表达本次 Change，不再按模块嵌套。文件名必须是 `proposal.md`。活跃目录格式为
+`<ticket>-<change-name>`。
 
 ### Step 1: 代码调研（AI 自主完成）
 
@@ -200,7 +205,7 @@ cp skills/workflow-requirements-clarification/reference/proposal_template.md \
 
 同时填写 `4. 知识影响`：
 
-- 命中长期知识时，在 `openspec/changes/<change-name>/specs/` 下创建镜像
+- 命中长期知识时，在 `openspec/changes/<ticket>-<change-name>/specs/` 下创建镜像
   `openspec/specs/` 相对路径的 Delta。
 - 无长期知识影响时，写明「无长期知识影响：<理由>」，不创建占位 Delta。
 - 知识只辅助理解；发现知识与代码冲突时记录双方证据，不静默修改任意一方。
@@ -249,7 +254,7 @@ cp skills/workflow-requirements-clarification/reference/proposal_template.md \
 
 **结束语**：
 ```
-proposal.md 的需求章节已完成：openspec/changes/<change-name>/proposal.md
+proposal.md 的需求章节已完成：openspec/changes/<ticket>-<change-name>/proposal.md
 （已填写：1. 背景、2. 目标、3. 需求）
 
 如果准备好了，说"开始设计"进入 system design 阶段。
@@ -262,7 +267,7 @@ proposal.md 的需求章节已完成：openspec/changes/<change-name>/proposal.m
 1. **AI 自主调研代码背景**：现有实现、代码路径等信息 AI 必须自己读代码获取
 2. **只问用户需求信息**：为什么做、做什么、不做什么、约束条件
 3. **只填需求与知识影响**：proposal.md 只填写背景、目标、需求和知识影响；设计写入独立的 `design.md`
-4. **正确的文件路径**：`openspec/changes/<change-name>/proposal.md`
+4. **正确的文件路径**：`openspec/changes/<ticket>-<change-name>/proposal.md`
 5. **禁止生成后续章节**：设计方案由 `workflow-system-design` skill 负责
 6. **必须使用 cp 复制模板**：禁止从头创建 Proposal.md
 7. **实时更新 Proposal**：每个步骤结束后立即更新对应章节，不要等到最后一次性写入
@@ -273,7 +278,7 @@ proposal.md 的需求章节已完成：openspec/changes/<change-name>/proposal.m
 |------------|-----------|
 | 问用户"现有实现是怎样的" | AI 自己读代码调研 |
 | 从头创建 Proposal.md | **必须用 `cp` 复制模板** |
-| 生成到宿主工具私有目录或旧目录 | 生成到 `openspec/changes/<change-name>/` |
+| 生成到宿主工具私有目录或旧目录 | 生成到 `openspec/changes/<ticket>-<change-name>/` |
 | 文件名 `xxx-spec.md` 或 `spec.md` | 文件名必须是 `proposal.md` |
 | 填写设计方案章节 | 只填前三章节 |
 | 一次问多个问题 | 每轮只问一个核心问题 |

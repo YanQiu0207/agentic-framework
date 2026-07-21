@@ -22,8 +22,8 @@ description: OpenSpec 变更归档。将活跃 Change 整目录移动到带日�
 
 ```
 当前活跃变更：
-1. add-dark-mode
-2. fix-auth-timeout
+1. 1-add-dark-mode
+2. 2-fix-auth-timeout
 
 请问要归档哪个变更？
 ```
@@ -35,12 +35,12 @@ description: OpenSpec 变更归档。将活跃 Change 整目录移动到带日�
 展示变更摘要，请用户确认：
 
 ```
-即将归档：add-dark-mode
+即将归档：1-add-dark-mode
 
   文件：proposal.md、design.md、tasks.md、specs/ui/spec.md
 
 归档后目录将移动到：
-  openspec/changes/archive/2026-06-21-add-dark-mode/
+  openspec/changes/archive/1-2026-06-21-add-dark-mode/
 
 确认归档？（y/n）
 ```
@@ -62,7 +62,7 @@ description: OpenSpec 变更归档。将活跃 Change 整目录移动到带日�
 用户确认后，从当前 Skill 目录向上定位 `../../scripts/validate_change.py`，在移动目录前执行：
 
 ```bash
-python <validator-path> --repo . --change openspec/changes/<change-name> --phase archive --archive-target openspec/changes/archive/YYYY-MM-DD-<change-name>
+python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name> --phase archive --archive-target openspec/changes/archive/<ticket>-YYYY-MM-DD-<change-name>
 ```
 
 `--archive-target` 必须与下一步 `mv` 使用完全相同的实际目标路径，其中日期为执行当天。
@@ -77,8 +77,8 @@ python <validator-path> --repo . --change openspec/changes/<change-name> --phase
 
 ```bash
 mkdir -p openspec/changes/archive
-mv openspec/changes/<change-name> \
-   openspec/changes/archive/$(date +%Y-%m-%d)-<change-name>
+mv openspec/changes/<ticket>-<change-name> \
+   openspec/changes/archive/<ticket>-$(date +%Y-%m-%d)-<change-name>
 ```
 
 > 归档状态由**目录位置**表达：在 `openspec/changes/` 下即活跃，移入 `openspec/changes/archive/` 即已归档，不维护单独的状态文件。
@@ -90,8 +90,8 @@ mv openspec/changes/<change-name> \
 ```
 ✅ 归档完成
 
-  变更：add-dark-mode
-  归档路径：openspec/changes/archive/2026-06-21-add-dark-mode/
+  变更：1-add-dark-mode
+  归档路径：openspec/changes/archive/1-2026-06-21-add-dark-mode/
 ```
 
 ---
@@ -100,6 +100,6 @@ mv openspec/changes/<change-name> \
 
 1. **必须用户确认后才执行移动**：不得静默归档
 2. **只归档 `openspec/changes/` 下的目录**：不操作其他路径
-3. **归档目录名格式**：`YYYY-MM-DD-<change-name>`，日期为执行归档当天
+3. **归档目录名格式**：`<ticket>-YYYY-MM-DD-<change-name>`，工单号来自活跃目录，日期为执行归档当天
 4. **知识同步后再归档**：未完成 Delta 映射、索引更新记录或冲突处理时禁止移动目录
 5. **保留 Production 门禁**：不得削弱用户确认、逐 Task Review 或最终集成 Review

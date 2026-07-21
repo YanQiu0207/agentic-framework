@@ -43,7 +43,7 @@ description: OpenSpec 需求澄清。初始化活跃 Change 目录，生成 prop
 ## 产出文件
 
 ```
-openspec/changes/<change-name>/
+openspec/changes/<ticket>-<change-name>/
 ├── proposal.md             # 为什么改、改什么
 └── specs/
     └── <长期 Specs 相对路径>.md  # 增量规范（ADDED / MODIFIED / REMOVED / RENAMED）
@@ -76,18 +76,20 @@ openspec/changes/<change-name>/
 | **中等** | 涉及多文件、单模块功能 | 创建变更目录 |
 | **复杂** | 跨模块、新特性、架构变更 | 创建变更目录 |
 
-**中等及以上**，向用户确认变更名称（格式：`动词-名词`，如 `add-dark-mode`、`fix-auth-timeout`）：
+**中等及以上**，必须向用户输入工单号和变更名称。工单号必须是纯数字，变更名称格式为
+`动词-名词`，如 `add-dark-mode`、`fix-auth-timeout`：
 
 ```
+请输入工单号（纯数字）：
 这次变更怎么命名？格式建议：动词-名词（如 add-dark-mode、refactor-auth-flow）
 ```
 
 确认后，初始化目录：
 
 ```bash
-mkdir -p openspec/changes/<change-name>/specs/
+mkdir -p openspec/changes/<ticket>-<change-name>/specs/
 cp skills/opsx-requirements-clarification/reference/proposal_template.md \
-   openspec/changes/<change-name>/proposal.md
+   openspec/changes/<ticket>-<change-name>/proposal.md
 ```
 
 填写 `proposal.md` 头部的 `变更` 和 `日期` 字段。
@@ -192,7 +194,7 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 2. 识别受影响的长期知识路径，为每个创建镜像 Delta：
    - 复制 `skills/opsx-requirements-clarification/reference/spec_capability_template.md`
    - 路径必须镜像 `openspec/specs/` 下的目标相对路径，例如
-     `openspec/changes/<change>/specs/business/order/rules.md` 对应
+     `openspec/changes/<ticket>-<change>/specs/business/order/rules.md` 对应
      `openspec/specs/business/order/rules.md`
    - 填写状态（ADDED/MODIFIED/REMOVED/RENAMED）和详细规范内容
    - 无长期知识影响时，在 `proposal.md` 的「知识影响」章节明确说明理由，不创建占位 Delta
@@ -242,7 +244,7 @@ cp skills/opsx-requirements-clarification/reference/proposal_template.md \
 ```
 需求澄清已完成：
 
-  openspec/changes/<change-name>/
+  openspec/changes/<ticket>-<change-name>/
   ├── proposal.md（背景、目标、需求概览）
   └── specs/
       └── <长期 Specs 相对路径>.md（增量规范）
@@ -264,7 +266,7 @@ Plan 门禁要求 `tasks.md`，而本 Skill 只负责需求产物，不得为通
 1. **AI 自主调研代码背景**：现有实现、代码路径等信息 AI 必须自己读代码获取
 2. **只问用户需求信息**：为什么做、做什么、不做什么、约束条件
 3. **必须使用 cp 复制模板**：禁止从头创建文件
-4. **正确的目录路径**：`openspec/changes/<change-name>/`
+4. **正确的目录路径**：`openspec/changes/<ticket>-<change-name>/`
 5. **禁止生成设计内容**：设计方案由 `opsx-system-design` skill 负责
 6. **实时更新文件**：每个步骤结束后立即更新对应内容，不要等到最后一次性写入
 7. **不维护当前实现副本**：`proposal.md` 只记录本次变更 intent，当前实现必须从代码读取，不得从历史 Archive 推断

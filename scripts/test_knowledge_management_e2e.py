@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 WORKFLOW_SCRIPTS_DIR = REPO_ROOT / "skills" / "workflow-code-generation" / "scripts"
 FIXTURE_ROOT = SCRIPTS_DIR / "tests" / "fixtures" / "validate-change" / "valid-standard"
-CHANGE = Path("openspec/changes/example-change")
+CHANGE = Path("openspec/changes/1-example-change")
 
 for import_path in (SCRIPTS_DIR, WORKFLOW_SCRIPTS_DIR):
     if str(import_path) not in sys.path:
@@ -85,7 +85,7 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
                 / "openspec"
                 / "changes"
                 / "archive"
-                / f"{date.today().isoformat()}-example-change"
+                / f"1-{date.today().isoformat()}-example-change"
             )
 
             result = validate_change.validate_change(repo, change, "archive", target)
@@ -115,7 +115,7 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
                 / "tooling-project"
                 / "openspec"
                 / "changes"
-                / "add-knowledge-route"
+                / "1-add-knowledge-route"
                 / "tasks.md"
             )
             _write(
@@ -203,7 +203,7 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
                 / "openspec"
                 / "changes"
                 / "archive"
-                / f"{date.today().isoformat()}-example-change"
+                / f"1-{date.today().isoformat()}-example-change"
             )
 
             result = validate_change.validate_change(

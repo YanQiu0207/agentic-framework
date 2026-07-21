@@ -10,7 +10,7 @@
 
 当前框架存在以下问题：
 
-- Production 使用 `openspec/changes/<change>/`，Tooling 使用 `docs/design-docs/<module>/<feature>/`，两个 Profile 的项目产物目录不同。
+- Production 使用 `openspec/changes/<ticket>-<change>/`，Tooling 使用 `docs/design-docs/<module>/<feature>/`，两个 Profile 的项目产物目录不同。
 - 当前 Production 只保留 Change，不维护项目长期 Specs，归档时也不把 Change 中的增量知识同步回长期知识。
 - 当前 `project-knowledge` 以 `docs/adr/`、`docs/arch-snapshots/`、`docs/design-docs/` 和 `docs/issues/` 分桶，与 Production 的 OpenSpec 类结构没有统一。
 - 项目专属知识与跨项目公共知识的作用域边界不够严格，未确认候选仍可能进入公共库的 `changes/`。
@@ -140,7 +140,7 @@ openspec/
 │       ├── data-models/
 │       └── error-codes/
 ├── changes/
-│   ├── <change-name>/
+│   ├── <ticket>-<change-name>/
 │   │   ├── proposal.md
 │   │   ├── specs/
 │   │   ├── design.md
@@ -219,7 +219,7 @@ openspec/
 - `design.md`：设计方案、权衡和风险。
 - `tasks.md`：任务、验证和知识同步状态。
 
-归档状态由目录位置表达：活跃 Change 位于 `changes/<change>/`，完成后移动到 `changes/archive/YYYY-MM-DD-<change>/`。
+归档状态由目录位置表达：活跃 Change 位于 `changes/<ticket>-<change>/`，完成后移动到 `changes/archive/<ticket>-YYYY-MM-DD-<change>/`。
 
 ### 5.6 `issues/`
 
@@ -315,7 +315,7 @@ openspec/
 | 前后端共享协议与数据模型 | `specs/common/protocols/`、`specs/common/data-models/` |
 | 统一错误码语义 | `specs/common/error-codes/` |
 | 端内项目工程规范 | `specs/frontend/engineering/` 或 `specs/backend/engineering/` |
-| 单次需求、设计和任务 | `changes/<change>/` |
+| 单次需求、设计和任务 | `changes/<ticket>-<change>/` |
 | 已完成历史 Change | `changes/archive/` |
 | 已验证项目故障 | `issues/` |
 | 跨项目可复用方法 | 公共库 `domains/`，须先完成晋升流程 |
@@ -328,7 +328,7 @@ openspec/
 活跃 Change 先在自身 `specs/` 中记录 Delta，不直接把未确认结论写入长期 Specs。Delta 目录镜像长期 Specs 的相对路径：
 
 ```text
-openspec/changes/add-refund/specs/common/protocols/refund-api/spec.md
+openspec/changes/<ticket>-add-refund/specs/common/protocols/refund-api/spec.md
     ↓ 归档时合并
 openspec/specs/common/protocols/refund-api/
 ```
@@ -529,7 +529,7 @@ openspec/
 
 | 旧位置 | 新位置 |
 | --- | --- |
-| `docs/design-docs/<module>/<feature>/` | `openspec/changes/<change>/` 或 Archive |
+| `docs/design-docs/<module>/<feature>/` | `openspec/changes/<ticket>-<change>/` 或 Archive |
 | `docs/adr/` | 按作用域合并到相关 Specs 的 `custom/`、`engineering/tech/` 或保留历史引用 |
 | `docs/arch-snapshots/<module>/` | 对应端、业务域和模块的代码派生文档 |
 | `docs/issues/` | `openspec/issues/` |

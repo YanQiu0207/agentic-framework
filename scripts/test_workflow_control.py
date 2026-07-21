@@ -39,9 +39,7 @@ def runtime_verify_fixture(root: Path) -> tuple[Path, Path]:
         "created_at": "2026-07-19T12:00:00Z",
     }
     run_dir.mkdir(parents=True)
-    (run_dir / "run-context.json").write_text(
-        json.dumps(context), encoding="utf-8"
-    )
+    (run_dir / "run-context.json").write_text(json.dumps(context), encoding="utf-8")
     report = workflow_control.runtime_workflow.envelope(
         context,
         "verify-report",
@@ -318,7 +316,11 @@ class WorkflowControlTest(unittest.TestCase):
     def test_cli_writes_unified_change_tasks_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = (
-                Path(temp_dir) / "openspec" / "changes" / "example-change" / "tasks.md"
+                Path(temp_dir)
+                / "openspec"
+                / "changes"
+                / "1-example-change"
+                / "tasks.md"
             )
             path.parent.mkdir(parents=True)
             path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
@@ -468,8 +470,7 @@ class WorkflowControlTest(unittest.TestCase):
     def test_lock_path_uses_repository_runtime_directory_and_target_digest(
         self,
     ) -> None:
-        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory(
-        ) as second:
+        with tempfile.TemporaryDirectory() as first, tempfile.TemporaryDirectory() as second:
             roots = [Path(first), Path(second)]
             paths = []
             for root in roots:
@@ -486,9 +487,7 @@ class WorkflowControlTest(unittest.TestCase):
             self.assertRegex(first_lock.name, r"^[0-9a-f]{64}\.lock$")
             self.assertNotEqual(first_lock.name, second_lock.name)
 
-            other_change = (
-                roots[0] / "openspec" / "changes" / "other" / "tasks.md"
-            )
+            other_change = roots[0] / "openspec" / "changes" / "other" / "tasks.md"
             self.assertNotEqual(
                 first_lock.name,
                 workflow_control._task_lock_path(other_change).name,

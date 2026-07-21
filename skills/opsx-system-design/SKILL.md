@@ -101,7 +101,7 @@ description: OpenSpec 系统设计。当 proposal.md 已完整但 design.md 不�
 
 ```bash
 cp skills/opsx-system-design/reference/design_template.md \
-   openspec/changes/<change-name>/design.md
+   openspec/changes/<ticket>-<change-name>/design.md
 ```
 
 填写文件头部的变更名称、作者、日期字段。
@@ -163,7 +163,7 @@ AI：「1.2.3 数据模型这个 section，你的需求涉及新的数据结构�
 设计完成时不得用历史 Archive 替代当前代码调研。Plan 门禁要求 `tasks.md`，因此本 Skill 只明确交接给 `opsx-code-generation`：创建并确认 Tasks 后统一执行 Plan 校验，本阶段不越界拆任务。
 
 ```
-design.md 已完成：openspec/changes/<change-name>/design.md
+design.md 已完成：openspec/changes/<ticket>-<change-name>/design.md
 
 你可以：
 - 说「开始编码」进入 code generation 阶段

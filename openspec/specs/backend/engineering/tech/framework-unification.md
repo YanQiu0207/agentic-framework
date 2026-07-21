@@ -193,7 +193,7 @@ Requirements Clarification
 Standard：
 
 ```text
-openspec/changes/<change-name>/
+openspec/changes/<ticket>-<change-name>/
 ├── proposal.md
 ├── specs/
 │   └── <capability>/spec.md
@@ -204,12 +204,12 @@ openspec/changes/<change-name>/
 Quick：
 
 ```text
-openspec/changes/<change-name>/
+openspec/changes/<ticket>-<change-name>/
 ├── proposal.md
 └── tasks.md
 ```
 
-两个 Profile 的 Change 均位于 `openspec/changes/<change-name>/`。Change-local `specs/` 镜像长期 `openspec/specs/` 的相对路径；Production 与 Tooling 可以选择不同的文档完整度，但不能另建第二套 Artifact 根目录。
+两个 Profile 的 Change 均位于 `openspec/changes/<ticket>-<change-name>/`。Change-local `specs/` 镜像长期 `openspec/specs/` 的相对路径；Production 与 Tooling 可以选择不同的文档完整度，但不能另建第二套 Artifact 根目录。
 
 ## 6. Tooling Profile
 

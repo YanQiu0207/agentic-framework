@@ -13,7 +13,7 @@ description: Production 与 Tooling 共用的项目知识路由与归档规范�
 
 1. **知识只辅助理解**：项目长期 Specs、Issues、Archive 和跨项目公共知识都不是当前实现的事实源。
 2. **当前事实必须核实**：模块、接口、数据流和运行行为以代码、Schema、配置、测试与运行证据为准。
-3. **活跃 Change 是本次任务契约**：实现和验收必须对照当前 `openspec/changes/<change>/`；它不是普通知识。
+3. **活跃 Change 是本次任务契约**：实现和验收必须对照当前 `openspec/changes/<ticket>-<change>/`；它不是普通知识。
 4. **冲突必须显式报告**：知识与当前事实不一致时，同时展示双方证据和不确定性，不得静默选择、覆盖或宣布任意一方错误。
 5. **项目知识保持项目作用域**：Agent 只能从当前项目的逻辑根和已接线的公共知识库主动检索，不得把兄弟项目目录加入检索范围。该规则是人工操作边界，不是文件系统 ACL；保密需求仍需权限或执行环境隔离。
 6. **公共知识不得自动写入**：候选只保留在当前项目或交付报告；只有用户明确确认后才能晋升。
@@ -33,7 +33,7 @@ openspec/
 │   ├── backend/
 │   └── common/
 ├── changes/
-│   ├── <change-name>/
+│   ├── <ticket>-<change-name>/
 │   │   ├── proposal.md
 │   │   ├── specs/
 │   │   ├── design.md
@@ -129,8 +129,8 @@ openspec/
 | 共享数据模型 | `openspec/specs/common/data-models/` |
 | 统一错误码语义 | `openspec/specs/common/error-codes/` |
 | 端内项目工程规范 | `openspec/specs/frontend/engineering/` 或 `openspec/specs/backend/engineering/` |
-| 单次需求、设计、任务和 Delta | `openspec/changes/<change>/` |
-| 已完成历史 Change | `openspec/changes/archive/YYYY-MM-DD-<change>/` |
+| 单次需求、设计、任务和 Delta | `openspec/changes/<ticket>-<change>/` |
+| 已完成历史 Change | `openspec/changes/archive/<ticket>-YYYY-MM-DD-<change>/` |
 | 已验证项目故障 | `openspec/issues/<issue>.md` |
 | 跨项目通用方法候选 | 当前 Change 的知识候选清单，或 Fast-Path 交付报告 |
 | 跨项目通用故障候选 | 当前 Change 的知识候选清单，或 Fast-Path 交付报告 |
@@ -183,7 +183,7 @@ custom/
 活跃 Change 优先写自身 `specs/` 中的 Delta，不直接把未验证结论写入长期 Specs。Delta 相对路径镜像 `openspec/specs/`：
 
 ```text
-openspec/changes/add-refund/specs/common/protocols/refund-api/spec.md
+openspec/changes/<ticket>-add-refund/specs/common/protocols/refund-api/spec.md
     → openspec/specs/common/protocols/refund-api/
 ```
 

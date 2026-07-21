@@ -39,7 +39,10 @@ TASK_REVIEW_REPORT_RE = re.compile(
 )
 SECTION_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<title>.+?)\s*$")
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
-CHANGE_NAME_RE = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)+$")
+TICKETED_CHANGE_RE = re.compile(
+    r"^(?P<ticket>[0-9]+)-(?P<change_name>"
+    r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+)$"
+)
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 GENERATED_KNOWLEDGE_NAMES = {
     "overview.md",
@@ -491,18 +494,18 @@ def _validate_common(repo: Path, change: Path) -> list[Finding]:
                 repo,
                 1,
                 "Change 目录必须直接位于 openspec/changes/。",
-                "通过 --change openspec/changes/<change-name> 指定活跃变更。",
+                "通过 --change openspec/changes/<ticket>-<change-name> 指定活跃变更。",
             )
         )
-    if not CHANGE_NAME_RE.fullmatch(change.name):
+    if not TICKETED_CHANGE_RE.fullmatch(change.name):
         findings.append(
             _finding(
                 "OPSX003",
                 change,
                 repo,
                 1,
-                "Change 名称不符合小写动词-名词 kebab-case 格式。",
-                "使用至少两个小写英文片段，例如 add-validation。",
+                "Change 名称不符合 <ticket>-<change-name> 格式。",
+                "工单号必须是纯数字，Change 名称使用小写 kebab-case，例如 123-add-validation。",
             )
         )
     return findings
@@ -1454,10 +1457,15 @@ def validate_change(
                     "选择未使用的归档日期或先处理已有目录。",
                 )
             )
-        name_match = re.fullmatch(
-            rf"(?P<date>\d{{4}}-\d{{2}}-\d{{2}})-{re.escape(change.name)}",
-            archive_target.name,
-        )
+        change_match = TICKETED_CHANGE_RE.fullmatch(change.name)
+        name_match = None
+        if change_match:
+            name_match = re.fullmatch(
+                rf"{re.escape(change_match.group('ticket'))}-"
+                rf"(?P<date>\d{{4}}-\d{{2}}-\d{{2}})-"
+                rf"{re.escape(change_match.group('change_name'))}",
+                archive_target.name,
+            )
         valid_date = False
         if name_match:
             try:
@@ -1472,8 +1480,8 @@ def validate_change(
                     archive_target,
                     repo,
                     1,
-                    "Archive 目录名不符合 YYYY-MM-DD-<change-name>。",
-                    "按日期前缀和原 Change 名称生成归档目录。",
+                    "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+                    "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
                 )
             )
     return ValidationResult(phase, change_type, tuple(findings))

@@ -93,7 +93,7 @@ description: OpenSpec 轻量级设计工作流，适用于内部工具、小型�
 
 用户确认后，立即初始化变更目录并写入文件。
 
-变更固定写入 `openspec/changes/<change-name>/`，归档由 `opsx-archive` 负责；不依赖中央规范库或额外知识管理 Skill。
+变更固定写入 `openspec/changes/<ticket>-<change-name>/`，归档由 `opsx-archive` 负责；不依赖中央规范库或额外知识管理 Skill。
 
 **确认变更名称**（如用户还未提供）：
 
@@ -101,12 +101,12 @@ description: OpenSpec 轻量级设计工作流，适用于内部工具、小型�
 这次变更怎么命名？格式建议：动词-名词（如 add-xxx-tool）
 ```
 
-**初始化目录**：
+**初始化目录**（工单号必须由用户输入，不调用自动推荐）：
 
 ```bash
-mkdir -p openspec/changes/<change-name>/
+mkdir -p openspec/changes/<ticket>-<change-name>/
 cp skills/opsx-quick-design/reference/quick-proposal-template.md \
-   openspec/changes/<change-name>/proposal.md
+   openspec/changes/<ticket>-<change-name>/proposal.md
 ```
 
 在 `proposal.md` 中填写确认后的方案内容；其头部「状态」字段保持 `Quick Draft`（模板自带）。

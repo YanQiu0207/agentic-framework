@@ -60,4 +60,4 @@ Production 使用 `openspec/changes/`，Tooling 使用 `docs/design-docs/`，两
 ## 相关文档
 
 - [项目知识库与跨项目公共知识库统一方案](../knowledge-management.md)
-- [实施任务清单](../../../../../changes/archive/2026-07-19-unified-knowledge-management/tasks.md)
+- [历史实施任务清单](../../../../../changes/archive/2026-07-19-unified-knowledge-management/tasks.md)（历史归档链接，保留原路径）

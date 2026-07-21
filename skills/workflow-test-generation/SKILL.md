@@ -27,7 +27,7 @@ description: 测试生成。基于活跃 Change 或被测代码，生成单元�
 > **完整流程**和**测试策略设计**执行本步骤。**快速补测试**跳过（用户已指定了被测代码）。
 
 先读取 `openspec/index.md`，再尝试读取
-`openspec/changes/<change-name>/proposal.md`、`design.md` 和 Delta。按测试范围定向读取相关
+`openspec/changes/<ticket>-<change-name>/proposal.md`、`design.md` 和 Delta。按测试范围定向读取相关
 `openspec/specs/business/`、`openspec/specs/common/` 和 `openspec/issues/`，并用代码与测试证据核实知识：
 
 **有活跃 Change**：

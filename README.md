@@ -140,9 +140,9 @@ Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 
 ### 手动运行变更校验
 
 ```bash
-python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<change-name> --phase plan
-python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<change-name> --phase delivery
-python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<change-name> --phase archive --archive-target openspec/changes/archive/YYYY-MM-DD-<change-name>
+python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<ticket>-<change-name> --phase plan
+python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<ticket>-<change-name> --phase delivery
+python <agent-config-dir>/scripts/validate_change.py --repo . --change openspec/changes/<ticket>-<change-name> --phase archive --archive-target openspec/changes/archive/<ticket>-YYYY-MM-DD-<change-name>
 ```
 
 `<agent-config-dir>` 例如 `~/.claude` 或 `~/.codex`。在框架源码目录内开发时，也可直接使用 `python scripts/validate_change.py ...`。
@@ -152,7 +152,7 @@ Archive 阶段的 `--archive-target` 必须填写即将移动到的实际路径�
 每次变更产出结构：
 
 ```
-openspec/changes/<change-name>/
+openspec/changes/<ticket>-<change-name>/
 ├── proposal.md         # 为什么改、改什么
 ├── tasks.md            # 实现任务清单
 ├── design.md           # 技术设计（Standard 必选，Quick 不需要）

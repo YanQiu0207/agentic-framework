@@ -54,7 +54,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 
 ### 步骤 2：查找 / 确认 spec
 
-查找 `openspec/changes/<change-name>/proposal.md`：
+查找 `openspec/changes/<ticket>-<change-name>/proposal.md`：
 - Standard：完整读取 `proposal.md`、`design.md`、`specs/` 下的 Delta 和 `tasks.md`；缺 Proposal 路由到 `workflow-requirements-clarification`，缺 Design 路由到 `workflow-system-design`。
 - Quick：`proposal.md` 标记 `Quick Draft`，允许不创建 `design.md` 和 Delta；缺必要章节时调用 `workflow-quick-design`。
 - 旧 `spec.md` 和 `docs/design-docs/` 只允许迁移读取，任何新 Change 禁止写入旧 Artifact。
@@ -129,7 +129,7 @@ Phase 0 必须先调用 `workflow_control.py <tasks.md> init-run`，传入 `.age
 3. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证。失败则修复并回到第 2 步重验。
 4. **一次最终审核**：对本次全部变更调用一次 `workflow-code-review`（`mode: initial`，`review_profile` 取各 task 中最高档位）。`strict` 必须由未参与实现的独立 Judge 裁决。存在 keep 的 P0 / P1 时派 fix agent 修复、重跑受影响的验证，再按 `mode: re-review` 只复核 finding 和修复 diff；最多 2 轮，禁止启动第二次全量首审。
 5. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)，执行统一知识影响检查，并逐条核销步骤 3 / Phase 1 预留的「intent 沉淀」任务。命中长期知识影响时记录目标 `openspec/specs/` 或 `openspec/issues/` 及同步状态；Fast-Path 未创建 Change 时必须说明无长期知识影响的理由。
-6. **知识同步与归档**：加载 `project-knowledge`，对照实际 Diff 和验证证据完成 Delta、索引、Issues 与冲突检查；知识同步任务未完成时禁止归档。通过后把 `proposal.md` 头部 `状态` 改为 `Archived`，并将整个 Change 移到 `openspec/changes/archive/YYYY-MM-DD-<change-name>/`。
+6. **知识同步与归档**：加载 `project-knowledge`，对照实际 Diff 和验证证据完成 Delta、索引、Issues 与冲突检查；知识同步任务未完成时禁止归档。通过后把 `proposal.md` 头部 `状态` 改为 `Archived`，并将整个 Change 移到 `openspec/changes/archive/<ticket>-YYYY-MM-DD-<change-name>/`。
 7. **提交归档产物**：将工作区本次残留的全部改动（fix 修复、spec / tasks / ADR / issues 等文档）提交本地 git，提交信息关联 feature，交付时工作区必须干净；push / `svn commit` 仍由用户决定。
 8. **交付门（机器判定）**：对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --run-dir <run-dir> --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <run-dir>/artifacts/review-run.json`——生成代码 Diff 与最终结论 Artifact，校验完整 Manifest 可达性、Journal、Harness 启动证据、Trust Gate、任务终态、归档和 Git 状态。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
 9. 按[「统一交付证据格式」](#统一交付证据格式)交付，等用户验收 `需人工` / `阻塞` 项的处理。

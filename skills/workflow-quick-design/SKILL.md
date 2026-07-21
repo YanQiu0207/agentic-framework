@@ -100,11 +100,15 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 
 用户确认后，立即写入文件。
 
-文档固定写入 `openspec/changes/<change-name>/`。新 Change 禁止写入旧的 `docs/design-docs/`；旧路径只在迁移任务中读取。
+文档固定写入 `openspec/changes/<ticket>-<change-name>/`。新 Change 禁止写入旧的
+`docs/design-docs/`；旧路径只在迁移任务中读取。
 
-根据已批准的目标生成唯一的小写 kebab-case `<change-name>`；如果名称可能映射到多个含义，写入前先让用户确认。
+根据已批准的目标生成唯一的小写 kebab-case `<change-name>`，并运行
+`python <agent-config-dir>/scripts/suggest_ticket_number.py openspec/changes/archive`
+得到工单号推荐值。向用户展示推荐值并等待确认；用户也可以输入其他纯数字工单号。
+如果名称可能映射到多个含义，写入前先让用户确认。
 
-**文件路径**：`openspec/changes/<change-name>/proposal.md`（与 Standard 路径相同）
+**文件路径**：`openspec/changes/<ticket>-<change-name>/proposal.md`（与 Standard 路径相同）
 
 使用 [reference/quick-proposal-template.md](reference/quick-proposal-template.md) 作为模板，只填写有内容的字段，无需关注空白章节。
 

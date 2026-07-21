@@ -18,13 +18,14 @@ from typing import Iterator
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATOR = REPO_ROOT / "scripts" / "validate_change.py"
 FIXTURES = Path(__file__).parent / "fixtures" / "validate-change"
-CHANGE = Path("openspec/changes/example-change")
+CHANGE = Path("openspec/changes/1-example-change")
 
 
 def archive_target() -> Path:
     """Return the valid archive destination for the fixture change."""
     return (
-        Path("openspec/changes/archive") / f"{date.today().isoformat()}-example-change"
+        Path("openspec/changes/archive")
+        / f"1-{date.today().isoformat()}-example-change"
     )
 
 
@@ -68,6 +69,7 @@ class ValidateChangeCliTest(unittest.TestCase):
         phase: str,
         *,
         json_output: bool = False,
+        change: Path = CHANGE,
         target: Path | None = None,
     ) -> subprocess.CompletedProcess[str]:
         """Run the validator against a temporary repository."""
@@ -77,7 +79,7 @@ class ValidateChangeCliTest(unittest.TestCase):
             "--repo",
             str(repo),
             "--change",
-            str(CHANGE),
+            str(change),
             "--phase",
             phase,
         ]
@@ -119,6 +121,30 @@ class ValidateChangeCliTest(unittest.TestCase):
             with self.subTest(phase=phase):
                 result = self.run_validator("valid-standard", phase)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_ticket_number_is_required_in_active_change_name(self) -> None:
+        """An active Change must begin with a numeric ticket prefix."""
+        for invalid_name in (
+            "example-change",
+            "abc-example-change",
+            "12x-example-change",
+        ):
+            with self.subTest(invalid_name=invalid_name):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    invalid_change = Path("openspec/changes") / invalid_name
+                    (temporary_repo / CHANGE).rename(temporary_repo / invalid_change)
+                    result = self.run_repo(
+                        temporary_repo,
+                        "plan",
+                        json_output=True,
+                        change=invalid_change,
+                    )
+
+                self.assertEqual(1, result.returncode)
+                rules = {
+                    item["rule_id"] for item in json.loads(result.stdout)["errors"]
+                }
+                self.assertIn("OPSX003", rules)
 
     def test_valid_quick_plan_and_delivery(self) -> None:
         """A Quick Draft may omit specs and design."""
@@ -536,8 +562,17 @@ class ValidateChangeCliTest(unittest.TestCase):
                     "name",
                 ),
                 (
+                    Path("openspec/changes/archive")
+                    / f"2-{date.today().isoformat()}-example-change",
+                    "ticket",
+                ),
+                (
+                    Path("openspec/changes/archive") / "1-2026-02-30-example-change",
+                    "date",
+                ),
+                (
                     Path("openspec/archive")
-                    / f"{date.today().isoformat()}-example-change",
+                    / f"1-{date.today().isoformat()}-example-change",
                     "parent",
                 ),
             )

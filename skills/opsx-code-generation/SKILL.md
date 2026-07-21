@@ -56,7 +56,7 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 用户确认 `tasks.md` 后，从当前 Skill 目录向上定位 `../../scripts/validate_change.py`，执行：
 
 ```bash
-python <validator-path> --repo . --change openspec/changes/<change-name> --phase plan
+python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name> --phase plan
 ```
 
 - 退出码为 `0` 才能进入步骤 3。
@@ -139,7 +139,7 @@ python <validator-path> --repo . --change openspec/changes/<change-name> --phase
 在 Delivery 前，对集成结果执行一次全局 `workflow-verification`。失败时修复并重验；只有全局机器验证通过才能继续。
 
 ```bash
-python <validator-path> --repo . --change openspec/changes/<change-name> --phase delivery
+python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name> --phase delivery
 ```
 
 处理退出码的规则与 Plan 门禁相同：只有 `0` 允许启动 Code Review；`1` 必须修正后重跑；`2` 必须停止并报告错误。
