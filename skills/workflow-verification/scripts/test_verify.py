@@ -681,5 +681,177 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
         self.assertIsNone(value["attempt"])
 
 
+class SvnSupportTest(unittest.TestCase):
+    """SVN spec-drift file list and source_ref freshness."""
+
+    def test_svn_status_splits_tracked_and_untracked(self) -> None:
+        lines = [
+            "M       src/tool.py",
+            "A       src/new.py",
+            "?       untracked.txt",
+            "I       ignored.log",
+        ]
+
+        def svn_lines(args: list[str]) -> tuple[int, list[str], str]:
+            return 0, lines, ""
+
+        with mock.patch.object(verify, "_svn_lines", side_effect=svn_lines):
+            tracked, untracked, err = verify._svn_status_changes()
+
+        self.assertIsNone(err)
+        self.assertEqual(["src/new.py", "src/tool.py"], tracked)
+        self.assertEqual(["untracked.txt"], untracked)
+
+    def test_svn_status_preserves_paths_with_spaces(self) -> None:
+        """Regression for P1-1：含空格路径不得被分词截断。"""
+        lines = [
+            "M       src/my module/tool.py",
+            "?       untracked dir/note.md",
+        ]
+
+        def svn_lines(args: list[str]) -> tuple[int, list[str], str]:
+            return 0, lines, ""
+
+        with mock.patch.object(verify, "_svn_lines", side_effect=svn_lines):
+            tracked, untracked, err = verify._svn_status_changes()
+
+        self.assertIsNone(err)
+        self.assertEqual(["src/my module/tool.py"], tracked)
+        self.assertEqual(["untracked dir/note.md"], untracked)
+
+    def test_svn_status_skips_noise_and_property_rows(self) -> None:
+        """externals 提示行 / X / ! / ~ / 属性行不计入 tracked（白名单）。
+
+        在 subprocess.run 层打桩，让真实 `_svn_lines`（含前导空白保留逻辑）参与执行，
+        防止属性行 ` M file` 被 strip 成 `M file` 后误计入 tracked（NF-1 回归）。
+        """
+        stdout = (
+            "M       src/real.py\n"
+            "Performing status on external at 'vendor':\n"
+            "X       vendor\n"
+            "!       src/missing.py\n"
+            "~       src/obstructed.py\n"
+            " M      src/prop-only.py\n"
+            "I       ignored.log\n"
+        )
+        completed = subprocess.CompletedProcess(
+            args=["svn", "status"], returncode=0, stdout=stdout, stderr=""
+        )
+        with mock.patch.object(verify.subprocess, "run", return_value=completed):
+            tracked, untracked, err = verify._svn_status_changes()
+
+        self.assertIsNone(err)
+        self.assertEqual(["src/real.py"], tracked)
+        self.assertEqual([], untracked)
+
+    def test_changed_files_dispatches_to_svn_when_svn_working_copy(self) -> None:
+        with mock.patch.object(verify, "_detect_vcs", return_value="svn"), mock.patch.object(
+            verify,
+            "_svn_status_changes",
+            return_value=(["src/a.py"], ["b.txt"], None),
+        ):
+            tracked, untracked, err = verify._changed_files("HEAD")
+        self.assertIsNone(err)
+        self.assertEqual(["src/a.py"], tracked)
+        self.assertEqual(["b.txt"], untracked)
+
+    def test_svn_source_ref_fresh_has_no_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            source = repo / "src" / "tool.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("print('v1')\n", encoding="utf-8")
+            responses = {
+                ("info", "--show-item", "revision", "-r", "10"): (0, "10"),
+                (
+                    "info",
+                    "--show-item",
+                    "last-changed-revision",
+                    "src/tool.py",
+                ): (0, "5"),
+            }
+
+            def svn_result(_repo: Path, args: list[str]) -> tuple[int, str]:
+                return responses[tuple(args)]
+
+            with mock.patch.object(verify, "_svn_result", side_effect=svn_result):
+                warnings = verify._svn_source_warnings(
+                    "meta.yaml", "svn:10", ["src/tool.py"], repo, {}, {}, {}
+                )
+        self.assertEqual([], warnings)
+
+    def test_svn_source_ref_stale_warns(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            source = repo / "src" / "tool.py"
+            source.parent.mkdir(parents=True)
+            source.write_text("print('v1')\n", encoding="utf-8")
+            responses = {
+                ("info", "--show-item", "revision", "-r", "10"): (0, "10"),
+                (
+                    "info",
+                    "--show-item",
+                    "last-changed-revision",
+                    "src/tool.py",
+                ): (0, "15"),
+            }
+
+            def svn_result(_repo: Path, args: list[str]) -> tuple[int, str]:
+                return responses[tuple(args)]
+
+            with mock.patch.object(verify, "_svn_result", side_effect=svn_result):
+                warnings = verify._svn_source_warnings(
+                    "meta.yaml", "svn:10", ["src/tool.py"], repo, {}, {}, {}
+                )
+        self.assertEqual(1, len(warnings))
+        self.assertIn("来源已晚于", warnings[0])
+
+    def test_svn_source_ref_missing_rev_warns(self) -> None:
+        with mock.patch.object(verify, "_svn_result", return_value=(1, "")):
+            warnings = verify._svn_source_warnings(
+                "meta.yaml",
+                "svn:999",
+                ["src/tool.py"],
+                Path("/fake/repo"),
+                {},
+                {},
+                {},
+            )
+        self.assertEqual(1, len(warnings))
+        self.assertIn("不存在", warnings[0])
+
+    def test_knowledge_source_warnings_routes_svn_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            source = repo / "scripts" / "tool.py"
+            source.parent.mkdir()
+            source.write_text("print('v1')\n", encoding="utf-8")
+            meta = repo / "openspec" / "specs" / "tool" / "meta.yaml"
+            meta.parent.mkdir(parents=True)
+            meta.write_text(
+                "service:\n"
+                "    source_ref: svn:10\n"
+                "    source_paths:\n"
+                "        - scripts/tool.py\n",
+                encoding="utf-8",
+            )
+            responses = {
+                ("info", "--show-item", "revision", "-r", "10"): (0, "10"),
+                (
+                    "info",
+                    "--show-item",
+                    "last-changed-revision",
+                    "scripts/tool.py",
+                ): (0, "5"),
+            }
+
+            def svn_result(_repo: Path, args: list[str]) -> tuple[int, str]:
+                return responses[tuple(args)]
+
+            with mock.patch.object(verify, "_svn_result", side_effect=svn_result):
+                warnings = verify.knowledge_source_warnings(repo)
+        self.assertEqual([], warnings)
+
+
 if __name__ == "__main__":
     unittest.main()

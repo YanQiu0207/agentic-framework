@@ -21,7 +21,7 @@ disable-model-invocation: true
 - 项目知识正文位于项目内，或位于用户指定的外部私有目录并通过 `openspec/` 链接透明访问。
 - 外置模式明确版本管理或备份方式、链接恢复方法，并能检测失效链接。
 - 是否接入跨项目公共知识库由用户单独决定，不与项目知识存储方式绑定。
-- Git 只提交本次创建或修改的文件，不卷入既有未跟踪内容。
+- 版本控制只纳入本次创建或修改的文件，不卷入既有未跟踪内容。
 
 ## 处理流程
 
@@ -31,6 +31,7 @@ disable-model-invocation: true
 
 - **纯 Git**：Git 同时用于本地开发和正式提交。
 - **Git + SVN**：本地用 Git，正式提交走 SVN。
+- **纯 SVN**：只用 SVN，本地开发和正式提交都走 SVN 工作副本，不引入 Git。
 
 ### 2. 选择框架 Profile
 
@@ -70,17 +71,22 @@ Profile 只决定执行生命周期；两种 Profile 使用相同的 `openspec/`
 
 创建链接时使用当前平台支持的目录符号链接；Windows 无权限创建符号链接时，先报告原因，再取得用户明确同意后使用目录联接。禁止静默复制正文作为降级方案。
 
-### 4. 初始化 Git
+### 4. 初始化版本控制
 
-两种版本管理模式都需要 Git。运行 `git rev-parse --is-inside-work-tree` 判断：
+纯 Git 和 Git + SVN 模式需要 Git。运行 `git rev-parse --is-inside-work-tree` 判断：
 
 - 已是仓库 → 跳过，记录「已存在」。
 - 不是仓库 → 运行 `git init`，记录「已初始化」。
 - `git init` 失败 → 报告错误，继续执行不依赖 Git 的创建步骤；最后不得声称初始化完整成功。
 
+纯 SVN 模式不引入 Git。SVN 没有 `svn init`，必须有服务器仓库支撑的工作副本。运行 `svn info` 判断当前目录是否为 SVN 工作副本：
+
+- 是工作副本 → 跳过，记录「已存在工作副本」。
+- 不是工作副本 → 报告并停止，提示用户先 `svn checkout` 或 `svn import` 建立工作副本后重跑；不得执行后续依赖 SVN 的创建步骤。
+
 ### 5. 创建 `.gitignore`
 
-不存在则创建，已存在则只追加缺失条目，不改写已有内容：
+纯 SVN 模式跳过本步（无 Git）。纯 Git 和 Git + SVN 模式下，不存在则创建，已存在则只追加缺失条目，不改写已有内容：
 
 ```gitignore
 # Agentic Engineering Framework 本地运行产物
@@ -98,12 +104,15 @@ Git + SVN 模式额外追加 `.svn/`。
 
 若 `openspec/` 是指向项目外部的链接，先询问用户是否跟踪该链接本身；不要擅自把 `openspec/` 加入 `.gitignore`。
 
-### 6. 配置 SVN 忽略（仅 Git + SVN 模式）
+### 6. 配置 SVN 忽略（Git + SVN 和纯 SVN 模式）
 
 运行 `svn info` 判断当前目录是否为 SVN 工作副本：
 
-- 是工作副本 → 先读取 `svn:ignore`，合并 `.git` 与 `.gitignore` 后写回。
-- 不是工作副本或未安装 SVN → 跳过，并在报告和 `AGENTS.md` 中记录接入 SVN 后的补做项。
+- 是工作副本 → 先读取 `svn:ignore`，合并应忽略项后写回：
+  - `svn:ignore` 逐目录生效，不支持单条嵌套路径。根目录设 `.agentic-framework/`、`.DS_Store`、`Thumbs.db`；`.claude/settings.local.json` 需到 `.claude/` 子目录单独设 `svn:ignore` 为 `settings.local.json`。
+  - Git + SVN 模式：根 `svn:ignore` 额外合并 `.git`、`.gitignore` 中涉及的根级忽略项（`.agentic-framework/`、`.DS_Store`、`Thumbs.db`）与 `.svn/`。
+  - 纯 SVN 模式：根 `svn:ignore` 合并 `.agentic-framework/`、`.DS_Store`、`Thumbs.db`；`.svn/` 是 SVN 自身元数据目录，由 SVN 管理，不要加入忽略。
+- 不是工作副本或未安装 SVN → 跳过，并在报告和 `AGENTS.md` 中记录接入 SVN 后的补做项。纯 SVN 模式在此处仍非工作副本属于初始化未完成，不得声称初始化成功。
 
 ### 7. 判断项目类型
 
@@ -187,32 +196,30 @@ openspec/
 
 用户选择暂不接入时，不修改全局配置，也不影响项目知识库初始化。
 
-### 12. 首次 Git 提交
+### 12. 首次提交
 
-仅提交本次 Skill 创建或修改的文件，使用逐路径 `git add`，禁止 `git add .`。外置正文不在当前 Git 工作树内时，不得假装它已随项目提交；报告其独立 Git 或备份状态。
+仅纳入本次 Skill 创建或修改的文件，禁止批量添加。
 
-提交信息：
+- 纯 Git 和 Git + SVN 模式：逐路径 `git add`，禁止 `git add .`；随后 `git commit`，提交信息 `chore: 初始化项目脚手架`。Git + SVN 模式只提交到本地 Git，不执行 `git push` 或 `svn commit`。
+- 纯 SVN 模式：逐路径 `svn add`，禁止 `svn add .`；不执行 `svn commit`。报告文件已加入版本控制计划但尚未提交，提示用户自行 `svn commit`，提交信息沿用 `chore: 初始化项目脚手架`。
 
-```text
-chore: 初始化项目脚手架
-```
-
-Git + SVN 模式只提交到本地 Git，不执行 `git push` 或 `svn commit`。
+外置正文不在当前版本控制工作树内时，不得假装它已随项目提交；报告其独立 Git 或备份状态。
 
 ### 13. 汇总报告
 
 ```markdown
 | 项目 | 结果 |
 | --- | --- |
-| 版本管理模式 | 纯 Git / Git + SVN |
+| 版本管理模式 | 纯 Git / Git + SVN / 纯 SVN |
 | 框架 Profile | Production / Tooling |
-| Git | 已初始化 / 已存在 / 失败 |
+| Git | 已初始化 / 已存在 / 失败 / 不适用（纯 SVN） |
+| SVN 工作副本 | 已存在 / 不适用 |
 | 项目知识存储 | 项目内 / 外部私有目录 |
 | `openspec/` 入口 | 已创建 / 已存在（未改动） / 验证失败 |
 | 正文保护 | 项目 Git / 独立 Git / 备份系统 / 不适用 |
 | 链接恢复 | 已记录 / 不适用 / 未完成 |
 | 公共知识库接线 | 已接线 / 暂不接入 / 验证失败 |
-| 首次提交 | 已提交 / 跳过 / 失败 |
+| 首次提交 | 已提交 / 已加入未提交（纯 SVN）/ 跳过 / 失败 |
 ```
 
 ## 边界情况
@@ -221,5 +228,6 @@ Git + SVN 模式只提交到本地 Git，不执行 `git push` 或 `svn commit`�
 - 已有 `openspec/` 但结构不完整 → 只报告缺失项，先取得用户明确授权，再补齐；不得把初始化规则当成覆盖授权。
 - 外置路径与公共知识库重叠 → 拒绝创建。
 - 外置链接失效 → 报告失败，禁止创建同名目录或复制正文掩盖问题。
+- 纯 SVN 模式且当前目录非 SVN 工作副本 → 报告并停止，提示用户建立工作副本后重跑；不得用 `svnadmin create` 或复制等方式擅自造一个本地仓库。
 - 用户未确认正文保护和恢复方案 → 外置模式停止；可以改选项目内模式。
 - 生成的中文 Markdown 必须遵循 `md-zh` 排版规范。

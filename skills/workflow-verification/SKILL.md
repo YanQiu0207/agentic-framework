@@ -16,11 +16,16 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
 
 ## 内置 spec drift 检查
 
-`verify.py` 总会检查本次 git diff：
+`verify.py` 总会检查本次改动文件列表，VCS 由 `verify.py` 自动探测：
+
+- Git 工作副本 → `git diff --name-only <base>` + `git ls-files --others`。
+- SVN 工作副本 → `svn status`（`A/M/D` 计为已纳入改动，`?` 计为未跟踪，`I` 跳过）。纯 SVN 模式按规则「只 `svn add`、不 `svn commit`」，一个 Change 期间无提交，工作副本本地改动即「本次改动」的全部，`--diff-base` 在 SVN 下不使用。
+- 两端都探测不到 → spec drift 判 error，提示不在 Git 仓库或 SVN 工作副本内。
 
 - 改了代码文件，且无法证明相关活跃 Change（`spec.md` / `ui-spec.md` / `tasks.md`）或长期 `openspec/specs/`、`openspec/issues/` 已按知识影响更新 → FAIL。
 - 相关性只做机械判定：`tasks.md` 中出现代码路径，或代码文件位于同一规格目录下；判不出相关时必须传 `--spec-drift-reason "<原因>"`。旧 `docs/design-docs/` 只作为迁移输入，不作为新改动的规格写入目标。
-- 标准 / 下放流程必须在 Phase 0 记录 `base_sha`，后续验证显式传 `--diff-base <base_sha>`；禁止在已提交 / 已合并后的 clean 工作区裸用默认 `HEAD` 作为基准。
+- 标准 / 下放流程（Git 模式）必须在 Phase 0 记录 `base_sha`，后续验证显式传 `--diff-base <base_sha>`；禁止在已提交 / 已合并后的 clean 工作区裸用默认 `HEAD` 作为基准。SVN 模式无此要求，spec drift 直接读工作副本本地改动。
+- 知识源新鲜度：`meta.yaml` 的 `source_ref` 校验 `git:<sha>`（commit 存在且来源路径最后提交是其祖先）与 `svn:<rev>`（revision 存在且来源路径最后修订号 `<= ref rev`，需 SVN 1.9+ 的 `--show-item`）两种形式，其余前缀报「不可解析」。
 - 报告写入 `.agentic-framework/verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
 
 示例：
@@ -53,13 +58,13 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 
 退出码：`0` 全过；`1` 有新增违规或 spec drift（进修复循环）；`2` 门禁自身出错（先排查配置）。
 
-配置项目：`cp <skill-dir>/reference/verify.config.example.json verify.config.json`，按技术栈改 `command`；`.agentic-framework/` 加进 `.gitignore`。**怎么写配置、怎么接入自己的脚本见 [reference/config-guide.md](reference/config-guide.md)。**
+配置项目：`cp <skill-dir>/reference/verify.config.example.json verify.config.json`，按技术栈改 `command`；`.agentic-framework/` 加进忽略配置（Git → `.gitignore`，SVN → `svn:ignore`）。**怎么写配置、怎么接入自己的脚本见 [reference/config-guide.md](reference/config-guide.md)。**
 
 ## 配置维护模式（用户触发）
 
 用户显式要求「初始化 / 刷新 verify 配置」或运行 `/verify-config` 时进入。这是 `verify.config.json` 的**唯一写入路径**——代码任务全程只读配置，验证阶段不改写配置。
 
-流程：检查仓库证据 → 生成或刷新 → 校验结构 → 试运行 → 弱化类变更经用户确认 → 写入并纳入 Git。
+流程：检查仓库证据 → 生成或刷新 → 校验结构 → 试运行 → 弱化类变更经用户确认 → 写入并纳入版本控制。
 
 - 生成只依据仓库证据（CI、项目清单、构建入口、测试与 Lint 配置、`AGENTS.md` / Spec / ADR），无证据不更新，无变化保持字节级不变。
 - 至少包含一项试运行成功的编译（构建）或测试检查；仓库没有可安全执行的入口 → 返回 ERROR，不生成占位命令。
@@ -82,7 +87,7 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 | 时机 | 动作 |
 | --- | --- |
 | 动代码前（Fast-Path / Phase 0） | 有 config → `--save-baseline` 采基线 |
-| Task 合并前、Run 最终 Review 前 | 有 config → `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>` |
+| Task 合并前、Run 最终 Review 前 | 有 config → `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>`。SVN 模式 spec drift 读 `svn status`，`--diff-base` 省略 |
 
 > 下放执行在 worktree 内，基线须用**主仓库根绝对路径** `--baseline <repo-root>/.agentic-framework/verify/baseline.json`（worktree 看不到未提交的基线）。
 >

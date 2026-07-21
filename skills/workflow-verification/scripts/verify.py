@@ -61,6 +61,10 @@ _HEARTBEAT_SECONDS = 5.0
 _PROCESS_CLEANUP_TIMEOUT_SECONDS = 5.0
 _OUTPUT_SUMMARY_LINES = 3
 _OUTPUT_SUMMARY_CHARS = 600
+# svn status 输出格式：前 7 列状态字段，第 8 列起为路径
+_SVN_STATUS_FIELD_WIDTH = 7
+# 计入 tracked-changed 的 svn status 首列状态码：新增/删除/修改/替换/冲突
+_SVN_TRACKED_CODES = {"A", "D", "M", "R", "C"}
 _CODE_SUFFIXES = {
     ".c",
     ".cc",
@@ -310,8 +314,103 @@ def _git_lines(args: list[str]) -> tuple[int, list[str], str]:
     return proc.returncode, _nonempty_lines(proc.stdout), proc.stderr.strip()
 
 
+def _svn_lines(args: list[str]) -> tuple[int, list[str], str]:
+    """Run svn and return non-empty stdout lines，保留每行前导空白。
+
+    svn status 的首列状态码位置有意义：内容改动行首列为 `A/D/M/...`，属性改动行
+    首列为空格（形如 ` M file`）。若 lstrip 会把属性行变成 `M file` 被误判为内容改动，
+    故只过滤空行、不 strip 前导。带超时防 `svn info -r <rev>` 触网永久阻塞；
+    超时 fail-closed 返回 exit=1 + 空输出，交由调用方走告警路径。
+    """
+    try:
+        proc = subprocess.run(
+            ["svn", *args],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_DEFAULT_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return 1, [], f"svn {' '.join(args)} 超时（>{_DEFAULT_TIMEOUT}s）"
+    lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
+    return proc.returncode, lines, proc.stderr.strip()
+
+
+def _detect_vcs(cwd: Path) -> str | None:
+    """探测当前目录的版本控制后端：'git' / 'svn' / None。
+
+    Git 优先于 SVN：Git + SVN 模式下工作副本同时受两者管理，diff 语义以 Git 为准。
+    二进制缺失（如纯 SVN 环境未装 git）不抛异常，降级探测下一后端。
+    """
+    try:
+        git_code = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        ).returncode
+    except (OSError, FileNotFoundError):
+        git_code = 1
+    if git_code == 0:
+        return "git"
+    try:
+        svn_code = subprocess.run(
+            ["svn", "info"],
+            cwd=str(cwd),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        ).returncode
+    except (OSError, FileNotFoundError):
+        svn_code = 1
+    if svn_code == 0:
+        return "svn"
+    return None
+
+
+def _svn_status_changes() -> tuple[list[str], list[str], str | None]:
+    """从 `svn status` 取本地改动文件。
+
+    纯 SVN 模式按规则「只 svn add、不 svn commit」，一个 Change 期间不产生提交，
+    工作副本的本地改动即「本次改动」的全部。`--diff-base` 在 SVN 下不使用。
+
+    用白名单而非黑名单识别状态码，避免 externals 提示行（首列 'P'）、external item
+    （'X'）、missing（'!'）、obstructed（'~'）等噪声被计入 tracked：
+
+    - 首列 `A/D/M/R/C` → tracked-changed（版本化改动）。
+    - 首列 `?` → untracked。
+    - 其余（含 `I`、`X`、`!`、`~`、` ` 属性行等）跳过。
+
+    路径取状态字段后的整段（strip 后），不做分词——SVN 不对含空格路径转义，
+    分词会截断路径（见 P1-1）。
+    """
+    code, lines, err = _svn_lines(["status"])
+    if code != 0:
+        return [], [], err or f"svn status failed with exit={code}"
+    tracked: list[str] = []
+    untracked: list[str] = []
+    for raw in lines:
+        if len(raw) < _SVN_STATUS_FIELD_WIDTH:
+            continue
+        status_code = raw[0]
+        if status_code == "?":
+            path = raw[_SVN_STATUS_FIELD_WIDTH:].strip()
+            if path:
+                untracked.append(path)
+        elif status_code in _SVN_TRACKED_CODES:
+            path = raw[_SVN_STATUS_FIELD_WIDTH:].strip()
+            if path:
+                tracked.append(path)
+    return sorted(set(tracked)), sorted(set(untracked)), None
+
+
 def _changed_files(diff_base: str) -> tuple[list[str], list[str], str | None]:
     """Return tracked and untracked changed files relative to diff_base."""
+    vcs = _detect_vcs(Path.cwd())
+    if vcs == "svn":
+        return _svn_status_changes()
+    if vcs != "git":
+        return [], [], "当前目录不在 Git 仓库或 SVN 工作副本内，无法判定改动文件"
     code, tracked, err = _git_lines(["diff", "--name-only", diff_base, "--"])
     if code != 0:
         return [], [], err or f"git diff failed with exit={code}"
@@ -363,7 +462,7 @@ def evaluate_spec_drift(diff_base: str, reason: str) -> CheckResult:
             "Z-spec-drift",
             "spec_drift",
             "error",
-            f"无法读取 git diff：{error}",
+            f"无法读取改动文件列表：{error}",
         )
 
     changed = sorted(set(tracked + untracked))
@@ -374,7 +473,8 @@ def evaluate_spec_drift(diff_base: str, reason: str) -> CheckResult:
         code_files, spec_files + untracked_spec_files
     )
     value = {
-        "diff_base": diff_base,
+        # SVN 模式不使用 diff-base（读 svn status 本地改动），报告置 None 避免误导
+        "diff_base": None if _detect_vcs(Path.cwd()) == "svn" else diff_base,
         "code_files": code_files,
         "spec_files": spec_files,
         "untracked_spec_files": untracked_spec_files,
@@ -489,6 +589,140 @@ def _git_result(repo: Path, args: list[str]) -> tuple[int, str]:
     return result.returncode, result.stdout.strip()
 
 
+def _svn_result(repo: Path, args: list[str]) -> tuple[int, str]:
+    """Run svn in the working copy rooted at repo; return (returncode, stdout).
+
+    带超时：`svn info -r <rev>` 等查询可触网，防止网络抖动永久阻塞；
+    超时 fail-closed 返回 exit=1 + 空 stdout，走「来源路径没有可核对的 SVN 修订号」告警。
+    """
+    try:
+        result = subprocess.run(
+            ["svn", *args],
+            cwd=str(repo),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_DEFAULT_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return 1, ""
+    return result.returncode, result.stdout.strip()
+
+
+def _git_source_warnings(
+    relative_meta: str,
+    source_ref: str,
+    source_paths: list[str],
+    repo: Path,
+    valid_refs: dict[str, bool],
+    latest_commits: dict[str, tuple[int, str]],
+    ancestry: dict[tuple[str, str], bool],
+) -> list[str]:
+    """Validate a `git:<sha>` source_ref: commit exists and each source_path's
+    last commit is an ancestor of the ref commit."""
+    warnings: list[str] = []
+    commit = source_ref.removeprefix("git:").strip()
+    if commit not in valid_refs:
+        code, _ = _git_result(
+            repo, ["rev-parse", "--verify", f"{commit}^{{commit}}"]
+        )
+        valid_refs[commit] = code == 0
+    if not valid_refs[commit]:
+        warnings.append(f"{relative_meta} 的 source_ref 不存在：{source_ref}")
+        return warnings
+    if not source_paths:
+        warnings.append(f"{relative_meta} 的 {source_ref} 缺少 source_paths")
+        return warnings
+    for source_path in source_paths:
+        candidate = (repo / source_path).resolve()
+        if not _is_relative_to(candidate, repo) or not candidate.exists():
+            warnings.append(f"{relative_meta} 的来源路径不可用：{source_path}")
+            continue
+        if source_path not in latest_commits:
+            latest_commits[source_path] = _git_result(
+                repo, ["log", "-1", "--format=%H", "--", source_path]
+            )
+        code, latest = latest_commits[source_path]
+        if code != 0 or not latest:
+            warnings.append(
+                f"{relative_meta} 的来源路径没有可核对的 Git 提交：{source_path}"
+            )
+            continue
+        ancestry_key = (latest, commit)
+        if ancestry_key not in ancestry:
+            code, _ = _git_result(
+                repo, ["merge-base", "--is-ancestor", latest, commit]
+            )
+            ancestry[ancestry_key] = code == 0
+        if not ancestry[ancestry_key]:
+            warnings.append(
+                f"{relative_meta} 来源已晚于 {source_ref}：{source_path}（最新 {latest[:12]}）"
+            )
+    return warnings
+
+
+def _svn_source_warnings(
+    relative_meta: str,
+    source_ref: str,
+    source_paths: list[str],
+    repo: Path,
+    valid_revs: dict[str, bool],
+    latest_revs: dict[str, tuple[int, str]],
+    ancestry: dict[tuple[str, str], bool],
+) -> list[str]:
+    """Validate an `svn:<rev>` source_ref: revision exists and each source_path's
+    last-changed revision is <= the ref revision.
+
+    Uses `svn info --show-item last-changed-revision` (SVN 1.9+), consistent with
+    the framework's vcs_ref convention for SVN knowledge meta files.
+
+    `rev` 必须为正整数 revision；symbolic revision（如 `HEAD`/`BASE`）不是合法 vcs_ref
+    值，`int()` 失败时 fail-closed 报「非数字 revision」。
+    """
+    warnings: list[str] = []
+    rev = source_ref.removeprefix("svn:").strip()
+    if rev not in valid_revs:
+        code, _ = _svn_result(repo, ["info", "--show-item", "revision", "-r", rev])
+        valid_revs[rev] = code == 0
+    if not valid_revs[rev]:
+        warnings.append(f"{relative_meta} 的 source_ref 不存在：{source_ref}")
+        return warnings
+    if not source_paths:
+        warnings.append(f"{relative_meta} 的 {source_ref} 缺少 source_paths")
+        return warnings
+    try:
+        ref_rev_num = int(rev)
+    except ValueError:
+        warnings.append(f"{relative_meta} 的 source_ref 非数字 revision：{source_ref}")
+        return warnings
+    for source_path in source_paths:
+        candidate = (repo / source_path).resolve()
+        if not _is_relative_to(candidate, repo) or not candidate.exists():
+            warnings.append(f"{relative_meta} 的来源路径不可用：{source_path}")
+            continue
+        if source_path not in latest_revs:
+            latest_revs[source_path] = _svn_result(
+                repo, ["info", "--show-item", "last-changed-revision", source_path]
+            )
+        code, latest = latest_revs[source_path]
+        if code != 0 or not latest:
+            warnings.append(
+                f"{relative_meta} 的来源路径没有可核对的 SVN 修订号：{source_path}"
+            )
+            continue
+        ancestry_key = (latest, rev)
+        if ancestry_key not in ancestry:
+            try:
+                ancestry[ancestry_key] = int(latest) <= ref_rev_num
+            except ValueError:
+                ancestry[ancestry_key] = False
+        if not ancestry[ancestry_key]:
+            warnings.append(
+                f"{relative_meta} 来源已晚于 {source_ref}：{source_path}（最新 r{latest}）"
+            )
+    return warnings
+
+
 def knowledge_source_warnings(repo: Path) -> list[str]:
     """Return non-blocking warnings for stale or invalid knowledge sources."""
     repo = repo.resolve()
@@ -499,6 +733,9 @@ def knowledge_source_warnings(repo: Path) -> list[str]:
     valid_refs: dict[str, bool] = {}
     latest_commits: dict[str, tuple[int, str]] = {}
     ancestry: dict[tuple[str, str], bool] = {}
+    valid_revs: dict[str, bool] = {}
+    latest_revs: dict[str, tuple[int, str]] = {}
+    svn_ancestry: dict[tuple[str, str], bool] = {}
     for meta in sorted(specs.rglob("meta.yaml")):
         relative_meta = meta.relative_to(repo).as_posix()
         try:
@@ -507,50 +744,34 @@ def knowledge_source_warnings(repo: Path) -> list[str]:
             warnings.append(f"{relative_meta} 无法读取：{error}")
             continue
         for source_ref, source_paths in records:
-            if not source_ref.startswith("git:"):
+            if source_ref.startswith("git:"):
+                warnings.extend(
+                    _git_source_warnings(
+                        relative_meta,
+                        source_ref,
+                        source_paths,
+                        repo,
+                        valid_refs,
+                        latest_commits,
+                        ancestry,
+                    )
+                )
+            elif source_ref.startswith("svn:"):
+                warnings.extend(
+                    _svn_source_warnings(
+                        relative_meta,
+                        source_ref,
+                        source_paths,
+                        repo,
+                        valid_revs,
+                        latest_revs,
+                        svn_ancestry,
+                    )
+                )
+            else:
                 warnings.append(
                     f"{relative_meta} 的 source_ref 不可解析：{source_ref or '<empty>'}"
                 )
-                continue
-            commit = source_ref.removeprefix("git:").strip()
-            if commit not in valid_refs:
-                code, _ = _git_result(
-                    repo, ["rev-parse", "--verify", f"{commit}^{{commit}}"]
-                )
-                valid_refs[commit] = code == 0
-            if not valid_refs[commit]:
-                warnings.append(f"{relative_meta} 的 source_ref 不存在：{source_ref}")
-                continue
-            if not source_paths:
-                warnings.append(f"{relative_meta} 的 {source_ref} 缺少 source_paths")
-                continue
-            for source_path in source_paths:
-                candidate = (repo / source_path).resolve()
-                if not _is_relative_to(candidate, repo) or not candidate.exists():
-                    warnings.append(
-                        f"{relative_meta} 的来源路径不可用：{source_path}"
-                    )
-                    continue
-                if source_path not in latest_commits:
-                    latest_commits[source_path] = _git_result(
-                        repo, ["log", "-1", "--format=%H", "--", source_path]
-                    )
-                code, latest = latest_commits[source_path]
-                if code != 0 or not latest:
-                    warnings.append(
-                        f"{relative_meta} 的来源路径没有可核对的 Git 提交：{source_path}"
-                    )
-                    continue
-                ancestry_key = (latest, commit)
-                if ancestry_key not in ancestry:
-                    code, _ = _git_result(
-                        repo, ["merge-base", "--is-ancestor", latest, commit]
-                    )
-                    ancestry[ancestry_key] = code == 0
-                if not ancestry[ancestry_key]:
-                    warnings.append(
-                        f"{relative_meta} 来源已晚于 {source_ref}：{source_path}（最新 {latest[:12]}）"
-                    )
     return warnings
 
 
@@ -1179,7 +1400,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--diff-base",
         default="HEAD",
-        help="spec drift 检查的 git diff 基准，默认 HEAD",
+        help="spec drift 检查的改动基准（Git 模式：commit SHA，默认 HEAD；"
+        "SVN 模式不使用，直接读 svn status 本地改动）",
     )
     parser.add_argument(
         "--spec-drift-reason",
