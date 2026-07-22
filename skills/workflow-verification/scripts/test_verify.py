@@ -449,13 +449,24 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         self.assertTrue(verify._glob_match("local/debug.py", ["local"]))
         self.assertFalse(verify._glob_match("localism/debug.py", ["local/"]))
 
-    def test_collect_ignores_merges_three_sources_deduped(self) -> None:
-        merged = verify._collect_ignores(
-            ["*.local.py"],
-            ["local/", "*.local.py"],
-            ["pre-existing.py"],
+    def test_evaluate_spec_drift_records_ignore_sources(self) -> None:
+        with mock.patch.object(
+            verify,
+            "_changed_files",
+            return_value=(["local/a.py", "local/b.py"], [], None),
+        ):
+            result = verify.evaluate_spec_drift(
+                "HEAD",
+                "",
+                ["local/a.py"],  # cli
+                ["local/b*"],  # config
+                ["local/c.py"],  # baseline (not in changes)
+            )
+        self.assertEqual(
+            ["local/a.py", "local/b.py"], result.value["ignored_files"]
         )
-        self.assertEqual(["*.local.py", "local/", "pre-existing.py"], merged)
+        self.assertEqual(["cli"], result.value["ignore_sources"]["local/a.py"])
+        self.assertEqual(["config"], result.value["ignore_sources"]["local/b.py"])
 
     def test_evaluate_spec_drift_ignores_matched_code_file(self) -> None:
         with mock.patch.object(
@@ -502,6 +513,91 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                     "",
                 )
         self.assertEqual(2, rc)
+
+    def test_baseline_paths_match_literally_not_as_glob(self) -> None:
+        # P2-1: baseline paths are exact set membership, NOT glob — a filename
+        # containing glob metacharacters must match itself and not be interpreted.
+        with mock.patch.object(
+            verify,
+            "_changed_files",
+            return_value=(["docs/v1.0[draft].md"], [], None),
+        ):
+            result = verify.evaluate_spec_drift(
+                "HEAD", "", [], [], ["docs/v1.0[draft].md"]
+            )
+        self.assertEqual(
+            ["docs/v1.0[draft].md"], result.value["ignored_files"]
+        )
+
+    def test_cmd_verify_forwards_three_ignore_sources(self) -> None:
+        # P2-4: cmd_verify wires CLI, config and baseline sources through to
+        # evaluate_spec_drift end-to-end.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "checks": {},
+                        "config_snapshot": [],
+                        "changed_files_snapshot": ["pre-existing.py"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            config = {"checks": [], "ignore_paths": ["cfg/*.py"]}
+            with mock.patch.object(
+                verify,
+                "evaluate_spec_drift",
+                return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
+            ) as spy, mock.patch.object(
+                verify, "evaluate_check"
+            ), mock.patch("builtins.print"):
+                verify.cmd_verify(
+                    config,
+                    baseline,
+                    Path(temp_dir) / "report.json",
+                    "HEAD",
+                    "",
+                    cli_ignore_patterns=["cli.py"],
+                )
+        positional = spy.call_args.args
+        # diff_base, reason, cli_patterns, config_patterns, baseline_paths
+        self.assertEqual(["cli.py"], positional[2])
+        self.assertEqual(["cfg/*.py"], positional[3])
+        self.assertEqual(["pre-existing.py"], positional[4])
+
+    def test_changing_ignore_paths_does_not_trigger_rebaseline(self) -> None:
+        # P2-5: ignore_paths is intentionally not in config_snapshot, so changing
+        # only ignore_paths must not raise a config-drift error (exit 2).
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            config_v1 = {"checks": [], "ignore_paths": ["a/*.py"]}
+            config_v2 = {"checks": [], "ignore_paths": ["b/*.py"]}
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "checks": {},
+                        "config_snapshot": verify._config_snapshot(config_v1),
+                        "changed_files_snapshot": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                verify,
+                "evaluate_spec_drift",
+                return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
+            ), mock.patch.object(
+                verify, "evaluate_check"
+            ), mock.patch("builtins.print"):
+                rc = verify.cmd_verify(
+                    config_v2,
+                    baseline,
+                    Path(temp_dir) / "report.json",
+                    "HEAD",
+                    "",
+                )
+        self.assertEqual(0, rc)
 
 
 class KnowledgeSourceFreshnessTest(unittest.TestCase):

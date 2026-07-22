@@ -36,7 +36,7 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
   - 命令行 `--ignore <glob>`（可重复）。
   - `verify.config.json` 顶层 `ignore_paths: [glob, ...]`（项目级长期忽略）。
   - 基线快照差集：`--save-baseline` 时自动记录当时的 changed files（S0），`verify` 时本次改动 = S1 − S0（动代码前已存在的本地改动自动排除）。旧基线缺 `changed_files_snapshot` 字段时 fail-closed，要求重采基线。
-- **glob 语义**：`fnmatch`，`*` / `**` 跨目录、`?` 单字符；目录模式（`dir/` 或 `dir`）覆盖其下全部文件。
+- **glob 语义**：`fnmatchcase`（大小写敏感、跨 OS 一致），`*` / `**` 跨目录、`?` 单字符；目录模式（`dir/` 或 `dir`）覆盖其下全部文件。被忽略文件在 report 中按来源标注（`ignore_sources`：cli / config / baseline）。
 - **安全护栏**：`openspec/` 下的 `spec.md` / `ui-spec.md` / `tasks.md` / ADR 永不可忽略——忽略它们会让 spec drift 被静默绕过；命中忽略但仍属规格类的文件记入 report 的 `refused_ignores` 并照常归类。
 - **审计**：被忽略文件写入 report 的 `spec_drift.value.ignored_files`，供 Review 核查。
 - **硬约束**：`--ignore` 只作用于 spec drift 归类；build / test / lint 仍编译运行工作树全部文件，`M` 半成品仍需物理隔离（patch 往返 / 第二工作副本）。

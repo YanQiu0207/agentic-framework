@@ -458,10 +458,10 @@ def _is_spec_file(path_text: str) -> bool:
 def _glob_match(path_text: str, patterns: Sequence[str]) -> bool:
     """Return whether a path is covered by any glob ignore pattern.
 
-    Patterns match against the posix-relative path. ``*`` and ``**`` cross
-    directory separators (fnmatch semantics); ``?`` matches a single character.
-    A pattern naming a directory (``dir/`` or ``dir``) also covers everything
-    beneath it.
+    Patterns match against the posix-relative path, case-sensitively
+    (``fnmatchcase`` for consistent cross-OS behavior). ``*`` and ``**`` cross
+    directory separators; ``?`` matches a single character. A pattern naming a
+    directory (``dir/`` or ``dir``) also covers everything beneath it.
     """
     if not patterns:
         return False
@@ -470,7 +470,7 @@ def _glob_match(path_text: str, patterns: Sequence[str]) -> bool:
         normalized = pattern.strip()
         if not normalized:
             continue
-        if fnmatch.fnmatch(posix, normalized):
+        if fnmatch.fnmatchcase(posix, normalized):
             return True
         directory_prefix = normalized.rstrip("/") + "/"
         if posix.startswith(directory_prefix):
@@ -478,39 +478,26 @@ def _glob_match(path_text: str, patterns: Sequence[str]) -> bool:
     return False
 
 
-def _collect_ignores(
-    cli_patterns: Sequence[str],
-    config_paths: Sequence[str],
-    baseline_snapshot: Sequence[str],
-) -> list[str]:
-    """Merge ignore patterns from the three sources, order-preserving and deduped.
-
-    Sources: CLI ``--ignore``, config ``ignore_paths``, and the baseline
-    changed-files snapshot (S0 — changes that pre-existed before this run).
-    The three are unioned; they never conflict.
-    """
-    combined: list[str] = []
-    for source in (cli_patterns, config_paths, baseline_snapshot):
-        for pattern in source:
-            normalized = pattern.strip()
-            if normalized and normalized not in combined:
-                combined.append(normalized)
-    return combined
-
-
 def evaluate_spec_drift(
     diff_base: str,
     reason: str,
-    ignore_patterns: Sequence[str] = (),
+    cli_patterns: Sequence[str] = (),
+    config_patterns: Sequence[str] = (),
+    baseline_paths: Sequence[str] = (),
 ) -> CheckResult:
     """Require an explicit reason when code changed but specs/tasks/ADR did not.
 
-    ``ignore_patterns`` removes matched files from the code/spec classification
-    so changes the user does not intend to commit (local debug files, pre-existing
-    local edits captured in the baseline snapshot) do not trigger spec drift.
+    Three ignore sources, tracked separately for audit:
+    - ``cli_patterns`` / ``config_patterns``: glob patterns (``--ignore`` /
+      ``ignore_paths``), matched case-sensitively via fnmatch.
+    - ``baseline_paths``: exact file paths from the baseline changed-files
+      snapshot (S0 — pre-existing local changes), matched by set membership
+      (NOT glob, so file names containing ``*?[`` are handled literally).
+
     ``openspec/`` spec/tasks files are never ignored — doing so would let spec
     drift be silently bypassed; they are recorded in ``refused_ignores`` and
-    still classified.
+    still classified. Each ignored file's contributing source(s) are recorded in
+    ``ignore_sources``.
     """
     tracked, untracked, error = _changed_files(diff_base)
     if error:
@@ -524,16 +511,26 @@ def evaluate_spec_drift(
     changed = sorted(set(tracked + untracked))
     ignored_files: list[str] = []
     refused_ignores: list[str] = []
-    if ignore_patterns:
+    ignore_sources: dict[str, list[str]] = {}
+    baseline_set = set(baseline_paths)
+    if cli_patterns or config_patterns or baseline_set:
         effective: list[str] = []
         for path in changed:
-            if _glob_match(path, ignore_patterns):
+            sources: list[str] = []
+            if path in baseline_set:
+                sources.append("baseline")
+            if _glob_match(path, cli_patterns):
+                sources.append("cli")
+            if _glob_match(path, config_patterns):
+                sources.append("config")
+            if sources:
                 if _is_spec_file(path):
                     # Safety rail: never ignore openspec/ spec/tasks files.
                     refused_ignores.append(path)
                     effective.append(path)
                 else:
                     ignored_files.append(path)
+                    ignore_sources[path] = sources
             else:
                 effective.append(path)
         changed = effective
@@ -557,7 +554,12 @@ def evaluate_spec_drift(
         "reason": reason,
         "ignored_files": ignored_files,
         "refused_ignores": refused_ignores,
-        "ignore_patterns": list(ignore_patterns),
+        "ignore_sources": ignore_sources,
+        "ignore_patterns": {
+            "cli": list(cli_patterns),
+            "config": list(config_patterns),
+            "baseline": list(baseline_paths),
+        },
     }
     if not code_files:
         return CheckResult(
@@ -1367,11 +1369,14 @@ def cmd_verify(
             return 2
 
     config_paths = config.get("ignore_paths", [])
-    ignore_patterns = _collect_ignores(
-        cli_ignore_patterns, config_paths, baseline_snapshot
-    )
     results: list[CheckResult] = [
-        evaluate_spec_drift(diff_base, spec_drift_reason, ignore_patterns)
+        evaluate_spec_drift(
+            diff_base,
+            spec_drift_reason,
+            cli_ignore_patterns,
+            config_paths,
+            baseline_snapshot,
+        )
     ]
     for check in config.get("checks", []):
         name = check.get("name", "<unnamed>")
