@@ -88,6 +88,10 @@ description: OpenSpec 测试生成。基于 design.md 的测试计划章节或�
 
 根据项目需要，额外加载其他编码规范 skill。
 
+#### Overlay 规范发现
+
+编码或测试前，从当前已加载的核心 workflow `SKILL.md` 真实路径（解析链接后）向上定位框架根，再运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`。无法确定该受信框架根时不得加载 Overlay，并报告失败。只消费其 JSON 输出；目标文件后缀匹配 `skills[].files` 时，才加载当前 client 的对应 Skill。不得直接读取 `.agentic-framework/extensions/*.json`，也不得从目标项目 Manifest 的 `source` 获得可执行路径。Overlay 只补充规范，不自动执行、不覆盖核心 Skill，也不修改 workflow。
+
 ### 4.2 逐个生成
 
 对每个测试任务生成测试代码。每个测试必须覆盖三类场景：

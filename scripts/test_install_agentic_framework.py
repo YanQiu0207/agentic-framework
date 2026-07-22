@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import io
 import locale
 import os
 import shutil
@@ -73,6 +74,36 @@ class InstallTest(unittest.TestCase):
             registry_path=self.registry,
             **kwargs,
         )
+
+    def _create_extension(
+        self,
+        name: str = "company-standards",
+        skill_name: str = "std-company-python",
+        skill_path: str | None = None,
+    ) -> Path:
+        """Create one minimal external Overlay source tree."""
+        source = self.root / name
+        relative_skill_path = skill_path or f"skills/{skill_name}"
+        if ".." not in Path(relative_skill_path).parts:
+            skill_root = source / Path(relative_skill_path)
+            skill_root.mkdir(parents=True, exist_ok=True)
+            (skill_root / "SKILL.md").write_text("# Overlay\n", encoding="utf-8")
+        source.mkdir(parents=True, exist_ok=True)
+        installer._write_json(
+            source / installer.EXTENSION_MANIFEST_NAME,
+            {
+                "schema_version": 1,
+                "name": name,
+                "skills": [
+                    {
+                        "name": skill_name,
+                        "path": relative_skill_path,
+                        "files": [".py"],
+                    }
+                ],
+            },
+        )
+        return source
 
     def test_build_operations_uses_directory_links_for_skills(self) -> None:
         operations = installer.build_operations(REPO_ROOT, "tooling", set())
@@ -215,7 +246,7 @@ class InstallTest(unittest.TestCase):
         source_file.write_text(original + "\nvisible-update\n", encoding="utf-8")
         self.assertIn("visible-update", linked_file.read_text(encoding="utf-8"))
 
-    def test_manifest_v2_and_registry_record_selection(self) -> None:
+    def test_manifest_and_registry_record_selection(self) -> None:
         target = self.root / "target"
         target.mkdir()
         self._install(target, packs={"telemetry"})
@@ -223,11 +254,263 @@ class InstallTest(unittest.TestCase):
             (target / installer.MANIFEST_PATH).read_text(encoding="utf-8")
         )
         registry = json.loads(self.registry.read_text(encoding="utf-8"))
-        self.assertEqual(2, manifest["schema_version"])
+        self.assertEqual(3, manifest["schema_version"])
         self.assertEqual(str(REPO_ROOT.resolve()), manifest["source"])
         self.assertEqual(["telemetry"], manifest["packs"])
         self.assertTrue(manifest["links"])
+        self.assertEqual([], manifest["extensions"])
         self.assertEqual(str(target.absolute()), registry["installations"][0]["target"])
+
+    def test_v3_manifest_allows_leaf_link_during_validation(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        manifest = {
+            "schema_version": installer.MANIFEST_SCHEMA_VERSION,
+            "framework_version": installer.FRAMEWORK_VERSION,
+            "source": str(REPO_ROOT.resolve()),
+            "profile": "tooling",
+            "packs": [],
+            "extensions": [],
+            "links": [
+                {
+                    "path": ".codex/commands/code-generation.md",
+                    "source": str(
+                        (REPO_ROOT / "commands" / "code-generation.md").resolve()
+                    ),
+                    "type": "file",
+                }
+            ],
+        }
+        installer._write_manifest(target, manifest)
+        with mock.patch.object(
+            installer, "_safe_target", wraps=installer._safe_target
+        ) as safe_target:
+            self.assertEqual(manifest, installer._load_manifest(target))
+        safe_target.assert_any_call(
+            target,
+            ".codex/commands/code-generation.md",
+            allow_leaf_link=True,
+        )
+
+    def test_extension_links_refresh_and_uninstall_lifecycle(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        extension = self._create_extension()
+        self._install(target, extension_sources=[extension])
+        for client in installer.CLIENT_DIRS:
+            self.assertTrue(
+                (target / client / "skills" / "std-company-python").is_symlink()
+            )
+        state_path = (
+            target
+            / installer.EXTENSIONS_DIR
+            / "company-standards.json"
+        )
+        self.assertTrue(state_path.is_file())
+        manifest = json.loads(
+            (target / installer.MANIFEST_PATH).read_text(encoding="utf-8")
+        )
+        descriptor = manifest["extensions"][0]
+        self.assertEqual("company-standards", descriptor["name"])
+        self.assertEqual(str(extension.resolve()), descriptor["source"])
+        self.assertEqual(
+            installer._hash(extension / installer.EXTENSION_MANIFEST_NAME),
+            descriptor["manifest_sha256"],
+        )
+        registry = json.loads(self.registry.read_text(encoding="utf-8"))
+        self.assertEqual(
+            [str(extension.resolve())],
+            registry["installations"][0]["extensions"],
+        )
+        installer.refresh_all(REPO_ROOT, registry_path=self.registry)
+        self.assertTrue(
+            (target / ".codex" / "skills" / "std-company-python").is_symlink()
+        )
+        installer.uninstall(REPO_ROOT, target, registry_path=self.registry)
+        self.assertFalse(
+            os.path.lexists(target / ".codex" / "skills" / "std-company-python")
+        )
+        self.assertFalse(state_path.exists())
+
+    def test_reinstall_inherits_registered_extensions_without_option(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        extension = self._create_extension()
+        overlay = installer._load_extension(extension)
+        installer._write_manifest(
+            target,
+            {
+                "schema_version": installer.MANIFEST_SCHEMA_VERSION,
+                "framework_version": installer.FRAMEWORK_VERSION,
+                "source": str(REPO_ROOT.resolve()),
+                "profile": "tooling",
+                "packs": [],
+                "links": [],
+                "extensions": [installer._extension_descriptor(overlay)],
+            },
+        )
+        with mock.patch.object(
+            installer, "_load_extension_states", return_value={}
+        ), mock.patch.object(installer, "_load_extensions", return_value=[]) as load:
+            installer.install(
+                REPO_ROOT,
+                target,
+                "tooling",
+                set(),
+                dry_run=True,
+                registry_path=self.registry,
+            )
+        load.assert_called_once_with([extension.resolve()])
+
+    def test_injected_state_must_match_manifest_descriptor_and_source(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        extension = self._create_extension()
+        injected_root = extension / "skills" / "std-injected"
+        injected_root.mkdir()
+        (injected_root / "SKILL.md").write_text("# Injected\n", encoding="utf-8")
+        overlay = installer._load_extension(extension)
+        manifest = {
+            "schema_version": installer.MANIFEST_SCHEMA_VERSION,
+            "framework_version": installer.FRAMEWORK_VERSION,
+            "source": str(REPO_ROOT.resolve()),
+            "profile": "tooling",
+            "packs": [],
+            "links": [],
+            "extensions": [installer._extension_descriptor(overlay)],
+        }
+        installer._write_manifest(target, manifest)
+        injected_skills = [
+            {
+                "name": "std-injected",
+                "path": "skills/std-injected",
+                "files": [".py"],
+            }
+        ]
+        installer._write_json(
+            target / installer.EXTENSIONS_DIR / "company-standards.json",
+            {
+                "schema_version": installer.EXTENSION_SCHEMA_VERSION,
+                "name": "company-standards",
+                "source": str(extension.resolve()),
+                "manifest_sha256": overlay.manifest_hash,
+                "skills": injected_skills,
+                "links": installer._extension_link_entries(
+                    extension.resolve(), injected_skills
+                ),
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "does not match manifest links"):
+            installer._load_extension_states(target, manifest)
+
+    def test_validate_extensions_cli_is_read_only(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        manifest = {
+            "schema_version": installer.MANIFEST_SCHEMA_VERSION,
+            "framework_version": installer.FRAMEWORK_VERSION,
+            "source": str(REPO_ROOT.resolve()),
+            "profile": "tooling",
+            "packs": [],
+            "links": [],
+            "extensions": [],
+        }
+        installer._write_manifest(target, manifest)
+        manifest_path = target / installer.MANIFEST_PATH
+        original = manifest_path.read_bytes()
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            self.assertEqual(
+                0,
+                installer.main(
+                    [
+                        "--validate-extensions",
+                        str(target),
+                        "--registry",
+                        str(self.registry),
+                    ]
+                ),
+            )
+        self.assertEqual(
+            {"schema_version": 1, "extensions": []},
+            json.loads(stdout.getvalue()),
+        )
+        self.assertEqual(original, manifest_path.read_bytes())
+        self.assertFalse(self.registry.exists())
+
+    def test_validate_extensions_rejects_missing_or_tampered_links(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        extension = self._create_extension()
+        overlay = installer._load_extension(extension)
+        manifest = {
+            "schema_version": installer.MANIFEST_SCHEMA_VERSION,
+            "framework_version": installer.FRAMEWORK_VERSION,
+            "source": str(REPO_ROOT.resolve()),
+            "profile": "tooling",
+            "packs": [],
+            "links": [],
+            "extensions": [installer._extension_descriptor(overlay)],
+        }
+        installer._write_manifest(target, manifest)
+        installer._write_json(
+            target / installer.EXTENSIONS_DIR / "company-standards.json",
+            installer._extension_state(overlay),
+        )
+        with self.assertRaisesRegex(FileNotFoundError, "link is missing"):
+            installer.validate_extensions(target)
+        with mock.patch.object(installer.os.path, "lexists", return_value=True), mock.patch.object(
+            installer, "_expected_link", return_value=False
+        ):
+            with self.assertRaisesRegex(FileExistsError, "changed or replaced"):
+                installer.validate_extensions(target)
+
+    def test_validate_extensions_rejects_manifest_from_another_source(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        installer._write_manifest(
+            target,
+            {
+                "schema_version": installer.MANIFEST_SCHEMA_VERSION,
+                "framework_version": installer.FRAMEWORK_VERSION,
+                "source": str((self.root / "untrusted-framework").absolute()),
+                "profile": "tooling",
+                "packs": [],
+                "links": [],
+                "extensions": [],
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "does not match this installer"):
+            installer.validate_extensions(target)
+
+    def test_extension_rejects_invalid_path_without_target_changes(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        extension = self._create_extension(skill_path="../outside")
+        with self.assertRaisesRegex(ValueError, "safe relative POSIX"):
+            self._install(target, extension_sources=[extension])
+        self.assertEqual([], list(target.iterdir()))
+        self.assertFalse(self.registry.exists())
+
+    def test_extension_rejects_core_skill_conflict_without_target_changes(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        extension = self._create_extension(skill_name="std-python")
+        with self.assertRaisesRegex(ValueError, "conflicts with a core skill"):
+            self._install(target, extension_sources=[extension])
+        self.assertEqual([], list(target.iterdir()))
+
+    def test_tampered_extension_link_blocks_reinstall_and_uninstall(self) -> None:
+        target = self.root / "target"
+        target.mkdir()
+        extension = self._create_extension()
+        self._install(target, extension_sources=[extension])
+        managed = target / ".codex" / "skills" / "std-company-python"
+        managed.unlink()
+        managed.symlink_to(REPO_ROOT / "README.md")
+        with self.assertRaisesRegex(FileExistsError, "Managed Overlay link"):
+            self._install(target, extension_sources=[extension])
+        with self.assertRaisesRegex(FileExistsError, "Managed Overlay link"):
+            installer.uninstall(REPO_ROOT, target, registry_path=self.registry)
 
     def test_profile_switch_requires_explicit_flag(self) -> None:
         target = self.root / "target"
@@ -614,12 +897,13 @@ class InstallTest(unittest.TestCase):
                 installer._load_registry(self.registry)
 
         manifest = {
-            "schema_version": 2,
+            "schema_version": installer.MANIFEST_SCHEMA_VERSION,
             "framework_version": installer.FRAMEWORK_VERSION,
             "source": str(REPO_ROOT.resolve()).upper(),
             "profile": "tooling",
             "packs": [],
             "links": [],
+            "extensions": [],
         }
         installer._write_manifest(target, manifest)
         registry = {

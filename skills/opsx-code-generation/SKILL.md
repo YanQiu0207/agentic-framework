@@ -88,6 +88,10 @@ python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name
 | `bp-cli-tool-design` | 实现或修改 CLI、部署脚本、运维脚本或自动化命令 |
 | `bp-distributed-systems` | 涉及网络通信、多节点协调、一致性、故障恢复 |
 
+#### Overlay 规范发现
+
+编码或测试前，从当前已加载的核心 workflow `SKILL.md` 真实路径（解析链接后）向上定位框架根，再运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`。无法确定该受信框架根时不得加载 Overlay，并报告失败。只消费其 JSON 输出；目标文件后缀匹配 `skills[].files` 时，才加载当前 client 的对应 Skill。不得直接读取 `.agentic-framework/extensions/*.json`，也不得从目标项目 Manifest 的 `source` 获得可执行路径。Overlay 只补充规范，不自动执行、不覆盖核心 Skill，也不修改 workflow。
+
 ### 步骤 5：逐个任务实现
 
 **核心规则：一个 Task → 实现和测试 → 风险分档 Review → 报告 → 等用户批准 → 下一个 Task；全部 Task 完成后再执行一次五维集成 Review。**

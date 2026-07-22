@@ -45,7 +45,9 @@ python scripts/install_agentic_framework.py E:/path/to/tooling-project \
 
 目标路径使用 `.` 时，表示把框架安装到当前目录；给其他项目安装时，应填写该项目的真实路径。
 
-安装器同时写入 `.codex/` 和 `.claude/`，并在目标项目的 `.agentic-framework/manifest.json` 记录 Profile、Packs 和受管链接。用户级 Registry 位于 `~/.agentic-framework/installations.json`，记录框架仓库安装到了哪些项目。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
+安装器同时写入 `.codex/` 和 `.claude/`，并在目标项目的 `.agentic-framework/manifest.json` 记录 Profile、Packs、Overlay 描述符（名称、来源、清单哈希、Skill 与链接快照）和受管核心链接。每个 Overlay 的规则与链接状态单独写入 `.agentic-framework/extensions/<name>.json`，并与描述符交叉校验。用户级 Registry 位于 `~/.agentic-framework/installations.json`，记录框架仓库安装到了哪些项目及其 Overlay 来源选择。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
+
+Workflow 不直接读取 Overlay 状态文件或使用目标项目 Manifest 的 `source` 执行脚本：它从当前已加载的核心 workflow `SKILL.md` 真实路径（解析链接后）向上定位受信框架根，运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`，并只消费成功返回的 JSON 规则。该只读校验会核对 Manifest、状态和实际客户端链接，并拒绝 Manifest 来源与当前安装器不一致的项目；失败时不得加载 Overlay。
 
 安装默认采用**软连接**，不复制框架内容：Skill 目录以及 Agent、Command、脚本文件均指向当前框架仓库。更新已有源文件后，所有已安装项目立即读取新内容；新增、删除、重命名资产或调整 Profile、Pack 后，运行一次批量刷新：
 
@@ -56,6 +58,8 @@ python scripts/install_agentic_framework.py --refresh-all
 `--refresh-all` 只刷新由当前框架仓库登记的目标，并用目标 Manifest 二次确认项目身份；单个失效登记不会阻止其他项目继续刷新，但命令最终返回失败并列出问题目标。
 
 旧版复制式安装需要先对每个项目重新执行一次原安装命令。安装器会把旧 Manifest 升级为链接式 Manifest，并将项目写入用户级 Registry；此后才能使用 `--refresh-all`。
+
+旧 v2 链接式 Manifest 仍可读取，但使用 `--refresh-all` 前必须对目标项目显式重新安装一次，以升级为 v3。
 
 > **注意**：不要在目标项目的 `.codex/` 或 `.claude/` 受管路径中直接编辑链接内容，这会直接修改框架仓库。框架仓库被移动或删除后链接会失效，需要从新位置重新安装。Windows 创建软连接需要相应权限；建议启用「开发人员模式」，安装器不会静默回退为文件复制。
 
@@ -195,27 +199,61 @@ AI agent 没有跨会话记忆——这一轮对话中纠正过的错误，下�
 
 Best Practices 和 Standards 是框架中**最需要按项目定制**的部分。框架不规定具体内容——它规定的是**知识应该以什么形式存在、在什么时机被加载、如何被演进**。
 
-### 添加语言规范
+### 通过 Overlay 添加私有语言规范
 
-创建新的 `std-*` skill：
+不要修改框架克隆中的 Skill、workflow 或安装器来保存私有规范。请把私有 Overlay 放在独立 Git 仓库；框架仓库只跟随上游更新，Overlay 仓库独立演进。
 
+```text
+my-agentic-overlay/
+├── agentic-extension.json
+└── skills/
+    └── std-company-rust/
+        ├── SKILL.md
+        └── reference/
+            └── style-guide.md
 ```
-skills/
-└── std-rust/
-    ├── SKILL.md              # 编码规范概览
-    └── reference/
-        └── style-guide.md    # 详细规则
+
+`agentic-extension.json` 声明名称、Skill 路径和适用文件后缀：
+
+```json
+{
+    "schema_version": 1,
+    "name": "company-standards",
+    "skills": [
+        {
+            "name": "std-company-rust",
+            "path": "skills/std-company-rust",
+            "files": [".rs"]
+        }
+    ]
+}
 ```
 
-然后在需要它的 workflow skill 的「按需加载」规范表中注册。`opsx-code-generation`（编码时加载）和 `opsx-test-generation`（生成测试时加载）各有一张表，需要**两处都添加**：
+安装时可重复传入 `--extension`：
 
-```markdown
-| `std-rust` Skill | 文件为 `.rs` |
+```powershell
+python scripts/install_agentic_framework.py E:/path/to/project `
+    --profile tooling `
+    --extension E:/path/to/my-agentic-overlay
 ```
+
+对已安装的项目，未传 `--extension` 的普通重装会继承 Manifest 中已登记的 Overlay；显式传入一个或多个 `--extension` 则替换该选择。
+
+框架与 Overlay 的已有内容都使用链接。修改 Overlay 内已有 Skill 后，目标项目会立即读取新内容；新增、删除或重命名 Skill、规则或 Overlay 后，运行：
+
+```powershell
+python scripts/install_agentic_framework.py --refresh-all
+```
+
+`--refresh-all` 使用 Registry 中登记的 Overlay 路径重新读取清单；Overlay 移动或缺失时会失败，需以新路径显式重新安装。卸载框架时会一并删除 Overlay 的受管链接和状态，但不会删除 Overlay 源仓库。
+
+Overlay 只能声明新的 Skill 目录和文件后缀规则，不能覆盖核心或其他 Overlay 的同名 Skill，不能安装 Agent、Command、脚本，也不能修改 `AGENTS.md` 或 workflow。清单的名称、相对路径、文件后缀和链接完整性都会校验；冲突、路径穿越、无效清单或被篡改的受管链接都会失败且不覆盖项目自有文件。
 
 ### 添加最佳实践
 
-创建新的 `bp-*` skill：
+私有 `bp-*` Skill 也应放入上文的独立 Overlay 仓库，并在 `agentic-extension.json` 的 `skills` 中声明其路径与适用文件后缀；不要为了私有规则修改核心 workflow。
+
+只有准备贡献给上游、对所有框架用户通用的能力，才在框架仓库创建新的 `bp-*` Skill：
 
 ```
 skills/
@@ -225,7 +263,7 @@ skills/
         └── owasp-top-10.md
 ```
 
-然后在对应的 workflow skill 中引用。常见的集成点：
+上游公共能力可在对应的 workflow Skill 中引用。常见的集成点：
 
 | 集成点 | 何时添加 |
 |--------|----------|

@@ -96,6 +96,10 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 | `bp-frontend-taste` | 可见 UI 实现完成后的收尾质检 |
 | `bp-distributed-systems` | 网络通信 / 多节点协调 / 一致性 / 故障恢复 |
 
+#### Overlay 规范发现
+
+编码或测试前，从当前已加载的核心 workflow `SKILL.md` 真实路径（解析链接后）向上定位框架根，再运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`。无法确定该受信框架根时不得加载 Overlay，并报告失败。只消费其 JSON 输出；目标文件后缀匹配 `skills[].files` 时，才加载当前 client 的对应 Skill。不得直接读取 `.agentic-framework/extensions/*.json`，也不得从目标项目 Manifest 的 `source` 获得可执行路径。Overlay 只补充规范，不自动执行、不覆盖核心 Skill，也不修改 workflow。
+
 ### 步骤 5：下放 agent 执行（🚨 批准后自主连跑）
 
 tasks.md 经用户批准后，执行下放给 agent：**主会话只编排，不亲自写代码、不逐 task 停等**，全部跑完一次性汇总。

@@ -17,10 +17,13 @@ from typing import Iterable, Sequence
 
 CLIENT_DIRS = (".codex", ".claude")
 MANIFEST_PATH = Path(".agentic-framework/manifest.json")
+EXTENSIONS_DIR = Path(".agentic-framework/extensions")
+EXTENSION_MANIFEST_NAME = "agentic-extension.json"
 DEFAULT_REGISTRY_PATH = Path.home() / ".agentic-framework" / "installations.json"
 FRAMEWORK_VERSION = "2026.07.19"
-MANIFEST_SCHEMA_VERSION = 2
+MANIFEST_SCHEMA_VERSION = 3
 REGISTRY_SCHEMA_VERSION = 1
+EXTENSION_SCHEMA_VERSION = 1
 
 CORE_SKILLS = {
     "bp-architecture-design",
@@ -245,6 +248,16 @@ class LinkOperation:
     kind: str
 
 
+@dataclass(frozen=True)
+class Extension:
+    """Validated external skill overlay selected for one installation."""
+
+    name: str
+    source: Path
+    manifest_hash: str
+    skills: tuple[dict, ...]
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
@@ -270,6 +283,19 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--switch-profile", action="store_true")
     parser.add_argument("--refresh-all", action="store_true")
+    parser.add_argument(
+        "--validate-extensions",
+        type=Path,
+        metavar="TARGET",
+        help="Validate installed Overlays without changing target or Registry.",
+    )
+    parser.add_argument(
+        "--extension",
+        type=Path,
+        action="append",
+        default=[],
+        help="Install skills declared by an external Overlay. Repeat for multiple Overlays.",
+    )
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY_PATH)
     return parser.parse_args(argv)
 
@@ -366,6 +392,143 @@ def build_operations(
     return operations
 
 
+_EXTENSION_NAME = re.compile(r"[a-z][a-z0-9-]*")
+_FILE_SUFFIX = re.compile(r"\.[a-z0-9][a-z0-9+._-]*")
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    """Return whether an already-resolved path stays inside a resolved root."""
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _all_core_skill_names() -> set[str]:
+    """Return every built-in skill name reserved by the framework."""
+    names = set(CORE_SKILLS) | PRODUCTION_SKILLS | TOOLING_SKILLS
+    for skills in PACK_SKILLS.values():
+        names.update(skills)
+    for skills in MANAGED_PROFILE_SKILL_ROOTS.values():
+        names.update(skills)
+    for skills in MANAGED_PACK_SKILL_ROOTS.values():
+        names.update(skills)
+    return names
+
+
+def _extension_path(source: Path, relative: str, field: str) -> Path:
+    """Resolve one Overlay-relative path without permitting path traversal."""
+    path = PurePosixPath(relative)
+    if (
+        not relative
+        or path.is_absolute()
+        or ".." in path.parts
+        or "." in path.parts
+        or path.as_posix() != relative
+    ):
+        raise ValueError(f"Overlay {field} must be a safe relative POSIX path")
+    resolved = (source / Path(*path.parts)).resolve()
+    if not _is_within(resolved, source):
+        raise ValueError(f"Overlay {field} escapes its source directory")
+    return resolved
+
+
+def _load_extension(source: Path) -> Extension:
+    """Load and validate one external Overlay manifest before target mutation."""
+    source = source.resolve()
+    manifest_path = source / EXTENSION_MANIFEST_NAME
+    if not manifest_path.is_file():
+        raise FileNotFoundError(f"Missing Overlay manifest: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != EXTENSION_SCHEMA_VERSION:
+        raise ValueError("Overlay has an unsupported schema_version")
+    name = manifest.get("name")
+    if not isinstance(name, str) or not _EXTENSION_NAME.fullmatch(name):
+        raise ValueError("Overlay has an invalid name")
+    skills = manifest.get("skills")
+    if not isinstance(skills, list) or not skills:
+        raise ValueError("Overlay skills must be a non-empty list")
+
+    normalized_skills: list[dict] = []
+    seen_names: set[str] = set()
+    core_names = _all_core_skill_names()
+    for skill in skills:
+        if not isinstance(skill, dict):
+            raise ValueError("Overlay skill must be an object")
+        skill_name = skill.get("name")
+        relative_path = skill.get("path")
+        files = skill.get("files")
+        if not isinstance(skill_name, str) or not _EXTENSION_NAME.fullmatch(skill_name):
+            raise ValueError("Overlay has an invalid skill name")
+        if skill_name in seen_names:
+            raise ValueError(f"Overlay contains a duplicate skill: {skill_name}")
+        if skill_name in core_names:
+            raise ValueError(f"Overlay skill conflicts with a core skill: {skill_name}")
+        if not isinstance(relative_path, str):
+            raise ValueError("Overlay skill path must be a string")
+        skill_path = _extension_path(source, relative_path, "skill path")
+        if not skill_path.is_dir() or not (skill_path / "SKILL.md").is_file():
+            raise FileNotFoundError(f"Overlay skill is missing SKILL.md: {skill_path}")
+        if not isinstance(files, list) or not files or any(
+            not isinstance(suffix, str) or not _FILE_SUFFIX.fullmatch(suffix)
+            for suffix in files
+        ):
+            raise ValueError("Overlay skill files must be a non-empty suffix list")
+        if len(files) != len(set(files)):
+            raise ValueError(f"Overlay skill has duplicate file suffixes: {skill_name}")
+        seen_names.add(skill_name)
+        normalized_skills.append(
+            {"name": skill_name, "path": relative_path, "files": sorted(files)}
+        )
+    return Extension(
+        name=name,
+        source=source,
+        manifest_hash=_hash(manifest_path),
+        skills=tuple(normalized_skills),
+    )
+
+
+def _load_extensions(sources: Sequence[Path]) -> list[Extension]:
+    """Load selected Overlays and reject duplicate sources, names, and skills."""
+    extensions: list[Extension] = []
+    seen_sources: set[str] = set()
+    seen_names: set[str] = set()
+    seen_skills: set[str] = set()
+    for source in sources:
+        extension = _load_extension(source)
+        source_key = _normalized_link_path(extension.source)
+        if source_key in seen_sources:
+            raise ValueError(f"Overlay source is repeated: {extension.source}")
+        if extension.name in seen_names:
+            raise ValueError(f"Overlay name is repeated: {extension.name}")
+        for skill in extension.skills:
+            if skill["name"] in seen_skills:
+                raise ValueError(f"Overlay skill conflicts with another Overlay: {skill['name']}")
+            seen_skills.add(skill["name"])
+        seen_sources.add(source_key)
+        seen_names.add(extension.name)
+        extensions.append(extension)
+    return extensions
+
+
+def _extension_operations(extensions: Sequence[Extension]) -> list[LinkOperation]:
+    """Return skill-directory links for all validated external Overlays."""
+    operations: list[LinkOperation] = []
+    for extension in extensions:
+        for skill in extension.skills:
+            skill_source = _extension_path(extension.source, skill["path"], "skill path")
+            for client in CLIENT_DIRS:
+                operations.append(
+                    LinkOperation(
+                        skill_source,
+                        Path(client, "skills", skill["name"]),
+                        "directory",
+                    )
+                )
+    return operations
+
+
 def _is_link_or_junction(path: Path) -> bool:
     if path.is_symlink():
         return True
@@ -431,13 +594,13 @@ def _manifest_allowed_path(path_text: str, profile: str, packs: set[str]) -> boo
 
 
 def _load_manifest(target: Path) -> dict | None:
-    """Load and validate a v1 copied-file or v2 linked-asset manifest."""
+    """Load and validate a copied-file or linked-asset core manifest."""
     path = _safe_target(target, MANIFEST_PATH)
     if not path.is_file():
         return None
     manifest = json.loads(path.read_text(encoding="utf-8"))
     schema = manifest.get("schema_version")
-    if schema not in {1, MANIFEST_SCHEMA_VERSION}:
+    if schema not in {1, 2, MANIFEST_SCHEMA_VERSION}:
         raise ValueError("Unsupported manifest schema_version")
     if not isinstance(manifest.get("framework_version"), str):
         raise ValueError("Manifest is missing framework_version")
@@ -454,10 +617,41 @@ def _load_manifest(target: Path) -> dict | None:
     entries = manifest.get(entries_key)
     if not isinstance(entries, list):
         raise ValueError(f"Manifest {entries_key} must be a list")
-    if schema == MANIFEST_SCHEMA_VERSION:
+    if schema >= 2:
         source = manifest.get("source")
         if not isinstance(source, str) or not Path(source).is_absolute():
             raise ValueError("Manifest has an invalid source")
+    if schema == MANIFEST_SCHEMA_VERSION:
+        extensions = manifest.get("extensions")
+        if not isinstance(extensions, list):
+            raise ValueError("Manifest has invalid extensions")
+        extension_names: set[str] = set()
+        extension_sources: set[str] = set()
+        for extension in extensions:
+            if not isinstance(extension, dict):
+                raise ValueError("Manifest has invalid extensions")
+            name = extension.get("name")
+            extension_source = extension.get("source")
+            manifest_hash = extension.get("manifest_sha256")
+            skills = extension.get("skills")
+            extension_links = extension.get("links")
+            if (
+                not isinstance(name, str)
+                or not _EXTENSION_NAME.fullmatch(name)
+                or name in extension_names
+                or not isinstance(extension_source, str)
+                or not Path(extension_source).is_absolute()
+                or not isinstance(manifest_hash, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", manifest_hash)
+                or not isinstance(skills, list)
+                or not isinstance(extension_links, list)
+            ):
+                raise ValueError("Manifest has invalid extensions")
+            source_key = _normalized_link_path(extension_source)
+            if source_key in extension_sources:
+                raise ValueError("Manifest has duplicate extensions")
+            extension_names.add(name)
+            extension_sources.add(source_key)
 
     seen: set[str] = set()
     for item in entries:
@@ -481,7 +675,7 @@ def _load_manifest(target: Path) -> dict | None:
                 raise ValueError(f"Manifest contains an invalid source: {relative}")
             if kind not in {"file", "directory"}:
                 raise ValueError(f"Manifest contains an invalid link type: {relative}")
-        _safe_target(target, relative, allow_leaf_link=schema == 2)
+        _safe_target(target, relative, allow_leaf_link=schema >= 2)
         seen.add(relative)
     return manifest
 
@@ -490,6 +684,208 @@ def _manifest_entries(manifest: dict | None) -> list[dict]:
     if not manifest:
         return []
     return manifest["files" if manifest["schema_version"] == 1 else "links"]
+
+
+def _extension_state_path(target: Path, name: str) -> Path:
+    return _safe_target(target, EXTENSIONS_DIR / f"{name}.json")
+
+
+def _extension_link_entries(source: Path, skills: Sequence[dict]) -> list[dict]:
+    """Build deterministic extension link records from declared skill rules."""
+    links: list[dict] = []
+    for skill in skills:
+        skill_source = _extension_path(source, skill["path"], "skill path")
+        for client in CLIENT_DIRS:
+            links.append(
+                {
+                    "path": Path(client, "skills", skill["name"]).as_posix(),
+                    "source": str(skill_source.absolute()),
+                    "type": "directory",
+                }
+            )
+    return links
+
+
+def _extension_state(extension: Extension) -> dict:
+    """Create the separate, target-owned state file for one Overlay."""
+    return {
+        "schema_version": EXTENSION_SCHEMA_VERSION,
+        "name": extension.name,
+        "source": str(extension.source),
+        "manifest_sha256": extension.manifest_hash,
+        "skills": list(extension.skills),
+        "links": _extension_link_entries(extension.source, extension.skills),
+    }
+
+
+def _extension_descriptor(extension: Extension) -> dict:
+    """Return the core-manifest identity record for one external Overlay."""
+    state = _extension_state(extension)
+    return {
+        "name": extension.name,
+        "source": str(extension.source),
+        "manifest_sha256": extension.manifest_hash,
+        "skills": state["skills"],
+        "links": state["links"],
+    }
+
+
+def _validate_extension_state(target: Path, state_path: Path) -> dict:
+    """Load one state file and constrain it to its own skill-link namespace."""
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    name = state.get("name")
+    if (
+        state.get("schema_version") != EXTENSION_SCHEMA_VERSION
+        or not isinstance(name, str)
+        or not _EXTENSION_NAME.fullmatch(name)
+        or state_path.name != f"{name}.json"
+    ):
+        raise ValueError(f"Invalid Overlay state: {state_path}")
+    source_text = state.get("source")
+    manifest_hash = state.get("manifest_sha256")
+    skills = state.get("skills")
+    links = state.get("links")
+    if (
+        not isinstance(source_text, str)
+        or not Path(source_text).is_absolute()
+        or not isinstance(manifest_hash, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", manifest_hash)
+        or not isinstance(skills, list)
+        or not isinstance(links, list)
+    ):
+        raise ValueError(f"Invalid Overlay state: {state_path}")
+    source = Path(source_text)
+    expected_links: list[dict] = []
+    skill_names: set[str] = set()
+    for skill in skills:
+        if not isinstance(skill, dict):
+            raise ValueError(f"Invalid Overlay state: {state_path}")
+        skill_name = skill.get("name")
+        relative_path = skill.get("path")
+        files = skill.get("files")
+        if (
+            not isinstance(skill_name, str)
+            or not _EXTENSION_NAME.fullmatch(skill_name)
+            or skill_name in skill_names
+            or skill_name in _all_core_skill_names()
+            or not isinstance(relative_path, str)
+            or not isinstance(files, list)
+            or not files
+            or any(
+                not isinstance(suffix, str) or not _FILE_SUFFIX.fullmatch(suffix)
+                for suffix in files
+            )
+            or len(files) != len(set(files))
+        ):
+            raise ValueError(f"Invalid Overlay state: {state_path}")
+        path = PurePosixPath(relative_path)
+        if (
+            not relative_path
+            or path.is_absolute()
+            or ".." in path.parts
+            or "." in path.parts
+            or path.as_posix() != relative_path
+        ):
+            raise ValueError(f"Invalid Overlay state: {state_path}")
+        skill_names.add(skill_name)
+        for client in CLIENT_DIRS:
+            expected_links.append(
+                {
+                    "path": Path(client, "skills", skill_name).as_posix(),
+                    "source": str((source / Path(*path.parts)).absolute()),
+                    "type": "directory",
+                }
+            )
+    if links != expected_links:
+        raise ValueError(f"Invalid Overlay state links: {state_path}")
+    for item in links:
+        _safe_target(target, item["path"], allow_leaf_link=True)
+    return state
+
+
+def _load_extension_states(target: Path, manifest: dict | None) -> dict[str, dict]:
+    """Load all separately managed Overlay states without following links."""
+    descriptors = (
+        manifest["extensions"]
+        if manifest and manifest["schema_version"] == MANIFEST_SCHEMA_VERSION
+        else []
+    )
+    expected = {item["name"]: item for item in descriptors}
+    directory = _safe_target(target, EXTENSIONS_DIR)
+    if not directory.exists():
+        if expected:
+            raise FileNotFoundError("Overlay state directory is missing")
+        return {}
+    if not directory.is_dir():
+        raise NotADirectoryError(f"Overlay state path is not a directory: {directory}")
+    states: dict[str, dict] = {}
+    skill_names: set[str] = set()
+    for state_path in sorted(directory.glob("*.json")):
+        if _is_link_or_junction(state_path):
+            raise ValueError(f"Overlay state must not be a link: {state_path}")
+        state = _validate_extension_state(target, state_path)
+        descriptor = expected.get(state["name"])
+        if descriptor is None:
+            raise ValueError(f"Overlay state is not registered by the manifest: {state_path}")
+        if any(
+            state[key] != descriptor[key]
+            for key in ("name", "source", "manifest_sha256")
+        ):
+            raise ValueError(f"Overlay state does not match the manifest: {state_path}")
+        if (
+            state["skills"] != descriptor["skills"]
+            or state["links"] != descriptor["links"]
+        ):
+            raise ValueError(f"Overlay state does not match manifest links: {state_path}")
+        for skill in state["skills"]:
+            if skill["name"] in skill_names:
+                raise ValueError(f"Overlay states contain a duplicate skill: {skill['name']}")
+            skill_names.add(skill["name"])
+        states[state["name"]] = state
+    if set(states) != set(expected):
+        raise ValueError("Overlay manifest and state files do not match")
+    return states
+
+
+def _verify_extension_links(
+    target: Path, state: dict, *, require_existing: bool = False
+) -> None:
+    for item in state["links"]:
+        path = _safe_target(target, item["path"], allow_leaf_link=True)
+        if not os.path.lexists(path):
+            if require_existing:
+                raise FileNotFoundError(f"Managed Overlay link is missing: {path}")
+            continue
+        if not _expected_link(path, Path(item["source"])):
+            raise FileExistsError(f"Managed Overlay link was changed or replaced: {path}")
+
+
+def validate_extensions(target: Path) -> dict:
+    """Validate installed Overlay state and return safe workflow-facing rules."""
+    target = target.absolute()
+    manifest = _load_manifest(target)
+    if manifest is None or manifest["schema_version"] != MANIFEST_SCHEMA_VERSION:
+        raise ValueError("Overlay validation requires a v3 installation manifest")
+    trusted_source = Path(__file__).resolve().parents[1]
+    if _normalized_link_path(manifest["source"]) != _normalized_link_path(
+        trusted_source
+    ):
+        raise ValueError("Manifest source does not match this installer")
+    states = _load_extension_states(target, manifest)
+    extensions = []
+    for name in sorted(states):
+        state = states[name]
+        _verify_extension_links(target, state, require_existing=True)
+        extensions.append(
+            {
+                "name": name,
+                "skills": [
+                    {"name": skill["name"], "files": skill["files"]}
+                    for skill in state["skills"]
+                ],
+            }
+        )
+    return {"schema_version": 1, "extensions": extensions}
 
 
 def _managed_paths(manifest: dict | None) -> set[str]:
@@ -550,15 +946,24 @@ def _verify_v2_links(target: Path, manifest: dict) -> None:
             raise FileExistsError(f"Managed link was changed or replaced: {path}")
 
 
+def _extension_managed_paths(states: Iterable[dict]) -> set[str]:
+    return {item["path"] for state in states for item in state["links"]}
+
+
 def _preflight(
     target: Path,
     operations: list[LinkOperation],
     old_manifest: dict | None,
     force: bool,
+    old_extension_states: Iterable[dict] = (),
 ) -> None:
     old_entries = {item["path"]: item for item in _manifest_entries(old_manifest)}
-    if old_manifest and old_manifest["schema_version"] == 2:
+    if old_manifest and old_manifest["schema_version"] >= 2:
         _verify_v2_links(target, old_manifest)
+    extension_states = list(old_extension_states)
+    for state in extension_states:
+        _verify_extension_links(target, state)
+        old_entries.update({item["path"]: item for item in state["links"]})
     for operation in operations:
         relative = operation.relative_target.as_posix()
         path = _safe_target(target, relative, allow_leaf_link=True)
@@ -591,7 +996,7 @@ def _preflight(
 
 
 def _verify_removable(target: Path, manifest: dict, force: bool) -> None:
-    if manifest["schema_version"] == 2:
+    if manifest["schema_version"] >= 2:
         _verify_v2_links(target, manifest)
         return
     for item in manifest["files"]:
@@ -616,9 +1021,22 @@ def _prune_empty_parents(path: Path, target: Path) -> None:
 
 
 def _remove_managed(target: Path, manifest: dict, dry_run: bool) -> None:
-    allow_link = manifest["schema_version"] == 2
+    allow_link = manifest["schema_version"] >= 2
     for item in _manifest_entries(manifest):
         path = _safe_target(target, item["path"], allow_leaf_link=allow_link)
+        if not os.path.lexists(path):
+            continue
+        if dry_run:
+            print(f"[dry-run] remove {path}")
+        else:
+            path.unlink()
+            _prune_empty_parents(path, target)
+
+
+def _remove_extension_links(target: Path, state: dict, dry_run: bool) -> None:
+    """Remove only links named by one validated Overlay state file."""
+    for item in state["links"]:
+        path = _safe_target(target, item["path"], allow_leaf_link=True)
         if not os.path.lexists(path):
             continue
         if dry_run:
@@ -683,7 +1101,7 @@ def _restore_snapshot(
 
 
 def _manifest_link_type_hints(manifest: dict | None) -> dict[str, str]:
-    if not manifest or manifest["schema_version"] != MANIFEST_SCHEMA_VERSION:
+    if not manifest or manifest["schema_version"] < 2:
         return {}
     return {item["path"]: item["type"] for item in manifest["links"]}
 
@@ -744,6 +1162,7 @@ def _load_registry(registry_path: Path) -> dict:
         target = entry.get("target")
         profile = entry.get("profile")
         packs = entry.get("packs")
+        extensions = entry.get("extensions", [])
         if not all(isinstance(value, str) for value in (source, target)):
             raise ValueError("Registry entry has an invalid path")
         if not Path(source).is_absolute() or not Path(target).is_absolute():
@@ -754,6 +1173,14 @@ def _load_registry(registry_path: Path) -> dict:
             pack not in MANAGED_PACK_SKILL_ROOTS for pack in packs
         ):
             raise ValueError("Registry entry has invalid packs")
+        if not isinstance(extensions, list) or any(
+            not isinstance(item, str) or not Path(item).is_absolute()
+            for item in extensions
+        ):
+            raise ValueError("Registry entry has invalid extensions")
+        normalized_extensions = [_normalized_link_path(item) for item in extensions]
+        if len(normalized_extensions) != len(set(normalized_extensions)):
+            raise ValueError("Registry entry has duplicate extensions")
         target_key = os.path.normcase(os.path.abspath(target))
         if target_key in seen_targets:
             raise ValueError("Registry contains duplicate installation")
@@ -767,6 +1194,7 @@ def _update_registry(
     target: Path,
     profile: str | None,
     packs: set[str] | None,
+    extensions: Sequence[Extension] | None = None,
 ) -> None:
     registry = _load_registry(registry_path)
     source_text = str(source.resolve())
@@ -784,6 +1212,7 @@ def _update_registry(
                 "target": target_text,
                 "profile": profile,
                 "packs": sorted(packs or set()),
+                "extensions": [str(extension.source) for extension in extensions or ()],
             }
         )
     registry["installations"] = sorted(
@@ -797,6 +1226,7 @@ def install(
     target: Path,
     profile: str,
     packs: set[str],
+    extension_sources: Sequence[Path] = (),
     force: bool = False,
     dry_run: bool = False,
     switch_profile: bool = False,
@@ -806,20 +1236,40 @@ def install(
     source = source.resolve()
     target = target.absolute()
     registry_path = (registry_path or DEFAULT_REGISTRY_PATH).absolute()
-    operations = build_operations(source, profile, packs)
     old_manifest = _load_manifest(target)
+    selected_extension_sources = extension_sources
+    if not selected_extension_sources and old_manifest and old_manifest[
+        "schema_version"
+    ] == MANIFEST_SCHEMA_VERSION:
+        selected_extension_sources = [
+            Path(item["source"]) for item in old_manifest["extensions"]
+        ]
+    extensions = _load_extensions(selected_extension_sources)
+    core_operations = build_operations(source, profile, packs)
+    operations = core_operations + _extension_operations(extensions)
+    targets = [operation.relative_target.as_posix() for operation in operations]
+    if len(targets) != len(set(targets)):
+        raise ValueError("Overlay links conflict with another selected asset")
+    old_extension_states = _load_extension_states(target, old_manifest)
     if old_manifest and old_manifest["profile"] != profile and not switch_profile:
         raise ValueError(
             "A different profile is installed; use --switch-profile explicitly"
         )
     old_paths = _managed_paths(old_manifest)
+    old_extension_paths = _extension_managed_paths(old_extension_states.values())
     pollution = _cross_pollution_errors(target, profile, old_paths)
     if pollution:
         raise FileExistsError(
             "Opposite-profile entries are not managed by this installer: "
             + ", ".join(pollution)
         )
-    _preflight(target, operations, old_manifest, force)
+    _preflight(
+        target,
+        operations,
+        old_manifest,
+        force,
+        old_extension_states.values(),
+    )
     if old_manifest:
         _verify_removable(target, old_manifest, force)
 
@@ -829,7 +1279,7 @@ def install(
             "source": str(operation.source.absolute()),
             "type": operation.kind,
         }
-        for operation in operations
+        for operation in core_operations
     ]
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
@@ -838,31 +1288,54 @@ def install(
         "profile": profile,
         "packs": sorted(packs),
         "links": links,
+        "extensions": [_extension_descriptor(extension) for extension in extensions],
     }
     if dry_run:
         if old_manifest:
             _remove_managed(target, old_manifest, True)
+        for state in old_extension_states.values():
+            _remove_extension_links(target, state, True)
         for operation in operations:
             print(
                 f"[dry-run] link {operation.source} -> "
                 f"{_safe_target(target, operation.relative_target, allow_leaf_link=True)}"
             )
         print(f"[dry-run] write manifest {_safe_target(target, MANIFEST_PATH)}")
+        for extension in extensions:
+            print(f"[dry-run] write Overlay state {_extension_state_path(target, extension.name)}")
         return
 
-    relative_paths = old_paths | {item["path"] for item in links}
+    extension_states = {
+        extension.name: _extension_state(extension) for extension in extensions
+    }
+    state_paths = {
+        (EXTENSIONS_DIR / f"{name}.json").as_posix()
+        for name in set(old_extension_states) | set(extension_states)
+    }
+    relative_paths = old_paths | old_extension_paths | set(targets) | state_paths
     relative_paths.add(MANIFEST_PATH.as_posix())
+    type_hints = _manifest_link_type_hints(old_manifest)
+    type_hints.update(
+        {
+            item["path"]: item["type"]
+            for state in old_extension_states.values()
+            for item in state["links"]
+        }
+    )
     with tempfile.TemporaryDirectory() as temporary_directory:
         backup = Path(temporary_directory)
         snapshot = _snapshot_entries(
             target,
             relative_paths,
             backup,
-            _manifest_link_type_hints(old_manifest),
+            type_hints,
         )
         try:
             if old_manifest:
                 _remove_managed(target, old_manifest, False)
+            for state in old_extension_states.values():
+                _remove_extension_links(target, state, False)
+                _extension_state_path(target, state["name"]).unlink()
             for operation in operations:
                 _create_link(
                     operation,
@@ -876,7 +1349,19 @@ def install(
                     "Profile installation is contaminated: " + ", ".join(post_pollution)
                 )
             _write_manifest(target, manifest)
-            _update_registry(registry_path, source, target, profile, packs)
+            for extension in extensions:
+                _write_json(
+                    _extension_state_path(target, extension.name),
+                    extension_states[extension.name],
+                )
+            _update_registry(
+                registry_path,
+                source,
+                target,
+                profile,
+                packs,
+                extensions,
+            )
         except BaseException:
             _restore_snapshot(target, relative_paths, backup, snapshot)
             raise
@@ -898,27 +1383,52 @@ def uninstall(
         raise FileNotFoundError(
             f"No installation manifest: {_safe_target(target, MANIFEST_PATH)}"
         )
+    extension_states = _load_extension_states(target, manifest)
     _verify_removable(target, manifest, force)
+    for state in extension_states.values():
+        _verify_extension_links(target, state)
     registered_source = (
         Path(manifest["source"])
-        if manifest["schema_version"] == MANIFEST_SCHEMA_VERSION
+        if manifest["schema_version"] >= 2
         else source
     )
     if dry_run:
         _remove_managed(target, manifest, True)
+        for state in extension_states.values():
+            _remove_extension_links(target, state, True)
         print(f"[dry-run] remove {_safe_target(target, MANIFEST_PATH)}")
         return
-    relative_paths = _managed_paths(manifest) | {MANIFEST_PATH.as_posix()}
+    state_paths = {
+        (EXTENSIONS_DIR / f"{name}.json").as_posix()
+        for name in extension_states
+    }
+    relative_paths = (
+        _managed_paths(manifest)
+        | _extension_managed_paths(extension_states.values())
+        | state_paths
+        | {MANIFEST_PATH.as_posix()}
+    )
+    type_hints = _manifest_link_type_hints(manifest)
+    type_hints.update(
+        {
+            item["path"]: item["type"]
+            for state in extension_states.values()
+            for item in state["links"]
+        }
+    )
     with tempfile.TemporaryDirectory() as temporary_directory:
         backup = Path(temporary_directory)
         snapshot = _snapshot_entries(
             target,
             relative_paths,
             backup,
-            _manifest_link_type_hints(manifest),
+            type_hints,
         )
         try:
             _remove_managed(target, manifest, False)
+            for state in extension_states.values():
+                _remove_extension_links(target, state, False)
+                _extension_state_path(target, state["name"]).unlink()
             manifest_path = _safe_target(target, MANIFEST_PATH)
             manifest_path.unlink()
             _prune_empty_parents(manifest_path, target)
@@ -961,9 +1471,12 @@ def refresh_all(
                 raise ValueError(
                     "legacy manifest requires an explicit single-target upgrade"
                 )
-            if manifest["profile"] != entry["profile"] or sorted(
-                manifest["packs"]
-            ) != sorted(entry["packs"]):
+            extensions = entry.get("extensions", [])
+            if (
+                manifest["profile"] != entry["profile"]
+                or sorted(manifest["packs"]) != sorted(entry["packs"])
+                or [item["source"] for item in manifest["extensions"]] != extensions
+            ):
                 raise ValueError(
                     "target manifest does not confirm the registered selection"
                 )
@@ -972,6 +1485,7 @@ def refresh_all(
                 target,
                 entry["profile"],
                 set(entry["packs"]),
+                [Path(item) for item in extensions],
                 force=force,
                 dry_run=dry_run,
                 switch_profile=False,
@@ -986,6 +1500,24 @@ def refresh_all(
 
 def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
+    if args.validate_extensions:
+        if (
+            args.target_dir
+            or args.profile
+            or args.packs
+            or args.uninstall
+            or args.force
+            or args.dry_run
+            or args.switch_profile
+            or args.refresh_all
+            or args.extension
+        ):
+            raise ValueError(
+                "--validate-extensions cannot be combined with installation options"
+            )
+        json.dump(validate_extensions(args.validate_extensions), sys.stdout)
+        sys.stdout.write("\n")
+        return 0
     if args.refresh_all:
         if (
             args.target_dir
@@ -993,10 +1525,11 @@ def main(argv: Sequence[str]) -> int:
             or args.packs
             or args.uninstall
             or args.switch_profile
+            or args.extension
         ):
             raise ValueError(
                 "--refresh-all cannot be combined with target_dir, --profile, "
-                "--with, --uninstall, or --switch-profile"
+                "--with, --uninstall, --switch-profile, or --extension"
             )
         refresh_all(
             args.source,
@@ -1008,10 +1541,10 @@ def main(argv: Sequence[str]) -> int:
     if args.target_dir is None:
         raise ValueError("target_dir is required unless --refresh-all is used")
     if args.uninstall:
-        if args.profile or args.packs or args.switch_profile:
+        if args.profile or args.packs or args.switch_profile or args.extension:
             raise ValueError(
                 "--uninstall cannot be combined with --profile, --with, "
-                "or --switch-profile"
+                "--switch-profile, or --extension"
             )
         uninstall(
             args.source,
@@ -1028,6 +1561,7 @@ def main(argv: Sequence[str]) -> int:
         args.target_dir,
         args.profile,
         set(args.packs),
+        args.extension,
         force=args.force,
         dry_run=args.dry_run,
         switch_profile=args.switch_profile,
