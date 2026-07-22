@@ -1,0 +1,26 @@
+{
+    "schema_version": 1,
+    "harness": "claude-code",
+    "capabilities": {
+        "subagents": {
+            "status": "supported",
+            "evidence": "Task tool dispatches nested subagents (Claude Code >= 2.1.172, 5-level nesting cap)"
+        },
+        "worktree_isolation": {
+            "status": "supported",
+            "evidence": "EnterWorktree tool backed by git worktree isolates per-task changes"
+        },
+        "transcript_access": {
+            "status": "supported",
+            "evidence": "Session transcript is readable within the Claude Code session"
+        },
+        "lifecycle_hooks": {
+            "status": "supported",
+            "evidence": "settings.json hooks (SessionStart, UserPromptSubmit, Stop, etc.) provide lifecycle hooks"
+        },
+        "structured_tool_results": {
+            "status": "supported",
+            "evidence": "Tool calls return structured JSON results consumed by the orchestrator"
+        }
+    }
+}
