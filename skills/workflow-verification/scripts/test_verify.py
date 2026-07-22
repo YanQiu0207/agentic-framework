@@ -436,6 +436,73 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         self.assertEqual("pass", result.status)
         self.assertIn("无需更新原因", result.detail)
 
+    def test_glob_match_supports_star_question_and_double_star(self) -> None:
+        self.assertTrue(verify._glob_match("src/tool.py", ["*.py"]))
+        self.assertTrue(verify._glob_match("a/b/c.py", ["a/*"]))
+        self.assertTrue(verify._glob_match("a/b/c.py", ["**/c.py"]))
+        self.assertTrue(verify._glob_match("x.py", ["x?py"]))
+        self.assertFalse(verify._glob_match("src/tool.txt", ["*.py"]))
+        self.assertFalse(verify._glob_match("any", []))
+
+    def test_glob_match_directory_prefix_covers_beneath(self) -> None:
+        self.assertTrue(verify._glob_match("local/debug.py", ["local/"]))
+        self.assertTrue(verify._glob_match("local/debug.py", ["local"]))
+        self.assertFalse(verify._glob_match("localism/debug.py", ["local/"]))
+
+    def test_collect_ignores_merges_three_sources_deduped(self) -> None:
+        merged = verify._collect_ignores(
+            ["*.local.py"],
+            ["local/", "*.local.py"],
+            ["pre-existing.py"],
+        )
+        self.assertEqual(["*.local.py", "local/", "pre-existing.py"], merged)
+
+    def test_evaluate_spec_drift_ignores_matched_code_file(self) -> None:
+        with mock.patch.object(
+            verify,
+            "_changed_files",
+            return_value=(["local/debug.py"], [], None),
+        ):
+            result = verify.evaluate_spec_drift("HEAD", "", ["local/"])
+        self.assertEqual("pass", result.status)
+        self.assertEqual(["local/debug.py"], result.value["ignored_files"])
+        self.assertEqual([], result.value["code_files"])
+
+    def test_evaluate_spec_drift_refuses_ignoring_spec_file(self) -> None:
+        with mock.patch.object(
+            verify,
+            "_changed_files",
+            return_value=(["openspec/changes/x/tasks.md"], [], None),
+        ):
+            result = verify.evaluate_spec_drift(
+                "HEAD", "", ["openspec/changes/x/tasks.md"]
+            )
+        self.assertEqual(
+            ["openspec/changes/x/tasks.md"], result.value["refused_ignores"]
+        )
+        self.assertEqual(
+            ["openspec/changes/x/tasks.md"], result.value["spec_files"]
+        )
+
+    def test_cmd_verify_fails_closed_when_baseline_missing_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            baseline.write_text(
+                json.dumps({"checks": {}, "config_snapshot": []}),
+                encoding="utf-8",
+            )
+            with mock.patch.object(
+                verify, "load_config", return_value={"checks": []}
+            ), mock.patch("builtins.print"):
+                rc = verify.cmd_verify(
+                    {"checks": []},
+                    baseline,
+                    Path(temp_dir) / "report.json",
+                    "HEAD",
+                    "",
+                )
+        self.assertEqual(2, rc)
+
 
 class KnowledgeSourceFreshnessTest(unittest.TestCase):
     """Verify generated knowledge source metadata without blocking delivery."""

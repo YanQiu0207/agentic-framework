@@ -28,6 +28,19 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
 - 知识源新鲜度：`meta.yaml` 的 `source_ref` 校验 `git:<sha>`（commit 存在且来源路径最后提交是其祖先）与 `svn:<rev>`（revision 存在且来源路径最后修订号 `<= ref rev`，需 SVN 1.9+ 的 `--show-item`）两种形式，其余前缀报「不可解析」。
 - 报告写入 `.agentic-framework/verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
 
+### 忽略指定路径（不卷入 spec drift）
+
+工作目录里常有不想提交的本地改动（公司 SVN 项目的本地调试文件、已跟踪文件的临时修改、未跟踪的本地脚本），会被 spec drift 误算入「本次改动」。`--ignore` 按指定路径把它们剔除出 code/spec 归类。
+
+- **三种指定渠道**（取并集，可叠加）：
+  - 命令行 `--ignore <glob>`（可重复）。
+  - `verify.config.json` 顶层 `ignore_paths: [glob, ...]`（项目级长期忽略）。
+  - 基线快照差集：`--save-baseline` 时自动记录当时的 changed files（S0），`verify` 时本次改动 = S1 − S0（动代码前已存在的本地改动自动排除）。旧基线缺 `changed_files_snapshot` 字段时 fail-closed，要求重采基线。
+- **glob 语义**：`fnmatch`，`*` / `**` 跨目录、`?` 单字符；目录模式（`dir/` 或 `dir`）覆盖其下全部文件。
+- **安全护栏**：`openspec/` 下的 `spec.md` / `ui-spec.md` / `tasks.md` / ADR 永不可忽略——忽略它们会让 spec drift 被静默绕过；命中忽略但仍属规格类的文件记入 report 的 `refused_ignores` 并照常归类。
+- **审计**：被忽略文件写入 report 的 `spec_drift.value.ignored_files`，供 Review 核查。
+- **硬约束**：`--ignore` 只作用于 spec drift 归类；build / test / lint 仍编译运行工作树全部文件，`M` 半成品仍需物理隔离（patch 往返 / 第二工作副本）。
+
 示例：
 
 ```bash
@@ -86,8 +99,8 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 
 | 时机 | 动作 |
 | --- | --- |
-| 动代码前（Fast-Path / Phase 0） | 有 config → `--save-baseline` 采基线 |
-| Task 合并前、Run 最终 Review 前 | 有 config → `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>`。SVN 模式 spec drift 读 `svn status`，`--diff-base` 省略 |
+| 动代码前（Fast-Path / Phase 0） | 有 config → `--save-baseline` 采基线（同时快照当时的 changed files 作为 S0） |
+| Task 合并前、Run 最终 Review 前 | 有 config → `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>`。SVN 模式 spec drift 读 `svn status`，`--diff-base` 省略。有不想提交的本地改动 → 追加 `--ignore <glob>`（或 config `ignore_paths`） |
 
 > 下放执行在 worktree 内，基线须用**主仓库根绝对路径** `--baseline <repo-root>/.agentic-framework/verify/baseline.json`（worktree 看不到未提交的基线）。
 >

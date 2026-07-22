@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import fnmatch
 import json
 import os
 import shlex
@@ -38,7 +39,7 @@ import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 RUNTIME_VERIFY_DIR = Path(".agentic-framework/verify")
 LEGACY_VERIFY_DIR = Path(".verify")
@@ -454,8 +455,63 @@ def _is_spec_file(path_text: str) -> bool:
     return False
 
 
-def evaluate_spec_drift(diff_base: str, reason: str) -> CheckResult:
-    """Require an explicit reason when code changed but specs/tasks/ADR did not."""
+def _glob_match(path_text: str, patterns: Sequence[str]) -> bool:
+    """Return whether a path is covered by any glob ignore pattern.
+
+    Patterns match against the posix-relative path. ``*`` and ``**`` cross
+    directory separators (fnmatch semantics); ``?`` matches a single character.
+    A pattern naming a directory (``dir/`` or ``dir``) also covers everything
+    beneath it.
+    """
+    if not patterns:
+        return False
+    posix = Path(path_text).as_posix()
+    for pattern in patterns:
+        normalized = pattern.strip()
+        if not normalized:
+            continue
+        if fnmatch.fnmatch(posix, normalized):
+            return True
+        directory_prefix = normalized.rstrip("/") + "/"
+        if posix.startswith(directory_prefix):
+            return True
+    return False
+
+
+def _collect_ignores(
+    cli_patterns: Sequence[str],
+    config_paths: Sequence[str],
+    baseline_snapshot: Sequence[str],
+) -> list[str]:
+    """Merge ignore patterns from the three sources, order-preserving and deduped.
+
+    Sources: CLI ``--ignore``, config ``ignore_paths``, and the baseline
+    changed-files snapshot (S0 — changes that pre-existed before this run).
+    The three are unioned; they never conflict.
+    """
+    combined: list[str] = []
+    for source in (cli_patterns, config_paths, baseline_snapshot):
+        for pattern in source:
+            normalized = pattern.strip()
+            if normalized and normalized not in combined:
+                combined.append(normalized)
+    return combined
+
+
+def evaluate_spec_drift(
+    diff_base: str,
+    reason: str,
+    ignore_patterns: Sequence[str] = (),
+) -> CheckResult:
+    """Require an explicit reason when code changed but specs/tasks/ADR did not.
+
+    ``ignore_patterns`` removes matched files from the code/spec classification
+    so changes the user does not intend to commit (local debug files, pre-existing
+    local edits captured in the baseline snapshot) do not trigger spec drift.
+    ``openspec/`` spec/tasks files are never ignored — doing so would let spec
+    drift be silently bypassed; they are recorded in ``refused_ignores`` and
+    still classified.
+    """
     tracked, untracked, error = _changed_files(diff_base)
     if error:
         return CheckResult(
@@ -466,9 +522,28 @@ def evaluate_spec_drift(diff_base: str, reason: str) -> CheckResult:
         )
 
     changed = sorted(set(tracked + untracked))
+    ignored_files: list[str] = []
+    refused_ignores: list[str] = []
+    if ignore_patterns:
+        effective: list[str] = []
+        for path in changed:
+            if _glob_match(path, ignore_patterns):
+                if _is_spec_file(path):
+                    # Safety rail: never ignore openspec/ spec/tasks files.
+                    refused_ignores.append(path)
+                    effective.append(path)
+                else:
+                    ignored_files.append(path)
+            else:
+                effective.append(path)
+        changed = effective
     code_files = [path for path in changed if _is_code_file(path)]
-    spec_files = [path for path in tracked if _is_spec_file(path)]
-    untracked_spec_files = [path for path in untracked if _is_spec_file(path)]
+    spec_files = [
+        path for path in changed if _is_spec_file(path) and path in tracked
+    ]
+    untracked_spec_files = [
+        path for path in changed if _is_spec_file(path) and path in untracked
+    ]
     related_spec_files = _related_spec_files(
         code_files, spec_files + untracked_spec_files
     )
@@ -480,6 +555,9 @@ def evaluate_spec_drift(diff_base: str, reason: str) -> CheckResult:
         "untracked_spec_files": untracked_spec_files,
         "related_spec_files": related_spec_files,
         "reason": reason,
+        "ignored_files": ignored_files,
+        "refused_ignores": refused_ignores,
+        "ignore_patterns": list(ignore_patterns),
     }
     if not code_files:
         return CheckResult(
@@ -1016,6 +1094,15 @@ def _validate_config(config: dict, path: Path) -> None:
             sys.exit(2)
         names.append(name)
         _validate_check_item(i, name, item, path)
+    ignore_paths = config.get("ignore_paths", [])
+    if not isinstance(ignore_paths, list) or not all(
+        isinstance(pattern, str) for pattern in ignore_paths
+    ):
+        print(
+            f"[verify] ignore_paths 必须为字符串列表（{path}）。",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
 
 _ALLOWED_TYPES = {"exit_code", "forbid_pattern", "count"}
@@ -1100,14 +1187,23 @@ def _atomic_write_json(path: Path, data: Any) -> None:
         raise
 
 
-def cmd_save_baseline(config: dict, out_path: Path) -> int:
+def cmd_save_baseline(config: dict, out_path: Path, diff_base: str = "HEAD") -> int:
     """采集基线：只记录 baseline_aware 检查的当前"值"。
 
     forbid_pattern 的 fail 表示「记录已存在的违规」，属正常用途，写入基线。
     count 的 fail 表示「已违反绝对 threshold」，不能写入——否则后续无改动也会 FAIL，
     导致门禁自相矛盾；与 error 同等处理，中止采集。
+
+    同时快照当时的 changed files（S0）：verify() 后续从当前改动 S1 扣除 S0，
+    让动代码前已存在的本地改动不记为本次改动（基线快照差集忽略源）。
     """
     baseline: dict[str, Any] = {"checks": {}, "config_snapshot": _config_snapshot(config)}
+    tracked_s0, untracked_s0, s0_error = _changed_files(diff_base)
+    if s0_error:
+        print(f"[verify] 无法记录基线改动快照：{s0_error}", file=sys.stderr)
+        baseline["changed_files_snapshot"] = []
+    else:
+        baseline["changed_files_snapshot"] = sorted(set(tracked_s0 + untracked_s0))
     blocked: list[CheckResult] = []
     for check in config.get("checks", []):
         if not check.get("baseline_aware"):
@@ -1194,6 +1290,7 @@ def cmd_verify(
     runtime_context: dict[str, Any] | None = None,
     task_id: str | None = None,
     attempt: int | None = None,
+    cli_ignore_patterns: Sequence[str] = (),
 ) -> int:
     """跑全部检查，对 baseline_aware 项做基线对比，产出报告。"""
     # 显式传了 --baseline 但文件不存在 → fail-closed，不能静默降级为无基线模式
@@ -1202,6 +1299,7 @@ def cmd_verify(
         return 2
 
     baseline_data: dict[str, Any] = {}
+    baseline_snapshot: list[str] = []
     if baseline_path and baseline_path.exists():
         try:
             raw = json.loads(baseline_path.read_text(encoding="utf-8"))
@@ -1257,9 +1355,23 @@ def cmd_verify(
                 )
                 return 2
         # stored_by_name 中未出现的 check → 本次新增，以绝对模式执行，无需 rebaseline。
+        # changed_files_snapshot (S0)：基线快照差集忽略源的依据。旧基线缺字段 →
+        # fail-closed，要求重采基线，不静默放过。
+        baseline_snapshot = raw.get("changed_files_snapshot")
+        if not isinstance(baseline_snapshot, list):
+            print(
+                "[verify] 基线缺少 changed_files_snapshot（旧版基线或结构损坏），"
+                "需重新运行 --save-baseline 重建基线。",
+                file=sys.stderr,
+            )
+            return 2
 
+    config_paths = config.get("ignore_paths", [])
+    ignore_patterns = _collect_ignores(
+        cli_ignore_patterns, config_paths, baseline_snapshot
+    )
     results: list[CheckResult] = [
-        evaluate_spec_drift(diff_base, spec_drift_reason)
+        evaluate_spec_drift(diff_base, spec_drift_reason, ignore_patterns)
     ]
     for check in config.get("checks", []):
         name = check.get("name", "<unnamed>")
@@ -1408,6 +1520,14 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="代码变更但无需更新 spec / ui-spec / tasks / ADR 时的原因",
     )
+    parser.add_argument(
+        "--ignore",
+        metavar="GLOB",
+        action="append",
+        default=[],
+        help="忽略指定路径（glob，支持 * ? **；可重复）；被忽略文件不进入 spec drift 归类，"
+        "openspec/ 下 spec/tasks 不可忽略",
+    )
     args = parser.parse_args(argv)
 
     require_config = bool(args.save_baseline or args.baseline)
@@ -1415,7 +1535,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.save_baseline:
         save_path = resolve_verify_write_path(Path(args.save_baseline), Path.cwd())
-        return cmd_save_baseline(config, save_path)
+        return cmd_save_baseline(config, save_path, args.diff_base)
 
     baseline_path = (
         resolve_verify_read_path(Path(args.baseline), Path.cwd())
@@ -1459,6 +1579,7 @@ def main(argv: list[str] | None = None) -> int:
         runtime_context,
         args.task_id,
         args.attempt,
+        args.ignore,
     )
 
 
