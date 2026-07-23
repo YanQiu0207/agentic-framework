@@ -7,6 +7,7 @@
 - `2026-07-19-accept-knowledge-routing/`
 - `2026-07-19-knowledge-management-review-fixes/`
 - `2026-07-20-delivery-fast-path-bounded-verdict/`
+- `2027-2026-07-23-real-task-quality-benchmark/`
 - `legacy-framework-dual-track-merge/`
 - `legacy-framework-link-based-installation/`
 - `legacy-framework-unification/`

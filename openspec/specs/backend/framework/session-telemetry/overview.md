@@ -34,6 +34,12 @@ Telemetry 是显式安装的可选 Pack。当前只实现 transcript 后处理�
 - 历史账本通过临时文件、`fsync` 和 `os.replace` 原子替换；无法解析的旧行原样保留（`scripts/analyze_session_metrics.py:720-778`）。
 - 单个损坏会话会被隔离并跳过，不终止整批；全部无匹配结果时返回非 0（`scripts/analyze_session_metrics.py:832-872`）。
 
+## 真实任务质量基准
+
+Telemetry 只提供流程成本与 Review 轨迹，不能单独证明交付质量。`evaluation/real-task-cases/` 为每个真实任务固定验收标准、实际路由、最终验收、Review P0/P1、七天返工状态和会话引用；`scripts/benchmark_runner.py` 将这些结果与账本关联，并按 `fast-path`、`standard`、`strict` 输出可比较报告。
+
+记录格式、Bash 采集命令和报告命令见 `evaluation/real-task-cases/README.md`。同一会话不得关联多个任务；观察期为七天，`pending` 记录不进入返工率分母。
+
 ## 限制
 
 - CLI 会话格式不是本框架控制的稳定 API，客户端升级可能要求适配。

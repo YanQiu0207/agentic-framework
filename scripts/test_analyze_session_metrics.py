@@ -407,5 +407,15 @@ class AppendHistoryTest(unittest.TestCase):
             )
 
 
+class JsonReportTest(unittest.TestCase):
+    """JSON 快照首次写入不得依赖调用方预建目录。"""
+
+    def test_write_json_report_creates_parent_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td) / "new" / "nested" / "report.json"
+            asm.write_json_report(output, [{"session": "s1"}])
+            self.assertEqual([{"session": "s1"}], json.loads(output.read_text("utf-8")))
+
+
 if __name__ == "__main__":
     unittest.main()

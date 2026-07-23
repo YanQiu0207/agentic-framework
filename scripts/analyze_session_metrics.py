@@ -637,6 +637,12 @@ def fmt_review(r: dict) -> str:
     return f"{label} {r['verdict']}" + (f"({' '.join(parts)})" if parts else "")
 
 
+def write_json_report(path: Path, results: list[dict]) -> None:
+    """Write a JSON report, creating its requested output directory."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def print_report(results: list[dict], min_share: float, rates: dict | None) -> None:
     rollup: dict[str, dict] = defaultdict(lambda: {"active": 0.0, "out": 0, "enter": 0})
     for r in results:
@@ -894,9 +900,7 @@ def main() -> int:
 
     print_report(results, args.min_share, rates)
     if args.json:
-        Path(args.json).write_text(
-            json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        write_json_report(Path(args.json), results)
         print(f"\nJSON 已写入 {args.json}")
     if args.history:
         history_path, legacy_read_path = resolve_history_paths(
