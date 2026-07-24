@@ -269,7 +269,7 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 #### 机器可读产物
 
-输出 Markdown 报告的**同一步**，Judge 额外写出一份符合 `review-report.schema.json` 的 Envelope，供质量门脚本机器校验证据。调用方必须提供 `run-context.json`；Judge 复制其中的 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`，并把以下裁决字段写入 `payload`。Run 级报告固定写入 `.agentic-framework/runs/<run-id>/artifacts/review-run.json`。`scope: run` 的报告必须是绑定 Run Context 的 Envelope；「缺少 Run Context 时不得输出可放行的旧式顶层 `PASS` JSON」的要求仅适用于 run 级。无 Run Context 的纯 OPSX Production 流程（`scope: task` / `integration`）允许旧式扁平 JSON，由 `validate_change.py` 确定性校验与人审放行，该豁免不适用于 `scope: run`。
+输出 Markdown 报告的**同一步**，Judge 额外写出一份符合 `review-report.schema.json` 的 Envelope，供质量门脚本机器校验证据。Run 级报告的调用方必须提供 `run-context.json`；Judge 复制其中的 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`，并把以下裁决字段写入 `payload`。Run 级报告固定写入 `.agentic-framework/runs/<run-id>/artifacts/review-run.json`。`scope: run` 的报告必须是绑定 Run Context 的 Envelope；「缺少 Run Context 时不得输出可放行的旧式顶层 `PASS` JSON」的要求仅适用于 run 级。无 Run Context 的纯 OPSX Production 流程（`scope: task` / `integration`）允许旧式扁平 JSON，由 `validate_change.py` 确定性校验与人审放行，该豁免不适用于 `scope: run`。
 
 ```json
 {

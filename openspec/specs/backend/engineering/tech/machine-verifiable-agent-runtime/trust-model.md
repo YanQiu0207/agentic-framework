@@ -84,7 +84,7 @@ Run 级 Review 必须满足：
 | Skill | Runtime 要求 | 具体位置与作用 |
 | --- | --- | --- |
 | `workflow-code-generation` | 完整 Run 路径强制使用；低风险 Fast-Path 可不创建 Run | `SKILL.md:121` 要求 Phase 0 先执行 `workflow_control.py ... init-run`，冻结输入、探测 Harness、创建 Journal；`SKILL.md:128` 要求整体 Verify 传入 `--run-dir`；`SKILL.md:134` 以 `check_delivery.py --run-dir` 执行 Manifest、Journal、Harness 与 Trust Gate 校验。 |
-| `workflow-code-review` | Run 级 Review 需要 Runtime Context | `SKILL.md:272` 要求调用方提供 `run-context.json`，并将 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest` 写入 Review Envelope；缺少 Context 时不得生成可放行的旧式顶层 `PASS` JSON。 |
+| `workflow-code-review` | Run 级 Review 需要 Runtime Context | `SKILL.md:272` 要求调用方提供 `run-context.json`，并将 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest` 写入 Review Envelope；缺少 Context 时不得生成可放行的旧式顶层 `PASS` JSON（该禁令适用于 run 级；`scope: task` / `integration` 的 OPSX 豁免见本节下文）。 |
 | `workflow-verification` | 支持接入 Runtime，但不是所有独立 Verify 场景都强制创建完整 Run | `scripts/verify.py` 支持 `--run-dir`、`--task-id` 和 `--attempt`，用于生成绑定到 Run/Task/Attempt 的 Verify Artifact；是否必须传入由上层 `workflow-code-generation` 的流程决定。 |
 
 因此，当前最准确的调用链是：

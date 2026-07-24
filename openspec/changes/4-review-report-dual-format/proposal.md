@@ -60,7 +60,7 @@
 - `openspec/specs/backend/framework/quality-gates/overview.md`：MODIFIED，机器门段落补充双格式报告契约。
 - `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md`：MODIFIED，§6 接入矩阵补充 OPSX 双轨适用范围（无 Run Context 时扁平报告由 `validate_change.py` 与人审放行；该豁免不适用于 `scope: run`）。
 
-## 5. 参考资料
+## 4. 参考资料
 
 - 误杀点：`scripts/validate_change.py:142-209`
 - 新协议：`skills/workflow-code-review/SKILL.md:270-300`、`schemas/runtime/review-report.schema.json`
