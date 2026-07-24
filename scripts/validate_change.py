@@ -146,7 +146,9 @@ def _validate_review_report(
 
     Returns a list of descriptive error messages; an empty list means the
     referenced report exists, parses as JSON, and records a passing verdict
-    with zero P0/P1 findings.
+    with zero P0/P1 findings. Both the legacy flat layout (verdict fields at
+    the top level) and the Envelope layout (verdict fields inside ``payload``)
+    are accepted.
     """
     path_value = path_text.strip()
     if not path_value or _is_placeholder(path_value):
@@ -180,31 +182,45 @@ def _validate_review_report(
         return [f"Review Report 顶层结构必须是 JSON 对象：{path_value}。"]
 
     errors: list[str] = []
-    verdict = data.get("verdict")
+    payload = data.get("payload")
+    if isinstance(payload, dict):
+        label = "Review Report（Envelope 格式）"
+        fields = payload
+        artifact_type = data.get("artifact_type")
+        if artifact_type != "review-report":
+            errors.append(
+                f"{label}的 artifact_type 必须为 review-report，"
+                f"当前为 {artifact_type!r}。"
+            )
+    else:
+        label = "Review Report（扁平格式）"
+        fields = data
+
+    verdict = fields.get("verdict")
     if verdict != "PASS":
-        errors.append(f"Review Report 的 verdict 必须为 PASS，当前为 {verdict!r}。")
+        errors.append(f"{label}的 verdict 必须为 PASS，当前为 {verdict!r}。")
     for field in ("p0_count", "p1_count"):
-        count = data.get(field)
+        count = fields.get(field)
         if not isinstance(count, int) or isinstance(count, bool) or count != 0:
-            errors.append(f"Review Report 的 {field} 必须为 0，当前为 {count!r}。")
-    if data.get("scope") != expected_scope:
+            errors.append(f"{label}的 {field} 必须为 0，当前为 {count!r}。")
+    if fields.get("scope") != expected_scope:
         errors.append(
-            f"Review Report 的 scope 必须为 {expected_scope}，"
-            f"当前为 {data.get('scope')!r}。"
+            f"{label}的 scope 必须为 {expected_scope}，"
+            f"当前为 {fields.get('scope')!r}。"
         )
-    if data.get("review_profile") not in {"lightweight", "standard", "strict"}:
+    if fields.get("review_profile") not in {"lightweight", "standard", "strict"}:
         errors.append(
-            "Review Report 的 review_profile 非法，当前为 "
-            f"{data.get('review_profile')!r}。"
+            f"{label}的 review_profile 非法，当前为 "
+            f"{fields.get('review_profile')!r}。"
         )
-    round_number = data.get("round")
+    round_number = fields.get("round")
     if (
         not isinstance(round_number, int)
         or isinstance(round_number, bool)
         or round_number < 0
     ):
         errors.append(
-            "Review Report 的 round 必须为非负整数，" f"当前为 {round_number!r}。"
+            f"{label}的 round 必须为非负整数，当前为 {round_number!r}。"
         )
     return errors
 
