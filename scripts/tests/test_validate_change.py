@@ -795,6 +795,58 @@ class ValidateChangeCliTest(unittest.TestCase):
         self.assertTrue(path.parent.is_dir(), path.parent)
         path.write_text(payload, encoding="utf-8")
 
+    def envelope_report(self, scope: str) -> dict[str, object]:
+        """Return a schema-shaped Envelope review report for ``scope``."""
+        task_scoped = scope == "task"
+        return {
+            "schema_version": 1,
+            "artifact_type": "review-report",
+            "artifact_id": "review-1",
+            "run_id": "run-1",
+            "task_id": "1" if task_scoped else None,
+            "attempt": 1 if task_scoped else None,
+            "profile": "tooling",
+            "harness": "claude-code",
+            "producer": "workflow-code-review",
+            "commit_sha": "0" * 40,
+            "config_digest": "sha256:" + "0" * 64,
+            "created_at": "2026-07-25T00:00:00Z",
+            "payload": {
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": scope,
+                "review_profile": "standard",
+                "round": 0,
+            },
+        }
+
+    def break_envelope_report(self, report: dict[str, object], case: str) -> None:
+        """Mutate an Envelope report into one deterministic failure case."""
+        payload = report["payload"]
+        assert isinstance(payload, dict)
+        if case == "bad_verdict":
+            payload["verdict"] = "NEEDS_CHANGES"
+        elif case == "p0_positive":
+            payload["p0_count"] = 1
+        elif case == "p1_positive":
+            payload["p1_count"] = 1
+        elif case == "wrong_scope":
+            payload["scope"] = "integration" if payload["scope"] == "task" else "task"
+            task_scoped = payload["scope"] == "task"
+            report["task_id"] = "1" if task_scoped else None
+            report["attempt"] = 1 if task_scoped else None
+        elif case == "bad_profile":
+            payload["review_profile"] = "extreme"
+        elif case == "negative_round":
+            payload["round"] = -1
+        elif case == "missing_artifact_type":
+            del report["artifact_type"]
+        elif case == "wrong_artifact_type":
+            report["artifact_type"] = "verify-report"
+        else:
+            raise AssertionError(f"unknown case: {case}")
+
     def test_task_review_report_evidence_is_enforced_at_delivery(self) -> None:
         """A PASS Task Review requires a real passing review-report.json."""
         needs_changes = json.dumps(
@@ -1049,6 +1101,120 @@ class ValidateChangeCliTest(unittest.TestCase):
             rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertNotIn("OPSX032", rules)
+
+    def test_envelope_task_review_report_passes_delivery(self) -> None:
+        """An Envelope-format task report passes the delivery gate."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.write_report(
+                temporary_repo,
+                "task-1-review.json",
+                json.dumps(self.envelope_report("task")),
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertNotIn("OPSX038", rules)
+
+    def test_envelope_change_review_report_passes_archive(self) -> None:
+        """An Envelope-format integration report passes the archive gate."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "Code Review：Pending",
+                "Code Review：PASS",
+            )
+            self.write_report(
+                temporary_repo,
+                "review-report.json",
+                json.dumps(self.envelope_report("integration")),
+            )
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertNotIn("OPSX032", rules)
+
+    def test_envelope_task_review_report_failures_block_delivery(self) -> None:
+        """Envelope task reports face the same verdict checks as flat reports."""
+        cases = (
+            "bad_verdict",
+            "p0_positive",
+            "p1_positive",
+            "wrong_scope",
+            "bad_profile",
+            "negative_round",
+            "missing_artifact_type",
+            "wrong_artifact_type",
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    report = self.envelope_report("task")
+                    self.break_envelope_report(report, case)
+                    self.write_report(
+                        temporary_repo,
+                        "task-1-review.json",
+                        json.dumps(report),
+                    )
+                    result = self.run_repo(
+                        temporary_repo, "delivery", json_output=True
+                    )
+                    errors = json.loads(result.stdout)["errors"]
+                    rules = {item["rule_id"] for item in errors}
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("OPSX038", rules)
+                    self.assertTrue(
+                        any("（Envelope 格式）" in item["message"] for item in errors),
+                        errors,
+                    )
+
+    def test_envelope_change_review_report_failures_block_archive(self) -> None:
+        """Envelope integration reports face the same checks as flat reports."""
+        cases = (
+            "bad_verdict",
+            "p0_positive",
+            "p1_positive",
+            "wrong_scope",
+            "bad_profile",
+            "negative_round",
+            "missing_artifact_type",
+            "wrong_artifact_type",
+        )
+        for case in cases:
+            with self.subTest(case=case):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    self.rewrite(
+                        temporary_repo,
+                        "tasks.md",
+                        "Code Review：Pending",
+                        "Code Review：PASS",
+                    )
+                    report = self.envelope_report("integration")
+                    self.break_envelope_report(report, case)
+                    self.write_report(
+                        temporary_repo,
+                        "review-report.json",
+                        json.dumps(report),
+                    )
+                    result = self.run_repo(
+                        temporary_repo,
+                        "archive",
+                        json_output=True,
+                        target=archive_target(),
+                    )
+                    errors = json.loads(result.stdout)["errors"]
+                    rules = {item["rule_id"] for item in errors}
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("OPSX032", rules)
+                    self.assertTrue(
+                        any("（Envelope 格式）" in item["message"] for item in errors),
+                        errors,
+                    )
 
 
 if __name__ == "__main__":
