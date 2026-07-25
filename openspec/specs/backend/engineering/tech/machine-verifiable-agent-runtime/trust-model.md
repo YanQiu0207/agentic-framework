@@ -62,6 +62,8 @@ Run 级 Review 必须满足：
 
 恢复只使用 `events.jsonl`、最后 Checkpoint、Manifest、`tasks.md` 与 Git 事实。事件序号必须连续，外部副作用必须使用幂等键。所有 `user-*` 事件必须由 `user` actor 提供非空理由；覆盖不会删除原失败证据。
 
+输入冻结的 `tasks.md` 快照（`input_type: task-plan`）职责是冻结计划：只保证 task_ids 与计划结构完整，`validate_task_sources` 用它与 Journal 重放、Manifest `payload.tasks` 做任务存在性三方一致性检查，不承担状态比对。任务终态（状态与 attempts）一致性以交付时 `tasks.md` 为准：交付时由 `check_delivery.py --tasks` 解析当前 `tasks.md` 生成 task-state artifacts，`generate_manifest` 汇总为 Manifest `payload.tasks`（`run_manifest.py:395-407`），再由 `validate_task_sources` 与 Journal 重放终态比对。快照冻结于 init-run 时，其状态字段必然滞后于 Run 终态，故不参与状态比对。
+
 ## 5. 威胁与残余风险
 
 威胁用例及测试映射见 `evaluation/runtime-threat-cases.md`。这些控制可以发现伪造但缺少独立性声明的报告、被替换 Artifact、串 Run、重复副作用、运行时能力漂移和静默覆盖。
