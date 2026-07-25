@@ -82,6 +82,14 @@ ESCALATION_CONDITIONS = frozenset(
 NO_ESCALATION_VALUES = {"无", "none"}
 APPROVAL_MODES = {"risk-triggered", "per-task"}
 
+# 与 schemas/runtime/run-envelope.schema.json:6-20 的 required 字段列表对齐，
+# 该 schema 在 :125 行声明 additionalProperties: false。
+_ENVELOPE_TOP_KEYS = frozenset({
+    "schema_version", "artifact_type", "artifact_id", "run_id",
+    "task_id", "attempt", "profile", "harness", "producer",
+    "commit_sha", "config_digest", "created_at", "payload",
+})
+
 
 @dataclasses.dataclass(frozen=True)
 class Finding:
@@ -229,7 +237,14 @@ def _validate_review_report(
             "round",
         )
         if any(key in data for key in verdict_fields):
-            errors.append(f"{label}的顶层与 payload 同时携带裁决字段，格式冲突。")
+            errors.append(
+                f"{label}的顶层与 payload 同时携带裁决字段，格式冲突。"
+            )
+        extras = set(data) - _ENVELOPE_TOP_KEYS
+        if extras:
+            errors.append(
+                f"{label}的顶层携带未知字段：{sorted(extras)}。"
+            )
     else:
         if "payload" in data:
             # 键存在即表明生产者意图是 Envelope，定向报错后仍按扁平继续评估。
