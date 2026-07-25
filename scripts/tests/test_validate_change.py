@@ -1508,5 +1508,138 @@ class ValidateChangeCliTest(unittest.TestCase):
         self.assertNotIn("OPSX054", rules)
 
 
+    def _delivery_rules(self, repo: Path) -> set[str]:
+        """Run the delivery gate and return the reported rule identifiers."""
+        result = self.run_repo(repo, "delivery", json_output=True)
+        if result.returncode == 0:
+            return set()
+        return {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+
+    def test_strict_without_irreversible_blocks_at_plan(self) -> None:
+        """OPSX055: a strict task that declares no irreversible is high-risk yet
+        never pauses — the one weakening path the risk-triggered gate must close."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: standard\n",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: strict\n"
+                "- Escalation: scope-change\n",
+            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+        self.assertEqual(1, result.returncode)
+        rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+        self.assertIn("OPSX055", rules)
+
+    def test_irreversible_without_strict_blocks_at_plan(self) -> None:
+        """OPSX055 forward direction: irreversible must pair with strict."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: standard\n",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: standard\n"
+                "- Escalation: irreversible\n",
+            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+        self.assertEqual(1, result.returncode)
+        rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+        self.assertIn("OPSX055", rules)
+
+    def test_strict_with_irreversible_passes_at_plan(self) -> None:
+        """A correctly paired strict + irreversible task passes the coupling."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: standard\n",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: strict\n"
+                "- Escalation: irreversible\n",
+            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_coupling_skips_tasks_without_escalation_field(self) -> None:
+        """A strict task predating this contract keeps validating unchanged."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: standard\n",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: strict\n",
+            )
+            result = self.run_repo(temporary_repo, "delivery")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_explicit_none_escalation_participates_in_coupling(self) -> None:
+        """An explicit 「无」 counts as declaring the field, so strict still
+        must pair with irreversible."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: standard\n",
+                "### 任务 1：[completed] 实现校验器\n- Review Profile: strict\n"
+                "- Escalation: 无\n",
+            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+        self.assertEqual(1, result.returncode)
+        rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+        self.assertIn("OPSX055", rules)
+
+    def test_indented_escalation_blocks_at_plan(self) -> None:
+        """An indented field must fail closed, not silently drop the gate."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n  - Escalation: irreversible\n",
+            )
+            result = self.run_repo(temporary_repo, "plan", json_output=True)
+        self.assertEqual(1, result.returncode)
+        rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+        self.assertIn("OPSX053", rules)
+
+    def test_list_style_approval_mode_blocks_at_delivery(self) -> None:
+        """`- 批准模式：` mimics the header's own field style and must not be
+        ignored — silently falling back to risk-triggered would drop a gate the
+        user asked for."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "> 任务总数：2\n",
+                "> 任务总数：2\n- 批准模式：per-task\n",
+            )
+            rules = self._delivery_rules(temporary_repo)
+        self.assertIn("OPSX053", rules)
+
+    def test_misplaced_approval_mode_blocks_at_delivery(self) -> None:
+        """A mode declaration after the first task header would silently
+        disable per-task mode; it must fail closed instead."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n> 批准模式：per-task\n",
+            )
+            rules = self._delivery_rules(temporary_repo)
+        self.assertIn("OPSX053", rules)
+
+    def test_fenced_approval_mode_example_not_flagged(self) -> None:
+        """A declaration inside a code fence is documentation, not a real one."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "> 任务总数：2\n",
+                "> 任务总数：2\n\n```text\n> 批准模式：per-task\n```\n\n",
+            )
+            result = self.run_repo(temporary_repo, "delivery")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -27,6 +27,10 @@
 
 风险触发批准由 Change `2029-risk-triggered-task-approval` 定义：Completed Task 声明 `Escalation` 时，必须具有条件集合一致的 `Approval: granted`；`pending`、缺失、重复、条件非法或不一致均失败关闭。头部声明 `批准模式：per-task` 时，全部 Completed Task 都必须获批；默认 `risk-triggered` 模式的未升级 Task 不要求 Approval。
 
+OPSX055（Change `2030-approval-gate-hardening`）双向强制 `irreversible` ⟺ `Review Profile: strict`，且在 `plan` 阶段即生效——两个字段都是规划期产物。反向约束是关键：`strict` 档却未声明 `irreversible` 意味着高风险 Task 不触发暂停，这是风险触发门唯一可能弱于「无条件逐 Task 批准」的路径。该校验只对声明了 `Escalation` 字段的 Task 生效（值为「无」也算声明），未声明该字段的 Task 不参与，既有归档 Change 不回归。
+
+同源失败关闭规则：缩进的 `  - Escalation:`、列表式 `- 批准模式：`、写在头部之外的批准模式声明，均在 `plan` 或 `delivery` 阶段报 OPSX053 而非静默放行。`Escalation` 与 `Approval` 是可选字段，写错位置的默认后果是升级门无声消失，与必填字段的失效方向相反，因此方向必须是失败关闭。
+
 ## Verification
 
 `verify.py` 总是计算 Spec Drift；代码发生变化时，必须存在相关规格类更新或显式的无需更新理由（`verify.py:144-246`）。配置驱动检查支持退出码、输出匹配和数量基线，并对以下配置漂移失败关闭：

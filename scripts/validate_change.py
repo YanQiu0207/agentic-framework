@@ -49,6 +49,22 @@ APPROVAL_MODE_RE = re.compile(
     r"^\s*>\s*批准模式\s*[:：]\s*(?P<value>\S.*?)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+# 失败关闭正则：严格正则不匹配而宽松正则命中时，说明声明带缩进、列表标记或
+# 错位——可选字段写错位置的默认后果是升级门无声消失（失败打开），与必填
+# 字段的失效方向相反，因此必须报格式错误而非静默放行。探测在剔除围栏后的
+# 文本上做，避免代码块里的示例被误报。
+LOOSE_ESCALATION_RE = re.compile(
+    r"^\s*[-*]\s*Escalation\s*[:：]", re.IGNORECASE | re.MULTILINE
+)
+LOOSE_APPROVAL_RE = re.compile(
+    r"^\s*[-*]\s*Approval\s*[:：]", re.IGNORECASE | re.MULTILINE
+)
+# tasks.md 头部混用 `> 任务总数：` 与 `- Code Review:`，按类比写成
+# `- 批准模式：` 是自然动作；前缀同时接受 `>` 与列表标记。
+LOOSE_APPROVAL_MODE_RE = re.compile(
+    r"^\s*(?:[>*-]\s*)*批准模式\s*[:：]\s*(?P<mode>\S+)",
+    re.IGNORECASE | re.MULTILINE,
+)
 SECTION_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<title>.+?)\s*$")
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
 TICKETED_CHANGE_RE = re.compile(
@@ -1277,6 +1293,19 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
                     "添加「- Review Profile: standard」或「strict」。",
                 )
             )
+        # 以下两项在 plan 阶段也生效：字段格式与档位耦合都是规划期产物，
+        # 越早暴露越好，也避免后续门禁跳过一个从未被校验的声明。格式检查
+        # 必须先于耦合，否则畸形字段会被耦合的 opt-in 门静默跳过。
+        format_findings = _validate_escalation_field_format(
+            task, metadata_text, tasks_path, repo
+        )
+        findings.extend(format_findings)
+        if not format_findings:
+            findings.extend(
+                _validate_escalation_profile_coupling(
+                    task, metadata_text, tasks_path, repo
+                )
+            )
         task_review_matches = list(TASK_REVIEW_STATUS_RE.finditer(metadata_text))
         if len(task_review_matches) != 1 or task_review_matches[0].group(
             1
@@ -1429,6 +1458,96 @@ def _validate_plan(repo: Path, change: Path, change_type: str) -> list[Finding]:
     return findings
 
 
+def _validate_escalation_field_format(
+    task: Task, metadata_text: str, tasks_path: Path, repo: Path
+) -> list[Finding]:
+    """Reject Escalation/Approval fields that only the loose pattern matches.
+
+    Runs at plan as well as delivery: a malformed field is a formatting mistake,
+    not execution evidence, and both the escalation gate and the OPSX055 coupling
+    silently skip an unparseable field — so catching it only at delivery would
+    leave the earlier gate claiming to have checked something it never saw.
+    """
+    findings: list[Finding] = []
+    for label, strict_re, loose_re in (
+        ("Escalation", ESCALATION_RE, LOOSE_ESCALATION_RE),
+        ("Approval", APPROVAL_RE, LOOSE_APPROVAL_RE),
+    ):
+        if len(loose_re.findall(metadata_text)) > len(
+            strict_re.findall(metadata_text)
+        ):
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 {label} 字段格式不合法，"
+                    "可能带缩进或取值无法解析。",
+                    f"改为顶层列表项「- {label}: ...」，取值使用规定格式。",
+                )
+            )
+    return findings
+
+
+def _validate_escalation_profile_coupling(
+    task: Task, metadata_text: str, tasks_path: Path, repo: Path
+) -> list[Finding]:
+    """Enforce the two-way ``irreversible`` ⟺ ``strict`` coupling (OPSX055).
+
+    ``irreversible`` and the strict review trigger cover the same risks, so the
+    two fields must agree. The reverse direction matters most: a ``strict`` task
+    that declares no ``irreversible`` is high-risk yet never pauses, which is the
+    one way the risk-triggered gate could weaken the previous unconditional pause.
+
+    Only tasks that carry an ``Escalation`` field opt into the coupling, so the
+    two archived Changes using ``strict`` without ``Escalation`` keep passing.
+    Must run after ``_validate_escalation_field_format`` so a malformed field is
+    reported as a format error, not silently skipped here.
+    """
+    escalation_matches = list(ESCALATION_RE.finditer(metadata_text))
+    if len(escalation_matches) != 1:
+        return []
+    profile_matches = list(TASK_REVIEW_PROFILE_RE.finditer(metadata_text))
+    if len(profile_matches) != 1:
+        # 档位缺失或重复由 OPSX037 在 plan 阶段完整覆盖，此处不重复报。
+        return []
+
+    declared = _condition_set(escalation_matches[0].group(1))
+    if declared is None:
+        # 格式非法由 _validate_escalation_field_format 与 _condition_set 的
+        # 调用方覆盖，此处不重复判定。
+        return []
+    profile = profile_matches[0].group(1).strip().casefold()
+    irreversible = "irreversible" in declared
+
+    if irreversible and profile != "strict":
+        return [
+            _finding(
+                "OPSX055",
+                tasks_path,
+                repo,
+                task.line,
+                f"Task {task.number} 声明了 irreversible 但 Review Profile 为 "
+                f"{profile!r}。",
+                "将 Review Profile 改为 strict，两者共用同一组高风险定义。",
+            )
+        ]
+    if profile == "strict" and not irreversible:
+        return [
+            _finding(
+                "OPSX055",
+                tasks_path,
+                repo,
+                task.line,
+                f"Task {task.number} 的 Review Profile 为 strict 但未声明 "
+                "irreversible，该高风险任务将不会触发暂停。",
+                "在 Escalation 中补上 irreversible，或改用 standard 档。",
+            )
+        ]
+    return []
+
+
 def _validate_approval_evidence(repo: Path, change: Path) -> list[Finding]:
     """Require auditable approval records for completed escalated tasks."""
     tasks_path = change / "tasks.md"
@@ -1465,6 +1584,26 @@ def _validate_approval_evidence(repo: Path, change: Path) -> list[Finding]:
                 )
             )
             approval_mode = "risk-triggered"
+    elif not mode_matches:
+        # 头部严格扫描未命中：若全文（剔除围栏后）有任何形式的命中，说明
+        # 声明带缩进、列表标记或写在头部之外。此时不得静默退回
+        # risk-triggered——那会让用户显式要求的全量批准门无声消失。
+        unfenced = _metadata_text(lines)
+        if APPROVAL_MODE_RE.search(unfenced) or LOOSE_APPROVAL_MODE_RE.search(
+            unfenced
+        ):
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    1,
+                    "批准模式声明格式不合法或不在 tasks.md 头部，"
+                    "已静默退回 risk-triggered。",
+                    "在首个任务标题之前写「> 批准模式：per-task」"
+                    "或「risk-triggered」。",
+                )
+            )
 
     for task in tasks:
         if not _completed_status(task.status):

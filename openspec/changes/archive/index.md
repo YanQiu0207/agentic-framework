@@ -8,6 +8,9 @@
 - `2026-07-19-knowledge-management-review-fixes/`
 - `2026-07-20-delivery-fast-path-bounded-verdict/`
 - `2027-2026-07-23-real-task-quality-benchmark/`
+- `2028-2026-07-25-tooling-native-first/`
+- `2029-2026-07-25-risk-triggered-task-approval/`
+- `2030-2026-07-25-approval-gate-hardening/`
 - `legacy-framework-dual-track-merge/`
 - `legacy-framework-link-based-installation/`
 - `legacy-framework-unification/`
