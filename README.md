@@ -115,17 +115,23 @@ Delivery 门禁               →  全部任务完成后校验，通过后五维
 
 ### Tooling 工作流
 
+Tooling 默认走 Native Delivery；DAG、状态和恢复按任务依赖、并行写入或中断恢复需求启用，不再因中等复杂度自动建立完整 Runtime Run。
+
 ```text
 /requirements-clarification 或 /quick-design
     → /system-design
-    → /code-generation
-    → DAG 分波、worktree、实现、测试和任务级机器检查
-    → 全局机器验证
-    → 一次风险分级 Review
-    → 定向 re-review（仅在存在 P0 / P1 时）
+    → /code-generation 路由
+        ├── Native Delivery
+        │   → 按需 DAG／worktree、实现、测试和任务级机器检查
+        │   → 独立机器验证 → 一次风险分级 Review → Native Delivery Verdict
+        └── 完整 Runtime Run
+            → init-run、Run 级 Artifact、全局机器验证与 Review
+            → Trust Gate
 ```
 
-Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 消耗；worktree、机器验证、失败隔离和 intent 检查仍保留。
+完整 Runtime Run 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。Native Delivery 只证明独立机器验证、标准集成 Review、知识影响和 Git 工作区检查；不证明 Trust Gate、Harness 能力、完整证据图或严格独立 Judge。Fast-Path 在兼容期保留 lightweight 有界裁决，不是完整 Runtime 的替代品。
+
+Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 消耗；机器验证、失败隔离和 intent 检查仍保留。
 
 ## 功能与设计文档
 
@@ -136,7 +142,7 @@ Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 
 | 机器验证 Verify | 已实现；支持 `build`、`test`、`lint`、基线对比和 spec drift | [workflow-verification](skills/workflow-verification/SKILL.md)、[配置指南](skills/workflow-verification/reference/config-guide.md) |
 | 项目知识库与跨项目公共知识库 | 已实现：双 Profile 统一 `openspec/` Artifact、项目长期 Specs、Change Delta、归档门禁和公共知识晋升 | [统一方案](openspec/specs/backend/engineering/tech/knowledge-management.md)、[实施任务](openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md) |
 | 会话遥测 | `telemetry` Pack 提供成本、Review 和收敛分析 | [会话遥测](docs/tooling/11-session-telemetry.md) |
-| Tooling 执行模型 | 已实现；DAG 分波、worktree、失败隔离和最终 Review | [并行执行模式](docs/tooling/03-parallel-execution-mode.md) |
+| Tooling 执行模型 | 已实现；Native-first 路由、可选 DAG／恢复、完整 Runtime 升级条件和最终 Review | [控制流概览](openspec/specs/backend/framework/workflow-control/overview.md) |
 | Tooling 演进记录 | 历史设计证据，不是当前实现事实源 | [Tooling 资料索引](docs/tooling/README.md) |
 
 其中 `docs/tooling/` 来自合并前 Tooling 框架的设计快照，部分内容保留了已经废弃的旧版 `project-knowledge` 等历史描述。判断当前行为时，以代码、Skills 和双 Profile 总体设计为准。现行 `skills/project-knowledge` 是 Production 与 Tooling 共用的项目知识路由和归档规范，与历史文档所指的旧版不是同一套机制。

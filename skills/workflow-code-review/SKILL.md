@@ -36,8 +36,9 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 ## 审核 Scope
 
 - `scope: task`：Production 的单个 Task。每个 Task 只能有一次首轮审核。
-- `scope: integration`：Production 全部 Task 完成后的完整集成 diff，固定使用 `strict`。
-- `scope: run`：Tooling 全部 Task 完成后的完整 Run diff。
+- `scope: integration`：无 Run 的完整交付 diff。Tooling Native Delivery 固定使用 `standard`；Fast-Path 兼容别名保留 `lightweight`；Production 仍按其生命周期选择 `strict`。
+- `scope: run`：Tooling 完整 Runtime Run 的完整 diff，固定使用 `strict`，必须绑定 Run Context。
+- `strict` 的 Tooling Review 必须升级到完整 Runtime Run；不得写成无 Run 的 `scope: integration` 报告。
 - 同一 Scope 的修复只能进入 re-review，不能重新启动首轮审核；不同 Task 和最终集成属于不同 Scope。
 
 ## 复审模式（re-review）
@@ -269,37 +270,56 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 #### 机器可读产物
 
-输出 Markdown 报告的**同一步**，Judge 额外写出一份符合 `review-report.schema.json` 的 Envelope，供质量门脚本机器校验证据。Run 级报告的调用方必须提供 `run-context.json`；Judge 复制其中的 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`，并把以下裁决字段写入 `payload`。Run 级报告固定写入 `.agentic-framework/runs/<run-id>/artifacts/review-run.json`。`scope: run` 的报告必须是绑定 Run Context 的 Envelope；「缺少 Run Context 时不得输出可放行的旧式顶层 `PASS` JSON」的要求仅适用于 Run 级。无 Run Context 的纯 OPSX Production 流程（`scope: task` / `integration`）允许旧式扁平 JSON，由 `validate_change.py` 确定性校验与人审放行，该豁免不适用于 `scope: run`。
+输出 Markdown 报告的**同一步**，Judge 额外写一份机器可读 JSON；两者必须是同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。产物合同由交付路径决定，不能为了放行伪造 Run 字段：
+
+| 交付路径 | JSON 位置 | 必填裁决字段 | Run Context 与可声明边界 |
+| --- | --- | --- | --- |
+| Native Delivery | 调用方保存为独立 `review-report.json`（建议 `.agentic-framework/review/review-integration.json`），并显式传给 `check_delivery.py` | 顶层 `verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile: "standard"`、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 或严格独立 Judge 声明。 |
+| 完整 Runtime Run | `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
+| Fast-Path 兼容别名 | 既有调用方保存的独立 `review-report.json` | 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
+
+无 Run 的 Native Delivery 标准 Review 使用以下扁平 JSON；`check_delivery.py --native-delivery` 只接受这 6 个字段：
 
 ```json
 {
-  "schema_version": 1,
-  "artifact_type": "review-report",
-  "artifact_id": "review-run",
-  "run_id": "<run-id>",
-  "task_id": null,
-  "attempt": null,
-  "profile": "tooling",
-  "harness": "codex",
-  "producer": "workflow-code-review",
-  "commit_sha": "<40-hex>",
-  "config_digest": "sha256:<64-hex>",
-  "created_at": "<RFC3339>",
-  "payload": {
     "verdict": "PASS",
     "p0_count": 0,
     "p1_count": 0,
-    "scope": "run",
-    "review_profile": "strict",
-    "round": 0,
-    "implementer_actor": "<implementer-agent-id>",
-    "judge_actor": "<judge-agent-id>",
-    "independence_basis": "process-separated-agent"
-  }
+    "scope": "integration",
+    "review_profile": "standard",
+    "round": 0
 }
 ```
 
-这份 JSON 与上方 Markdown 报告是**同一次裁决的两种呈现形式**，不是允许 Judge 分别下两个可能不同的结论。每个字段都必须能从 Markdown 报告直接推导：
+完整 Runtime Run 使用 Envelope，并从 `run-context.json` 复制 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`。缺少 Run Context 时，不得输出 `scope: "run"` 或 `review_profile: "strict"` 的可放行报告：
+
+```json
+{
+    "schema_version": 1,
+    "artifact_type": "review-report",
+    "artifact_id": "review-run",
+    "run_id": "<run-id>",
+    "task_id": null,
+    "attempt": null,
+    "profile": "tooling",
+    "harness": "codex",
+    "producer": "workflow-code-review",
+    "commit_sha": "<40-hex>",
+    "config_digest": "sha256:<64-hex>",
+    "created_at": "<RFC3339>",
+    "payload": {
+        "verdict": "PASS",
+        "p0_count": 0,
+        "p1_count": 0,
+        "scope": "run",
+        "review_profile": "strict",
+        "round": 0,
+        "implementer_actor": "<implementer-agent-id>",
+        "judge_actor": "<judge-agent-id>",
+        "independence_basis": "process-separated-agent"
+    }
+}
+```
 
 | 字段 | 取值 | 来源 |
 | --- | --- | --- |

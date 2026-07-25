@@ -49,9 +49,9 @@ def runtime_verify_fixture(root: Path) -> tuple[Path, Path]:
             "total": 1,
             "errors": 0,
             "violations": 0,
-            "spec_drift": None,
+            "spec_drift": {"status": "pass"},
             "warnings": [],
-            "results": [],
+            "results": [{"status": "pass"}],
         },
         "workflow-verification",
         task_id="1",
@@ -122,13 +122,81 @@ class WorkflowControlTest(unittest.TestCase):
         self.assertEqual("完成", merged.state)
 
     def test_validate_verify_report_requires_pass_verdict(self) -> None:
-        workflow_control._validate_verify_report({"verdict": "PASS"})
+        workflow_control._validate_verify_report(
+            {
+                "verdict": "PASS",
+                "errors": 0,
+                "violations": 0,
+                "total": 1,
+                "results": [{"status": "pass"}],
+                "spec_drift": {"status": "pass"},
+            }
+        )
         with self.assertRaisesRegex(ValueError, "PASS"):
             workflow_control._validate_verify_report({"verdict": "NEEDS_CHANGES"})
         with self.assertRaisesRegex(ValueError, "PASS"):
             workflow_control._validate_verify_report({})
         with self.assertRaisesRegex(ValueError, "JSON 对象"):
             workflow_control._validate_verify_report([])
+        with self.assertRaisesRegex(ValueError, "errors"):
+            workflow_control._validate_verify_report(
+                {"verdict": "PASS", "errors": 1, "violations": 0}
+            )
+        with self.assertRaisesRegex(ValueError, "violations"):
+            workflow_control._validate_verify_report(
+                {"verdict": "PASS", "errors": 0, "violations": 1}
+            )
+
+    def test_select_execution_route_defaults_to_native_delivery(self) -> None:
+        self.assertEqual(
+            workflow_control.ExecutionRoute("native-delivery", ()),
+            workflow_control.select_execution_route("standard"),
+        )
+
+    def test_select_execution_route_upgrades_for_every_runtime_condition(self) -> None:
+        conditions = (
+            ("strict", {}, "strict-risk"),
+            ("standard", {"parallel_worktree_write": True}, "parallel-worktree-write"),
+            ("standard", {"long_task_recovery": True}, "long-task-recovery"),
+            (
+                "standard",
+                {"cross_host_capability_verification": True},
+                "cross-host-capability-verification",
+            ),
+            ("standard", {"audit_required": True}, "audit-required"),
+        )
+        for profile, kwargs, expected_reason in conditions:
+            with self.subTest(expected_reason=expected_reason):
+                route = workflow_control.select_execution_route(profile, **kwargs)
+                self.assertEqual("runtime-run", route.path)
+                self.assertIn(expected_reason, route.runtime_upgrade_reasons)
+
+    def test_route_command_reports_native_and_runtime_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [str(path), "route", "--review-profile", "standard"]
+                    ),
+                )
+            self.assertIn('"path": "native-delivery"', stdout.getvalue())
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [
+                            str(path),
+                            "route",
+                            "--review-profile",
+                            "standard",
+                            "--audit-required",
+                        ]
+                    ),
+                )
+            self.assertIn('"path": "runtime-run"', stdout.getvalue())
 
     def test_quality_passed_without_verify_report_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -204,6 +272,46 @@ class WorkflowControlTest(unittest.TestCase):
             )
             self.assertEqual(2, result)
             self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+    def test_native_quality_passed_accepts_standalone_pass_without_run_artifact(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "tasks.md"
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
+            report_path = root / "verify-report.json"
+            report_path.write_text(
+                json.dumps(
+                    {
+                        "verdict": "PASS",
+                        "errors": 0,
+                        "violations": 0,
+                        "total": 1,
+                        "results": [{"status": "pass"}],
+                        "spec_drift": {"status": "pass"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = workflow_control.main(
+                [
+                    str(path),
+                    "event",
+                    "1",
+                    "quality_passed",
+                    "--write",
+                    "--verify-report",
+                    str(report_path),
+                ]
+            )
+
+            self.assertEqual(0, result)
+            self.assertIn(
+                "- control_stage：quality_passed", path.read_text(encoding="utf-8")
+            )
+            self.assertFalse((root / ".agentic-framework" / "runs").exists())
 
     def test_quality_passed_with_pass_verdict_writes_state_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

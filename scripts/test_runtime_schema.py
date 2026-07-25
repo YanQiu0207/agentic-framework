@@ -142,9 +142,55 @@ class RuntimeSchemaTest(unittest.TestCase):
         document["schema_version"] = 2
         with self.assertRaises(runtime_schema.RuntimeSchemaError):
             runtime_schema.validate_document(document)
+        document["schema_version"] = 1
         del document["artifact_id"]
         with self.assertRaises(runtime_schema.RuntimeSchemaError):
             runtime_schema.validate_document(document)
+
+    def test_native_delivery_verdict_is_bounded_and_rejects_run_claims(self) -> None:
+        verdict = runtime_schema.build_native_delivery_verdict(
+            "review-report.json",
+            "verify-report.json",
+            "none",
+            "local change has no lasting knowledge impact",
+        )
+        runtime_schema.validate_document(
+            verdict, runtime_schema.NATIVE_DELIVERY_VERDICT_SCHEMA
+        )
+        self.assertNotIn("run_id", verdict)
+        self.assertIn("runtime-trust-gate", verdict["unprovable_claims"])
+        verdict["verified_claims"].append("forged")
+        next_verdict = runtime_schema.build_native_delivery_verdict(
+            "review-report.json",
+            "verify-report.json",
+            "none",
+            "local change has no lasting knowledge impact",
+        )
+        self.assertEqual(
+            ["git-clean", "machine-verify", "standard-review", "knowledge-impact"],
+            next_verdict["verified_claims"],
+        )
+
+        forged = copy.deepcopy(next_verdict)
+        forged["run_id"] = "forged-run"
+        with self.assertRaises(runtime_schema.RuntimeSchemaError):
+            runtime_schema.validate_document(
+                forged, runtime_schema.NATIVE_DELIVERY_VERDICT_SCHEMA
+            )
+
+        forged = copy.deepcopy(verdict)
+        forged["verified_claims"].append("runtime-trust-gate")
+        with self.assertRaises(runtime_schema.RuntimeSchemaError):
+            runtime_schema.validate_document(
+                forged, runtime_schema.NATIVE_DELIVERY_VERDICT_SCHEMA
+            )
+
+        missing_reason = copy.deepcopy(verdict)
+        missing_reason["evidence"]["knowledge_impact_reason"] = ""
+        with self.assertRaises(runtime_schema.RuntimeSchemaError):
+            runtime_schema.validate_document(
+                missing_reason, runtime_schema.NATIVE_DELIVERY_VERDICT_SCHEMA
+            )
 
     def test_illegal_task_attempt_associations_fail_closed(self) -> None:
         run_level = artifact(

@@ -1,0 +1,96 @@
+{
+    "schema_version": 1,
+    "artifact_type": "delivery-route-fixtures",
+    "fixtures": [
+        {
+            "id": "native-standard",
+            "input": {
+                "review_profile": "standard"
+            },
+            "expected": {
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
+            }
+        },
+        {
+            "id": "native-lightweight",
+            "input": {
+                "review_profile": "lightweight"
+            },
+            "expected": {
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
+            }
+        },
+        {
+            "id": "runtime-strict",
+            "input": {
+                "review_profile": "strict"
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["strict-risk"]
+            }
+        },
+        {
+            "id": "runtime-parallel-worktree-write",
+            "input": {
+                "review_profile": "standard",
+                "parallel_worktree_write": true
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["parallel-worktree-write"]
+            }
+        },
+        {
+            "id": "runtime-long-task-recovery",
+            "input": {
+                "review_profile": "standard",
+                "long_task_recovery": true
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["long-task-recovery"]
+            }
+        },
+        {
+            "id": "runtime-cross-host-capability",
+            "input": {
+                "review_profile": "standard",
+                "cross_host_capability_verification": true
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["cross-host-capability-verification"]
+            }
+        },
+        {
+            "id": "runtime-audit",
+            "input": {
+                "review_profile": "standard",
+                "audit_required": true
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["audit-required"]
+            }
+        },
+        {
+            "id": "runtime-multiple-conditions",
+            "input": {
+                "review_profile": "strict",
+                "parallel_worktree_write": true,
+                "audit_required": true
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": [
+                    "strict-risk",
+                    "parallel-worktree-write",
+                    "audit-required"
+                ]
+            }
+        }
+    ]
+}

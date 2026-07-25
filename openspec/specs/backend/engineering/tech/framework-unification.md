@@ -221,35 +221,34 @@ openspec/changes/<ticket>-<change-name>/
 
 ```text
 需求明确
-    ├── Fast-Path
+    ├── Native Delivery（默认）
     ├── Quick Design
     └── 完整 Spec / Tasks
             ↓
 Tasks 获批
-    → DAG 分波
-    → worktree 隔离与并行执行
-    → 每个任务实现、测试和机器检查
-    → 合并到集成分支
-    → 全局 Machine Verification
-    → 一次风险分级 Code Review
-    → 必要时定向 Re-review
-    → 长期知识影响检查与 Delta 同步
-    → 交付和 intent 检查
+    → workflow_control.py route
+        ├── Native Delivery
+        │   → 按需 DAG、worktree、失败隔离与恢复
+        │   → 实现、测试、独立机器验证、一次最终 Review
+        │   → Native Delivery Verdict
+        └── 完整 Runtime Run（升级条件命中）
+            → init-run、Run-bound Artifact、一次最终 Review
+            → Trust Gate
 ```
 
 ### 6.3 强制规则
 
-- Fast-Path 只适用于请求即计划，且不触碰安全、权限、数据、并发、公共 API 和性能关键路径。
-- 中等及以上变更使用 `workflow_control.py` 的 DAG、waves、状态、锁、失败隔离和恢复能力。
-- 每个任务可以执行测试和机器检查，但禁止启动 LLM Review。
-- 当前路径的全部实现、测试和机器检查完成后，只启动一次首轮 Review；Standard 路径还必须完成全部 Tasks 合并和全局 Verification。
+- Native Delivery 是 Tooling 的默认交付路径。Fast-Path 只作为局部低风险调用的兼容别名，保留其 lightweight 有界裁决。
+- 完整 Runtime Run 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用；任务文件数和模型版本不是升级条件。
+- `workflow_control.py` 的 DAG、waves、状态、锁、失败隔离和恢复可独立使用，不得因使用这些能力自动伪造或创建 Run Context。并行 worktree 写入本身是 Runtime 升级条件。
+- 每个任务可以执行测试和机器检查，但禁止启动 LLM Review；全部任务完成后只启动一次最终 Review。
 - Review Profile：
-  - 低风险：`lightweight`。
-  - 普通风险：`standard`。
-  - 高风险：自动升级为 `strict`。
+  - 低风险兼容调用：`lightweight`。
+  - Native Delivery：`standard` 集成 Review。
+  - 完整 Runtime Run：`strict` Run 级 Review。
 - P0/P1 才触发修复；修复后只执行定向 re-review。
-- Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree 和失败恢复策略中。
-- 速度优化不得通过删除 Verification、worktree、失败接管或 intent 检查实现。
+- Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree、失败恢复和 Runtime 审计策略中。
+- 速度优化不得通过删除 Verification、失败接管或 intent 检查实现；worktree 与 DAG 按执行需求保留，不是普通任务的强制前置。
 
 ## 7. Shared Core
 
@@ -588,12 +587,12 @@ E:\work\my-ai-resource\agentic-framework
 
 ### 16.3 Tooling
 
-- Fast-Path、Quick 和完整路径路由正常。
-- Quick 和完整路径使用统一的 `openspec/changes/` Artifact；长期知识使用 `openspec/specs/`。
-- DAG 分波、失败隔离、worktree、锁和恢复正常。
-- task 级不启动 LLM Review。
-- 全部任务完成后只执行一次分级首轮 Review。
-- 高风险改动自动升为 Strict。
+- Native Delivery 为默认路径；Fast-Path 仅保留 lightweight 兼容裁决。
+- 完整 Runtime Run 只在已定义的风险或执行条件命中时启用。
+- Quick、Native Delivery 和完整 Runtime Run 使用统一的 `openspec/changes/` Artifact；长期知识使用 `openspec/specs/`。
+- DAG 分波、失败隔离、worktree、锁和恢复可按执行需求启用。
+- task 级不启动 LLM Review；全部任务完成后只执行一次分级首轮 Review。
+- 高风险改动自动升为 `strict` 并进入完整 Runtime Run。
 
 ### 16.4 安装
 

@@ -1,7 +1,7 @@
 # 最小 Trust Model
 
 - **状态**：Active
-- **适用范围**：Production 与 Tooling 共用的机器运行证据协议
+- **适用范围**：完整 Runtime Run 的机器运行证据协议；Native Delivery 与 Fast-Path 的有界结论见第 5 节
 - **当前验证入口**：`scripts/runtime_trust.py`
 
 ## 1. 结论
@@ -62,8 +62,6 @@ Run 级 Review 必须满足：
 
 恢复只使用 `events.jsonl`、最后 Checkpoint、Manifest、`tasks.md` 与 Git 事实。事件序号必须连续，外部副作用必须使用幂等键。所有 `user-*` 事件必须由 `user` actor 提供非空理由；覆盖不会删除原失败证据。
 
-输入冻结的 `tasks.md` 快照（`input_type: task-plan`）职责是冻结计划：只保证 task_ids 与计划结构完整，`validate_task_sources` 用它与 Journal 重放、Manifest `payload.tasks` 做任务存在性三方一致性检查，不承担状态比对。任务终态（状态与 attempts）一致性以交付时 `tasks.md` 为准：交付时由 `check_delivery.py --tasks` 解析当前 `tasks.md` 生成 task-state artifacts，`generate_manifest` 汇总为 Manifest `payload.tasks`（`run_manifest.py:395-407`），再由 `validate_task_sources` 与 Journal 重放终态比对。快照冻结于 init-run 时，其状态字段必然滞后于 Run 终态，故不参与状态比对。
-
 ## 5. 威胁与残余风险
 
 威胁用例及测试映射见 `evaluation/runtime-threat-cases.md`。这些控制可以发现伪造但缺少独立性声明的报告、被替换 Artifact、串 Run、重复副作用、运行时能力漂移和静默覆盖。
@@ -75,34 +73,48 @@ Run 级 Review 必须满足：
 - 已完全控制主机的攻击者没有伪造文件、进程、Git 或命令输出；
 - 未在 `verify.config.json`、行为用例或 Harness 探测中声明的行为正确。
 
-### Fast-Path 交付的有界裁决
+### 三类交付结论的边界
 
-局部低风险改动可走 Fast-Path 交付门（无 `--run-dir`）：校验 lightweight Review、机器验证报告、工作区干净与知识影响结论后输出 `fast-path-pass`。该裁决**不是** Run 级 Trust Gate PASS，仅证明上述四项本地检查通过；它显式不声明 `strict-independent-review`、`run-manifest-evidence-graph` 与 `harness-capability-probe`。任何要求独立审查或完整证据链的交付必须走 `--run-dir` 的 strict 路径，不得用 `fast-path-pass` 替代。
+| 结论 | 适用条件 | 可证明范围 | 不可证明范围 |
+| --- | --- | --- | --- |
+| `native-delivery-pass` | 普通低／中风险 Tooling 任务，未命中 Runtime 升级条件 | 独立机器验证、`standard` 集成 Review、知识影响和 Git 工作区检查均通过 | Trust Gate、Harness 能力、Run Manifest 证据图、严格独立 Judge |
+| 完整 Runtime Run 的 Trust Gate PASS | `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求 | 本文第 1～4 节定义的 Run 绑定、Manifest、Journal、能力探测和流程独立性声明 | 超出当前 Trust Model 的业务正确性或强身份隔离 |
+| `fast-path-pass` | 兼容期内的局部低风险调用 | lightweight Review、机器验证、工作区干净与知识影响检查通过 | Native Delivery 或完整 Runtime 的额外保证 |
 
-## 6. Skill 接入矩阵
+Native Delivery 不创建或伪造 `run_id`、Harness、Trust Gate 或严格独立性字段；它由 `check_delivery.py --native-delivery` 生成版本化 Verdict。Fast-Path 保留兼容语义，不能将其输出升级表述为 Native Delivery 或 Trust Gate PASS。
 
-当前仓库中，完整 Runtime 不是所有 Skill 的统一前置条件，而是由 `workflow-code-generation` 作为主编排入口强制接入：
+## 6. Tooling 接入矩阵
 
-| Skill | Runtime 要求 | 具体位置与作用 |
+完整 Runtime 不再是 Tooling 的默认前置条件。`workflow-code-generation` 先通过 `workflow_control.py ... route` 判定路径；只有命中 Runtime 升级条件时才初始化 Run。
+
+| 组件 | Native Delivery | 完整 Runtime Run |
 | --- | --- | --- |
-| `workflow-code-generation` | 完整 Run 路径强制使用；低风险 Fast-Path 可不创建 Run | `SKILL.md:121` 要求 Phase 0 先执行 `workflow_control.py ... init-run`，冻结输入、探测 Harness、创建 Journal；`SKILL.md:128` 要求整体 Verify 传入 `--run-dir`；`SKILL.md:134` 以 `check_delivery.py --run-dir` 执行 Manifest、Journal、Harness 与 Trust Gate 校验。 |
-| `workflow-code-review` | Run 级 Review 需要 Runtime Context | `SKILL.md:272` 要求调用方提供 `run-context.json`，并将 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest` 写入 Review Envelope；缺少 Context 时不得生成可放行的旧式顶层 `PASS` JSON（该禁令适用于 Run 级；`scope: task` / `integration` 的 OPSX 豁免见本节下文）。 |
-| `workflow-verification` | 支持接入 Runtime，但不是所有独立 Verify 场景都强制创建完整 Run | `scripts/verify.py` 支持 `--run-dir`、`--task-id` 和 `--attempt`，用于生成绑定到 Run/Task/Attempt 的 Verify Artifact；是否必须传入由上层 `workflow-code-generation` 的流程决定。 |
+| `workflow-code-generation` | 默认路径；不调用 `init-run`，不创建或伪造 Run Context | 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时调用 `init-run` |
+| `workflow_control.py` | 可独立提供 DAG、状态、阻塞和恢复；无 Run 的 `quality_passed` 只校验独立 Verify | 冻结输入、创建 Run Context、Journal，并要求 Run-bound Verify Artifact |
+| `workflow-verification` | 生成独立 Verify 报告 | 使用 `--run-dir`、`--task-id` 和 `--attempt` 生成 Run／Task／Attempt 绑定 Artifact |
+| `workflow-code-review` | 交付门消费 `standard` 集成 Review，不得携带 Run、Trust 或严格独立性声明 | Run 级 `strict` Review 绑定 Runtime Context，并在最终 Trust Gate 中校验 |
+| `check_delivery.py` | `--native-delivery` 输出 `native-delivery-pass` | `--run-dir` 继续执行 Manifest、Journal、Harness 与 Trust Gate 校验 |
 
-因此，当前最准确的调用链是：
+两条当前调用链分别为：
 
 ```text
+Native Delivery
+workflow-code-generation
+    → 可选 workflow_control.py DAG／恢复
+    → workflow-verification（独立 Verify）
+    → workflow-code-review（standard integration Review）
+    → check_delivery.py --native-delivery
+
+完整 Runtime Run
 workflow-code-generation
     → workflow_control.py init-run
     → workflow-verification（Run 级 Verify）
     → workflow-code-review（Run 级 Review）
-    → check_delivery.py
+    → check_delivery.py --run-dir
     → runtime_trust.validate_run（Trust Gate）
 ```
 
-`workflow-code-review` 和 `workflow-verification` 是 Runtime 证据链的参与者，但当前没有证据表明它们各自的独立入口都必须无条件执行完整 Runtime。Fast-Path 是明确的例外：它只输出有界的 `fast-path-pass`，不能表述为完整 Trust Gate PASS。
-
-OPSX Production 阶段门是另一类例外。`scripts/validate_change.py` 的 `delivery` 与 `archive` 阶段接受双格式 Review 报告：符合 `schemas/runtime/review-report.schema.json` 的 Envelope（裁决字段取自 `payload`，且顶层 `artifact_type` 必须为 `review-report`），或裁决字段取自顶层的旧式扁平 JSON；两种格式共用同一套 `verdict`、`p0_count`、`p1_count`、`scope`、`review_profile` 与 `round` 校验。Envelope 顶层同时携带任一裁决字段时判格式冲突并拒绝；`payload` 键存在但值非 JSON 对象时追加定向错误并拒绝，不再静默回落扁平放行。无 Run Context 时，报告（任一格式）的放行依据是 `validate_change.py` 的确定性校验与人审，不构成 Trust Gate PASS，也不声明 Run 绑定、Manifest 证据链或 Harness 能力探测；无 Run Context 的 Envelope 中 `run_id`、`commit_sha` 与 `config_digest` 未经任何组件验证，不构成 Run 绑定声明。该豁免不适用于 `scope: run`：Run 级 Review 必须是 Envelope，并满足 4.2 节的 Strict 独立性要求。
+`workflow-code-review` 和 `workflow-verification` 均可独立使用；只有完整 Runtime Run 才把它们纳入本文定义的 Runtime 证据链。Fast-Path 是明确的兼容路径，只输出有界 `fast-path-pass`，不能表述为完整 Trust Gate PASS。
 
 ### Claude Code、Runtime 与 Adapter 的关系
 

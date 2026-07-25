@@ -12,6 +12,19 @@ from pathlib import Path
 from typing import Any, Sequence
 
 DEFAULT_VERIFY_CONFIG = {"checks": []}
+NATIVE_DELIVERY_VERDICT_SCHEMA = "native-delivery-verdict"
+NATIVE_DELIVERY_VERIFIED_CLAIMS = (
+    "git-clean",
+    "machine-verify",
+    "standard-review",
+    "knowledge-impact",
+)
+NATIVE_DELIVERY_UNPROVABLE_CLAIMS = (
+    "runtime-trust-gate",
+    "harness-capability-probe",
+    "run-manifest-evidence-graph",
+    "strict-independent-review",
+)
 NON_BUDGET_EVENTS = frozenset(
     {
         "start",
@@ -77,6 +90,31 @@ def config_digest(run_config: dict[str, Any]) -> str:
     validate_document(run_config, "run-config")
     digest = hashlib.sha256(canonical_json_bytes(run_config)).hexdigest()
     return f"sha256:{digest}"
+
+
+def build_native_delivery_verdict(
+    review_report: str,
+    verify_report: str,
+    knowledge_impact: str,
+    knowledge_impact_reason: str,
+) -> dict[str, Any]:
+    """Build the bounded verdict for a Native Delivery without a Runtime Run."""
+    verdict = {
+        "schema_version": 1,
+        "artifact_type": "native-delivery-verdict",
+        "verdict": "native-delivery-pass",
+        "evidence": {
+            "review_report": review_report,
+            "verify_report": verify_report,
+            "knowledge_impact": knowledge_impact,
+            "knowledge_impact_reason": knowledge_impact_reason,
+            "git_clean": True,
+        },
+        "verified_claims": list(NATIVE_DELIVERY_VERIFIED_CLAIMS),
+        "unprovable_claims": list(NATIVE_DELIVERY_UNPROVABLE_CLAIMS),
+    }
+    validate_document(verdict, NATIVE_DELIVERY_VERDICT_SCHEMA)
+    return verdict
 
 
 def attempt_for_attempts(attempts: int) -> int:

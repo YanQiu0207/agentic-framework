@@ -6,21 +6,27 @@ Tooling 控制流把 `tasks.md` 作为唯一持久状态，通过确定性脚本
 
 当前行为以 `workflow-code-generation` Skill、控制脚本和测试为准，本文件只提供稳定入口。
 
-## 主链路
+## 主链路与路径边界
+
+`workflow-code-generation` 先调用 `workflow_control.py ... route`，再按任务风险和执行需求选择交付路径：
 
 ```text
 proposal.md / tasks.md 获批
     → lint_spec.py / lint_task_deps.py
-    → workflow_control.py waves
-    → workflow_control.py dispatchable
-    → Task 实现、测试和机器验证
-    → quality_passed（必须校验 Verify JSON）
-    → merge_success / merge_failure
-    → 全局 Verification、一次 Run 级 Review
-    → check_delivery.py
+    → route
+        ├── Native Delivery
+        │   → 按需 waves / dispatchable
+        │   → Task 实现、测试、独立 Verify、quality_passed
+        │   → merge_success / merge_failure
+        │   → 集成 Review → check_delivery.py --native-delivery
+        └── 完整 Runtime Run
+            → init-run → waves / dispatchable
+            → Task 实现、测试、Run-bound Verify、quality_passed
+            → merge_success / merge_failure
+            → Run 级 Review → check_delivery.py --run-dir → Trust Gate
 ```
 
-`workflow-code-generation` 要求中等及以上任务使用控制器构建波次，禁止另写手工分波或状态判断（`skills/workflow-code-generation/SKILL.md:98-129`）。
+`waves`、`dispatchable`、状态迁移、阻塞和恢复不是完整 Runtime 专属能力：存在任务依赖、并行写入或中断恢复需求时可独立调用。完整 Runtime 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时初始化 Run；控制器禁止为 Native Delivery 伪造 Run Context。
 
 ## 状态与恢复
 
@@ -32,9 +38,9 @@ proposal.md / tasks.md 获批
 
 ## 质量证据边界
 
-- `quality_passed` 必须传入 Verify 报告，且报告 `verdict` 必须为 `PASS`（`workflow_control.py:111-120,531-618`）。
-- Task 级不运行 LLM Review；Run 级 Review 由共享 `workflow-code-review` 执行。
-- `check_delivery.py` 校验终态 Tasks、已归档 Proposal、Run 级 Review JSON、知识影响结论和 Git 工作区（`check_delivery.py:31-129`）。
+- `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。
+- Task 级不运行 LLM Review；全部任务合并后执行一次最终 Review。Native Delivery 消费 `standard` 集成 Review；完整 Runtime 的 Run 级 `strict` Review 由共享 `workflow-code-review` 绑定 Runtime Context。
+- `check_delivery.py --native-delivery` 校验终态 Tasks、已归档 Proposal、标准集成 Review、独立 Verify、知识影响和 Git 工作区，并输出有界 Verdict。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。
 - 结构化报告只能证明产物存在且字段满足合同，不能替代语义正确性判断。
 
 ## 主要验证证据

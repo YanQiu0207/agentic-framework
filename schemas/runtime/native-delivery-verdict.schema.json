@@ -1,0 +1,105 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://agentic-engineering-framework.local/schemas/runtime/native-delivery-verdict.schema.json",
+    "title": "Native Delivery Verdict",
+    "type": "object",
+    "required": [
+        "schema_version",
+        "artifact_type",
+        "verdict",
+        "evidence",
+        "verified_claims",
+        "unprovable_claims"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": 1
+        },
+        "artifact_type": {
+            "const": "native-delivery-verdict"
+        },
+        "verdict": {
+            "const": "native-delivery-pass"
+        },
+        "evidence": {
+            "type": "object",
+            "required": [
+                "review_report",
+                "verify_report",
+                "knowledge_impact",
+                "knowledge_impact_reason",
+                "git_clean"
+            ],
+            "properties": {
+                "review_report": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "verify_report": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "knowledge_impact": {
+                    "enum": [
+                        "hit",
+                        "none"
+                    ]
+                },
+                "knowledge_impact_reason": {
+                    "type": "string"
+                },
+                "git_clean": {
+                    "const": true
+                }
+            },
+            "additionalProperties": false
+        },
+        "verified_claims": {
+            "const": [
+                "git-clean",
+                "machine-verify",
+                "standard-review",
+                "knowledge-impact"
+            ]
+        },
+        "unprovable_claims": {
+            "const": [
+                "runtime-trust-gate",
+                "harness-capability-probe",
+                "run-manifest-evidence-graph",
+                "strict-independent-review"
+            ]
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "evidence": {
+                        "properties": {
+                            "knowledge_impact": {
+                                "const": "none"
+                            }
+                        },
+                        "required": [
+                            "knowledge_impact"
+                        ]
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "evidence": {
+                        "properties": {
+                            "knowledge_impact_reason": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "additionalProperties": false
+}

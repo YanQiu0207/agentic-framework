@@ -42,8 +42,17 @@ PASSING_LIGHTWEIGHT_REPORT = {
     "verdict": "PASS",
     "p0_count": 0,
     "p1_count": 0,
-    "scope": "run",
+    "scope": "integration",
     "review_profile": "lightweight",
+    "round": 0,
+}
+
+PASSING_NATIVE_REVIEW_REPORT = {
+    "verdict": "PASS",
+    "p0_count": 0,
+    "p1_count": 0,
+    "scope": "integration",
+    "review_profile": "standard",
     "round": 0,
 }
 
@@ -54,7 +63,7 @@ PASSING_VERIFY_REPORT = {
     "violations": 0,
     "spec_drift": None,
     "warnings": [],
-    "results": [],
+    "results": [{"name": "test", "type": "test", "status": "pass", "detail": "ok", "value": None, "new_items": []}],
 }
 
 
@@ -109,6 +118,63 @@ class CheckDeliveryTest(unittest.TestCase):
             json.dumps(verify or PASSING_VERIFY_REPORT), encoding="utf-8"
         )
         return review_path, verify_path
+
+    def _native_delivery_args(
+        self,
+        repo: Path,
+        *,
+        review: dict | None = None,
+        verify: dict | None = None,
+        knowledge_impact: str = "none",
+    ) -> tuple[list[str], Path]:
+        review, verify = self._fast_path_inputs(
+            repo,
+            review=(PASSING_NATIVE_REVIEW_REPORT if review is None else review),
+            verify=verify,
+        )
+        tasks = repo / "tasks.md"
+        spec = repo / "proposal.md"
+        if not tasks.exists():
+            tasks.write_text(TERMINAL_TASKS, encoding="utf-8")
+            spec.write_text("**状态**: Archived\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "-C", str(repo), "add", "tasks.md", "proposal.md"],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-qm", "archive"],
+                check=True,
+                capture_output=True,
+            )
+        verdict = (
+            repo
+            / ".agentic-framework"
+            / "native-delivery"
+            / "native-delivery-verdict.json"
+        )
+        return (
+            [
+                "--repo",
+                str(repo),
+                "--tasks",
+                str(tasks),
+                "--spec",
+                str(spec),
+                "--native-delivery",
+                "--native-delivery-verdict",
+                str(verdict),
+                "--review-report",
+                str(review),
+                "--verify-report",
+                str(verify),
+                "--knowledge-impact",
+                knowledge_impact,
+                "--knowledge-impact-reason",
+                "local change has no lasting knowledge impact",
+            ],
+            verdict,
+        )
 
     def test_terminal_tasks_with_reason_pass(self) -> None:
         self.assertEqual([], check_delivery.check_tasks(TERMINAL_TASKS))
@@ -212,6 +278,29 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertIn("unprovable_claims", output)
         self.assertIn("strict-independent-review", output)
 
+    def test_fast_path_rejects_run_scope_even_with_lightweight_profile(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, verify = self._fast_path_inputs(
+            repo,
+            review=dict(PASSING_LIGHTWEIGHT_REPORT, scope="run"),
+        )
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(
+                [
+                    "--repo",
+                    str(repo),
+                    "--review-report",
+                    str(review),
+                    "--verify-report",
+                    str(verify),
+                    "--knowledge-impact",
+                    "none",
+                    "--knowledge-impact-reason",
+                    "x",
+                ]
+            )
+        self.assertEqual(1, result)
+
     def test_main_fast_path_rejects_standard_review_without_run_dir(self) -> None:
         repo = self._clean_repo_with_ignore()
         review, verify = self._fast_path_inputs(repo, review=PASSING_RUN_REPORT)
@@ -276,6 +365,151 @@ class CheckDeliveryTest(unittest.TestCase):
             ]
         )
         self.assertEqual(1, result)
+
+    def test_native_delivery_writes_bounded_verdict_without_runtime_finalize(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict_path = self._native_delivery_args(repo)
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(0, result)
+        verdict = json.loads(verdict_path.read_text(encoding="utf-8"))
+        self.assertEqual("native-delivery-pass", verdict["verdict"])
+        self.assertNotIn("run_id", verdict)
+        self.assertIn("runtime-trust-gate", verdict["unprovable_claims"])
+        self.assertFalse((repo / ".agentic-framework" / "runs").exists())
+
+    def test_native_delivery_rejects_forged_runtime_review_claim(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review = dict(PASSING_NATIVE_REVIEW_REPORT, run_id="forged-run")
+        args, verdict_path = self._native_delivery_args(repo, review=review)
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_rejects_unsafe_or_overlapping_output_path(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, _ = self._native_delivery_args(repo)
+        verdict_index = args.index("--native-delivery-verdict") + 1
+        args[verdict_index] = str(repo / "delivery.json")
+        with redirect_stderr(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(2, result)
+
+        args, _ = self._native_delivery_args(repo)
+        verdict_index = args.index("--native-delivery-verdict") + 1
+        review_index = args.index("--review-report") + 1
+        args[verdict_index] = args[review_index]
+        with redirect_stderr(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(2, result)
+
+    def test_native_delivery_rejects_unprovable_review_or_verify_claims(self) -> None:
+        cases = (
+            ("review", {"harness_capability_probe": "PASS"}),
+            ("review", {"judge_actor": "external"}),
+            ("review", {"findings": [{"trust_gate": "PASS"}]}),
+            ("verify", {"trust_gate": "PASS"}),
+            ("verify", {"results": [{"trust_gate": "PASS"}]}),
+            ("verify", {"results": [{"value": {"trust_gate": "PASS"}}]}),
+            ("verify", {"spec_drift": {"value": {"trust_gate": "PASS"}}}),
+        )
+        for report_kind, injected in cases:
+            with self.subTest(report_kind=report_kind, injected=injected):
+                repo = self._clean_repo_with_ignore()
+                review = None
+                verify = None
+                if report_kind == "review":
+                    review = dict(PASSING_NATIVE_REVIEW_REPORT, **injected)
+                else:
+                    verify = dict(PASSING_VERIFY_REPORT, **injected)
+                args, verdict_path = self._native_delivery_args(
+                    repo, review=review, verify=verify
+                )
+                with redirect_stdout(StringIO()):
+                    result = check_delivery.main(args)
+                self.assertEqual(1, result)
+                self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_rejects_forged_trust_claim(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review = dict(PASSING_NATIVE_REVIEW_REPORT, trust_gate="PASS")
+        args, verdict_path = self._native_delivery_args(repo, review=review)
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_rejects_empty_or_failed_verify_results(self) -> None:
+        for verify in (
+            dict(PASSING_VERIFY_REPORT, total=0, results=[]),
+            dict(PASSING_VERIFY_REPORT, results=[dict(PASSING_VERIFY_REPORT["results"][0], status="fail")]),
+        ):
+            repo = self._clean_repo_with_ignore()
+            args, verdict_path = self._native_delivery_args(repo, verify=verify)
+            with redirect_stdout(StringIO()):
+                result = check_delivery.main(args)
+            self.assertEqual(1, result)
+            self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_rejects_failed_verify(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict_path = self._native_delivery_args(
+            repo, verify=dict(PASSING_VERIFY_REPORT, verdict="FAIL", errors=1)
+        )
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_rejects_review_findings(self) -> None:
+        for field in ("p0_count", "p1_count"):
+            with self.subTest(field=field):
+                repo = self._clean_repo_with_ignore()
+                args, verdict_path = self._native_delivery_args(
+                    repo, review=dict(PASSING_NATIVE_REVIEW_REPORT, **{field: 1})
+                )
+                with redirect_stdout(StringIO()):
+                    result = check_delivery.main(args)
+                self.assertEqual(1, result)
+                self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_requires_knowledge_impact(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict_path = self._native_delivery_args(repo)
+        del args[args.index("--knowledge-impact") : args.index("--knowledge-impact") + 4]
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_rejects_dirty_tree(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        (repo / "untracked.txt").write_text("dirty", encoding="utf-8")
+        args, verdict_path = self._native_delivery_args(repo)
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_accepts_terminal_tasks_and_archived_spec(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict_path = self._native_delivery_args(repo)
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(0, result)
+        self.assertTrue(verdict_path.is_file())
+
+    def test_native_delivery_requires_tasks_and_spec(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict_path = self._native_delivery_args(repo)
+        for option in ("--tasks", "--spec"):
+            index = args.index(option)
+            del args[index : index + 2]
+        with redirect_stderr(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(2, result)
+        self.assertFalse(verdict_path.exists())
 
     def test_main_standard_pair_remains_compatible(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -374,6 +608,11 @@ class CheckReviewReportTest(unittest.TestCase):
         path = self._write(dict(PASSING_RUN_REPORT, p0_count=False, p1_count=0.0))
         errors = check_delivery.check_review_report(path)
         self.assertEqual(2, sum("必须为整数 0" in error for error in errors))
+
+    def test_review_profile_requirement_is_enforced(self) -> None:
+        path = self._write(PASSING_RUN_REPORT)
+        errors = check_delivery.check_review_report(path, expected_profile="strict")
+        self.assertTrue(any("review_profile 必须为 strict" in error for error in errors))
 
     def test_scope_must_be_run(self) -> None:
         path = self._write(dict(PASSING_RUN_REPORT, scope="task"))

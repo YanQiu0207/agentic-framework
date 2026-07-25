@@ -1,6 +1,6 @@
 ---
 name: workflow-verification
-description: 研发后机器验证门。有 verify.config.json 时配置驱动跑 build / test / lint 等客观检查 + 改动前后基线对比、只追新增违规；内置 spec drift 检查：改了代码但相关 spec.md / ui-spec.md / tasks.md / ADR 未更新时，必须提供无需更新原因。Task 合并前和 Run 最终 Review 前执行。workflow-code-generation 实现后判定「是否真做完」，或用户要求跑验证时使用；用户显式要求「初始化 / 刷新 verify 配置」（/verify-config）时进入配置维护模式——verify.config.json 的唯一写入路径。
+description: 研发后机器验证门。有 verify.config.json 时配置驱动跑 build / test / lint 等客观检查 + 改动前后基线对比、只追新增违规；内置 spec drift 检查：改了代码但相关 spec.md / ui-spec.md / tasks.md / ADR 未更新时，必须提供无需更新原因。Task 合并前、Native Delivery 最终 Review 前和完整 Runtime Run 最终 Review 前执行。workflow-code-generation 实现后判定「是否真做完」，或用户要求跑验证时使用；用户显式要求「初始化 / 刷新 verify 配置」（/verify-config）时进入配置维护模式——verify.config.json 的唯一写入路径。
 ---
 
 > 输出一行：`Using workflow-verification`
@@ -13,6 +13,16 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
 
 - **有 `verify.config.json`（大多数项目）** → 配置驱动，`scripts/verify.py` 跑 + 基线对比。
 - **没有** → 只跑内置门禁；其余检查跳过，并提示用户可运行 `/verify-config` 初始化配置（见下方配置维护模式）。
+
+## 交付路径与 Verify 产物
+
+| 交付路径 | Verify 产物 | 交付用途 | 禁止事项 |
+| --- | --- | --- | --- |
+| Native Delivery | 独立 `.agentic-framework/verify/report.json`，不传 `--run-dir` | `check_delivery.py --native-delivery` 消费 PASS 的独立 Verify 与标准 integration Review。 | 不得伪造 `run_id`、Harness、Trust Gate 或 Run Artifact。 |
+| 完整 Runtime Run | 传 `--run-dir <run-dir>` 生成 Run-bound Verify Artifact。 | 完整 Runtime 的 Manifest、Journal、Capability 与 Trust Gate 证据链。 | 不得以独立报告替代 Run-bound Artifact。 |
+| Fast-Path 兼容别名 | 与 Native Delivery 相同的独立 Verify 报告。 | 只服务尚未迁移的低风险调用；不构成独立默认路径。 | 不得声明 Runtime 证据。 |
+
+独立 Verify 只证明已执行的机器检查及其结果。`scope: run` 或 `strict` Review 的交付，必须走完整 Runtime Run；Verify 本身不能把无 Run 任务升级为 Trust Gate PASS。
 
 ## 内置 spec drift 检查
 
@@ -99,8 +109,8 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 
 | 时机 | 动作 |
 | --- | --- |
-| 动代码前（Fast-Path / Phase 0） | 有 config → `--save-baseline` 采基线（同时快照当时的 changed files 作为 S0） |
-| Task 合并前、Run 最终 Review 前 | 有 config → `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>`。SVN 模式 spec drift 读 `svn status`，`--diff-base` 省略。有不想提交的本地改动 → 追加 `--ignore <glob>`（或 config `ignore_paths`） |
+| 动代码前（Native Delivery／Fast-Path 兼容别名／Phase 0） | 有 config → `--save-baseline` 采基线（同时快照当时的 changed files 作为 S0） |
+| Task 合并前、Native Delivery 或 Runtime 最终 Review 前 | 有 config → `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config → `--diff-base <base_sha>`。Native Delivery 不传 `--run-dir`；完整 Runtime Run 必须传。SVN 模式 spec drift 读 `svn status`，`--diff-base` 省略。有不想提交的本地改动 → 追加 `--ignore <glob>`（或 config `ignore_paths`） |
 
 > 下放执行在 worktree 内，基线须用**主仓库根绝对路径** `--baseline <repo-root>/.agentic-framework/verify/baseline.json`（worktree 看不到未提交的基线）。
 >

@@ -26,8 +26,6 @@ import runtime_workflow
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _TASK_DOCUMENT_NAME = "tasks.md"
-
-
 @dataclass(frozen=True)
 class TaskDecision:
     """A validated task transition decision."""
@@ -47,6 +45,39 @@ class RecoveryAction:
     task_id: int
     action: str
     reason: str = ""
+
+
+@dataclass(frozen=True)
+class ExecutionRoute:
+    """The selected delivery path and the conditions that require Runtime."""
+
+    path: str
+    runtime_upgrade_reasons: tuple[str, ...]
+
+
+def select_execution_route(
+    review_profile: str,
+    *,
+    parallel_worktree_write: bool = False,
+    long_task_recovery: bool = False,
+    cross_host_capability_verification: bool = False,
+    audit_required: bool = False,
+) -> ExecutionRoute:
+    """Select Native Delivery unless a documented Runtime condition applies."""
+    if review_profile not in {"lightweight", "standard", "strict"}:
+        raise ValueError(f"非法 review_profile: {review_profile!r}")
+    conditions = (
+        (review_profile == "strict", "strict-risk"),
+        (parallel_worktree_write, "parallel-worktree-write"),
+        (long_task_recovery, "long-task-recovery"),
+        (cross_host_capability_verification, "cross-host-capability-verification"),
+        (audit_required, "audit-required"),
+    )
+    reasons = tuple(name for applies, name in conditions if applies)
+    return ExecutionRoute(
+        "runtime-run" if reasons else "native-delivery",
+        reasons,
+    )
 
 
 def _states(tasks: dict[int, dict]) -> dict[int, str]:
@@ -124,6 +155,24 @@ def _validate_verify_report(report: object) -> None:
         raise ValueError("verify 报告顶层结构必须是 JSON 对象")
     if report.get("verdict") != "PASS":
         raise ValueError("verify 报告 verdict 不是 PASS：" f"{report.get('verdict')!r}")
+    for field in ("errors", "violations"):
+        value = report.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value != 0:
+            raise ValueError(f"verify 报告 {field} 必须为整数 0：{value!r}")
+    total = report.get("total")
+    results = report.get("results")
+    if not isinstance(total, int) or isinstance(total, bool) or total < 1:
+        raise ValueError(f"verify 报告 total 必须为正整数：{total!r}")
+    if not isinstance(results, list) or len(results) != total:
+        raise ValueError("verify 报告 results 必须与 total 一致")
+    if any(
+        not isinstance(result, dict) or result.get("status") != "pass"
+        for result in results
+    ):
+        raise ValueError("verify 报告 results 必须全部为 pass")
+    spec_drift = report.get("spec_drift")
+    if not isinstance(spec_drift, dict) or spec_drift.get("status") != "pass":
+        raise ValueError("verify 报告 spec_drift 必须为 pass")
 
 
 def build_waves(tasks: dict[int, dict]) -> list[list[int]]:
@@ -442,17 +491,28 @@ def _load(path: Path) -> tuple[str, dict[int, dict]]:
 def _load_verify_report(
     path: Path | None, run_dir: Path | None, task_id: int, attempt: int
 ) -> dict:
-    """Read, parse, and validate the verify report required by quality_passed."""
+    """Validate a PASS verify report for Native Delivery or a Runtime Run.
+
+    A supplied ``run_dir`` selects the existing Runtime contract: the report
+    must be an envelope bound to that Run, Task, and Attempt. Without a Run,
+    the controller only validates the standalone verify verdict and never
+    creates or records a Runtime artifact.
+    """
     if path is None:
         raise ValueError("quality_passed 事件必须提供 --verify-report")
-    if run_dir is None:
-        raise ValueError("quality_passed 事件必须提供 --run-dir")
+    if run_dir is not None:
+        try:
+            return runtime_workflow.validate_verify_artifact(
+                run_dir, path, str(task_id), attempt
+            )
+        except runtime_workflow.RuntimeWorkflowError as error:
+            raise ValueError(str(error)) from error
     try:
-        return runtime_workflow.validate_verify_artifact(
-            run_dir, path, str(task_id), attempt
-        )
-    except runtime_workflow.RuntimeWorkflowError as error:
-        raise ValueError(str(error)) from error
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+        raise ValueError(f"verify 报告解析失败：{error}") from error
+    _validate_verify_report(report)
+    return report
 
 
 def _atomic_write(path: Path, text: str) -> None:
@@ -588,6 +648,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("waves", help="输出稳定拓扑波次")
     subparsers.add_parser("dispatchable", help="输出当前可调度任务")
+    route_parser = subparsers.add_parser("route", help="选择 Native Delivery 或 Runtime Run")
+    route_parser.add_argument(
+        "--review-profile",
+        choices=("lightweight", "standard", "strict"),
+        required=True,
+    )
+    route_parser.add_argument("--parallel-worktree-write", action="store_true")
+    route_parser.add_argument("--long-task-recovery", action="store_true")
+    route_parser.add_argument(
+        "--cross-host-capability-verification", action="store_true"
+    )
+    route_parser.add_argument("--audit-required", action="store_true")
     event_parser = subparsers.add_parser("event", help="应用任务控制流事件")
     event_parser.add_argument("task_id", type=int)
     event_parser.add_argument(
@@ -686,7 +758,7 @@ def main(argv: list[str]) -> int:
                         args.max_attempts,
                     )
                     output = asdict(decision)
-                    if args.event == "quality_passed":
+                    if args.event == "quality_passed" and args.run_dir is not None:
                         runtime_workflow.record_quality_passed(
                             args.run_dir,
                             args.verify_report,
@@ -704,6 +776,18 @@ def main(argv: list[str]) -> int:
                 output = build_waves(tasks)
             elif args.command == "dispatchable":
                 output = dispatchable_tasks(tasks)
+            elif args.command == "route":
+                output = asdict(
+                    select_execution_route(
+                        args.review_profile,
+                        parallel_worktree_write=args.parallel_worktree_write,
+                        long_task_recovery=args.long_task_recovery,
+                        cross_host_capability_verification=(
+                            args.cross_host_capability_verification
+                        ),
+                        audit_required=args.audit_required,
+                    )
+                )
             elif args.command == "event":
                 decision = apply_event(
                     tasks,
