@@ -49,7 +49,9 @@ Task 1 (validate_change.py 双格式 + 测试)
 ## 任务列表
 
 ### 任务 1: [ ] validate_change.py 双格式解析与回归测试
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `scripts/validate_change.py`（修改）, `scripts/tests/test_validate_change.py`（修改）
 - depends_on: []
 - review_profile: standard
@@ -75,7 +77,9 @@ Task 1 (validate_change.py 双格式 + 测试)
   - [ ] 1.4: 调用 `workflow-test-generation` 核对覆盖完整性，运行全量测试通过
 
 ### 任务 2: [ ] SKILL.md 双轨契约对齐
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `skills/opsx-code-generation/SKILL.md`（修改）, `skills/workflow-code-review/SKILL.md`（修改）
 - depends_on: [Task 1]
 - review_profile: lightweight
@@ -97,7 +101,9 @@ Task 1 (validate_change.py 双格式 + 测试)
   - [ ] 2.3: 按 md-zh 规范自检两处中文排版
 
 ### 任务 3: [ ] intent 沉淀：信任边界知识同步
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md`（修改）, `openspec/specs/backend/framework/quality-gates/overview.md`（修改）
 - depends_on: [Task 1]
 - review_profile: lightweight
@@ -132,15 +138,15 @@ Task 1 (validate_change.py 双格式 + 测试)
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| （Quick，无 Delta） | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | Pending | 无需更新：条目级修改，不影响索引 |
-| （Quick，无 Delta） | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | Pending | 无需更新：条目级修改，不影响索引 |
+| （Quick，无 Delta） | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | Completed | 无需更新：条目级修改，不影响索引 |
+| （Quick，无 Delta） | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | Completed | 无需更新：条目级修改，不影响索引 |
 
 > 本 Change 为 Quick Draft，未创建 `specs/` Delta。两处长期知识修改由 Task 3 直接落盘，归档阶段由 `project-knowledge` 核对。
 
 ## 知识冲突
 
-- 结论：待核对。归档前写「无冲突」，或记录双方证据并标记 `Resolved`。
+- 结论：无冲突。Task 3 新增段与 §6 既有矩阵、`quality-gates/overview.md` 既有职责表经两轮交叉核对（owner 自查 + Run 级 review F-1/F-2 修复与复审确认），语义一致。
 
 ## 实际 Diff 核对
 
-- 核对状态：Pending。归档前记录实际 Diff、Change 和测试证据的核对命令与 PASS 结论。
+- 核对状态：PASS。核对命令：`git diff 18f46f1..HEAD --stat`（改动文件与本清单一致：代码 2、测试同文件、SKILL.md 2、知识文档 2、Change 文档 2）；`python -m pytest scripts -q`（290 passed，含新增 Envelope 用例）；Run 级 `verify.py` 总判定 PASS（`verify-run.json`）；Run 级 review 复审第 1 轮 PASS（`review-run.json`）。

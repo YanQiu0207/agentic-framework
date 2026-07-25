@@ -3,7 +3,7 @@
 **作者**：YanQiu0207（AI 辅助）
 **日期**：2026-07-25
 **变更**：review-report-dual-format
-**状态**：Quick Draft
+**状态**：Archived
 
 ---
 
