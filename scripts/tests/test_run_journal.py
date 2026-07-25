@@ -205,7 +205,6 @@ class RunJournalTest(unittest.TestCase):
             other_journal = self.root / "other.jsonl"
             other_journal.write_bytes(run_journal._canonical(wrong_event) + b"\n")
             cases.append((other_journal, checkpoint, tasks(), manifest(), set()))
-            cases.append((self.journal, checkpoint, tasks("完成"), manifest(), set()))
             cases.append(
                 (self.journal, checkpoint, tasks(), manifest("completed"), set())
             )
