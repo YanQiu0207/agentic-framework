@@ -100,7 +100,7 @@ workflow-code-generation
 
 `workflow-code-review` 和 `workflow-verification` 是 Runtime 证据链的参与者，但当前没有证据表明它们各自的独立入口都必须无条件执行完整 Runtime。Fast-Path 是明确的例外：它只输出有界的 `fast-path-pass`，不能表述为完整 Trust Gate PASS。
 
-OPSX Production 阶段门是另一类例外。`scripts/validate_change.py` 的 `delivery` 与 `archive` 阶段接受双格式 Review 报告：符合 `schemas/runtime/review-report.schema.json` 的 Envelope（裁决字段取自 `payload`，且顶层 `artifact_type` 必须为 `review-report`），或裁决字段取自顶层的旧式扁平 JSON；两种格式共用同一套 `verdict`、`p0_count`、`p1_count`、`scope`、`review_profile` 与 `round` 校验。无 Run Context 时，旧式扁平 JSON 的放行依据是 `validate_change.py` 的确定性校验与人审，不构成 Trust Gate PASS，也不声明 Run 绑定、Manifest 证据链或 Harness 能力探测。该豁免不适用于 `scope: run`：Run 级 Review 必须是 Envelope，并满足 4.2 节的 Strict 独立性要求。
+OPSX Production 阶段门是另一类例外。`scripts/validate_change.py` 的 `delivery` 与 `archive` 阶段接受双格式 Review 报告：符合 `schemas/runtime/review-report.schema.json` 的 Envelope（裁决字段取自 `payload`，且顶层 `artifact_type` 必须为 `review-report`），或裁决字段取自顶层的旧式扁平 JSON；两种格式共用同一套 `verdict`、`p0_count`、`p1_count`、`scope`、`review_profile` 与 `round` 校验。Envelope 顶层同时携带任一裁决字段时判格式冲突并拒绝；`payload` 键存在但值非 JSON 对象时追加定向错误并拒绝，不再静默回落扁平放行。无 Run Context 时，报告（任一格式）的放行依据是 `validate_change.py` 的确定性校验与人审，不构成 Trust Gate PASS，也不声明 Run 绑定、Manifest 证据链或 Harness 能力探测；无 Run Context 的 Envelope 中 `run_id`、`commit_sha` 与 `config_digest` 未经任何组件验证，不构成 Run 绑定声明。该豁免不适用于 `scope: run`：Run 级 Review 必须是 Envelope，并满足 4.2 节的 Strict 独立性要求。
 
 ### Claude Code、Runtime 与 Adapter 的关系
 
