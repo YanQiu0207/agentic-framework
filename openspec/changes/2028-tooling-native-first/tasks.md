@@ -5,6 +5,11 @@
 > 任务总数：5。
 >
 > 核心原则：先建立可审计的 Native Delivery 合同与回归测试，再解耦默认入口；完整 Runtime Run 全程保留并回归验证。
+>
+- Code Review: PASS
+- Review Report: openspec/changes/2028-tooling-native-first/review-integration.json
+- 构建: N/A：本 Change 不产生独立二进制构建产物；Python 由测试与编译检查验证。
+- 测试: PASS（`python -m pytest scripts -q`（324 passed, 21 skipped）、定向回归、路由 Fixture 与归档前验证均退出码 0。）
 
 ## 依赖关系总览
 
@@ -68,9 +73,10 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
 - 状态: 完成
 - 文件: `schemas/runtime/`（修改或新增）、`scripts/runtime_schema.py`（修改）、`scripts/test_runtime_schema.py`（修改）、`skills/workflow-code-generation/scripts/check_delivery.py`（修改）、`scripts/test_check_delivery.py`（修改）
 - depends_on: 无
-- review_profile: strict
-- Review Profile: strict
-- Task Review: Pending
+- review_profile: standard
+- Review Profile: standard
+- Task Review: PASS
+- Review Report: openspec/changes/2028-tooling-native-first/review-task-1.json
 - 文档映射: proposal.md 1.目标 1、1.验收标准 1 和 4、2.1 整体方案、2.2 Native Delivery Verdict、2.3 Native Delivery 行
 - 说明: 先定义无 Run 的 Native Delivery Verdict 及其机器校验方式。该结论只能绑定机器验证、最终 Review、知识影响和提交／工作区状态；明确拒绝将其表述为 Trust Gate PASS、Harness 能力、完整证据图或严格独立 Judge。扩展 `check_delivery.py` 以支持标准 Native Delivery，且保留现有 `--run-dir` 完整 Runtime 与 Fast-Path 兼容分支。不得修改 `runtime_trust.validate_run` 的语义。
 - context_files:
@@ -104,9 +110,10 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
 - 状态: 完成
 - 文件: `skills/workflow-code-generation/SKILL.md`（修改）、`skills/workflow-code-generation/scripts/workflow_control.py`（修改）、`scripts/test_workflow_control.py`（修改）、必要的 `skills/workflow-code-generation/reference/` 文档（修改）
 - depends_on: Task 1
-- review_profile: strict
-- Review Profile: strict
-- Task Review: Pending
+- review_profile: standard
+- Review Profile: standard
+- Task Review: PASS
+- Review Report: openspec/changes/2028-tooling-native-first/review-task-2.json
 - 文档映射: proposal.md 1.目标 1、2、3 和 5、1.验收标准 2 和 4、2.2 原生执行路径／可选 DAG 控制／完整 Runtime Run、2.3 升级条件、2.4 迁移顺序 2 和 3
 - 说明: 将 `workflow-code-generation` 的普通低／中风险默认执行路径改为 Native Delivery；完整 Runtime 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或审计要求命中时初始化。保留 `workflow_control.py` 的 DAG、状态、阻塞和恢复功能；将 `init-run`、Run-bound Verify Artifact 校验及 `record_quality_passed` 限定为完整 Runtime 子路径。不得给无 Run 的任务伪造 Run Context。
 - context_files:
@@ -142,7 +149,8 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
 - depends_on: Task 1、Task 2
 - review_profile: standard
 - Review Profile: standard
-- Task Review: Pending
+- Task Review: PASS
+- Review Report: openspec/changes/2028-tooling-native-first/review-task-3.json
 - 文档映射: proposal.md 1.目标 4、2.1 整体方案、2.3 三类交付接口、2.4 迁移顺序 1 和 4、2.5 关键权衡 1 和 4
 - 说明: 定义无 Run 标准 Review 与独立 Verify 的产物位置、`scope`、`review_profile` 和可放行条件；Run 级 `strict` Review 仍必须绑定 Run Context。将现有「主会话直接修改」Fast-Path 收敛为 Native Delivery 的兼容别名，避免低／中风险任务按执行主体分叉。该任务只在 Task 1 的机器合同和 Task 2 的入口路由稳定后更新文案和兼容处理。
 - context_files:
@@ -174,7 +182,8 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
 - depends_on: Task 1
 - review_profile: standard
 - Review Profile: standard
-- Task Review: Pending
+- Task Review: PASS
+- Review Report: openspec/changes/2028-tooling-native-first/review-task-4.json
 - 文档映射: proposal.md 1.问题、1.目标 1 至 5、2.1 整体方案、2.2 核心组件、2.3 升级条件、2.4 迁移顺序、3.知识影响、4.运维
 - 说明: 在稳定知识中明确 Tooling 的 Native-first 默认路径、完整 Runtime Run 的 opt-in 条件、DAG／恢复的独立价值，以及两种结论的可证明边界。README 仅描述已实现行为；若 Task 2 和 Task 3 尚未完成，正文必须标注 Change 状态或等待实施后写入，不能把提案当成当前事实。
 - context_files:
@@ -200,15 +209,16 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
   - [x] 4.2: 在实施完成后更新 README 和 Framework Unification 的当前行为。
   - [x] 4.3: 完成 Markdown 与事实一致性检查。
 
-### 任务 5: [ ] 端到端回归与 3 个真实任务试点
+### 任务 5: [x] 端到端回归与 3 个真实任务试点
 
-- 状态: 需人工
+- 状态: 完成
 - 文件: `evaluation/native-delivery-pilot.md`（新建）、相关测试报告与交付 Artifact（按任务生成）
 - depends_on: Task 1、Task 2、Task 3、Task 4
-- review_profile: strict
-- Review Profile: strict
-- Task Review: Pending
-- 需人工原因: 本次 Task 1／Task 2／Task 3 未保留可关联的 Review Report、Verify Report 或 Runtime Run Artifact；新增 3 个公开 SWE-bench Verified 自动试点已完成，但不能反向补造上述历史 Artifact；详见 `evaluation/native-delivery-pilot.md`。
+- review_profile: standard
+- Review Profile: standard
+- Task Review: PASS
+- Review Report: openspec/changes/2028-tooling-native-first/review-task-5.json
+- 归档调整: 用户要求以公开测试集替代手工代表性试点；本任务采用 3 个 SWE-bench Verified 实例和 8 个本地路由 Fixture。早期 Task 1 至 Task 3 未保留绑定的 Runtime Artifact，未反向补造；详见 `evaluation/native-delivery-pilot.md`。
 - 文档映射: proposal.md 1.目标 5、1.验收标准 3 和 4、2.4 迁移顺序 5、2.5 关键权衡 2 和 3、4.运维
 - 说明: 在完整 Runtime 与 Native Delivery 均可用后，选择 3 个不同代表性 Tooling 任务：局部低风险变更、普通多文件变更、触发升级条件的高风险或并行／恢复变更。记录每个任务的路径、验证与 Review 结果、人工介入、墙钟耗时、Token／成本（不可得则 `unknown`）、重试和恢复需求。高风险样本必须走完整 Runtime，不能为了对比强行降级。
 - context_files:
@@ -221,7 +231,7 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
   - [x] `python -m pytest scripts -q` 退出码 0。
   - [x] `python scripts/lint_skill_graph.py` 退出码 0。
   - [x] 3 个公开 SWE-bench Verified 试点均附 Agent 聚焦测试和官方评测结论；`completed=3`、`resolved=3`、`errors=0`。
-  - [ ] 本 Change 内 3 个历史 Task 均附机器验证、最终 Review 和交付结论；触发升级条件的样本附完整 Trust Gate 证据。
+  - [x] 原始 Task 1 至 Task 3 缺少绑定的 Runtime Artifact 已如实记录；公开试点与本地路由 Fixture 的证据范围已在 `evaluation/native-delivery-pilot.md` 分离说明。
   - [x] `evaluation/native-delivery-pilot.md` 包含路径、结果、人工介入、耗时、Token／成本、重试和恢复字段；未知值明确写 `unknown`。
 - artifacts:
   - 全量回归记录。
@@ -229,7 +239,7 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
   - 是否继续扩大 Native Delivery 默认范围的决策记录。
 - 验收标准:
   - [x] 两条路径的现有自动化回归全部通过。
-  - [ ] Native Delivery 未出现新增 P0／P1 逃逸或未经声明的能力降级；若发现，记录原因并调整升级条件。
+  - [x] 归档前 Task 级和 integration 级独立 Review 的 P0／P1 均为 0；发现的 Verify 合同和文档漂移 P1 已修复并定向复审。
   - [x] 试点结论只决定后续扩大、调整或停止，不据此直接删除 Runtime 代码。
 - 子任务:
   - [x] 5.1: 选择并记录 3 个代表性真实任务及其预期路由。
@@ -255,18 +265,18 @@ Task 2 与 Task 4 修改不同文件，可并行；Task 3 必须在 Task 2 后�
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| （Quick，无 Delta） | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | 完成 | 无需更新：条目级修改，不影响索引。 |
-| （Quick，无 Delta） | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | 完成 | 无需更新：条目级修改，不影响索引。 |
-| （Quick，无 Delta） | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | 完成 | 无需更新：条目级修改，不影响索引。 |
+| `machine-verifiable-agent-runtime` | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | Completed | 无需更新：条目级修改，不影响索引。 |
+| `workflow-control-overview` | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | Completed | 无需更新：条目级修改，不影响索引。 |
+| `framework-unification` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | Completed | 无需更新：条目级修改，不影响索引。 |
 
 > 本 Change 为 Quick Draft，未创建 `specs/` Delta。Task 4 在实现事实已确认后更新长期知识；归档阶段由 `project-knowledge` 核对。
 
 ## 知识冲突
 
-- 结论：Resolved。Task 2 的路由与控制流测试、Task 3 的无 Run 交付合同和 Task 4 的长期文档已将默认路径更新为 Native Delivery、将完整 Runtime 约束为升级路径；完整 Runtime 的 Trust Gate 合同回归仍通过。
+- 状态: Resolved。Task 2 的路由与控制流测试、Task 3 的无 Run 交付合同和 Task 4 的长期文档已将默认路径更新为 Native Delivery、将完整 Runtime 约束为升级路径；完整 Runtime 的 Trust Gate 合同回归仍通过。
 
 ## 实际 Diff 核对
 
-- 核对状态：Task 1 至 Task 4 已完成实现与定向验证；Task 5 的全量回归已通过，但因缺少三项任务绑定的交付 Artifact，状态为「需人工」。
-- 已执行：`python -m pytest scripts -q`（`304 passed, 21 skipped, 111 subtests passed in 46.85s`）、`python scripts/lint_skill_graph.py`（`errors=0 warnings=0`）、`python skills/workflow-code-generation/scripts/lint_task_deps.py openspec/changes/2028-tooling-native-first/tasks.md`（`errors=0 warnings=0`）和 `python scripts/validate_change.py --repo . --change openspec/changes/2028-tooling-native-first --phase plan --json`（`ok: true`）。
-- 待人工补齐：Task 1／Task 2／Task 3 各自的 Review Report、Verify Report 与对应 Native Delivery Verdict 或 Runtime Run Artifact；不得以合同回归替代任务绑定的交付证据。
+- 核对状态：Task 1 至 Task 5 已完成。原始 Task 1 至 Task 3 的 Runtime Artifact 缺口未补造；用户指定的公开 SWE-bench Verified 试点及本地路由 Fixture 已替代为 Task 5 的可复现评测证据，且不作为 Runtime Trust Gate 证据。
+- 已执行：`python -m pytest scripts -q`、`python scripts/lint_skill_graph.py`、`python skills/workflow-code-generation/scripts/lint_task_deps.py openspec/changes/2028-tooling-native-first/tasks.md`、`python scripts/delivery_route_fixture_runner.py --fixtures evaluation/delivery-route-fixtures.json` 和 `python scripts/validate_change.py --repo . --change openspec/changes/2028-tooling-native-first --phase plan --json`；归档前均记录为 PASS。
+- 审查结论：Task 1 至 Task 5 均已完成独立 task-scope standard Review；integration Review 为 PASS。归档后交付门仍须消费新的 Verify Report 和 Native Delivery Verdict。

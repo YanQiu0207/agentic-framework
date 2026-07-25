@@ -26,6 +26,18 @@ import lint_task_deps
 import workflow_control
 
 
+def passing_verify_result() -> dict[str, object]:
+    """Return the minimum CheckResult serialization accepted by the gate."""
+    return {
+        "name": "test",
+        "type": "test",
+        "status": "pass",
+        "detail": "ok",
+        "value": None,
+        "new_items": [],
+    }
+
+
 def runtime_verify_fixture(root: Path) -> tuple[Path, Path]:
     """Create the minimum initialized Run needed by the task quality gate."""
     run_dir = root / ".agentic-framework" / "runs" / "run-1"
@@ -49,9 +61,9 @@ def runtime_verify_fixture(root: Path) -> tuple[Path, Path]:
             "total": 1,
             "errors": 0,
             "violations": 0,
-            "spec_drift": {"status": "pass"},
+            "spec_drift": passing_verify_result(),
             "warnings": [],
-            "results": [{"status": "pass"}],
+            "results": [passing_verify_result()],
         },
         "workflow-verification",
         task_id="1",
@@ -128,8 +140,8 @@ class WorkflowControlTest(unittest.TestCase):
                 "errors": 0,
                 "violations": 0,
                 "total": 1,
-                "results": [{"status": "pass"}],
-                "spec_drift": {"status": "pass"},
+                "results": [passing_verify_result()],
+                "spec_drift": passing_verify_result(),
             }
         )
         with self.assertRaisesRegex(ValueError, "PASS"):
@@ -145,6 +157,17 @@ class WorkflowControlTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "violations"):
             workflow_control._validate_verify_report(
                 {"verdict": "PASS", "errors": 0, "violations": 1}
+            )
+        with self.assertRaisesRegex(ValueError, "缺少必填字段"):
+            workflow_control._validate_verify_report(
+                {
+                    "verdict": "PASS",
+                    "errors": 0,
+                    "violations": 0,
+                    "total": 1,
+                    "results": [{"status": "pass"}],
+                    "spec_drift": passing_verify_result(),
+                }
             )
 
     def test_select_execution_route_defaults_to_native_delivery(self) -> None:
@@ -288,8 +311,8 @@ class WorkflowControlTest(unittest.TestCase):
                         "errors": 0,
                         "violations": 0,
                         "total": 1,
-                        "results": [{"status": "pass"}],
-                        "spec_drift": {"status": "pass"},
+                        "results": [passing_verify_result()],
+                        "spec_drift": passing_verify_result(),
                     }
                 ),
                 encoding="utf-8",

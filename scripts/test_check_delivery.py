@@ -61,7 +61,14 @@ PASSING_VERIFY_REPORT = {
     "total": 1,
     "errors": 0,
     "violations": 0,
-    "spec_drift": None,
+    "spec_drift": {
+        "name": "Z-spec-drift",
+        "type": "spec_drift",
+        "status": "pass",
+        "detail": "无代码文件变更",
+        "value": None,
+        "new_items": [],
+    },
     "warnings": [],
     "results": [{"name": "test", "type": "test", "status": "pass", "detail": "ok", "value": None, "new_items": []}],
 }
@@ -451,6 +458,28 @@ class CheckDeliveryTest(unittest.TestCase):
                 result = check_delivery.main(args)
             self.assertEqual(1, result)
             self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_rejects_incomplete_verify_result(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        verify = dict(
+            PASSING_VERIFY_REPORT,
+            results=[{"status": "pass"}],
+        )
+        args, verdict_path = self._native_delivery_args(repo, verify=verify)
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertFalse(verdict_path.exists())
+
+    def test_native_delivery_requires_passing_spec_drift_result(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        verify = dict(PASSING_VERIFY_REPORT)
+        del verify["spec_drift"]
+        args, verdict_path = self._native_delivery_args(repo, verify=verify)
+        with redirect_stdout(StringIO()):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertFalse(verdict_path.exists())
 
     def test_native_delivery_rejects_failed_verify(self) -> None:
         repo = self._clean_repo_with_ignore()

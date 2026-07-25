@@ -134,14 +134,22 @@
 - **Then** 框架只能声明证据存在且上下文一致
 - **And** 不得把该结果表述为 Reviewer/Judge 语义判断必然正确
 
-#### Scenario：Fast-Path 交付的有界裁决
+#### Scenario：Native Delivery 与 Fast-Path 交付的有界裁决
 
-- **Given** 一次局部低风险改动未走完整 Run（无 `--run-dir`）
-- **When** 交付门以 Fast-Path 模式校验
-- **Then** 必须校验 lightweight Review、机器验证报告、工作区干净与知识影响结论
-- **And** Review 的 `review_profile` 必须为 `lightweight`；strict/standard 须走 `--run-dir`
-- **And** 裁决必须为 `fast-path-pass`，不得表述为 strict Trust Gate PASS
+- **Given** 一次未命中 Runtime 升级条件的标准交付未走完整 Run（无 `--run-dir`）
+- **When** 交付门以 Native Delivery 模式校验
+- **Then** 必须校验 `standard` integration Review、机器验证报告、工作区干净与知识影响结论
+- **And** 裁决必须为 `native-delivery-pass`，不得表述为 strict Trust Gate PASS
 - **And** 必须显式声明 `strict-independent-review` 与 `run-manifest-evidence-graph` 为不可证明
+
+- **Given** 一次局部低风险改动使用 Fast-Path 兼容别名（无 `--run-dir`）
+- **When** 交付门以 Fast-Path 模式校验
+- **Then** 必须校验 `lightweight` integration Review、机器验证报告、工作区干净与知识影响结论
+- **And** 裁决必须为 `fast-path-pass`，不得表述为 strict Trust Gate PASS
+
+- **Given** 一次交付命中 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求
+- **When** 交付门校验该交付
+- **Then** 必须使用带 `--run-dir` 的完整 Runtime Run 与 `strict` Review
 
 ### Requirement：本地运行产物统一收口
 

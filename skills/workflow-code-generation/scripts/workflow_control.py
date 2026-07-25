@@ -145,6 +145,41 @@ def _validate_reason(reason: str) -> None:
         raise ValueError("原因不能包含换行符")
 
 
+_VERIFY_RESULT_FIELDS = {
+    "name",
+    "type",
+    "status",
+    "detail",
+    "value",
+    "new_items",
+}
+
+
+def _validate_verify_result(result: object, label: str) -> None:
+    """Validate one CheckResult serialized by workflow-verification."""
+    if not isinstance(result, dict):
+        raise ValueError(f"verify 报告 {label} 必须为对象")
+    missing = sorted(_VERIFY_RESULT_FIELDS - set(result))
+    if missing:
+        raise ValueError(
+            f"verify 报告 {label} 缺少必填字段：" + ", ".join(missing)
+        )
+    unexpected = sorted(set(result) - _VERIFY_RESULT_FIELDS)
+    if unexpected:
+        raise ValueError(
+            f"verify 报告 {label} 包含合同外字段：" + ", ".join(unexpected)
+        )
+    for field in ("name", "type", "detail"):
+        if not isinstance(result[field], str):
+            raise ValueError(f"verify 报告 {label}.{field} 必须为字符串")
+    if result["status"] != "pass":
+        raise ValueError(f"verify 报告 {label}.status 必须为 pass")
+    if not isinstance(result["new_items"], list) or any(
+        not isinstance(item, str) for item in result["new_items"]
+    ):
+        raise ValueError(f"verify 报告 {label}.new_items 必须为字符串数组")
+
+
 def _validate_verify_report(report: object) -> None:
     """Reject a parsed workflow-verification report whose verdict isn't PASS.
 
@@ -165,14 +200,10 @@ def _validate_verify_report(report: object) -> None:
         raise ValueError(f"verify 报告 total 必须为正整数：{total!r}")
     if not isinstance(results, list) or len(results) != total:
         raise ValueError("verify 报告 results 必须与 total 一致")
-    if any(
-        not isinstance(result, dict) or result.get("status") != "pass"
-        for result in results
-    ):
-        raise ValueError("verify 报告 results 必须全部为 pass")
+    for index, result in enumerate(results):
+        _validate_verify_result(result, f"results[{index}]")
     spec_drift = report.get("spec_drift")
-    if not isinstance(spec_drift, dict) or spec_drift.get("status") != "pass":
-        raise ValueError("verify 报告 spec_drift 必须为 pass")
+    _validate_verify_result(spec_drift, "spec_drift")
 
 
 def build_waves(tasks: dict[int, dict]) -> list[list[int]]:

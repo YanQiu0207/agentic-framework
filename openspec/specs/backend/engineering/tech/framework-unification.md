@@ -329,8 +329,8 @@ scope: task | integration | run
 
 - 每个 Review Scope 只有一次 `initial` Review。
 - Production 普通 Task 使用 `standard`，高风险 Task 使用 `strict`，最终 `integration` 固定使用 `strict`。
-- Tooling 默认按风险选择 `lightweight` 或 `standard`。
-- Tooling 命中高风险信号时自动升为 `strict`。
+- Tooling 的新标准交付固定使用 Native Delivery 的 `standard` 集成 Review；Fast-Path 只保留为局部低风险 `lightweight` 兼容别名。
+- Tooling 命中 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求时，必须升级为完整 Runtime Run，并使用 `strict` Review。
 - 只有 P0/P1 触发修复。
 - re-review 只检查原 finding 和修复 diff，禁止重新全量扫描。
 - re-review 最多两轮，仍未通过则转人工。

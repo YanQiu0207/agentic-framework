@@ -228,6 +228,12 @@ def _check_native_verify_result(value: object, label: str) -> list[str]:
     """Validate the flat check-result shape emitted by workflow-verification."""
     if not isinstance(value, dict):
         return [f"Native Delivery Verify {label} 必须为对象"]
+    missing = sorted(NATIVE_DELIVERY_VERIFY_RESULT_FIELDS - set(value))
+    if missing:
+        return [
+            f"Native Delivery Verify {label} 缺少必填字段："
+            + ", ".join(missing)
+        ]
     unexpected = sorted(set(value) - NATIVE_DELIVERY_VERIFY_RESULT_FIELDS)
     if unexpected:
         return [
@@ -240,6 +246,13 @@ def _check_native_verify_result(value: object, label: str) -> list[str]:
             f"Native Delivery Verify {label} 包含 Runtime、Trust 或严格独立性字段："
             + ", ".join(forbidden)
         ]
+    for field in ("name", "type", "detail"):
+        if not isinstance(value[field], str):
+            return [f"Native Delivery Verify {label}.{field} 必须为字符串"]
+    if not isinstance(value["new_items"], list) or any(
+        not isinstance(item, str) for item in value["new_items"]
+    ):
+        return [f"Native Delivery Verify {label}.new_items 必须为字符串数组"]
     return []
 
 
@@ -276,7 +289,9 @@ def check_native_delivery_verify(path: Path) -> list[str]:
                     f"Native Delivery Verify results[{index}].status 必须为 pass"
                 )
     spec_drift = report.get("spec_drift")
-    if spec_drift is not None:
+    if spec_drift is None:
+        errors.append("Native Delivery Verify spec_drift 必须为完整的 pass CheckResult")
+    else:
         errors.extend(_check_native_verify_result(spec_drift, "spec_drift"))
         if isinstance(spec_drift, dict) and spec_drift.get("status") != "pass":
             errors.append("Native Delivery Verify spec_drift.status 必须为 pass")

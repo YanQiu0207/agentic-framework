@@ -35,7 +35,7 @@
 
 - 提供 Native Delivery、完整 Runtime Run 与高风险升级条件的明确合同，且每种结论的可证明与不可证明范围可审计。
 - 明确 `workflow-code-generation`、`workflow_control.py`、`workflow-verification`、`workflow-code-review` 与 `check_delivery.py` 的迁移责任和依赖顺序。
-- 选取至少 3 个具有代表性的真实 Tooling 任务，对比当前完整 Run 与 Native Delivery 的交付质量、人工介入、耗时、Token、重试和恢复需求。
+- 运行至少 3 个公开 SWE-bench Verified 实例，并以本地路由 Fixture 验证升级条件；记录交付质量、人工介入、耗时、Token、重试和恢复需求，且不得把两类证据混同。
 - 在真实任务尚未证明净收益前，不删除 Runtime 代码；实现阶段的回归测试必须覆盖原完整 Run 与新 Native Delivery 两条路径。
 
 ## 2. 设计方案
