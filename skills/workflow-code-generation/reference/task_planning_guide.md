@@ -142,8 +142,8 @@ Status FooBar(const Request& req, Response* resp) {
 # 实施任务清单
 
 > 由 proposal.md / design.md / Delta 生成
-> 任务总数: N
-> 核心原则: [一句话概括拆解策略，例如"先建后迁后删——先构建新接口，迁移调用方，最后清理旧代码"]
+> 任务总数：N
+> 核心原则：[一句话概括拆解策略，例如"先建后迁后删——先构建新接口，迁移调用方，最后清理旧代码"]
 
 ## 依赖关系总览
 
@@ -179,13 +179,13 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 
 ## 任务列表
 
-### 任务 1: [ ] [简短描述]
-- 状态: 未开始    （合法值：未开始 / 进行中 / 完成 / 需人工 / 阻塞；执行期由 code-generation 维护，是续跑的真相源）
-- 文件: `path/to/file1.cc`（新建/修改/删除）, `path/to/file2.h`（修改）
+### 任务 1：[ ] [简短描述]
+- 状态：未开始    （合法值：未开始 / 进行中 / 完成 / 需人工 / 阻塞；执行期由 code-generation 维护，是续跑的真相源）
+- 文件：`path/to/file1.cc`（新建/修改/删除）, `path/to/file2.h`（修改）
 - depends_on: []
 - review_profile: standard
-- 文档映射: proposal.md / design.md / Delta 章节 X.Y.Z
-- 说明: 详细说明这个任务要做什么
+- 文档映射：proposal.md / design.md / Delta 章节 X.Y.Z
+- 说明：详细说明这个任务要做什么
 - context_files:
   - `path/to/file1.cc` — 直接修改目标，理解现有实现
   - `path/to/file2.h` — 类定义和接口声明
@@ -198,18 +198,18 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 - artifacts:
   - `path/to/file1.cc`
   - `path/to/test_file.cc`
-- 子任务:
+- 子任务：
   - [ ] 1.1: [具体实现步骤]
   - [ ] 1.2: 调用 `workflow-test-generation` 为本任务核心逻辑生成测试（覆盖正常路径 + 关键边界）
   - [ ] 1.3: 运行测试，全部通过
 
-### 任务 2: [ ] [简短描述]
-- 状态: 未开始
-- 文件: `path/to/file3.cc`（修改）
+### 任务 2：[ ] [简短描述]
+- 状态：未开始
+- 文件：`path/to/file3.cc`（修改）
 - depends_on: [Task 1]
 - review_profile: lightweight
-- 文档映射: proposal.md / design.md / Delta 章节 X.Y.Z
-- 说明: ...
+- 文档映射：proposal.md / design.md / Delta 章节 X.Y.Z
+- 说明：...
 - context_files:
   - `path/to/file3.cc` — 直接修改目标
   - `path/to/file1.cc:NewFunc()` — Task 1 产出的新接口，本任务需调用
@@ -219,7 +219,7 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
   - [ ] ...
 - artifacts:
   - `path/to/file3.cc`
-- 子任务:
+- 子任务：
   - [ ] 2.1: [具体实现步骤]
   - [ ] 2.2: 调用 `workflow-test-generation` 为本任务核心逻辑生成测试
   - [ ] 2.3: 运行测试，全部通过
