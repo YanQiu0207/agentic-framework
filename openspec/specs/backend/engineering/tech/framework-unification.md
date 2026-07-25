@@ -67,7 +67,7 @@
 
 - Tooling 旧文中的「task 级 Review + 最终 Review」改为：全部任务和测试完成后，只执行一次首轮 Code Review。
 - finding 修复后只执行定向 re-review，不重新启动完整首轮 Review。
-- Tooling 的 Tasks 获批后，执行段不再逐 Task 等待人工批准；Production 保留逐 Task 推进和风险分档审核。
+- Tooling 的 Tasks 获批后，执行段不再逐 Task 等待人工批准；Production 保留风险分档审核，并仅在风险触发升级条件时暂停、记录批准证据。
 
 ## 3. 设计原则
 
@@ -164,7 +164,8 @@ Requirements Clarification
     → Design
     → Tasks
     → Plan 门禁
-    → 逐 Task 实现、测试和风险分档 Review
+    → 按依赖波次实现、测试和风险分档 Review
+    → 风险触发时暂停并记录批准证据
     → Machine Verification
     → Delivery 门禁
     → 一次五维 Strict 集成 Review
@@ -181,12 +182,17 @@ Requirements Clarification
 - 普通 Task 完成实现和测试后，由独立 `comprehensive-reviewer` 执行一次 `standard` 审核。
 - 高风险 Task 完成实现和测试后，由 5 个专项 Reviewer 执行一次 `strict` 审核，并由未参与实现的独立 Judge 裁决。
 - 每个 Task 的 finding 修复后只定向 re-review，不重新全量扫描。
+- Tasks 整体批准后按稳定依赖波次连续执行；同一波次内保持串行，不引入 Tooling 的并行写入或 Run 状态机。
+- `scope-change`、`irreversible`、`gate-failure`、`assumption-broken`、`user-requested` 或 `per-task-mode` 命中时，必须在 `tasks.md` 留下 `Escalation` 和用户 `Approval: granted` 证据；`validate_change.py delivery` 对缺失、`pending`、条件不一致或非法 ID 失败关闭。
+- 用户显式声明 `per-task` 模式时，所有 Completed Task 都必须具有已批准记录；缺省 `risk-triggered` 模式的未升级 Task 不要求 Approval。
 - 所有 Task、Verification 和 Delivery 门禁完成后，再执行一次五维 `strict` 集成审核。
 - 首轮存在 P0/P1 才进入修复循环。
 - 修复后重跑受影响的构建、测试和 Delivery，再执行定向 re-review。
 - 定向 re-review 最多两轮，仍未通过则转人工。
 - Archive 前必须完成知识影响检查；只将已验证且值得长期保留的 Delta 同步到 `openspec/specs/`，冲突未解决时不得静默合并。
 - 发布、回滚、灰度、数据迁移、安全、兼容性和容量检查按风险条件启用，不在首轮合并中建设完整发布平台。
+
+以上风险触发批准规则由 Change `2029-risk-triggered-task-approval` 引入。
 
 ### 5.4 变更目录
 

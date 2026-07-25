@@ -37,11 +37,22 @@ TASK_REVIEW_REPORT_RE = re.compile(
     r"^-\s*Review\s+Report\s*[:：]\s*(\S.*?)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+ESCALATION_RE = re.compile(
+    r"^-\s*Escalation\s*[:：]\s*(\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+APPROVAL_RE = re.compile(
+    r"^-\s*Approval\s*[:：]\s*(?P<status>\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+APPROVAL_MODE_RE = re.compile(
+    r"^\s*>\s*批准模式\s*[:：]\s*(?P<value>\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 SECTION_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<title>.+?)\s*$")
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
 TICKETED_CHANGE_RE = re.compile(
-    r"^(?P<ticket>[0-9]+)-(?P<change_name>"
-    r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+)$"
+    r"^(?P<ticket>[0-9]+)-(?P<change_name>" r"[a-z][a-z0-9]*(?:-[a-z0-9]+)+)$"
 )
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 GENERATED_KNOWLEDGE_NAMES = {
@@ -58,6 +69,18 @@ QUICK_STATUS_RE = re.compile(
 )
 KNOWLEDGE_ROOTS = {"business", "frontend", "backend", "common"}
 COMPLETED_SYNC_STATUSES = {"completed", "complete", "done", "pass", "已完成"}
+ESCALATION_CONDITIONS = frozenset(
+    {
+        "scope-change",
+        "irreversible",
+        "gate-failure",
+        "assumption-broken",
+        "user-requested",
+        "per-task-mode",
+    }
+)
+NO_ESCALATION_VALUES = {"无", "none"}
+APPROVAL_MODES = {"risk-triggered", "per-task"}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -82,6 +105,7 @@ class ValidationResult:
     phase: str
     change_type: str
     findings: tuple[Finding, ...]
+    waves: tuple[tuple[int, ...], ...] = ()
 
     @property
     def ok(self) -> bool:
@@ -95,6 +119,7 @@ class ValidationResult:
             "phase": self.phase,
             "change_type": self.change_type,
             "errors": [finding.to_dict() for finding in self.findings],
+            "waves": [list(wave) for wave in self.waves],
         }
 
 
@@ -204,9 +229,7 @@ def _validate_review_report(
             "round",
         )
         if any(key in data for key in verdict_fields):
-            errors.append(
-                f"{label}的顶层与 payload 同时携带裁决字段，格式冲突。"
-            )
+            errors.append(f"{label}的顶层与 payload 同时携带裁决字段，格式冲突。")
     else:
         if "payload" in data:
             # 键存在即表明生产者意图是 Envelope，定向报错后仍按扁平继续评估。
@@ -219,8 +242,7 @@ def _validate_review_report(
                 list: "array",
             }[type(payload)]
             errors.append(
-                "Review Report 的 payload 必须为 JSON 对象，"
-                f"当前为 {json_type}。"
+                "Review Report 的 payload 必须为 JSON 对象，" f"当前为 {json_type}。"
             )
         label = "Review Report（扁平格式）"
         fields = data
@@ -248,9 +270,7 @@ def _validate_review_report(
         or isinstance(round_number, bool)
         or round_number < 0
     ):
-        errors.append(
-            f"{label}的 round 必须为非负整数，当前为 {round_number!r}。"
-        )
+        errors.append(f"{label}的 round 必须为非负整数，当前为 {round_number!r}。")
     return errors
 
 
@@ -426,6 +446,32 @@ def _dependency_cycle(tasks: Sequence[Task]) -> list[int] | None:
     return None
 
 
+def _stable_waves(tasks: Sequence[Task]) -> tuple[tuple[int, ...], ...]:
+    """Return stable topological waves, or an empty tuple when not a DAG."""
+    dependencies = {task.number: set(task.dependencies) for task in tasks}
+    if any(
+        dependency not in dependencies
+        for values in dependencies.values()
+        for dependency in values
+    ):
+        return ()
+    waves: list[tuple[int, ...]] = []
+    completed: set[int] = set()
+    while len(completed) < len(dependencies):
+        wave = tuple(
+            sorted(
+                number
+                for number, values in dependencies.items()
+                if number not in completed and values <= completed
+            )
+        )
+        if not wave:
+            return ()
+        waves.append(wave)
+        completed.update(wave)
+    return tuple(waves)
+
+
 def _task_block(lines: Sequence[str], task: Task) -> list[str]:
     return list(lines[task.line - 1 : task.end_line])
 
@@ -443,6 +489,33 @@ def _metadata_text(lines: Sequence[str]) -> str:
         if fence is None:
             result.append(line)
     return "\n".join(result)
+
+
+def _condition_set(value: str) -> set[str] | None:
+    """Parse a comma-separated condition set, or ``None`` when malformed."""
+    normalized = value.strip().casefold()
+    if normalized in NO_ESCALATION_VALUES:
+        return set()
+    conditions = {
+        item.strip().casefold() for item in re.split(r"[,，、]", value) if item.strip()
+    }
+    if not conditions or any(
+        not re.fullmatch(r"[a-z][a-z0-9-]*", item) for item in conditions
+    ):
+        return None
+    return conditions
+
+
+def _approval_conditions(value: str) -> tuple[str, set[str] | None] | None:
+    """Parse an Approval value into its status and declared condition set."""
+    match = re.fullmatch(
+        r"(?P<status>granted|pending)\s*\((?P<conditions>[^)]*)\)",
+        value.strip(),
+        re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    return match.group("status").casefold(), _condition_set(match.group("conditions"))
 
 
 def _completed_status(status: str) -> bool:
@@ -1341,12 +1414,209 @@ def _validate_plan(repo: Path, change: Path, change_type: str) -> list[Finding]:
     return findings
 
 
+def _validate_approval_evidence(repo: Path, change: Path) -> list[Finding]:
+    """Require auditable approval records for completed escalated tasks."""
+    tasks_path = change / "tasks.md"
+    if not _nonempty_file(tasks_path):
+        return []
+
+    tasks, lines = _parse_tasks(tasks_path)
+    findings: list[Finding] = []
+    header_end = tasks[0].line - 1 if tasks else len(lines)
+    mode_matches = list(APPROVAL_MODE_RE.finditer(_metadata_text(lines[:header_end])))
+    approval_mode = "risk-triggered"
+    if len(mode_matches) > 1:
+        findings.append(
+            _finding(
+                "OPSX054",
+                tasks_path,
+                repo,
+                1,
+                "批准模式只能声明一次。",
+                "删除重复声明，或保留单一的「> 批准模式：per-task」。",
+            )
+        )
+    elif mode_matches:
+        approval_mode = mode_matches[0].group("value").casefold()
+        if approval_mode not in APPROVAL_MODES:
+            findings.append(
+                _finding(
+                    "OPSX054",
+                    tasks_path,
+                    repo,
+                    1,
+                    f"批准模式非法：{approval_mode}。",
+                    "使用「risk-triggered」或「per-task」，或删除该声明以使用默认值。",
+                )
+            )
+            approval_mode = "risk-triggered"
+
+    for task in tasks:
+        if not _completed_status(task.status):
+            continue
+        metadata_text = _metadata_text(_task_block(lines, task))
+        escalation_matches = list(ESCALATION_RE.finditer(metadata_text))
+        approval_matches = list(APPROVAL_RE.finditer(metadata_text))
+        escalation: set[str] = set()
+        if len(escalation_matches) > 1:
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Escalation 声明重复。",
+                    "每个 Task 只保留一个 Escalation 字段。",
+                )
+            )
+        elif escalation_matches:
+            parsed_escalation = _condition_set(escalation_matches[0].group(1))
+            if parsed_escalation is None:
+                findings.append(
+                    _finding(
+                        "OPSX053",
+                        tasks_path,
+                        repo,
+                        task.line,
+                        f"Task {task.number} 的 Escalation 条件格式非法。",
+                        "使用逗号分隔的条件 ID，或写「无」。",
+                    )
+                )
+            else:
+                escalation = parsed_escalation
+
+        if escalation - ESCALATION_CONDITIONS:
+            unknown = ", ".join(sorted(escalation - ESCALATION_CONDITIONS))
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Escalation 包含非法条件：{unknown}。",
+                    "使用批准证据条件白名单中的 ID。",
+                )
+            )
+
+        requires_approval = bool(escalation) or approval_mode == "per-task"
+        approval_rule = "OPSX054" if approval_mode == "per-task" else "OPSX052"
+        expected_conditions = escalation or (
+            {"per-task-mode"} if approval_mode == "per-task" else set()
+        )
+        if not approval_matches:
+            if requires_approval:
+                missing = ", ".join(sorted(expected_conditions))
+                findings.append(
+                    _finding(
+                        approval_rule,
+                        tasks_path,
+                        repo,
+                        task.line,
+                        f"Task {task.number} 缺少已批准的 Approval 记录：{missing}。",
+                        "添加「- Approval: granted (<条件 ID>)」。",
+                    )
+                )
+            continue
+        if len(approval_matches) != 1:
+            findings.append(
+                _finding(
+                    approval_rule,
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Approval 声明重复。",
+                    "每个 Task 只保留一个 Approval 字段。",
+                )
+            )
+            continue
+
+        approval = _approval_conditions(approval_matches[0].group("status"))
+        if approval is None:
+            findings.append(
+                _finding(
+                    approval_rule,
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Approval 必须为 granted 或 pending，并携带条件 ID。",
+                    "使用「- Approval: granted (<条件 ID>)」。",
+                )
+            )
+            continue
+        status, approval_conditions = approval
+        if approval_conditions is None:
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Approval 条件格式非法。",
+                    "使用逗号分隔的条件 ID。",
+                )
+            )
+            continue
+        if approval_conditions - ESCALATION_CONDITIONS:
+            unknown = ", ".join(sorted(approval_conditions - ESCALATION_CONDITIONS))
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Approval 包含非法条件：{unknown}。",
+                    "使用批准证据条件白名单中的 ID。",
+                )
+            )
+        if approval_conditions != expected_conditions:
+            expected = ", ".join(sorted(expected_conditions)) or "无"
+            actual = ", ".join(sorted(approval_conditions)) or "无"
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Approval 条件与 Escalation 不一致："
+                    f"期望 {expected}，实际 {actual}。",
+                    "使 Approval 条件集合与 Escalation 保持一致。",
+                )
+            )
+        if requires_approval and status != "granted":
+            missing = ", ".join(sorted(expected_conditions))
+            findings.append(
+                _finding(
+                    approval_rule,
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 的 Approval 尚未获批准：{missing}。",
+                    "在用户批准后更新为「Approval: granted (<条件 ID>)」。",
+                )
+            )
+        elif not requires_approval:
+            findings.append(
+                _finding(
+                    "OPSX053",
+                    tasks_path,
+                    repo,
+                    task.line,
+                    f"Task {task.number} 未声明 Escalation，却存在 Approval 记录。",
+                    "删除 Approval，或添加对应的 Escalation 条件。",
+                )
+            )
+    return findings
+
+
 def _validate_delivery(
     repo: Path,
     change: Path,
     expected_review: str,
+    enforce_approval: bool,
 ) -> list[Finding]:
     findings = _validate_tasks(repo, change, require_completed=True)
+    if enforce_approval:
+        findings.extend(_validate_approval_evidence(repo, change))
     tasks_path = change / "tasks.md"
     if not _nonempty_file(tasks_path):
         return findings
@@ -1470,9 +1740,9 @@ def validate_change(
     findings.extend(delta_findings)
     findings.extend(_validate_plan(repo, change, change_type))
     if phase == "delivery":
-        findings.extend(_validate_delivery(repo, change, "PENDING"))
+        findings.extend(_validate_delivery(repo, change, "PENDING", True))
     elif phase == "archive":
-        findings.extend(_validate_delivery(repo, change, "PASS"))
+        findings.extend(_validate_delivery(repo, change, "PASS", False))
         findings.extend(_validate_archive_knowledge(repo, change))
         findings.extend(_validate_project_knowledge(repo))
         assert archive_target is not None
@@ -1529,7 +1799,11 @@ def validate_change(
                     "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
                 )
             )
-    return ValidationResult(phase, change_type, tuple(findings))
+    tasks_path = change / "tasks.md"
+    waves: tuple[tuple[int, ...], ...] = ()
+    if tasks_path.is_file():
+        waves = _stable_waves(_parse_tasks(tasks_path)[0])
+    return ValidationResult(phase, change_type, tuple(findings), waves)
 
 
 def _build_parser() -> argparse.ArgumentParser:

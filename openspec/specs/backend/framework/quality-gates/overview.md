@@ -19,11 +19,13 @@
 `validate_change.py` 支持 `plan`、`delivery` 和 `archive` 三个阶段（`scripts/validate_change.py:17-57,1375-1479`）：
 
 - Plan 检查 Change 类型、Proposal、Tasks、依赖、文档映射和 Task Review 合同。
-- Delivery 检查任务完成、执行记录和 Task 级 Review 证据。
+- Delivery 检查任务完成、执行记录、Task 级 Review 证据和风险触发批准证据。
 - Archive 检查集成 Review、知识同步、Delta 映射、冲突记录、索引影响和归档目标。
 - 目录边界、命名、重解析点和代码派生知识元数据均采用失败关闭。
 
 校验器只读取 Change 和证据，不维护第二套执行状态。对应回归测试位于 `scripts/tests/test_validate_change.py`。
+
+风险触发批准由 Change `2029-risk-triggered-task-approval` 定义：Completed Task 声明 `Escalation` 时，必须具有条件集合一致的 `Approval: granted`；`pending`、缺失、重复、条件非法或不一致均失败关闭。头部声明 `批准模式：per-task` 时，全部 Completed Task 都必须获批；默认 `risk-triggered` 模式的未升级 Task 不要求 Approval。
 
 ## Verification
 

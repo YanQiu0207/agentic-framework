@@ -56,7 +56,7 @@ description: OpenSpec 代码生成。代码文件修改的统一入口，适用�
 用户确认 `tasks.md` 后，从当前 Skill 目录向上定位 `../../scripts/validate_change.py`，执行：
 
 ```bash
-python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name> --phase plan
+python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name> --phase plan --json
 ```
 
 - 退出码为 `0` 才能进入步骤 3。
@@ -65,7 +65,7 @@ python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name
 
 ### 步骤 3：选定当前任务
 
-从 `tasks.md` 中找第一个未完成任务，记录其编号和上下文。若全部任务均已完成且 Code Review 状态不是 `PASS`，直接进入步骤 5 的 Phase 3；状态已为 `PASS` 时结束，禁止重复评审。旧版 `tasks.md` 没有 Code Review 状态时，必须先补为 `Pending` 并重跑 Plan 门禁。
+执行 Plan 门禁时必须传 `--json`，只消费其 `waves` 字段作为稳定拓扑波次；不得手工重建波次，也不得把依赖缺失或成环静默退化为线性执行。按波次顺序选定未完成 Task 并记录其编号和上下文；同一波次内仍串行实现。若全部 Task 均已完成且 Code Review 状态不是 `PASS`，直接进入步骤 5 的 Phase 3；状态已为 `PASS` 时结束，禁止重复评审。旧版 `tasks.md` 没有 Code Review 状态时，必须先补为 `Pending` 并重跑 Plan 门禁。
 
 ### 步骤 4：加载编码规范（🚨 强制前置）
 
@@ -94,7 +94,7 @@ python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name
 
 ### 步骤 5：逐个任务实现
 
-**核心规则：一个 Task → 实现和测试 → 风险分档 Review → 报告 → 等用户批准 → 下一个 Task；全部 Task 完成后再执行一次五维集成 Review。**
+**核心规则：Tasks 整体批准后自主连续执行；每个 Task 仍须完成实现和测试、Verification 与风险分档独立 Review。仅命中升级条件时暂停等待用户决定；全部 Task 完成后再执行一次五维 strict 集成 Review。**
 
 #### Phase 1：实现
 
@@ -109,12 +109,16 @@ python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name
 - 每个 Task 只能启动一次首轮审核。有 keep 的 P0 / P1 时修复并重跑受影响的测试，再按 re-review 模式只检查原 finding 和修复 diff，禁止扩大范围。
 - 审核通过后，由 Judge 写出机器可读的 `review-report.json`，把该 Task 的「Task Review」更新为 `PASS`，并在同一 Task 元数据中添加 `- Review Report: <path>`。路径必须相对仓库根目录，且报告须满足 `verdict == "PASS"`、`p0_count == 0`、`p1_count == 0`；未通过时不得标记 Completed。报告可采用两种格式：符合 `schemas/runtime/review-report.schema.json` 的 Envelope（`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round` 等裁决字段在 `payload` 内），或旧式顶层扁平 JSON（裁决字段在顶层）；有 Run Context 时必须写 Envelope。校验器 `validate_change.py` 对两种格式均按同一套裁决字段校验，Envelope 额外要求顶层 `artifact_type == "review-report"`；顶层与 `payload` 同时携带裁决字段判格式冲突拒绝，`payload` 键存在但值非 JSON 对象时拒绝。
 
-#### Phase 2：汇报 → 继续或停止等待
+升级条件固定为：`scope-change`（超出已批准范围）、`irreversible`（权限、安全、数据迁移、删除性操作、发布或外部副作用）、`gate-failure`（Verification 或 Review 未收敛）、`assumption-broken`（关键假设或依赖失效）、`user-requested`（用户要求确认）和 `per-task-mode`（用户选择逐 Task 批准）。`irreversible` 与高风险清单同源：安全、权限、数据迁移、并发、分布式、生产关键路径、公共 API 和大范围重构命中时，必须使用 `strict` Review；删除性操作、发布和外部副作用同样须标为 `irreversible`。前两类在规划阶段写入 `Escalation`；其余条件命中时立即追加。升级条件优先于波次边界。
 
-输出报告，更新 `tasks.md` 标记 Completed：
+#### Phase 2：汇报 → 继续或暂停
 
-- 仍有未完成 Task → **停止等待用户批准**
-- 全部 Task 已完成 → 不再等待，直接进入 Phase 3
+输出报告并更新 `tasks.md` 标记 Completed：
+
+- 命中升级条件时，写入 `- Escalation: <condition-id>` 与 `- Approval: pending (<condition-id>)`，**停止等待用户批准**；用户批准后只将同一字段更新为 `granted`，再继续当前波次。
+- 头部声明 `> 批准模式：per-task` 时，每个 Task 完成后无论是否命中其他升级条件都视为命中 `per-task-mode`：写入 `- Approval: pending (<条件集合>)` 并**停止等待用户批准**，用户批准后更新为 `- Approval: granted (<条件集合>)` 再继续；未声明其他升级条件的 Task 条件集合为 `per-task-mode`，已声明升级条件的 Task 使用与 `Escalation` 完全一致的条件集合。这是用户显式选择回到逐 Task 批准的兼容模式。
+- 未命中升级条件且为默认 `risk-triggered` 模式时，不写 Approval，继续当前波次或下一波次；波次边界输出已完成 Task、未完成 Task、升级条件与阻塞项汇总。
+- 全部 Task 已完成后直接进入 Phase 3。
 
 #### Task 完成报告模板
 

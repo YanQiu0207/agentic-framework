@@ -122,6 +122,14 @@ class ValidateChangeCliTest(unittest.TestCase):
                 result = self.run_validator("valid-standard", phase)
                 self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
+    def test_plan_json_reports_stable_dependency_waves(self) -> None:
+        """A valid plan exposes deterministic waves for the Production executor."""
+        result = self.run_validator("valid-standard", "plan", json_output=True)
+        payload = json.loads(result.stdout)
+
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual([[1], [2]], payload["waves"])
+
     def test_ticket_number_is_required_in_active_change_name(self) -> None:
         """An active Change must begin with a numeric ticket prefix."""
         for invalid_name in (
@@ -1161,9 +1169,7 @@ class ValidateChangeCliTest(unittest.TestCase):
                         "task-1-review.json",
                         json.dumps(report),
                     )
-                    result = self.run_repo(
-                        temporary_repo, "delivery", json_output=True
-                    )
+                    result = self.run_repo(temporary_repo, "delivery", json_output=True)
                     errors = json.loads(result.stdout)["errors"]
                     rules = {item["rule_id"] for item in errors}
                     self.assertEqual(1, result.returncode)
@@ -1281,9 +1287,7 @@ class ValidateChangeCliTest(unittest.TestCase):
                         "task-1-review.json",
                         json.dumps(report),
                     )
-                    result = self.run_repo(
-                        temporary_repo, "delivery", json_output=True
-                    )
+                    result = self.run_repo(temporary_repo, "delivery", json_output=True)
                     errors = json.loads(result.stdout)["errors"]
                     rules = {item["rule_id"] for item in errors}
                     self.assertEqual(1, result.returncode)
@@ -1319,12 +1323,143 @@ class ValidateChangeCliTest(unittest.TestCase):
             self.assertEqual(1, result.returncode)
             self.assertIn("OPSX038", rules)
             self.assertTrue(
-                any(
-                    "payload 必须为 JSON 对象" in item["message"]
-                    for item in errors
-                ),
+                any("payload 必须为 JSON 对象" in item["message"] for item in errors),
                 errors,
             )
+
+    def test_escalated_task_requires_granted_approval_at_delivery(self) -> None:
+        """Delivery rejects a completed task whose escalation is still pending."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            tasks_path = temporary_repo / CHANGE / "tasks.md"
+            content = tasks_path.read_text(encoding="utf-8")
+            tasks_path.write_text(
+                content.replace(
+                    "- Task Review: PASS\n- Review Report: review-reports/task-1-review.json",
+                    "- Task Review: PASS\n"
+                    "- Escalation: irreversible\n"
+                    "- Approval: pending (irreversible)\n"
+                    "- Review Report: review-reports/task-1-review.json",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            errors = json.loads(result.stdout)["errors"]
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("OPSX052", {item["rule_id"] for item in errors})
+        self.assertTrue(
+            any(
+                "Task 1" in item["message"] and "irreversible" in item["message"]
+                for item in errors
+            ),
+            errors,
+        )
+
+    def test_approval_condition_mismatch_or_unknown_is_rejected(self) -> None:
+        """Approval conditions must match the escalation and the stable whitelist."""
+        cases = (
+            (
+                "irreversible",
+                "granted (scope-change)",
+                "Approval 条件与 Escalation 不一致",
+            ),
+            (
+                "unknown-risk",
+                "granted (unknown-risk)",
+                "unknown-risk",
+            ),
+        )
+        for escalation, approval, expected_message in cases:
+            with self.subTest(escalation=escalation, approval=approval):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    tasks_path = temporary_repo / CHANGE / "tasks.md"
+                    content = tasks_path.read_text(encoding="utf-8")
+                    tasks_path.write_text(
+                        content.replace(
+                            "- Task Review: PASS\n"
+                            "- Review Report: review-reports/task-1-review.json",
+                            "- Task Review: PASS\n"
+                            f"- Escalation: {escalation}\n"
+                            f"- Approval: {approval}\n"
+                            "- Review Report: review-reports/task-1-review.json",
+                            1,
+                        ),
+                        encoding="utf-8",
+                    )
+                    result = self.run_repo(temporary_repo, "delivery", json_output=True)
+                    errors = json.loads(result.stdout)["errors"]
+
+                self.assertEqual(1, result.returncode)
+                self.assertIn("OPSX053", {item["rule_id"] for item in errors})
+                self.assertTrue(
+                    any(expected_message in item["message"] for item in errors),
+                    errors,
+                )
+
+    def test_per_task_mode_requires_each_completed_task_to_be_approved(self) -> None:
+        """Per-task mode preserves an explicit approval record for every task."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            tasks_path = temporary_repo / CHANGE / "tasks.md"
+            content = tasks_path.read_text(encoding="utf-8")
+            content = content.replace(
+                "> Code Review：Pending",
+                "> Code Review：Pending\n> 批准模式：per-task",
+            )
+            tasks_path.write_text(
+                content.replace(
+                    "- Task Review: PASS\n- Review Report: review-reports/task-1-review.json",
+                    "- Task Review: PASS\n"
+                    "- Approval: granted (per-task-mode)\n"
+                    "- Review Report: review-reports/task-1-review.json",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            errors = json.loads(result.stdout)["errors"]
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("OPSX054", {item["rule_id"] for item in errors})
+        self.assertTrue(any("Task 2" in item["message"] for item in errors), errors)
+
+    def test_missing_approval_does_not_block_plan_or_non_escalated_delivery(
+        self,
+    ) -> None:
+        """Approval evidence is delivery-only and optional without escalation."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            plan = self.run_repo(temporary_repo, "plan", json_output=True)
+            delivery = self.run_repo(temporary_repo, "delivery", json_output=True)
+
+        self.assertEqual(0, plan.returncode, plan.stdout + plan.stderr)
+        self.assertEqual(0, delivery.returncode, delivery.stdout + delivery.stderr)
+
+    def test_approval_evidence_rules_do_not_run_at_archive(self) -> None:
+        """Archive preserves its existing evidence contract without OPSX052-054."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            tasks_path = temporary_repo / CHANGE / "tasks.md"
+            content = tasks_path.read_text(encoding="utf-8")
+            tasks_path.write_text(
+                content.replace(
+                    "- Task Review: PASS\n- Review Report: review-reports/task-1-review.json",
+                    "- Task Review: PASS\n"
+                    "- Escalation: irreversible\n"
+                    "- Review Report: review-reports/task-1-review.json",
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            rules = {item["rule_id"] for item in json.loads(result.stdout)["errors"]}
+
+        self.assertNotIn("OPSX052", rules)
+        self.assertNotIn("OPSX053", rules)
+        self.assertNotIn("OPSX054", rules)
 
 
 if __name__ == "__main__":

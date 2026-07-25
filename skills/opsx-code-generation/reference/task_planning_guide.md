@@ -110,6 +110,21 @@ Status FooBar(const Request& req, Response* resp) {
 
 ### 第四步：写入 tasks.md
 
+#### 批准模式与升级条件预标注
+
+`tasks.md` 缺省使用 `risk-triggered` 批准模式：Tasks 整体获批后可连续执行，只有升级条件命中才暂停。用户明确要求逐 Task 确认时，在文件头部写入：
+
+```markdown
+> 批准模式：per-task
+```
+
+规划阶段必须逐 Task 评估并预标注以下条件：
+
+- `scope-change`：已批准范围、设计、接口或数据模型需要改变。
+- `irreversible`：权限、安全、数据迁移、删除性操作、发布或外部副作用。
+
+`irreversible` 与 `strict` Review 的高风险清单同源；漏标会同时导致审批门和 Review 档位错误。无命中时写 `- Escalation: 无`。`gate-failure`、`assumption-broken`、`user-requested` 由执行期命中时追加；`per-task-mode` 仅在逐 Task 模式下为未声明其他条件的 Task 记录。规划阶段不得预填 `Approval`，它只在执行期由用户决定后写入。
+
 将任务清单写入 `tasks.md`（与 `proposal.md` 同目录）。**严格按以下模板生成，不要遗漏任何章节**：
 
 ```markdown
@@ -119,6 +134,7 @@ Status FooBar(const Request& req, Response* resp) {
 > 任务总数：N
 > 核心原则：[一句话概括拆解策略]
 > Code Review: Pending
+> 批准模式：risk-triggered
 
 ## 依赖关系总览
 
@@ -157,6 +173,7 @@ Task 2 (描述)  ← 依赖 Task 1
 - 依赖：无
 - Review Profile: standard
 - Task Review: Pending
+- Escalation: 无
 - 文档映射：proposal.md §3.1 / design.md §1.2.2
 - 说明：详细说明这个任务要做什么
 - context:
@@ -217,6 +234,7 @@ Task 2 (描述)  ← 依赖 Task 1
 | 10 | **context 完整** | 每个任务的 context 包含直接修改文件 + 上游 + 下游，精确到函数级 |
 | 11 | **Task Review 完整** | 每个任务都有 `Review Profile: standard\|strict` 和 `Task Review: Pending` |
 | 12 | **知识同步可归档** | 每个 Delta 都有唯一长期目标、动作、状态和索引更新记录；无影响时有明确理由 |
+| 13 | **升级条件已预标注** | 每个任务都有 `Escalation`；`scope-change` 与 `irreversible` 已按规划结果标注 |
 
 ## 硬性规则
 
@@ -230,3 +248,4 @@ Task 2 (描述)  ← 依赖 Task 1
 8. **先建后迁后删**：涉及替换旧代码的场景，禁止先删除再创建
 9. **歧义必须记录**：拆解过程中遇到文档有歧义或需要假设的地方，必须在对应任务中明确标注假设
 10. **审核必须分层**：普通 Task 标 `standard`，高风险 Task 标 `strict`；Task Review 通过后才能标 Completed，全部 Task 完成后还要执行一次 `strict` 集成审核
+11. **批准必须留证**：命中升级条件的 Completed Task 必须在用户批准后写 `Approval: granted (<condition-id>)`；默认模式无升级条件时不写 Approval。
