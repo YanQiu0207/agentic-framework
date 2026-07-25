@@ -93,7 +93,12 @@ def journal_event(
 class TrustRun:
     """Build one complete Run spanning Tasks 2 through 6 contracts."""
 
-    def __init__(self, root: Path, include_override: bool = True):
+    def __init__(
+        self,
+        root: Path,
+        include_override: bool = True,
+        task_plan_state: str = "完成",
+    ):
         self.root = root
         self.fixture = RunFixture(root)
         snapshots = root / "snapshots"
@@ -120,7 +125,7 @@ class TrustRun:
             "- verification：unit\n"
             "- artifacts：report\n"
             "- attempts：0\n"
-            "- 状态：完成\n",
+            f"- 状态：{task_plan_state}\n",
             encoding="utf-8",
         )
         review = self.fixture.documents["review"]
@@ -428,6 +433,33 @@ class RuntimeTrustTest(unittest.TestCase):
                 checkpoint.unlink()
             run_journal.write_checkpoint(run.root, run.journal)
             with self.assertRaisesRegex(runtime_trust.TrustError, "missing_task_event"):
+                runtime_trust.validate_run(run.root)
+
+    def test_frozen_not_started_plan_snapshot_passes_trust_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run = TrustRun(Path(temp_dir), task_plan_state="未开始")
+            report = runtime_trust.validate_run(run.root)
+            self.assertEqual("PASS", report["verdict"])
+
+    def test_manifest_task_state_conflict_is_rejected_by_trust_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run = TrustRun(Path(temp_dir), include_override=False)
+            events = [
+                item
+                for item in run_journal.read_events(run.journal)
+                if item["payload"]["event_type"] != "task-merged"
+            ]
+            for sequence, item in enumerate(events, 1):
+                item["payload"]["sequence"] = sequence
+            run.journal.write_bytes(
+                b"".join(run_journal._canonical(item) + b"\n" for item in events)
+            )
+            for checkpoint in (run.root / "checkpoints").glob("*.json"):
+                checkpoint.unlink()
+            run_journal.write_checkpoint(run.root, run.journal)
+            with self.assertRaisesRegex(
+                runtime_trust.TrustError, "event_manifest_task_conflict"
+            ):
                 runtime_trust.validate_run(run.root)
 
     def test_cli_outputs_machine_report_and_fails_closed(self) -> None:

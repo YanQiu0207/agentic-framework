@@ -44,14 +44,6 @@ _EVENT_STATES = {
     "task-retried": "pending",
     "task-failed": "pending",
 }
-_TASK_STATE = {
-    "pending": "未开始",
-    "running": "进行中",
-    "quality_passed": "进行中",
-    "completed": "完成",
-    "manual": "需人工",
-    "blocked": "阻塞",
-}
 
 
 class JournalError(Exception):
@@ -323,15 +315,10 @@ def validate_task_sources(
             conflicts.append(f"missing_task_plan_task:{task_id}")
         if state is None or manifest_task is None or task is None:
             continue
-        tasks_state = lint_task_deps.parse_state(
-            lint_task_deps.field(task["body"], "状态")
-        )
-        if tasks_state != _TASK_STATE[state["state"]]:
-            conflicts.append(f"event_tasks_state_conflict:{task_id}")
-        attempts_text = lint_task_deps.field(task["body"], "attempts")
-        attempts = int(attempts_text or "0")
-        if attempts != state["attempts"]:
-            conflicts.append(f"event_tasks_attempt_conflict:{task_id}")
+        # Compare state/attempts against the manifest leg only: manifest
+        # payload.tasks is built from delivery-time task-state artifacts
+        # (run_manifest.py:395-407), equivalent to journal vs delivery-time
+        # tasks.md; the frozen plan snapshot guarantees plan completeness only.
         if manifest_task["state"] != state["state"] or manifest_task[
             "attempt"
         ] != runtime_schema.attempt_for_attempts(state["attempts"]):
