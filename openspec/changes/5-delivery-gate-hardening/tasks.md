@@ -57,7 +57,9 @@ Task 1 (validate_task_sources 消费侧修复)   Task 2 (校验器硬化)   Task
 ## 任务列表
 
 ### 任务 1: [ ] validate_task_sources 消费侧修复与生产保真回归
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `scripts/run_journal.py`（修改）, `scripts/runtime_trust.py`（修改，如调用需随动）, `scripts/test_runtime_trust.py`（修改）
 - depends_on: []
 - review_profile: strict
@@ -84,7 +86,9 @@ Task 1 (validate_task_sources 消费侧修复)   Task 2 (校验器硬化)   Task
   - [ ] 1.4: 调用 `workflow-test-generation` 核对覆盖，运行全量测试通过
 
 ### 任务 2: [ ] validate_change.py 格式冲突与断腿 Envelope 硬化
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `scripts/validate_change.py`（修改）, `scripts/tests/test_validate_change.py`（修改）
 - depends_on: []
 - review_profile: standard
@@ -108,7 +112,9 @@ Task 1 (validate_task_sources 消费侧修复)   Task 2 (校验器硬化)   Task
   - [ ] 2.4: 调用 `workflow-test-generation` 核对覆盖，运行全量测试通过
 
 ### 任务 3: [ ] trust-model 免责扩展与契约文档同步
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md`（修改）, `openspec/specs/backend/framework/quality-gates/overview.md`（修改）, `skills/opsx-code-generation/SKILL.md`（修改）
 - depends_on: [Task 2]
 - review_profile: lightweight
@@ -132,7 +138,9 @@ Task 1 (validate_task_sources 消费侧修复)   Task 2 (校验器硬化)   Task
   - [ ] 3.3: md-zh 排版自检
 
 ### 任务 4: [ ] task_planning_guide 模板标点统一
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `skills/workflow-code-generation/reference/task_planning_guide.md`（修改）, `skills/opsx-code-generation/reference/task_planning_guide.md`（修改）
 - depends_on: []
 - review_profile: lightweight
@@ -155,7 +163,9 @@ Task 1 (validate_task_sources 消费侧修复)   Task 2 (校验器硬化)   Task
   - [ ] 4.3: 全量测试与 lint 验证
 
 ### 任务 5: [ ] intent 沉淀与知识同步
-- 状态: 未开始
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件: `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md`（修改）, `openspec/specs/backend/framework/workflow-control/overview.md`（视检查修改）
 - depends_on: [Task 1, Task 2, Task 3]
 - review_profile: lightweight
@@ -194,16 +204,16 @@ Task 1 (validate_task_sources 消费侧修复)   Task 2 (校验器硬化)   Task
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| （Quick，无 Delta） | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | Pending | 无需更新：条目级修改，不影响索引 |
-| （Quick，无 Delta） | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | Pending | 无需更新：条目级修改，不影响索引 |
-| （Quick，无 Delta） | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | Pending | 视 Task 5 检查结论确定 |
+| （Quick，无 Delta） | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | Completed（后被取代） | 条目级修改已于 Task 3/5 落盘；随后被 2028-tooling-native-first 的 `trust-model.md` 重写整体移除，用户 2026-07-25 确认为有意取代，当前 HEAD 以 native-first 文本为准 |
+| （Quick，无 Delta） | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | Completed | 无需更新：条目级修改，不影响索引 |
+| （Quick，无 Delta） | `openspec/specs/backend/framework/workflow-control/overview.md` | 无更新 | Completed | 无需更新：该文档不含 journal / 状态一致性 / `validate_task_sources` 语义（Task 5 检查 + Run 级 review 复核），其恢复语义描述的是 `workflow_control.py` 自身，与 `run_journal` 无关 |
 
 > 本 Change 为 Quick Draft，未创建 `specs/` Delta。长期知识修改由 Task 3 / Task 5 直接落盘，归档阶段由 `project-knowledge` 核对。
 
 ## 知识冲突
 
-- 结论：待核对。归档前写「无冲突」，或记录双方证据并标记 `Resolved`。
+- 结论：Resolved。冲突双方：本 Change Task 3/5 写入 `trust-model.md` 的三段（§6 免责扩展、拒绝行为声明、§4.4 冻结快照职责边界）vs 并行 Change `2028-tooling-native-first`（`cd2dfbc`）对 `trust-model.md` 的整体重写（移除上述三段）。用户 2026-07-25 裁决：取代有意，以 native-first 文本为准；本 Change 代码侧交付物（`run_journal.py`、`validate_change.py`、两份 guide、`overview.md`、`opsx-code-generation/SKILL.md`）在 HEAD 完好，互不影响。
 
 ## 实际 Diff 核对
 
-- 核对状态：Pending。归档前记录实际 Diff、Change 和测试证据的核对命令与 PASS 结论。
+- 核对状态：PASS。核对命令：`git diff 3089c47..de41ed5 --stat`（本 Change 全部合并：代码 2、测试 3、文档 5，与文件变更清单一致）；`python -m pytest scripts -q`（296 passed，含生产保真回归与 polyglot / 断腿 Envelope 用例）；`f9e476e` 基线上 Run 级 `verify.py` 总判定 PASS（`verify-run.json`）；Run 级 strict review 首审 PASS（`review-run.json`，零 P0/P1）。
