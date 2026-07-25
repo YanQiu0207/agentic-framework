@@ -1216,6 +1216,116 @@ class ValidateChangeCliTest(unittest.TestCase):
                         errors,
                     )
 
+    def test_polyglot_task_review_report_blocks_delivery(self) -> None:
+        """Verdict fields at both top level and payload are a format conflict."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            report = self.envelope_report("task")
+            report["verdict"] = "NEEDS_CHANGES"
+            report["p0_count"] = 3
+            self.write_report(
+                temporary_repo,
+                "task-1-review.json",
+                json.dumps(report),
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            errors = json.loads(result.stdout)["errors"]
+            rules = {item["rule_id"] for item in errors}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX038", rules)
+            self.assertTrue(
+                any("格式冲突" in item["message"] for item in errors),
+                errors,
+            )
+
+    def test_polyglot_change_review_report_blocks_archive(self) -> None:
+        """A polyglot integration report is rejected as a format conflict."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "Code Review：Pending",
+                "Code Review：PASS",
+            )
+            report = self.envelope_report("integration")
+            report["verdict"] = "NEEDS_CHANGES"
+            report["p0_count"] = 3
+            self.write_report(
+                temporary_repo,
+                "review-report.json",
+                json.dumps(report),
+            )
+            result = self.run_repo(
+                temporary_repo,
+                "archive",
+                json_output=True,
+                target=archive_target(),
+            )
+            errors = json.loads(result.stdout)["errors"]
+            rules = {item["rule_id"] for item in errors}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX032", rules)
+            self.assertTrue(
+                any("格式冲突" in item["message"] for item in errors),
+                errors,
+            )
+
+    def test_broken_envelope_payload_is_rejected(self) -> None:
+        """A non-object payload gets a directed error, not a flat fallback."""
+        for broken_payload in (None, ["not", "a", "report"], "broken"):
+            with self.subTest(payload=broken_payload):
+                with self.copied_repo("valid-standard") as temporary_repo:
+                    report = self.envelope_report("task")
+                    report["payload"] = broken_payload
+                    self.write_report(
+                        temporary_repo,
+                        "task-1-review.json",
+                        json.dumps(report),
+                    )
+                    result = self.run_repo(
+                        temporary_repo, "delivery", json_output=True
+                    )
+                    errors = json.loads(result.stdout)["errors"]
+                    rules = {item["rule_id"] for item in errors}
+                    self.assertEqual(1, result.returncode)
+                    self.assertIn("OPSX038", rules)
+                    self.assertTrue(
+                        any(
+                            "payload 必须为 JSON 对象" in item["message"]
+                            for item in errors
+                        ),
+                        errors,
+                    )
+
+    def test_flat_report_with_stray_payload_key_is_rejected(self) -> None:
+        """A passing flat report carrying a non-object payload is rejected."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            report = {
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "task",
+                "review_profile": "standard",
+                "round": 0,
+                "payload": None,
+            }
+            self.write_report(
+                temporary_repo,
+                "task-1-review.json",
+                json.dumps(report),
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            errors = json.loads(result.stdout)["errors"]
+            rules = {item["rule_id"] for item in errors}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX038", rules)
+            self.assertTrue(
+                any(
+                    "payload 必须为 JSON 对象" in item["message"]
+                    for item in errors
+                ),
+                errors,
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

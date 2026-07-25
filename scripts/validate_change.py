@@ -148,7 +148,10 @@ def _validate_review_report(
     referenced report exists, parses as JSON, and records a passing verdict
     with zero P0/P1 findings. Both the legacy flat layout (verdict fields at
     the top level) and the Envelope layout (verdict fields inside ``payload``)
-    are accepted.
+    are accepted. An Envelope that also carries verdict fields at the top
+    level is rejected as a format conflict. A ``payload`` key whose value is
+    not a JSON object is rejected with a directed error, and the remaining
+    fields are still evaluated as a flat report.
     """
     path_value = path_text.strip()
     if not path_value or _is_placeholder(path_value):
@@ -192,7 +195,33 @@ def _validate_review_report(
                 f"{label}的 artifact_type 必须为 review-report，"
                 f"当前为 {artifact_type!r}。"
             )
+        verdict_fields = (
+            "verdict",
+            "p0_count",
+            "p1_count",
+            "scope",
+            "review_profile",
+            "round",
+        )
+        if any(key in data for key in verdict_fields):
+            errors.append(
+                f"{label}的顶层与 payload 同时携带裁决字段，格式冲突。"
+            )
     else:
+        if "payload" in data:
+            # 键存在即表明生产者意图是 Envelope，定向报错后仍按扁平继续评估。
+            json_type = {
+                type(None): "null",
+                bool: "boolean",
+                int: "number",
+                float: "number",
+                str: "string",
+                list: "array",
+            }[type(payload)]
+            errors.append(
+                "Review Report 的 payload 必须为 JSON 对象，"
+                f"当前为 {json_type}。"
+            )
         label = "Review Report（扁平格式）"
         fields = data
 
