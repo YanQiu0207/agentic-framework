@@ -116,8 +116,8 @@ Status FooBar(const Request& req, Response* resp) {
 # 实施任务清单
 
 > 由 proposal.md / design.md 生成
-> 任务总数: N
-> 核心原则: [一句话概括拆解策略]
+> 任务总数：N
+> 核心原则：[一句话概括拆解策略]
 > Code Review: Pending
 
 ## 依赖关系总览
@@ -152,21 +152,21 @@ Task 2 (描述)  ← 依赖 Task 1
 
 ## 任务列表
 
-### 任务 1: [ ] [简短描述]
-- 文件: `path/to/file1.cc`（新建/修改/删除）
-- 依赖: 无
+### 任务 1：[ ] [简短描述]
+- 文件：`path/to/file1.cc`（新建/修改/删除）
+- 依赖：无
 - Review Profile: standard
 - Task Review: Pending
-- 文档映射: proposal.md §3.1 / design.md §1.2.2
-- 说明: 详细说明这个任务要做什么
+- 文档映射：proposal.md §3.1 / design.md §1.2.2
+- 说明：详细说明这个任务要做什么
 - context:
   - `path/to/file1.cc` — 直接修改目标
   - `path/to/upstream.cc:FuncA()` — 上游调用方
   - `path/to/downstream.cc:FuncB()` — 下游消费方
-- 验收标准:
+- 验收标准：
   - [ ] 编译通过且无新 warning
   - [ ] [其他可机械执行的检查]
-- 子任务:
+- 子任务：
   - [ ] 1.1: [具体步骤]
 
 ## 验证执行记录
