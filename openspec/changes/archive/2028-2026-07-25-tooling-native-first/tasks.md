@@ -9,7 +9,7 @@
 - Code Review: PASS
 - Review Report: openspec/changes/archive/2028-2026-07-25-tooling-native-first/review-integration.json
 - 构建: N/A：本 Change 不产生独立二进制构建产物；Python 由测试与编译检查验证。
-- 测试: PASS（`python -m pytest scripts -q`（324 passed, 21 skipped）、定向回归、路由 Fixture 与归档前验证均退出码 0。）
+- 测试: PASS（`python -m pytest scripts -q`（334 passed, 21 skipped，129 subtests passed）、定向回归、路由 Fixture 与归档前验证均退出码 0。）
 
 ## 依赖关系总览
 
