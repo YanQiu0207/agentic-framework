@@ -1,0 +1,127 @@
+{
+  "verdict": "PASS",
+  "total": 4,
+  "errors": 0,
+  "violations": 0,
+  "spec_drift": {
+    "name": "Z-spec-drift",
+    "type": "spec_drift",
+    "status": "pass",
+    "detail": "代码变更 4 个，相关规格类文件已更新 3 个",
+    "value": {
+      "diff_base": "42244e6f68d6629a4aac9a9dc6e2ca5b7007db53",
+      "code_files": [
+        "scripts/run_journal.py",
+        "scripts/tests/test_run_journal.py",
+        "scripts/tests/test_validate_change.py",
+        "scripts/validate_change.py"
+      ],
+      "spec_files": [
+        "openspec/specs/backend/framework/quality-gates/overview.md"
+      ],
+      "untracked_spec_files": [
+        "openspec/changes/2029-risk-triggered-task-approval/specs/backend/framework/quality-gates/spec.md",
+        "openspec/changes/2029-risk-triggered-task-approval/tasks.md",
+        "openspec/changes/6-trust-gate-schema-hardening/tasks.md"
+      ],
+      "related_spec_files": [
+        "openspec/changes/2029-risk-triggered-task-approval/tasks.md",
+        "openspec/changes/6-trust-gate-schema-hardening/tasks.md",
+        "openspec/specs/backend/framework/quality-gates/overview.md"
+      ],
+      "reason": "",
+      "ignored_files": [],
+      "refused_ignores": [],
+      "ignore_sources": {},
+      "ignore_patterns": {
+        "cli": [],
+        "config": [],
+        "baseline": []
+      }
+    },
+    "new_items": []
+  },
+  "warnings": [
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/install_agentic_framework.py（最新 f3d2bf880687）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/test_install_agentic_framework.py（最新 f3d2bf880687）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:f6e448bb0e9a01220ad9e095964bec914ce92c62：skills/workflow-code-generation/SKILL.md（最新 47a92e1d7d82）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:f6e448bb0e9a01220ad9e095964bec914ce92c62：skills/workflow-code-generation/scripts/（最新 47a92e1d7d82）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:f6e448bb0e9a01220ad9e095964bec914ce92c62：scripts/test_workflow_control.py（最新 47a92e1d7d82）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:f6e448bb0e9a01220ad9e095964bec914ce92c62：scripts/test_check_delivery.py（最新 47a92e1d7d82）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：skills/opsx-code-generation/SKILL.md（最新 a15e0d5d1cf8）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：skills/opsx-archive/SKILL.md（最新 c80b02226744）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：skills/workflow-code-review/SKILL.md（最新 cd2dfbc72339）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：skills/workflow-verification/（最新 cd2dfbc72339）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/validate_change.py（最新 3b621444ae0a）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/tests/test_validate_change.py（最新 3b621444ae0a）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：skills/project-init/SKILL.md（最新 e0bcc9b0d03a）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：skills/project-knowledge/SKILL.md（最新 c80b02226744）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/test_knowledge_management_e2e.py（最新 c80b02226744）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/analyze_session_metrics.py（最新 18f46f10b278）",
+    "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/test_analyze_session_metrics.py（最新 18f46f10b278）"
+  ],
+  "results": [
+    {
+      "name": "Z-spec-drift",
+      "type": "spec_drift",
+      "status": "pass",
+      "detail": "代码变更 4 个，相关规格类文件已更新 3 个",
+      "value": {
+        "diff_base": "42244e6f68d6629a4aac9a9dc6e2ca5b7007db53",
+        "code_files": [
+          "scripts/run_journal.py",
+          "scripts/tests/test_run_journal.py",
+          "scripts/tests/test_validate_change.py",
+          "scripts/validate_change.py"
+        ],
+        "spec_files": [
+          "openspec/specs/backend/framework/quality-gates/overview.md"
+        ],
+        "untracked_spec_files": [
+          "openspec/changes/2029-risk-triggered-task-approval/specs/backend/framework/quality-gates/spec.md",
+          "openspec/changes/2029-risk-triggered-task-approval/tasks.md",
+          "openspec/changes/6-trust-gate-schema-hardening/tasks.md"
+        ],
+        "related_spec_files": [
+          "openspec/changes/2029-risk-triggered-task-approval/tasks.md",
+          "openspec/changes/6-trust-gate-schema-hardening/tasks.md",
+          "openspec/specs/backend/framework/quality-gates/overview.md"
+        ],
+        "reason": "",
+        "ignored_files": [],
+        "refused_ignores": [],
+        "ignore_sources": {},
+        "ignore_patterns": {
+          "cli": [],
+          "config": [],
+          "baseline": []
+        }
+      },
+      "new_items": []
+    },
+    {
+      "name": "B-tests-pass",
+      "type": "exit_code",
+      "status": "pass",
+      "detail": "exit=0",
+      "value": null,
+      "new_items": []
+    },
+    {
+      "name": "B-test-count-not-decrease",
+      "type": "count",
+      "status": "pass",
+      "detail": "358",
+      "value": 358,
+      "new_items": []
+    },
+    {
+      "name": "C-skill-graph-lint",
+      "type": "exit_code",
+      "status": "pass",
+      "detail": "exit=0",
+      "value": null,
+      "new_items": []
+    }
+  ]
+}

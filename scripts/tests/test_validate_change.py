@@ -1296,6 +1296,52 @@ class ValidateChangeCliTest(unittest.TestCase):
                         errors,
                     )
 
+    def test_envelope_top_level_uppercase_variant_key_is_rejected(self) -> None:
+        """A stray uppercase 'Verdict' key alongside payload.verdict is rejected."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            report = self.envelope_report("task")
+            report["Verdict"] = "PASS"
+            self.write_report(
+                temporary_repo,
+                "task-1-review.json",
+                json.dumps(report),
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            errors = json.loads(result.stdout)["errors"]
+            rules = {item["rule_id"] for item in errors}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX038", rules)
+            self.assertTrue(
+                any(
+                    "未知字段" in item["message"] and "Verdict" in item["message"]
+                    for item in errors
+                ),
+                errors,
+            )
+
+    def test_envelope_top_level_unknown_stray_key_is_rejected(self) -> None:
+        """An arbitrary unknown top-level key on an Envelope report is rejected."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            report = self.envelope_report("task")
+            report["extra_field"] = "x"
+            self.write_report(
+                temporary_repo,
+                "task-1-review.json",
+                json.dumps(report),
+            )
+            result = self.run_repo(temporary_repo, "delivery", json_output=True)
+            errors = json.loads(result.stdout)["errors"]
+            rules = {item["rule_id"] for item in errors}
+            self.assertEqual(1, result.returncode)
+            self.assertIn("OPSX038", rules)
+            self.assertTrue(
+                any(
+                    "未知字段" in item["message"] and "extra_field" in item["message"]
+                    for item in errors
+                ),
+                errors,
+            )
+
     def test_flat_report_with_stray_payload_key_is_rejected(self) -> None:
         """A passing flat report carrying a non-object payload is rejected."""
         with self.copied_repo("valid-standard") as temporary_repo:

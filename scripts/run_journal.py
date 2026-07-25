@@ -313,7 +313,7 @@ def validate_task_sources(
             conflicts.append(f"missing_manifest_task:{task_id}")
         if task is None:
             conflicts.append(f"missing_task_plan_task:{task_id}")
-        if state is None or manifest_task is None or task is None:
+        if state is None or manifest_task is None:
             continue
         # Compare state/attempts against the manifest leg only: manifest
         # payload.tasks is built from delivery-time task-state artifacts

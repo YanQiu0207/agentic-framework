@@ -58,6 +58,13 @@ QUICK_STATUS_RE = re.compile(
 )
 KNOWLEDGE_ROOTS = {"business", "frontend", "backend", "common"}
 COMPLETED_SYNC_STATUSES = {"completed", "complete", "done", "pass", "已完成"}
+# 与 schemas/runtime/run-envelope.schema.json:6-20 的 required 字段列表对齐，
+# 该 schema 在 :125 行声明 additionalProperties: false。
+_ENVELOPE_TOP_KEYS = frozenset({
+    "schema_version", "artifact_type", "artifact_id", "run_id",
+    "task_id", "attempt", "profile", "harness", "producer",
+    "commit_sha", "config_digest", "created_at", "payload",
+})
 
 
 @dataclasses.dataclass(frozen=True)
@@ -206,6 +213,11 @@ def _validate_review_report(
         if any(key in data for key in verdict_fields):
             errors.append(
                 f"{label}的顶层与 payload 同时携带裁决字段，格式冲突。"
+            )
+        extras = set(data) - _ENVELOPE_TOP_KEYS
+        if extras:
+            errors.append(
+                f"{label}的顶层携带未知字段：{sorted(extras)}。"
             )
     else:
         if "payload" in data:

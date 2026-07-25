@@ -269,6 +269,32 @@ class RunJournalTest(unittest.TestCase):
                         self.journal, checkpoint, tasks_text, value, set()
                     )
 
+    def test_recovery_reports_event_manifest_conflict_even_when_plan_leg_missing(
+        self,
+    ) -> None:
+        run_journal.append_event(self.journal, event(1))
+        run_journal.append_event(self.journal, event(2, task_id="2"))
+        checkpoint = run_journal.write_checkpoint(self.root, self.journal)
+        manifest_with_conflict = manifest()
+        manifest_with_conflict["payload"]["tasks"].append(
+            {
+                "task_id": "2",
+                "attempt": 1,
+                "state": "completed",
+                "artifact_ids": [],
+            }
+        )
+        with mock.patch.object(run_journal.run_manifest, "validate_manifest"):
+            try:
+                run_journal.recovery_plan(
+                    self.journal, checkpoint, tasks(), manifest_with_conflict, set()
+                )
+                self.fail("expected JournalError")
+            except run_journal.JournalError as error:
+                message = str(error)
+                self.assertIn("missing_task_plan_task:2", message)
+                self.assertIn("event_manifest_task_conflict:2", message)
+
     def test_user_override_is_an_explicit_reasoned_event(self) -> None:
         base = event(1)
         envelope = {key: value for key, value in base.items() if key != "payload"}
