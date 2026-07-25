@@ -107,7 +107,7 @@ python <validator-path> --repo . --change openspec/changes/<ticket>-<change-name
 - 普通 Task：`review_profile: standard`，由独立 `comprehensive-reviewer` 审核。
 - 高风险 Task：`review_profile: strict`，由 5 个专项 Reviewer 审核，并由未参与实现的独立 Judge 裁决。高风险包括安全、权限、数据迁移、并发、分布式、生产关键路径、公共 API 和大范围重构。
 - 每个 Task 只能启动一次首轮审核。有 keep 的 P0 / P1 时修复并重跑受影响的测试，再按 re-review 模式只检查原 finding 和修复 diff，禁止扩大范围。
-- 审核通过后，由 Judge 写出机器可读的 `review-report.json`，把该 Task 的「Task Review」更新为 `PASS`，并在同一 Task 元数据中添加 `- Review Report: <path>`。路径必须相对仓库根目录，且报告须满足 `verdict == "PASS"`、`p0_count == 0`、`p1_count == 0`；未通过时不得标记 Completed。报告可采用两种格式：符合 `schemas/runtime/review-report.schema.json` 的 Envelope（`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round` 等裁决字段在 `payload` 内），或旧式顶层扁平 JSON（裁决字段在顶层）；有 Run Context 时必须写 Envelope。校验器 `validate_change.py` 对两种格式均按同一套裁决字段校验，Envelope 额外要求顶层 `artifact_type == "review-report"`。
+- 审核通过后，由 Judge 写出机器可读的 `review-report.json`，把该 Task 的「Task Review」更新为 `PASS`，并在同一 Task 元数据中添加 `- Review Report: <path>`。路径必须相对仓库根目录，且报告须满足 `verdict == "PASS"`、`p0_count == 0`、`p1_count == 0`；未通过时不得标记 Completed。报告可采用两种格式：符合 `schemas/runtime/review-report.schema.json` 的 Envelope（`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round` 等裁决字段在 `payload` 内），或旧式顶层扁平 JSON（裁决字段在顶层）；有 Run Context 时必须写 Envelope。校验器 `validate_change.py` 对两种格式均按同一套裁决字段校验，Envelope 额外要求顶层 `artifact_type == "review-report"`；顶层与 `payload` 同时携带裁决字段判格式冲突拒绝，`payload` 键存在但值非 JSON 对象时拒绝。
 
 #### Phase 2：汇报 → 继续或停止等待
 
@@ -161,7 +161,7 @@ Delivery 通过后，加载 `workflow-code-review`，以 `review_profile: strict
 
 修复 finding 后，必须重跑受影响的构建和测试、更新 `tasks.md` 的执行记录，并再次通过 Delivery 门禁。随后按照 `workflow-code-review` 的 re-review 流程仅复核保留项和修复 diff，直到结论为 PASS。禁止启动第二次五维首轮审核。
 
-评审通过后，由 Judge 写出集成级 `review-report.json`，将 `tasks.md` 中的 `Code Review` 状态更新为 `PASS`，并在变更头部添加 `- Review Report: <path>`。路径必须相对仓库根目录，报告字段与 Task 级报告使用同一契约：Envelope 或旧式顶层扁平 JSON 均可，有 Run Context 时必须写 Envelope，`scope` 为 `integration`，由 `validate_change.py` 按同一套裁决字段校验。
+评审通过后，由 Judge 写出集成级 `review-report.json`，将 `tasks.md` 中的 `Code Review` 状态更新为 `PASS`，并在变更头部添加 `- Review Report: <path>`。路径必须相对仓库根目录，报告字段与 Task 级报告使用同一契约：Envelope 或旧式顶层扁平 JSON 均可，有 Run Context 时必须写 Envelope，`scope` 为 `integration`，由 `validate_change.py` 按同一套裁决字段校验；顶层与 `payload` 同时携带裁决字段或 `payload` 非 JSON 对象时拒绝。
 
 最终向用户输出 Review 总结，包含：
 

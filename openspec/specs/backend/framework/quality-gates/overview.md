@@ -48,7 +48,7 @@ Verification 基线、机器报告和 Run 级 Review JSON 统一位于仓库根 
 - Strict 最终 Judge 必须与实现主体独立。
 - 修复后只定向 Re-review，最多 2 轮；不得启动第二次全量首审。
 
-Review 同时输出 Markdown 和 Run 级 JSON。机器门校验 `verdict`、P0/P1 数量、`scope`、`review_profile` 和轮次，但 Reviewer 的语义判断仍需独立 Judge 负责（`skills/workflow-code-review/SKILL.md:14-59,270-300`）。OPSX 阶段门（`validate_change.py`）接受双格式 Review 报告：Envelope（裁决字段在 `payload` 内）或旧式扁平 JSON（裁决字段在顶层），按同一套字段校验，Envelope 额外要求顶层 `artifact_type` 为 `review-report`；Tooling Run 级报告仍必须是绑定 Run Context 的 Envelope（见 trust-model.md §6）。
+Review 同时输出 Markdown 和 Run 级 JSON。机器门校验 `verdict`、P0/P1 数量、`scope`、`review_profile` 和轮次，但 Reviewer 的语义判断仍需独立 Judge 负责（`skills/workflow-code-review/SKILL.md:14-59,270-300`）。OPSX 阶段门（`validate_change.py`）接受双格式 Review 报告：Envelope（裁决字段在 `payload` 内）或旧式扁平 JSON（裁决字段在顶层），按同一套字段校验，Envelope 额外要求顶层 `artifact_type` 为 `review-report`，且顶层与 `payload` 同时携带裁决字段或 `payload` 非 JSON 对象时拒绝；Tooling Run 级报告仍必须是绑定 Run Context 的 Envelope（见 trust-model.md §6）。
 
 ## 信任边界
 
