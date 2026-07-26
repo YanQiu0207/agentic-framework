@@ -54,6 +54,15 @@ change 2032 为收窄任务元数据判定区域，在两个文件各写了一�
 
 同一份 `tasks.md` 无法同时满足两者，除非把同一字段写两遍。本仓库为 Tooling Profile，故 `openspec/changes/2035-common-task-ast/tasks.md` 采用 `review_profile`，`validate_change.py --phase plan` 会因此报 OPSX037 与 OPSX038。
 
+**同一概念的取值集合也已经分叉，且方向是单侧的。** Production 的任务状态取值是 Tooling 的**严格超集**：
+
+| 轨 | 完成侧 | 未完成侧 | 出处 |
+| --- | --- | --- | --- |
+| Tooling | `完成` | `未开始`、`进行中`、`需人工`、`阻塞` | `lint_task_deps.py:38`（`TASK_STATES`） |
+| Production | `已完成`、`完成`、`completed`、`complete`、`done`、`x` | `未开始`、`进行中`、`需人工`、`阻塞`、`pending`、`blocked`、`in progress`、`in-progress` | `validate_change.py:91-101` |
+
+全仓库任务元数据区共 104 个状态取值，实测判定：**Tooling 判非法 7 个（全部为 `已完成`），Production 判非法 0 个。** 因为是单侧超集，把 Tooling 放宽到 Production 的集合不会让任何既有文件从通过转为失败，与 Task 6 的字段名别名同型，故一并纳入本 Change 作 Task 7。
+
 ## 3. 目标
 
 1. 新增 `scripts/task_ast.py`，提供只读解析：任务边界切分、任务头拆解、元数据区域切分、字段定位。
@@ -61,15 +70,17 @@ change 2032 为收窄任务元数据判定区域，在两个文件各写了一�
 3. 零行为变更：两个实现对全仓库现有 `tasks.md` 的输出逐字节不变。
 4. 消除 `_metadata_region` 的重复实现。
 5. 两轨接受 Review Profile 的两种字段名写法，取值集合不变。
+6. Tooling 的任务状态取值集合放宽到与 Production 一致，归一到 Tooling 的五个规范值。
 
-目标 1 至 4 零行为变更，由 golden 基线证明。目标 5 是**显式放宽**，单独成 Task 6，排在等价性证明之后，不与前四项混做。
+目标 1 至 4 零行为变更，由 golden 基线证明。目标 5 与目标 6 是**显式放宽**，分别成 Task 6 与 Task 7，排在等价性证明之后，不与前四项混做。两者同型：都是「原本失败可转为通过，原本通过不得转为失败」的单向翻转。
 
 ## 4. 非目标
 
 - **不统一依赖方言**。Production 用 `re.fullmatch` 严格校验后发 OPSX023，Tooling 用 `re.findall(r"\d+")` 宽松接受裸数字。AST 只交出依赖字段的原始字符串，两边各自解释。把这层下沉等于强制统一方言，那是行为变更。
 - **不统一重复任务 ID 的处理**。Tooling 抛 `ValueError`，Production 交给 OPSX021。AST 把重复作为数据返回，不抛异常。
 - **不迁移 Tooling 写状态路径**。`workflow_control.py` 的 waves、attempts、写锁与恢复不在本 Change 范围内，按 §8.3 第 4 步单独评估。
-- **不改任何字段的取值集合**。`REQUIRED_FIELDS`、`TASK_STATES`、`REVIEW_PROFILES` 的合法取值一律不动；Task 6 只放宽 Review Profile 的**字段名**写法。
+- **不改任何字段的取值集合**。`REQUIRED_FIELDS` 与 `REVIEW_PROFILES` 的合法取值一律不动；Task 6 只放宽 Review Profile 的**字段名**写法。`TASK_STATES` 是唯一例外，由 Task 7 放宽，理由见 §2 的超集实测。
+- **不改 Tooling 的写状态路径**。Task 7 只放宽读侧校验并归一到规范值；`workflow_control.py` 的写回仍只产出五个规范值，不引入写侧同义词。
 - **不做字段改名迁移**。既有归档与活跃 Change 的写法一律不改写。字段名双写法是转场合同，若要收敛到单一写法，另开 Change。
 - **不把别名机制推广到其他字段**。`context_files`、`artifacts`、`verification`、`状态`、`depends_on` 在两轨的现状差异不在本 Change 范围。
 - **不改安装器白名单**。见 §5.2。
@@ -117,6 +128,9 @@ import runtime_workflow, runtime_schema, workspace_residue
 11. 对全部活跃与归档 Change 跑 `validate_change.py` 的 plan 与 delivery 双阶段，错误数与改动前逐一相同。
 12. 两轨均接受 `- review_profile:` 与 `- Review Profile:` 两种写法，匹配规则限定为大小写不敏感加 `_` 与空格等价；同一任务同时出现两种写法且取值不同时报错。
 13. Task 6 的放宽只允许「原本失败转为通过」，不允许「原本通过转为失败」；全仓库 `tasks.md` 的双轨通过状态前后对照表写入本 Change。
+14. Tooling 的 `parse_state` 接受 Production 集合的全部取值并归一到五个规范值；`TERMINAL_STATES` 与 `NEEDS_REASON` 无需扩表。
+15. 归一后的原因抽取按原始匹配前缀长度切片，`需人工`／`阻塞` 的英文写法附带原因时不被切错。
+16. Task 7 的放宽同样只允许单向翻转；`workflow_control.py` 写回路径零改动。
 
 ## 7. 知识影响
 

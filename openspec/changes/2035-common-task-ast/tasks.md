@@ -1,8 +1,8 @@
 # 实施任务清单
 
 > 由 proposal.md / design.md 生成
-> 任务总数：7
-> 核心原则：先冻结行为基线（Task 1），再建 AST（Task 2），两轨迁移互不依赖可并行（Task 3、Task 4），门禁级等价核对兜底（Task 5）。Task 1 至 Task 5 必须零行为变更；Task 6 是唯一的显式放宽，排在等价性证明之后，不污染基线。文档最后同步（Task 7）。
+> 任务总数：8
+> 核心原则：先冻结行为基线（Task 1），再建 AST（Task 2），两轨迁移互不依赖可并行（Task 3、Task 4），门禁级等价核对兜底（Task 5）。Task 1 至 Task 5 必须零行为变更；Task 6 与 Task 7 是两处显式放宽，都排在等价性证明之后，不污染基线。文档最后同步（Task 8）。
 
 ## 依赖关系总览
 
@@ -16,12 +16,14 @@ Task 1 (冻结 golden 基线)
           └──> Task 4 (Production 迁移)┘        │
                                                 └──> Task 6 (字段名别名，显式放宽)
                                                        │
-                                                       └──> Task 7 (规格同步)
+                                                       └──> Task 7 (状态取值放宽)
+                                                              │
+                                                              └──> Task 8 (规格同步)
 ```
 
-波次：W1 = {Task 1} → W2 = {Task 2} → W3 = {Task 3, Task 4} → W4 = {Task 5} → W5 = {Task 6} → W6 = {Task 7}
+波次：W1 = {Task 1} → W2 = {Task 2} → W3 = {Task 3, Task 4} → W4 = {Task 5} → W5 = {Task 6} → W6 = {Task 7} → W7 = {Task 8}
 
-> Task 3 与 Task 4 改不同文件，无写入冲突，可并行。Task 6 再次修改这两个文件，靠 Task 5 的依赖链串行，不构成并行冲突。
+> Task 3 与 Task 4 改不同文件，无写入冲突，可并行。Task 6 再次修改这两个文件，Task 7 修改 `lint_task_deps.py`，都靠依赖链串行，不构成并行冲突。
 
 ## 变更影响概览
 
@@ -31,9 +33,9 @@ Task 1 (冻结 golden 基线)
 | `scripts/test_task_ast_equivalence.py` | 新增 | Task 1, Task 5 | golden 基线与等价性断言 |
 | `scripts/task_ast.py` | 新增 | Task 2 | 只读公共解析模块 |
 | `scripts/test_task_ast.py` | 新增 | Task 2 | AST 单元测试 |
-| `skills/workflow-code-generation/scripts/lint_task_deps.py` | 修改 | Task 3, Task 6 | 委托 AST，删除本侧 `_metadata_region`；接受字段名别名 |
+| `skills/workflow-code-generation/scripts/lint_task_deps.py` | 修改 | Task 3, Task 6, Task 7 | 委托 AST，删除本侧 `_metadata_region`；接受字段名别名；状态取值归一 |
 | `scripts/validate_change.py` | 修改 | Task 4, Task 6 | 委托 AST，删除本侧 `_metadata_region`；接受字段名别名 |
-| `openspec/specs/backend/engineering/tech/framework-unification.md` | 修改 | Task 7 | §8.2 触发条件已满足、§8.3 进度标注、字段名合同 |
+| `openspec/specs/backend/engineering/tech/framework-unification.md` | 修改 | Task 8 | §8.2 触发条件已满足、§8.3 进度标注、字段名与取值集合合同 |
 
 ## 文档覆盖映射
 
@@ -51,7 +53,8 @@ Task 1 (冻结 golden 基线)
 | `proposal.md` §6 验收标准 9-11 | Task 5 | golden、全量测试、门禁核对 |
 | `design.md` §7 字段名合同 | Task 6 | 别名归一与显式放宽的证据要求 |
 | `proposal.md` §6 验收标准 12-13 | Task 6 | 别名接受与放宽方向约束 |
-| `proposal.md` §7 知识影响 | Task 7 | 长期规格同步 |
+| `design.md` §7 字段名合同（同型） | Task 7 | 状态取值归一与放宽方向约束 |
+| `proposal.md` §7 知识影响 | Task 8 | 长期规格同步 |
 
 ## 知识同步
 
@@ -192,10 +195,32 @@ Task 1 (冻结 golden 基线)
     - [ ] 不做字段改名迁移，不改写既有归档，不新增第三种写法。
     - [ ] 别名只覆盖 Review Profile 这一个字段；`context_files`、`artifacts`、`verification`、`状态`、`depends_on` 的现状差异不在本任务范围。
 
-### 任务 7：[ ] 长期规格同步
+### 任务 7：[ ] 统一任务状态取值集合（显式放宽）
 
 - 状态: 未开始
 - depends_on: Task 6
+- review_profile: standard
+- 文档映射：`design.md` §7 字段名合同（同型放宽，取值集合版）
+- 文件：`skills/workflow-code-generation/scripts/lint_task_deps.py`
+- context_files: `scripts/validate_change.py`、`skills/workflow-code-generation/scripts/check_delivery.py`、`openspec/changes/`
+- artifacts: 取值归一实现、全仓库任务状态取值前后判定对照表
+- verification: `python -m pytest scripts -q`
+- 验收标准：
+    - [ ] 实测前提复核：Production 的取值集合是 Tooling 的严格超集。Tooling `TASK_STATES`（`lint_task_deps.py:38`）五项全部落在 Production 的 `COMPLETED_STATE_PREFIXES` 或 `OPEN_STATE_PREFIXES`（`validate_change.py:91-101`）内。
+    - [ ] 实测基线复核：全仓库任务元数据区 104 个状态取值中，Tooling 判非法 7 个（全部为 `已完成`），Production 判非法 0 个。
+    - [ ] `parse_state` 改为归一化：接受 Production 集合的全部取值，返回 Tooling 的规范值。映射为 `已完成`／`completed`／`complete`／`done`／`x` → `完成`；`pending` → `未开始`；`in progress`／`in-progress` → `进行中`；`blocked` → `阻塞`。
+    - [ ] `TERMINAL_STATES` 与 `NEEDS_REASON` 不改动。归一后 `已完成` 返回 `完成`，本就是终态，不需要扩表。
+    - [ ] **原因抽取按原始匹配前缀长度切片，不得按规范值长度切片。** `check_delivery.py:63` 现为 `value[len(state):]`；归一后 `state` 是规范值而 `value` 是原始值，长度不再对应，`blocked 依赖外部审批` 一类取值会被切错。
+    - [ ] `workflow_control.py` 的写回路径不改动，仍只产出五个规范值。本任务只放宽读侧校验，不引入写侧同义词。
+    - [ ] 本任务是显式放宽：原本失败的条目可转为通过，**原本通过的不得转为失败**；每一条状态翻转逐条列出并判定。
+    - [ ] Production 侧零改动——其集合已是超集，无需放宽。
+    - [ ] 产出全仓库任务状态取值在两轨下的判定前后对照表，写入本 Change。
+    - [ ] 不改写既有归档，不新增第六个规范值。
+
+### 任务 8：[ ] 长期规格同步
+
+- 状态: 未开始
+- depends_on: Task 7
 - review_profile: standard
 - 文档映射：`proposal.md` §7 知识影响
 - 文件：`openspec/specs/backend/engineering/tech/framework-unification.md`

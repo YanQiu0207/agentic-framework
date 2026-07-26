@@ -22,7 +22,7 @@ AST **不拥有**任何裁决：
 | 依赖串格式是否合规 | Production | OPSX023 |
 | 依赖串数值如何提取 | Tooling | `parse_deps` |
 | 重复任务 ID 如何处理 | 各自 | Tooling 抛 `ValueError`；Production 走 OPSX021 |
-| 状态取值是否合法 | 各自 | Tooling `parse_state`；Production `_classify_status` |
+| 状态取值是否合法 | 各自 | Tooling `parse_state`（`lint_task_deps.py:91`）；Production `_state_field_kind`（`validate_change.py:593`） |
 | 三向一致性 | 各自 | Tooling `state_consistency_errors`；Production OPSX056 |
 
 ## 2. 节点契约
