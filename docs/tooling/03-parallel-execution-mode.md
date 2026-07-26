@@ -19,7 +19,7 @@
 
 ## 3. 何时进入本执行段
 
-`workflow-code-generation` 步骤 1 复杂度路由判定为**中等及以上**（不满足 Fast-Path 的「请求即计划」判据）、且 tasks.md 经用户批准后，即进入本执行段。波内并行度由 `depends_on` 决定：多 task 无依赖 → 并行分波；单 task / 串行依赖 → 逐波单 agent。
+`workflow-code-generation` 步骤 1 复杂度路由判定为**中等及以上**（不满足 Fast-Path 的「请求即计划」判据）、且 tasks.md 经用户批准后，即进入本执行段。波内并行度由 `depends_on` 决定：多 task 无依赖 → 并行分波；单 task / 纯串行依赖 → 单 agent 按任务顺序连续执行，不运行 `waves` / `dispatchable`。
 
 ## 4. 核心流程
 
@@ -30,7 +30,7 @@
 1. 完整读 `spec.md` + `tasks.md`。
 2. 加载编码规范（`bp-coding-best-practices` + `bp-performance-optimization` + 按文件类型 `std-*`）。
 3. 记录 `base_sha=$(git rev-parse HEAD)`，后续 `workflow-verification` 显式传 `--diff-base <base_sha>`。
-4. 由 `depends_on` 构建任务 **DAG**，**分波（wave）**：同波内任务互不依赖、可并行；后波依赖前波产物。无依赖信息时保守串行或回问用户。
+4. 仅对有可并行分支或非线性依赖图的任务，由 `depends_on` 构建任务 **DAG** 并分波（wave）：同波内任务互不依赖、可并行；后波依赖前波产物。单 task / 纯串行链直接按任务顺序执行；无依赖信息时保守串行或回问用户。
 
 ### Phase 1：逐波并行执行
 

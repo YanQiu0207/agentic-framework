@@ -19,7 +19,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 | **中等**（已明确目标与验收标准，需拆分或委派） | **Native Delivery**：下放 Agent 执行，按需使用 DAG | spec + tasks 批准 |
 | **strict** 或命中 Runtime 升级条件 | **完整 Runtime Run**：下放 Agent 执行并初始化 Run | spec + tasks 批准 |
 
-> Runtime 升级条件仅包括：`strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求。任务文件数或模型版本不是升级条件。下放执行再分：**单 task / 串行依赖** → 单 Agent 逐波；**多 task 无依赖** → 并行分波。
+> Runtime 升级条件仅包括：`strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求。任务文件数或模型版本不是升级条件。下放执行再分：**单 task / 串行依赖** → 单 Agent 按任务顺序连续执行，不调用 `waves` / `dispatchable`；**存在可并行分支** → 控制器分波并行。
 
 ---
 
@@ -113,9 +113,9 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 | `standard` | 默认档：普通功能、Bug 修复，或涉及多个模块之间的行为、契约、交互变化但风险可控 |
 | `strict` | 高风险：生产关键路径、安全 / 权限 / 数据迁移 / 并发 / 分布式 / 性能敏感 / 公共 API / 大范围重构 |
 
-无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。主编排方在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>`，并按需传入 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification` 或 `--audit-required`。输出 `runtime-run` 时才进入完整 Runtime Run；输出 `native-delivery` 时不得创建或伪造 Run Context。
+无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。无 `strict` 风险及 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required` 任一升级条件时，直接进入 Native Delivery，不运行恒为 `native-delivery` 的 `route` 步骤。可能命中升级条件时，主编排方才在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>` 并传入对应 flag；输出 `runtime-run` 时才进入完整 Runtime Run，输出 `native-delivery` 时不得创建或伪造 Run Context。
 
-**主会话必须通过控制流内核构建波次（wave）数组**：存在任务依赖、并行写入或中断恢复需求时，先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。每波 dispatch 前运行同一脚本的 `dispatchable`，只执行输出的 task。仓库缺少 `verify.config.json` 且无用户「初始化」或「跳过」记录时，该命令和 `event <id> start` 都必须失败；不得绕过控制器直接派发。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。
+**主会话只在并行分支、非线性依赖图或中断恢复时通过控制流内核构建波次（wave）数组**：先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。仅该路径在每波 dispatch 前运行 `dispatchable`。单 task 或纯串行的小任务按 `tasks.md` 顺序直接执行 `event <id> start --write`；该命令仍校验前置依赖与 Verify 配置选择，不得绕过。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。
 
 **先判定 CLI 嵌套能力**（派子 agent 试再派孙 agent；判定细则与 5 层上限见 reference 手册），选编排模式：
 - **模式 A（默认，Claude Code 支持嵌套）**：每 task 派 owner 子 agent 执行实现、测试和机器验证。

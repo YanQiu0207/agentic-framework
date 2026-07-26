@@ -6,9 +6,13 @@
 
 在业务副作用前，按本次最高 `review_profile` 和执行需求运行：
 
+仅在可能命中 `strict`、并行 worktree 写入、长任务恢复、跨宿主能力验证或审计要求时运行：
+
 ```bash
 python scripts/workflow_control.py <tasks.md> route --review-profile <lightweight|standard|strict>
 ```
+
+无升级条件时直接进入 Native Delivery；不为确认恒定结果运行该命令。
 
 按需追加以下任一参数：`--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required`。输出如下：
 
@@ -31,15 +35,15 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
 ## Phase 0：准备
 
 1. 记录 `base_sha`，有 `verify.config.json` 时采集基线。
-2. 运行路由命令；只有输出 `runtime-run` 时，才在后续 Phase 0 初始化 Run。
-3. 存在任务依赖、并行写入或中断恢复需求时，运行：
+2. 仅在可能命中 Runtime 升级条件时运行路由命令；输出 `runtime-run` 时，才在后续 Phase 0 初始化 Run。无升级条件时直接走 Native Delivery。
+3. 存在可并行分支、非线性依赖图或中断恢复需求时，运行：
 
     ```bash
     python scripts/workflow_control.py <tasks.md> waves
     python scripts/workflow_control.py <tasks.md> dispatchable
     ```
 
-4. 每个 Task 使用独立 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由必须传 `--parallel-worktree-write` 并升级 Runtime。
+4. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖和 Verify 配置选择。每个并行 Task 使用独立 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由必须传 `--parallel-worktree-write` 并升级 Runtime。
 5. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`。
 6. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。失败时禁止 dispatch。
 
@@ -61,7 +65,7 @@ owner / implementer 的固定职责：
 - 上游未合并 → 下游标 `阻塞`，不得 dispatch。
 - Git 合并成功后才写 `merge_success`；冲突标 `需人工`，不得伪装完成。
 
-波间必须串行：当前波的合并和状态持久化结束后，重新运行 `dispatchable` 再开始下一波。
+并行波间必须串行：当前波的合并和状态持久化结束后，重新运行 `dispatchable` 再开始下一波。纯串行链在前置 Task 合并后直接启动下一 Task，不运行 `dispatchable`。
 
 ## Phase 2：交付级质量门
 
