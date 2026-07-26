@@ -7,6 +7,7 @@
 ## 框架 Profile
 
 - 本项目使用 Tooling Profile，采用 DAG、Worktree、失败隔离和统一最终 Review。
+- 机器来源（change 2041）：本仓库是框架实现仓库，存在 `.agentic-framework/` 运行目录但**没有** `manifest.json`；上面的「Tooling Profile」是散文声明，门禁不消费它。本仓库跑门禁时经 `--governance-profile tooling` 显式取得 Profile（无 CI 配置，本地与技能流程同一路径）；不传的调用只在没有任何 `lightweight` 声明时才不会触发 Profile 读取（惰性读取）。上级目录安装的 manifest 会被向上搜索继承——本仓库（E:\ 盘）不受 C:\ 用户目录安装影响，但嵌套项目应注意祖先链上的安装。
 
 ## 项目知识
 

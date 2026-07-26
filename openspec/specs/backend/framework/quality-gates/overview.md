@@ -39,6 +39,12 @@ OPSX056（Change `2032-task-status-consistency-gate`）交叉核对 `- 状态：
 
 OPSX057-061（Change `2038-production-delivery-evidence`）在 `delivery` 阶段接入交付范围与工作区残留证据，复用 Tooling 的共享模块 `scripts/workspace_residue.py`（逐字节未改动）：未提供 `--workspace-residue-baseline` 或交付提交参数（OPSX057）、基线不可用或无法识别版本控制（OPSX058）、交付提交越出 `tasks.md` 声明的 `- 文件:` 范围（OPSX059）、工作区残留与基线不一致（OPSX060），均失败关闭。唯一出口是 tasks.md 头部的 `- 交付证据豁免: <原因>` 显式声明；豁免声明重复或缩进错位按 OPSX061 失败关闭，豁免记录即声明本身（随版本控制历史可审计）。快照格式与 Tooling 一致，同一份基线文件两轨都能校验。
 
+## 治理 Profile 与 review_profile 下限（change 2041）
+
+门禁从 `.agentic-framework/manifest.json` 的 `profile` 字段读取治理 Profile（共享模块 `scripts/governance_profile.py`），`--governance-profile` 显式覆盖优先；缺失或非法失败关闭，不存在「静默默认为 tooling」的分支。读取是惰性的，只在 `review_profile` 触及下限时发生。
+
+`review_profile` 的 Profile 级下限：`production` 下不得为 `lightweight`（Production 侧 OPSX063，Tooling lint 与交付门同规则）；`tooling` 下三个取值均合法；两轨都允许向上声明 `strict`。无法取得 Profile 时失败关闭（OPSX062）。**Quick 不构成下限例外**：现行实现对 Quick 与 Standard 的 Review 档位要求一致（OPSX037 系检查无 Quick 分支），与 §5.3「Standard 为默认路径；明确低风险且范围稳定时才允许 Quick」一致——Quick 的流程差异在工件（§5.4），不在 Review 档位。
+
 ## Tooling 任务状态一致性
 
 `tasks.md` 把「任务是否完成」表达三次：任务头复选框、`- 状态：` 字段、验收标准与子任务复选框。三者必须同向，否则归档记录自相矛盾——只改状态字段即可过门。

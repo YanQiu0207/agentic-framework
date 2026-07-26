@@ -904,6 +904,37 @@ class MainReviewReportTest(unittest.TestCase):
         self.assertEqual(1, code)
 
 
+class ReviewProfileFloorCheckTest(unittest.TestCase):
+    """change 2041：交付门的 review_profile 下限检查。"""
+
+    def _tasks(self, profile_line: str) -> tuple[Path, Path]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        tasks = repo / "tasks.md"
+        tasks.write_text(
+            f"### 任务 1: [x] A\n- 状态: 完成\n{profile_line}",
+            encoding="utf-8",
+        )
+        return repo, tasks
+
+    def test_lightweight_below_production_floor_fails(self) -> None:
+        repo, tasks = self._tasks("- review_profile: lightweight\n")
+        errors = check_delivery.check_review_profile_floor(repo, tasks, "production")
+        self.assertTrue(any("低于 production 下限" in e for e in errors), errors)
+
+    def test_lightweight_passes_under_tooling(self) -> None:
+        repo, tasks = self._tasks("- review_profile: lightweight\n")
+        self.assertEqual(
+            [], check_delivery.check_review_profile_floor(repo, tasks, "tooling")
+        )
+
+    def test_no_lightweight_means_profile_never_read(self) -> None:
+        # 无 manifest、无 override、无 lightweight 声明：不触发读取，直接通过。
+        repo, tasks = self._tasks("- review_profile: standard\n")
+        self.assertEqual([], check_delivery.check_review_profile_floor(repo, tasks, None))
+
+
 class KnowledgeSyncCrossCheckTest(unittest.TestCase):
     """change 2040：知识影响门从布尔计数升级为反自证交叉核对。"""
 

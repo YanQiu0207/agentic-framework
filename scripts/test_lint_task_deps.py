@@ -129,6 +129,54 @@ class ReviewProfileAliasTest(unittest.TestCase):
         self.assertTrue(any("缺少 review_profile 字段" in e for e in errors))
 
 
+class ReviewProfileFloorTest(unittest.TestCase):
+    """change 2041：review_profile 的 Profile 下限（只碰下限判定）。"""
+
+    def _errors(self, profile_lines: str, governance: str | None = None) -> list[str]:
+        text = (
+            "### 任务 1：A\n- depends_on: []\n"
+            f"{profile_lines}"
+            "- context_files:\n- verification:\n- artifacts:\n- 状态: 未开始\n"
+        )
+        return lint_task_deps.field_errors(lint_task_deps.parse_tasks(text), governance)
+
+    def test_lightweight_below_production_floor_fails(self) -> None:
+        errors = self._errors("- review_profile: lightweight\n", "production")
+        self.assertTrue(any("低于 production 下限" in e for e in errors), errors)
+
+    def test_lightweight_legal_under_tooling(self) -> None:
+        self.assertEqual([], self._errors("- review_profile: lightweight\n", "tooling"))
+
+    def test_alias_writing_also_bounded(self) -> None:
+        errors = self._errors("- Review Profile: lightweight\n", "production")
+        self.assertTrue(any("低于 production 下限" in e for e in errors), errors)
+
+    def test_standard_and_strict_pass_both_profiles(self) -> None:
+        for governance in ("production", "tooling"):
+            for value in ("standard", "strict"):
+                self.assertEqual(
+                    [], self._errors(f"- review_profile: {value}\n", governance),
+                    (governance, value),
+                )
+
+    def test_main_fails_closed_when_profile_undetermined(self) -> None:
+        text = (
+            "### 任务 1：A\n- depends_on: []\n- review_profile: lightweight\n"
+            "- context_files:\n- verification:\n- artifacts:\n- 状态: 未开始\n"
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tasks_file = Path(temp_dir) / "tasks.md"
+            tasks_file.write_text(text, encoding="utf-8")
+            from unittest import mock
+
+            with mock.patch("governance_profile.find_manifest", return_value=None):
+                self.assertEqual(2, lint_task_deps.main([str(tasks_file)]))
+            self.assertEqual(
+                0,
+                lint_task_deps.main([str(tasks_file), "--governance-profile", "tooling"]),
+            )
+
+
 class StateNormalizationTest(unittest.TestCase):
     """change 2035 Task 7：状态取值归一为规范值，写侧不动。"""
 

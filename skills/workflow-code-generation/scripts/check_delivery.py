@@ -36,6 +36,7 @@ import runtime_workflow
 import runtime_schema
 import workspace_residue
 import knowledge_sync
+import governance_profile
 
 TERMINAL_STATES = {"完成", "需人工", "阻塞"}
 NEEDS_REASON = {"需人工", "阻塞"}
@@ -447,6 +448,33 @@ def check_git_clean(repo: Path) -> list[str]:
     return []
 
 
+def check_review_profile_floor(
+    repo: Path, tasks_path: Path, override: str | None
+) -> list[str]:
+    """review_profile 的 Profile 下限（change 2041）。
+
+    惰性读取：只在有任务声明 lightweight 时才读取 Profile；读取失败
+    （无 manifest 且未传 --governance-profile）失败关闭。
+    """
+    text = tasks_path.read_text(encoding="utf-8", errors="replace")
+    tasks = lint_task_deps.parse_tasks(text)
+    lightweight_ids = [
+        tid
+        for tid, info in sorted(tasks.items())
+        for _name, value, _offset in info["review_profile_fields"]
+        if value == "lightweight"
+    ]
+    if not lightweight_ids:
+        return []
+    profile = governance_profile.read_profile(repo, override)
+    if not governance_profile.below_floor("lightweight", profile):
+        return []
+    return [
+        f"任务 {lightweight_ids[0]} 的 review_profile 为 lightweight，"
+        f"低于 {profile} 下限 {governance_profile.review_profile_floor(profile)}"
+    ]
+
+
 def check_knowledge_impact(impact: str | None, reason: str) -> list[str]:
     """Every delivery path must declare its knowledge impact."""
     if impact is None:
@@ -598,6 +626,11 @@ def main(argv: list[str]) -> int:
         default=Path(".agentic-framework/verify/report.json"),
         help="workflow-verification 产出的机器验证报告路径（Fast-Path 必传）",
     )
+    parser.add_argument(
+        "--governance-profile",
+        choices=("production", "tooling"),
+        help="显式指定治理 Profile（覆盖 manifest 读取）",
+    )
     args = parser.parse_args(argv)
 
     if args.run_dir is not None and args.native_delivery:
@@ -705,6 +738,20 @@ def main(argv: list[str]) -> int:
             ("ERROR  " + "；".join(found))
             if found
             else f"PASS   知识同步交叉核对（{sync_mode}）"
+        )
+
+        checks += 1
+        try:
+            found = check_review_profile_floor(
+                args.repo, args.tasks, args.governance_profile
+            )
+        except governance_profile.GovernanceProfileError as error:
+            found = [f"无法取得治理 Profile：{error}"]
+        errors.extend(found)
+        print(
+            ("ERROR  " + "；".join(found))
+            if found
+            else "PASS   review_profile 满足 Profile 下限"
         )
 
     for label, path, checker in (

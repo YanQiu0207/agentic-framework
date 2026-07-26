@@ -990,6 +990,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     """Build the CLI argument parser for all workflow_control subcommands."""
     parser = argparse.ArgumentParser(description="确定性工作流控制流")
     parser.add_argument("tasks_md", type=Path, help="tasks.md 路径")
+    parser.add_argument(
+        "--governance-profile",
+        choices=("production", "tooling"),
+        help="显式指定治理 Profile（覆盖 manifest 读取；change 2041 接入，"
+        "门层合并后消费）",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("waves", help="输出稳定拓扑波次")
     subparsers.add_parser("dispatchable", help="输出当前可调度任务")

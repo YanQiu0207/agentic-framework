@@ -24,6 +24,7 @@ from pathlib import Path
 _FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
 if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+import governance_profile
 import task_ast
 
 TASK_HEADER = re.compile(r"^###\s*任务\s*(\d+)\s*[:：]", re.MULTILINE)
@@ -156,8 +157,13 @@ def parse_state(value: str) -> str | None:
     return _STATE_CANONICAL[prefix.casefold()]
 
 
-def field_errors(tasks: dict[int, dict]) -> list[str]:
-    """校验每个任务的必填字段与合法值。"""
+def field_errors(tasks: dict[int, dict], governance: str | None = None) -> list[str]:
+    """校验每个任务的必填字段与合法值。
+
+    `governance` 为当前治理 Profile（`production` / `tooling`）；给出时
+    `review_profile` 低于 Profile 下限报错（change 2041）。未给出时不做
+    下限判定——非门禁调用方（如 run_journal）不传。
+    """
     errors: list[str] = []
     for tid, info in sorted(tasks.items()):
         body = info["body"]
@@ -183,6 +189,14 @@ def field_errors(tasks: dict[int, dict]) -> list[str]:
                     errors.append(
                         f"任务 {tid} 的 review_profile `{profile}` 不合法"
                         f"（lightweight / standard / strict）"
+                    )
+                elif governance is not None and governance_profile.below_floor(
+                    profile, governance
+                ):
+                    errors.append(
+                        f"任务 {tid} 的 review_profile 为 lightweight，"
+                        f"低于 {governance} 下限 "
+                        f"{governance_profile.review_profile_floor(governance)}"
                     )
         if has_field(body, "状态"):
             status_value = field(body, "状态")
@@ -274,12 +288,13 @@ def reachable(tasks: dict[int, dict]) -> dict[int, set[int]]:
     return reach
 
 
-def lint_report(text: str, source: str) -> dict:
+def lint_report(text: str, source: str, governance: str | None = None) -> dict:
     """对 tasks.md 文本跑全部校验，返回结构化报告（change 2037 §6.2 统一合同）。
 
     规则对所有输入一致；违规仅按来源路径分类：路径含 `archive` 目录段的
     归入 `legacy`（遗留违规，记录不拦截），其余归入 `active`。任何调用方
     对同一输入得到同一份结构化判定，不存在「跳过归档」这一选项。
+    `governance` 给出时启用 review_profile 的 Profile 下限判定（change 2041）。
     """
     tasks = parse_tasks(text)
     errors: list[str] = []
@@ -296,7 +311,7 @@ def lint_report(text: str, source: str) -> dict:
                 errors.append(f"任务 {tid} 依赖不存在的任务 {dep}")
 
     # 必填字段与合法值
-    errors.extend(field_errors(tasks))
+    errors.extend(field_errors(tasks, governance))
 
     reach = reachable(tasks)
 
@@ -351,6 +366,11 @@ def main(argv: list[str]) -> int:
         action="store_true",
         help="输出结构化报告（active／legacy 分类），供机器消费",
     )
+    parser.add_argument(
+        "--governance-profile",
+        choices=("production", "tooling"),
+        help="显式指定治理 Profile（覆盖 manifest 读取）",
+    )
     args = parser.parse_args(argv)
     if not args.tasks_md.is_file():
         print(f"error: 找不到 {args.tasks_md}", file=sys.stderr)
@@ -365,7 +385,21 @@ def main(argv: list[str]) -> int:
             tasks = parse_tasks(text)
             print(f"\ntasks={len(tasks)} | state_consistency_errors={len(consistency)}")
             return 1 if consistency else 0
-        report = lint_report(text, str(args.tasks_md))
+        tasks_for_scan = parse_tasks(text)
+        # 惰性读取：只在有任务声明 lightweight 时才需要 Profile 判定下限
+        needs_profile = any(
+            value == "lightweight"
+            for info in tasks_for_scan.values()
+            for _name, value, _offset in info["review_profile_fields"]
+        )
+        governance = args.governance_profile
+        if needs_profile and governance is None:
+            try:
+                governance = governance_profile.read_profile(args.tasks_md.parent)
+            except governance_profile.GovernanceProfileError as error:
+                print(f"error: {error}", file=sys.stderr)
+                return 2
+        report = lint_report(text, str(args.tasks_md), governance)
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

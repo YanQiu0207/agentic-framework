@@ -188,6 +188,7 @@ Requirements Clarification
 - `irreversible` 与 `Review Profile: strict` 双向绑定（OPSX055）：声明了 `Escalation` 字段的 Task，两者必须同时出现，反向约束防止 `strict` 档高风险 Task 不触发暂停即交付；在 `plan` 阶段即生效。缩进、列表式或错位的 `Escalation`/`Approval`/批准模式声明按 OPSX053 失败关闭，不静默退回。
 - `- 状态：` 字段与任务头标记双向一致（OPSX056）：该字段可选，未声明的 Task 跳过；声明时两处必须同向，`delivery` 与 `archive` 阶段生效。取值无法归类为完成／未完成，或区域内重复声明，均失败关闭。判定区域为任务头到下一个任意级别标题之前，避免把 `## 知识同步`、`## 知识冲突` 等尾部小节的 `- 状态:` 误判为任务状态。
 - Delivery 阶段核对交付范围与工作区残留证据（OPSX057-061，change 2038）：必须提供 `--workspace-residue-baseline`（与 Tooling 同名同格式，共享模块 `scripts/workspace_residue.py` 两轨共同消费、逐字节未改动）与交付提交参数；交付提交越出 `tasks.md` 声明范围、工作区残留与基线不一致、无法识别版本控制，均失败关闭。唯一豁免形式是 tasks.md 头部 `- 交付证据豁免: <原因>` 显式声明；无记录的豁免不生效。校验器读取版本控制状态但不采集基线、不写任何文件——「读外部状态」不等于 §8.1 禁止的「维护平行状态」。这是 §3.2 条件 1 的**部分**举证：交付证据一项从 Tooling 独有变为两轨共用，其余维度仍未举证。
+- 治理 Profile 可声明化（change 2041）：门禁从 manifest 的 `profile` 字段读取 Profile（缺失或非法失败关闭，无静默默认），`review_profile` 按 Profile 设下限（production 禁 lightweight，OPSX062/063；Quick 不构成例外）。门禁只**知道** Profile，除下限外无任何按 Profile 分派判定的分支。这是 §3.2 条件 1 的**部分**举证：五项语义差异中仅 Review 档位一项被参数化；本 Change 为 change 2042 提供了可切换的 Profile 开关，但未实现降级行为。
 - 所有 Task、Verification 和 Delivery 门禁完成后，再执行一次五维 `strict` 集成审核。
 - 首轮存在 P0/P1 才进入修复循环。
 - 修复后重跑受影响的构建、测试和 Delivery，再执行定向 re-review。

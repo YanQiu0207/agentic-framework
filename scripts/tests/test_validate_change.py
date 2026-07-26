@@ -51,6 +51,7 @@ class ValidateChangeCliTest(unittest.TestCase):
         json_output: bool = False,
         change: Path = CHANGE,
         target: Path | None = None,
+        extra_args: tuple[str, ...] = (),
     ) -> subprocess.CompletedProcess[str]:
         """Run the validator and return its completed process."""
         command = [
@@ -67,6 +68,7 @@ class ValidateChangeCliTest(unittest.TestCase):
             command.append("--json")
         if target is not None:
             command.extend(("--archive-target", str(target)))
+        command.extend(extra_args)
         return subprocess.run(
             command,
             check=False,
@@ -82,6 +84,7 @@ class ValidateChangeCliTest(unittest.TestCase):
         json_output: bool = False,
         change: Path = CHANGE,
         target: Path | None = None,
+        extra_args: tuple[str, ...] = (),
     ) -> subprocess.CompletedProcess[str]:
         """Run the validator against a temporary repository."""
         command = [
@@ -98,6 +101,7 @@ class ValidateChangeCliTest(unittest.TestCase):
             command.append("--json")
         if target is not None:
             command.extend(("--archive-target", str(target)))
+        command.extend(extra_args)
         return subprocess.run(
             command,
             check=False,
@@ -203,15 +207,24 @@ class ValidateChangeCliTest(unittest.TestCase):
     def test_task_review_contract_is_required_at_plan(self) -> None:
         """Every production task declares its risk-tiered review contract."""
         cases = (
-            ("- Review Profile: standard\n", "", "OPSX037"),
-            ("- Task Review: PASS\n", "", "OPSX038"),
-            ("- Review Profile: standard", "- Review Profile: lightweight", "OPSX037"),
+            ("- Review Profile: standard\n", "", "OPSX037", ()),
+            ("- Task Review: PASS\n", "", "OPSX038", ()),
+            # change 2041：lightweight 在 production 下限下由 OPSX063 判定；
+            # 显式传参避免依赖调用机祖先链上的 manifest。
+            (
+                "- Review Profile: standard",
+                "- Review Profile: lightweight",
+                "OPSX063",
+                ("--governance-profile", "production"),
+            ),
         )
-        for old, new, expected_rule in cases:
+        for old, new, expected_rule, extra_args in cases:
             with self.subTest(rule=expected_rule, replacement=new):
                 with self.copied_repo("valid-standard") as temporary_repo:
                     self.rewrite(temporary_repo, "tasks.md", old, new)
-                    result = self.run_repo(temporary_repo, "plan", json_output=True)
+                    result = self.run_repo(
+                        temporary_repo, "plan", json_output=True, extra_args=extra_args
+                    )
                     rules = {
                         item["rule_id"] for item in json.loads(result.stdout)["errors"]
                     }
@@ -1794,6 +1807,60 @@ class ReviewProfileAliasRegexTest(unittest.TestCase):
             self.assertEqual(
                 [], list(validate_change.TASK_REVIEW_PROFILE_RE.finditer(text)), text
             )
+
+
+class ReviewProfileFloorGateTest(unittest.TestCase):
+    """change 2041：OPSX062/063——下限判定只在触及 lightweight 时读取 Profile。"""
+
+    TASKS_TEMPLATE = (
+        "# 实施任务清单\n\n### 任务 1：[pending] 实现\n"
+        "- 依赖: 无\n{profile_line}- 文件: `a.py`\n- 文档映射: `proposal.md` §1\n"
+    )
+
+    def _change_dir(self, profile_line: str) -> tuple[Path, Path]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        change = repo / "openspec" / "changes" / "2099-x"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text(
+            self.TASKS_TEMPLATE.format(profile_line=profile_line), encoding="utf-8"
+        )
+        return repo, change
+
+    def _rule_ids(self, repo, change, override) -> list[str]:
+        findings = validate_change._validate_tasks(repo, change, False, override)
+        return [f.rule_id for f in findings]
+
+    def test_lightweight_below_production_floor_is_opsx063(self) -> None:
+        repo, change = self._change_dir("- Review Profile: lightweight\n")
+        self.assertIn("OPSX063", self._rule_ids(repo, change, "production"))
+
+    def test_lightweight_accepted_under_tooling(self) -> None:
+        repo, change = self._change_dir("- Review Profile: lightweight\n")
+        rules = self._rule_ids(repo, change, "tooling")
+        self.assertNotIn("OPSX062", rules)
+        self.assertNotIn("OPSX063", rules)
+        self.assertNotIn("OPSX037", rules)
+
+    def test_undetermined_profile_is_opsx062(self) -> None:
+        repo, change = self._change_dir("- Review Profile: lightweight\n")
+        from unittest import mock
+
+        with mock.patch("governance_profile.find_manifest", return_value=None):
+            self.assertIn("OPSX062", self._rule_ids(repo, change, None))
+
+    def test_underscore_alias_also_bounded(self) -> None:
+        repo, change = self._change_dir("- review_profile: lightweight\n")
+        self.assertIn("OPSX063", self._rule_ids(repo, change, "production"))
+
+    def test_standard_and_strict_untouched(self) -> None:
+        for value in ("standard", "strict"):
+            repo, change = self._change_dir(f"- Review Profile: {value}\n")
+            rules = self._rule_ids(repo, change, None)
+            self.assertNotIn("OPSX062", rules, value)
+            self.assertNotIn("OPSX063", rules, value)
+            self.assertNotIn("OPSX037", rules, value)
 
 
 class DeliveryEvidenceTest(unittest.TestCase):

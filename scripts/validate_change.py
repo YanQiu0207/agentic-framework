@@ -16,6 +16,7 @@ from pathlib import Path
 import knowledge_sync
 import task_ast
 import workspace_residue
+import governance_profile
 from typing import Sequence
 
 PHASES = ("plan", "delivery", "archive")
@@ -1160,7 +1161,12 @@ def _validate_state_field_consistency(
     return []
 
 
-def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[Finding]:
+def _validate_tasks(
+    repo: Path,
+    change: Path,
+    require_completed: bool,
+    profile_override: str | None = None,
+) -> list[Finding]:
     tasks_path = change / "tasks.md"
     if not _nonempty_file(tasks_path):
         return []
@@ -1340,7 +1346,38 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
                 )
             )
         metadata_text = _metadata_text(block)
-        if _review_profile_value(metadata_text) not in {"standard", "strict"}:
+        declared_profile = _review_profile_value(metadata_text)
+        if declared_profile == "lightweight":
+            # 下限判定（change 2041）：只在触及下限时读取 Profile，读取失败
+            # 失败关闭，不静默默认。
+            try:
+                current_profile = governance_profile.read_profile(repo, profile_override)
+            except governance_profile.GovernanceProfileError as error:
+                findings.append(
+                    _finding(
+                        "OPSX062",
+                        tasks_path,
+                        repo,
+                        task.line,
+                        f"Task {task.number} 声明 lightweight，但无法取得治理 Profile：{error}",
+                        "安装框架生成 manifest，或显式传 --governance-profile。",
+                    )
+                )
+            else:
+                if governance_profile.below_floor(declared_profile, current_profile):
+                    findings.append(
+                        _finding(
+                            "OPSX063",
+                            tasks_path,
+                            repo,
+                            task.line,
+                            f"Task {task.number} 的 Review Profile 为 lightweight，"
+                            f"低于 {current_profile} 下限 "
+                            f"{governance_profile.review_profile_floor(current_profile)}。",
+                            "提升为 standard 或 strict。",
+                        )
+                    )
+        elif declared_profile not in {"standard", "strict"}:
             findings.append(
                 _finding(
                     "OPSX037",
@@ -1465,8 +1502,10 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
     return findings
 
 
-def _validate_plan(repo: Path, change: Path, change_type: str) -> list[Finding]:
-    findings = _validate_tasks(repo, change, require_completed=False)
+def _validate_plan(
+    repo: Path, change: Path, change_type: str, profile_override: str | None = None
+) -> list[Finding]:
+    findings = _validate_tasks(repo, change, require_completed=False, profile_override=profile_override)
     tasks_path = change / "tasks.md"
     if not _nonempty_file(tasks_path):
         return findings
@@ -1853,8 +1892,9 @@ def _validate_delivery(
     change: Path,
     expected_review: str,
     enforce_approval: bool,
+    profile_override: str | None = None,
 ) -> list[Finding]:
-    findings = _validate_tasks(repo, change, require_completed=True)
+    findings = _validate_tasks(repo, change, require_completed=True, profile_override=profile_override)
     if enforce_approval:
         findings.extend(_validate_approval_evidence(repo, change))
     tasks_path = change / "tasks.md"
@@ -2121,6 +2161,7 @@ def validate_change(
     workspace_residue_baseline: Path | None = None,
     delivery_commit: str | None = None,
     delivery_revision: str | None = None,
+    profile_override: str | None = None,
 ) -> ValidationResult:
     """Validate an OPSX change without modifying repository files.
 
@@ -2164,16 +2205,16 @@ def validate_change(
     findings.extend(artifact_findings)
     delta_findings, _ = _delta_targets(repo, change)
     findings.extend(delta_findings)
-    findings.extend(_validate_plan(repo, change, change_type))
+    findings.extend(_validate_plan(repo, change, change_type, profile_override))
     if phase == "delivery":
-        findings.extend(_validate_delivery(repo, change, "PENDING", True))
+        findings.extend(_validate_delivery(repo, change, "PENDING", True, profile_override))
         findings.extend(
             _validate_delivery_evidence(
                 repo, change, workspace_residue_baseline, delivery_commit, delivery_revision
             )
         )
     elif phase == "archive":
-        findings.extend(_validate_delivery(repo, change, "PASS", False))
+        findings.extend(_validate_delivery(repo, change, "PASS", False, profile_override))
         findings.extend(_validate_archive_knowledge(repo, change))
         findings.extend(_validate_project_knowledge(repo))
         assert archive_target is not None
@@ -2262,6 +2303,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--delivery-revision",
         help="Delivery 阶段的 SVN 交付修订号",
     )
+    parser.add_argument(
+        "--governance-profile",
+        choices=("production", "tooling"),
+        help="显式指定治理 Profile（覆盖 manifest 读取）",
+    )
     parser.add_argument("--json", action="store_true", help="输出 JSON")
     return parser
 
@@ -2302,6 +2348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.workspace_residue_baseline,
             args.delivery_commit,
             args.delivery_revision,
+            args.governance_profile,
         )
     except InvocationError as error:
         if args.json:

@@ -17,3 +17,7 @@
 编码与测试 workflow 在开始前从当前已加载的核心 workflow `SKILL.md` 真实路径（解析链接后）向上定位受信框架根，运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`，并只消费其成功返回的 JSON。不得从目标项目 Manifest 的 `source` 获得可执行路径。只读校验严格核对 Manifest 描述符、Overlay 状态和实际客户端链接，并要求 Manifest 来源与当前安装器框架根一致；失败时 workflow 不加载 Overlay。成功后按 `skills[].files` 匹配目标文件后缀。该发现规则只补充规范，不自动执行 Overlay 内容，也不覆盖核心 workflow。
 
 当前实现仍以 `scripts/install_agentic_framework.py` 和安装测试为准。本文件只用于定位。
+
+## Manifest 的消费方（change 2041）
+
+Manifest 的 `profile` 字段现被四个门禁脚本消费：`validate_change.py`、`check_delivery.py`、`lint_task_deps.py`（`workflow_control.py` 已接线参数，门层合并后消费）。读取由共享模块 `scripts/governance_profile.py` 承载：从被校验仓库根向上查找 `.agentic-framework/manifest.json`（祖先链上的安装会被继承），缺失或 `profile` 非法一律失败关闭，不静默回退默认值；`--governance-profile production|tooling` 显式覆盖优先。读取是惰性的——只在 `review_profile` 触及 Profile 下限时发生。框架实现仓库自身（本仓库）有 `.agentic-framework/` 运行目录但无 manifest，跑门禁经显式参数取得 Profile（见 `AGENTS.md`）。
