@@ -112,23 +112,24 @@ Task 1 (冻结两轨解析差异基线)
     - [ ] 修正后全部活跃 Change 的 `tasks.md` 通过 `lint_task_deps.py`，errors=0。
     - [ ] 不顺手改动这些文件的其他内容。
 
-### 任务 4：[ ] 产出归档已知失败清单
+### 任务 4：[ ] 产出归档遗留违规清单并验证统一判定合同
 
 - 状态: 未开始
 - depends_on: Task 2
 - review_profile: standard
-- 文档映射：`proposal.md` §6.2 范围豁免、§7 验收标准 6-7
+- 文档映射：`proposal.md` §6.2 统一合同、§7 验收标准 6-7a
 - 文件：无（只读，清单写入本 Change）
 - context_files: `openspec/changes/archive/`、Task 1 的对照表、`openspec/specs/backend/engineering/tech/framework-unification.md`
-- artifacts: 归档已知失败清单（文件、不合规取值、豁免理由）
+- artifacts: 归档遗留违规清单（文件、不合规取值、结构化标签）、统一判定合同验证结论
 - verification: `python -m pytest scripts -q`
 - 验收标准：
     - [ ] 逐一列出受影响的归档文件，附具体不合规取值，不只给文件名。
-    - [ ] 每个文件附豁免理由，引用 §3.3「Archive 仅作为历史证据」。
-    - [ ] 明确豁免方式是**调用方范围豁免**，解析器中不含任何按路径放宽的分支。
-    - [ ] 验证解析器实现中确无 `archive` 路径判断，用检索证明。
+    - [ ] 归档违规带「遗留违规」结构化标签，引用 §3.3「Archive 仅作为历史证据」作为分类依据。
+    - [ ] 验证解析器实现中不含任何 `archive` 路径放宽分支，用检索证明；规则对活跃与归档一致。
+    - [ ] 验证报告层把归档违规归入独立的机器可解析分类（结构化字段，非消息文本），与活跃违规分开。
+    - [ ] 用至少两个不同调用路径验证：对同一归档输入，得到同一结构化判定，不存在「跳过归档」这一选项。
     - [ ] 确认 `openspec/changes/archive/` 下逐字节未改动。
-    - [ ] 清单可被 change 2035 的 golden 基线直接引用为「已知失败」输入。
+    - [ ] 清单可被 change 2035 的 golden 基线直接引用为「已知遗留」输入。
 
 ### 任务 5：[ ] 长期规格同步
 
