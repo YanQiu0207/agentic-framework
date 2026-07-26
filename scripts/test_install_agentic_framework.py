@@ -184,10 +184,12 @@ class InstallTest(unittest.TestCase):
         target = self.root / "target"
         target.mkdir()
         self._install(target, "production")
-        production = target / ".codex" / "skills" / "opsx-code-generation"
+        # change 2045：Production 与 Tooling 共用统一的 workflow-* 入口；
+        # opsx-* 已退役，不再安装。
+        production = target / ".codex" / "skills" / "workflow-code-generation"
         self.assertTrue(production.is_symlink())
         self.assertFalse(
-            (target / ".codex" / "skills" / "workflow-code-generation").exists()
+            (target / ".codex" / "skills" / "opsx-code-generation").exists()
         )
         self.assertTrue(
             (target / ".codex" / "scripts" / "validate_change.py").is_symlink()

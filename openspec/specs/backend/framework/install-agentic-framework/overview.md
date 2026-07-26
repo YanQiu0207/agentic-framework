@@ -21,3 +21,7 @@
 ## Manifest 的消费方（change 2041）
 
 Manifest 的 `profile` 字段现被四个门禁脚本消费：`validate_change.py`、`check_delivery.py`、`lint_task_deps.py`（`workflow_control.py` 已接线参数，门层合并后消费）。读取由共享模块 `scripts/governance_profile.py` 承载：从被校验仓库根向上查找 `.agentic-framework/manifest.json`（祖先链上的安装会被继承），缺失或 `profile` 非法一律失败关闭，不静默回退默认值；`--governance-profile production|tooling` 显式覆盖优先。读取是惰性的——只在 `review_profile` 触及 Profile 下限时发生。框架实现仓库自身（本仓库）有 `.agentic-framework/` 运行目录但无 manifest，跑门禁经显式参数取得 Profile（见 `AGENTS.md`）。
+
+## 白名单统一（change 2045）
+
+`opsx-*` 六个 Skill 与六个 Command 已退役归档（`openspec/changes/archive/opsx-retirement-2026-07-27/`）。Production 与 Tooling 现共用统一的 `workflow-*` 入口——Profile 差异仅由 manifest 的 `profile` 字段与治理守卫（`governance_guards.py`）承载，不再由独立 Skill 集合表达。`--switch-profile` 切换只改 manifest 字段，不增减已安装文件（两个 Profile 的文件集合已一致）。归档中的 `opsx-*` 引用不改动。

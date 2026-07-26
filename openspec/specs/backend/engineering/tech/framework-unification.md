@@ -731,6 +731,8 @@ E:\work\my-ai-resource\agentic-framework
 - 文件冲突虽少，但生命周期触发和安装语义仍会竞争。
 - 无法明确哪些规则属于共享 Core。
 
+> change 2045 记录：本条放弃的是「目录合并」。`opsx-*` 执行编排已退役（移到 `openspec/changes/archive/opsx-retirement-2026-07-27/`），Production 与 Tooling 共用 `workflow-*` 入口——这是退役编排而非合并目录：两个 Profile 的 Skill 集合统一为同一份 `workflow-*`，差异由 manifest `profile` 字段与治理守卫承载，不是把两个目录的文件搬到一起。
+
 ### 19.4 默认安装两个 Profile
 
 放弃原因：

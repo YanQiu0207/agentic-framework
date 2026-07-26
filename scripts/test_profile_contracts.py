@@ -1,4 +1,8 @@
-"""Structural tests for the two workflow profile contracts."""
+"""Structural tests for the unified workflow profile contract.
+
+change 2045 退役 opsx-* 后，Profile 差异由治理守卫（governance_guards）与
+规格（framework-unification.md §5.3／§6.3）承载，不再由独立 SKILL.md 表达。
+"""
 
 from pathlib import Path
 import unittest
@@ -7,20 +11,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ProfileContractTest(unittest.TestCase):
-    """Prevent Production and Tooling review policies from drifting together."""
+    """统一执行链下的 Profile 合同：Tooling SKILL + Production 守卫 + 规格三者一致。"""
 
-    def test_production_has_task_and_integration_reviews(self) -> None:
-        text = (ROOT / "skills/opsx-code-generation/SKILL.md").read_text(
-            encoding="utf-8"
+    def test_production_review_contract_enforced_by_guards_and_spec(self) -> None:
+        """Production 逐任务 Review 合同由守卫代码与规格承载（change 2043／2045）。"""
+        import sys
+
+        sys.path.insert(
+            0, str(ROOT / "skills" / "workflow-code-generation" / "scripts")
         )
+        import governance_guards
+
+        # 守卫在 production 下强制逐任务 Review
+        self.assertTrue(callable(governance_guards.task_review_guard_errors))
+        spec = (
+            ROOT
+            / "openspec/specs/backend/engineering/tech/framework-unification.md"
+        ).read_text(encoding="utf-8")
         for required in (
-            "review_profile: standard",
-            "review_profile: strict",
-            "scope: integration",
-            "Task Review",
+            "review_profile",
+            "comprehensive-reviewer",
             "5 个专项 Reviewer",
         ):
-            self.assertIn(required, text)
+            self.assertIn(required, spec)
 
     def test_tooling_forbids_task_level_llm_review(self) -> None:
         text = (ROOT / "skills/workflow-code-generation/SKILL.md").read_text(
@@ -30,32 +43,25 @@ class ProfileContractTest(unittest.TestCase):
         self.assertIn("一次最终审核", text)
         self.assertIn("禁止启动第二次全量首审", text)
 
-    def test_profiles_share_change_artifact_contract(self) -> None:
-        """Both profiles create Proposal, Design, Delta, and Tasks artifacts."""
-        production = (ROOT / "skills/opsx-code-generation/SKILL.md").read_text(
+    def test_unified_skill_carries_change_artifact_contract(self) -> None:
+        """统一入口 workflow-code-generation 承载 Artifact 契约（change 2045）。"""
+        text = (ROOT / "skills/workflow-code-generation/SKILL.md").read_text(
             encoding="utf-8"
         )
-        tooling = (ROOT / "skills/workflow-code-generation/SKILL.md").read_text(
-            encoding="utf-8"
-        )
-        for text in (production, tooling):
-            for required in (
-                "openspec/changes/",
-                "proposal.md",
-                "design.md",
-                "tasks.md",
-                "specs/",
-            ):
-                self.assertIn(required, text)
-        self.assertIn("旧 `spec.md`", tooling)
-        self.assertIn("禁止写入旧 Artifact", tooling)
+        for required in (
+            "openspec/changes/",
+            "proposal.md",
+            "design.md",
+            "tasks.md",
+            "specs/",
+            "旧 `spec.md`",
+            "禁止写入旧 Artifact",
+        ):
+            self.assertIn(required, text)
 
     def test_change_templates_include_knowledge_bookkeeping(self) -> None:
-        """Proposal and Tasks templates cannot omit knowledge lifecycle fields."""
+        """Proposal 和 Tasks 模板不能省略知识生命周期字段。"""
         templates = (
-            ROOT
-            / "skills/opsx-requirements-clarification/reference/proposal_template.md",
-            ROOT / "skills/opsx-quick-design/reference/quick-proposal-template.md",
             ROOT
             / "skills/workflow-requirements-clarification/reference/proposal_template.md",
             ROOT / "skills/workflow-quick-design/reference/quick-proposal-template.md",
@@ -64,7 +70,6 @@ class ProfileContractTest(unittest.TestCase):
             with self.subTest(template=template):
                 self.assertIn("知识影响", template.read_text(encoding="utf-8"))
         task_guides = (
-            ROOT / "skills/opsx-code-generation/reference/task_planning_guide.md",
             ROOT / "skills/workflow-code-generation/reference/task_planning_guide.md",
         )
         for guide in task_guides:
@@ -80,6 +85,28 @@ class ProfileContractTest(unittest.TestCase):
             "opsx-project-knowledge",
         ):
             self.assertFalse((ROOT / "skills" / name).exists())
+
+    def test_retired_opsx_skills_are_archived_not_deleted(self) -> None:
+        """opsx-* 已退役归档（change 2045），不在活跃 skills/ 但在 archive/。"""
+        for name in (
+            "opsx-archive",
+            "opsx-code-generation",
+            "opsx-quick-design",
+            "opsx-requirements-clarification",
+            "opsx-system-design",
+            "opsx-test-generation",
+        ):
+            self.assertFalse(
+                (ROOT / "skills" / name).exists(), f"{name} 应已移出 skills/"
+            )
+            self.assertTrue(
+                (
+                    ROOT
+                    / "openspec/changes/archive/opsx-retirement-2026-07-27/skills"
+                    / name
+                ).exists(),
+                f"{name} 应在 archive/ 中",
+            )
 
     def test_project_knowledge_uses_shared_openspec_contract(self) -> None:
         """Shared project-knowledge 锁定统一读写、冲突与晋升边界。"""

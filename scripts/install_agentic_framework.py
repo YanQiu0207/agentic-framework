@@ -44,12 +44,11 @@ CORE_SKILLS = {
     "workflow-verification",
 }
 PRODUCTION_SKILLS = {
-    "opsx-archive",
-    "opsx-code-generation",
-    "opsx-quick-design",
-    "opsx-requirements-clarification",
-    "opsx-system-design",
-    "opsx-test-generation",
+    "workflow-code-generation",
+    "workflow-quick-design",
+    "workflow-requirements-clarification",
+    "workflow-system-design",
+    "workflow-test-generation",
 }
 TOOLING_SKILLS = {
     "workflow-code-generation",
@@ -67,12 +66,13 @@ CORE_COMMANDS = {
     "troubleshooting.md",
 }
 PRODUCTION_COMMANDS = {
-    "opsx-archive.md",
-    "opsx-code-generation.md",
-    "opsx-quick-design.md",
-    "opsx-requirements-clarification.md",
-    "opsx-system-design.md",
-    "opsx-test-generation.md",
+    "code-generation.md",
+    "quick-design.md",
+    "requirements-clarification.md",
+    "system-design.md",
+    "test-generation.md",
+    "verification.md",
+    "verify-config.md",
 }
 TOOLING_COMMANDS = {
     "code-generation.md",
@@ -139,12 +139,6 @@ MANAGED_PROFILE_SKILL_ROOTS = {
             "bp-distributed-systems",
             "bp-performance-optimization",
             "bp-skill-authoring",
-            "opsx-archive",
-            "opsx-code-generation",
-            "opsx-quick-design",
-            "opsx-requirements-clarification",
-            "opsx-system-design",
-            "opsx-test-generation",
             "project-init",
             "project-knowledge",
             "self-refinement",
@@ -152,7 +146,12 @@ MANAGED_PROFILE_SKILL_ROOTS = {
             "std-go",
             "std-python",
             "troubleshooting",
+            "workflow-code-generation",
             "workflow-code-review",
+            "workflow-quick-design",
+            "workflow-requirements-clarification",
+            "workflow-system-design",
+            "workflow-test-generation",
             "workflow-verification",
         }
     ),
@@ -185,18 +184,19 @@ MANAGED_PROFILE_SKILL_ROOTS = {
 MANAGED_PROFILE_COMMAND_FILES = {
     "production": frozenset(
         {
+            "code-generation.md",
             "code-review.md",
-            "opsx-archive.md",
-            "opsx-code-generation.md",
-            "opsx-quick-design.md",
-            "opsx-requirements-clarification.md",
-            "opsx-system-design.md",
-            "opsx-test-generation.md",
             "performance-optimization.md",
             "project-init.md",
+            "quick-design.md",
             "reflect.md",
+            "requirements-clarification.md",
             "skill-authoring.md",
+            "system-design.md",
+            "test-generation.md",
             "troubleshooting.md",
+            "verification.md",
+            "verify-config.md",
         }
     ),
     "tooling": frozenset(
