@@ -19,7 +19,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 | **中等**（已明确目标与验收标准，需拆分或委派） | **Native Delivery**：下放 Agent 执行，按需使用 DAG | spec + tasks 批准 |
 | **strict** 或命中 Runtime 升级条件 | **完整 Runtime Run**：下放 Agent 执行并初始化 Run | spec + tasks 批准 |
 
-> Runtime 升级条件仅包括：`strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求。任务文件数或模型版本不是升级条件。下放执行再分：**单 task / 串行依赖** → 单 Agent 逐波；**多 task 无依赖** → 并行分波。
+> Runtime 升级条件仅包括：`strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求。任务文件数或模型版本不是升级条件。下放执行再分：**单 task / 串行依赖** → 单 Agent 按任务顺序连续执行，不调用 `waves` / `dispatchable`；**存在可并行分支** → 控制器分波并行。
 
 ---
 
@@ -43,10 +43,10 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 2. 实现改动（动代码前若有 `verify.config.json`，先 `workflow-verification` 采基线；**无 config → 暂停**，提示用户先运行 `/verify-config` 初始化，用户明确跳过才继续，只跑内置门禁并在交付报告标注）。发现外溢（超出步骤 1 路由判据）→ **立即退出**，转标准流程。
 3. **机器验证**：加载 `workflow-verification`（有 config 比基线；无 config 也跑内置 spec drift 检查），绿才继续；失败回第 2 步修复，若只是无法证明相关规格已更新且确实无需更新，则补 `--spec-drift-reason` 后重跑。
 4. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证；产生代码改动时回到第 3 步重验。
-5. **统一 Code Review**：实现、测试和机器验证全部完成后，加载一次 `workflow-code-review`（Fast-Path 兼容别名使用 `review_profile: lightweight`；新的 Native Delivery 使用 `standard`；均为 `scope: integration`，`mode: initial`）。结论为 `NEEDS_CHANGES`（存在 keep 的 P0 / P1）→ 自行修复、重跑受影响的机器验证，再按 `mode: re-review` 定向复核，最多 2 轮；禁止启动第二次全量首审。
+5. **统一 Code Review**：实现、测试和机器验证全部完成后，加载一次 `workflow-code-review`（Fast-Path 兼容别名使用 `review_profile: lightweight`；新的 Native Delivery 使用 `standard`；均为 `scope: integration`，`mode: initial`）。Review Artifact 必须由审查流程生成，implementer 只能原样保存，不得依据对话手写 JSON。结论为 `NEEDS_CHANGES`（存在 keep 的 P0 / P1）→ 自行修复、重跑受影响的机器验证，再按 `mode: re-review` 定向复核，最多 2 轮；禁止启动第二次全量首审。
 6. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)（强制，Fast-Path 不豁免）。
 7. **提交**：将本次改动提交本地 git（push / `svn commit` 由用户决定）；用户明确要求不提交时，在交付报告标注「未提交待用户处理」。
-8. **交付门（机器判定）**：Fast-Path 兼容别名免传 spec / tasks 与 `--run-dir`，但必须传 lightweight integration Review、独立机器验证报告与长期知识影响结论：命中时运行 `python <本 skill 目录>/scripts/check_delivery.py --review-report <review-report.json> --verify-report <.agentic-framework/verify/report.json> --knowledge-impact hit`；未命中时运行 `python <本 skill 目录>/scripts/check_delivery.py --review-report <review-report.json> --verify-report <.agentic-framework/verify/report.json> --knowledge-impact none --knowledge-impact-reason "<具体理由>"`。门禁校验 `scope: integration` 的 lightweight Review（P0／P1 = 0）、机器验证 verdict = PASS、工作区干净与知识影响结论；通过则输出兼容裁决 `fast-path-pass`，不得声明 strict Review 或 Trust Gate PASS。新的标准 Native Delivery 必须走下方标准流程的 `--native-delivery` 门。非 0 → 补齐 Review 报告、机器验证、知识影响结论或提交后重跑。
+8. **交付门（机器判定）**：Fast-Path 兼容别名免传 spec / tasks 与 `--run-dir`，但必须传由审查流程生成的 lightweight integration Review、独立机器验证报告与长期知识影响结论：命中时运行 `python <本 skill 目录>/scripts/check_delivery.py --review-report <review-report.json> --verify-report <.agentic-framework/verify/report.json> --knowledge-impact hit`；未命中时运行 `python <本 skill 目录>/scripts/check_delivery.py --review-report <review-report.json> --verify-report <.agentic-framework/verify/report.json> --knowledge-impact none --knowledge-impact-reason "<具体理由>"`。门禁校验 `scope: integration` 的 lightweight Review（P0／P1 = 0）、机器验证 verdict = PASS、工作区干净与知识影响结论；通过则输出兼容裁决 `fast-path-pass`，不得声明 strict Review 或 Trust Gate PASS。交付报告只能逐字引用该命令的原始输出，并标为「Fast-Path 兼容裁决」；由于没有归档路径，不得把它概括为「交付门 PASS」。新的标准 Native Delivery 必须走下方标准流程的 `--native-delivery` 门。非 0 → 补齐 Review 报告、机器验证、知识影响结论或提交后重跑。
 9. 按[「统一交付证据格式」](#统一交付证据格式)输出改动说明，**结束**。
 
 ---
@@ -80,7 +80,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 - 测试任务：通过 `workflow-test-generation` 生成或补齐关键交互 / 状态测试。
 - 最终验证任务：执行 `bp-frontend-taste` 和 `frontend-playwright-verification`，失败则回到实现任务修复。
 
-> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。确认时若项目根无 `verify.config.json`，一并提示先运行 `/verify-config` 初始化或明确跳过（跳过则本次只跑内置门禁并在交付报告标注）；代码任务全程不修改该配置。
+> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。确认时若项目根无 `verify.config.json`，一并提示先运行 `/verify-config` 初始化或明确跳过（跳过则本次只跑内置门禁并在交付报告标注）；代码任务全程不修改该配置。选择必须在 `tasks.md` 留下控制流记录：初始化完成后执行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-decision --choice initialize --write`，明确跳过则执行同一命令并传 `--choice skip --write`。
 
 ### 步骤 4：加载编码规范（🚨 强制前置）
 
@@ -113,9 +113,9 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 | `standard` | 默认档：普通功能、Bug 修复，或涉及多个模块之间的行为、契约、交互变化但风险可控 |
 | `strict` | 高风险：生产关键路径、安全 / 权限 / 数据迁移 / 并发 / 分布式 / 性能敏感 / 公共 API / 大范围重构 |
 
-无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。主编排方在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>`，并按需传入 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification` 或 `--audit-required`。输出 `runtime-run` 时才进入完整 Runtime Run；输出 `native-delivery` 时不得创建或伪造 Run Context。
+无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。无 `strict` 风险及 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required` 任一升级条件时，直接进入 Native Delivery，不运行恒为 `native-delivery` 的 `route` 步骤。可能命中升级条件时，主编排方才在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>` 并传入对应 flag；输出 `runtime-run` 时才进入完整 Runtime Run，输出 `native-delivery` 时不得创建或伪造 Run Context。
 
-**主会话必须通过控制流内核构建波次（wave）数组**：存在任务依赖、并行写入或中断恢复需求时，先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。每波 dispatch 前运行同一脚本的 `dispatchable`，只执行输出的 task。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。
+**主会话只在并行分支、非线性依赖图或中断恢复时通过控制流内核构建波次（wave）数组**：先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。仅该路径在每波 dispatch 前运行 `dispatchable`。单 task 或纯串行的小任务按 `tasks.md` 顺序直接执行 `event <id> start --write`；该命令仍校验前置依赖与 Verify 配置选择，不得绕过。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。
 
 **先判定 CLI 嵌套能力**（派子 agent 试再派孙 agent；判定细则与 5 层上限见 reference 手册），选编排模式：
 - **模式 A（默认，Claude Code 支持嵌套）**：每 task 派 owner 子 agent 执行实现、测试和机器验证。
@@ -132,11 +132,11 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 1. **汇总报告**（一次性，不逐 task）：汇总每个 task 的实现、测试和机器检查结果，列出哪些 `需人工`、哪些 `阻塞`、哪些合并冲突。
 2. **机器验证**：对合并结果整体跑 `workflow-verification`。`runtime-run` 传 `--run-dir <run-dir>` 生成 Run 级 Verify Artifact；`native-delivery` 生成独立 Verify 报告，不创建 Run Artifact。有 config 时必须传 `--baseline <repo-root>/.agentic-framework/verify/baseline.json --diff-base <base_sha>`；无 config 时必须传 `--diff-base <base_sha>` 触发内置 spec drift 检查。FAIL → 派 fix Agent 修复后重验；仍 FAIL 标 `需人工`。
 3. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证。失败则修复并回到第 2 步重验。
-4. **一次最终审核**：对本次全部变更调用一次 `workflow-code-review`（`mode: initial`）。`native-delivery` 固定产出无 Run 的 `scope: integration`、`review_profile: standard` 报告；`runtime-run` 固定产出绑定 Run Context 的 `scope: run`、`review_profile: strict` Envelope。`strict` 必须由未参与实现的独立 Judge 裁决。存在 keep 的 P0 / P1 时派 fix agent 修复、重跑受影响的验证，再按 `mode: re-review` 只复核 finding 和修复 diff；最多 2 轮，禁止启动第二次全量首审。
+4. **一次最终审核**：对本次全部变更调用一次 `workflow-code-review`（`mode: initial`）。`native-delivery` 固定产出无 Run 的 `scope: integration`、`review_profile: standard` 报告；`runtime-run` 固定产出绑定 Run Context 的 `scope: run`、`review_profile: strict` Envelope。Artifact 必须由审查流程生成：`standard` 可由 `comprehensive-reviewer` 自证，`strict` 必须由未参与实现的独立 Judge 裁决；implementer 不得手写或改写 Artifact。存在 keep 的 P0 / P1 时派 fix agent 修复、重跑受影响的验证，再按 `mode: re-review` 只复核 finding 和修复 diff；最多 2 轮，禁止启动第二次全量首审。
 5. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)，执行统一知识影响检查，并逐条核销步骤 3 / Phase 1 预留的「intent 沉淀」任务。命中长期知识影响时记录目标 `openspec/specs/` 或 `openspec/issues/` 及同步状态；Fast-Path 未创建 Change 时必须说明无长期知识影响的理由。
 6. **知识同步与归档**：加载 `project-knowledge`，对照实际 Diff 和验证证据完成 Delta、索引、Issues 与冲突检查；知识同步任务未完成时禁止归档。**归档移动前必须先跑 `python <本 skill 目录>/scripts/lint_task_deps.py <tasks.md 路径> --state-consistency`**：`tasks.md` 的任务头复选框、`- 状态：` 字段与验收标准／子任务复选框必须同向。`状态：完成` 的任务，任务头须标 `[x]` 且验收项与子任务全部勾选——复选框由执行方按**真实完成情况**勾选，不得为过门而批量勾选；未达成的验收项应改状态为 `需人工` / `阻塞` 并附原因。非 0 → 修正后重跑，不得带着矛盾状态归档。通过后把 `proposal.md` 头部 `状态` 改为 `Archived`，并将整个 Change 移到 `openspec/changes/archive/<ticket>-YYYY-MM-DD-<change-name>/`。
 7. **提交归档产物**：将工作区本次残留的全部改动（fix 修复、spec / tasks / ADR / issues 等文档）提交本地 git，提交信息关联 feature，交付时工作区必须干净；push / `svn commit` 仍由用户决定。
-8. **交付门（机器判定）**：`runtime-run` 对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --run-dir <run-dir> --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <run-dir>/artifacts/review-run.json`，校验完整 Manifest 可达性、Journal、Harness 启动证据、Trust Gate、任务终态（含状态字段与复选框一致性）、归档和 Git 状态。`native-delivery` 运行 `python <本 skill 目录>/scripts/check_delivery.py --native-delivery --native-delivery-verdict <repo>/.agentic-framework/native-delivery/verdict.json --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <review-report.json> --verify-report <verify-report.json> --knowledge-impact hit|none`；`none` 时追加 `--knowledge-impact-reason "<具体理由>"`。该门只接受无 Run 的 standard integration Review 与独立 Verify，只能生成有界 Verdict，不得声明 Trust Gate 或 Harness 能力。非 0 → 回对应步骤修复后重跑；输出原样贴进交付报告。
+8. **交付门（机器判定）**：`runtime-run` 对归档后的路径运行 `python <本 skill 目录>/scripts/check_delivery.py --run-dir <run-dir> --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <run-dir>/artifacts/review-run.json`，校验完整 Manifest 可达性、Journal、Harness 启动证据、Trust Gate、任务终态（含状态字段与复选框一致性）、归档和 Git 状态。`native-delivery` 运行 `python <本 skill 目录>/scripts/check_delivery.py --native-delivery --native-delivery-verdict <repo>/.agentic-framework/native-delivery/verdict.json --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <review-report.json> --verify-report <verify-report.json> --knowledge-impact hit|none`；`none` 时追加 `--knowledge-impact-reason "<具体理由>"`。该门只接受由审查流程生成的无 Run standard integration Review 与独立 Verify，只能生成有界 Verdict，不得声明 Trust Gate 或 Harness 能力。**交付报告只能逐字引用 `check_delivery.py` 成功执行的原始 stdout，不得自行归纳为「交付门 PASS」或等价措辞。** 缺少归档路径、干净 Git 状态或有效 Review / Verify Artifact，或命令非 0 时，禁止任何「交付门 PASS」类表述；必须改报实际缺失项或失败输出。非 0 → 回对应步骤修复后重跑。
 9. 按[「统一交付证据格式」](#统一交付证据格式)交付，等用户验收 `需人工` / `阻塞` 项的处理。
 
 ## 统一交付证据格式
@@ -157,7 +157,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 
 - **改动文件**：列出代码、规格、任务、ADR 和关键文档。
 - **提交状态**：本地 commit hash（代码与归档产物），或「未提交待用户处理」及原因。
-- **交付门**：`check_delivery.py` 输出（各项 PASS，或未过项及处理说明）。
+- **交付门**：完整粘贴 `check_delivery.py` 的原始 stdout，不增写 Verdict 摘要、PASS 结论或「交付门 PASS」类措辞。未运行、非 0、缺少归档路径、工作区不干净或 Artifact 无效时，只写实际状态和原始错误，不得声明交付通过。
 - **测试命令**：列出实际运行命令、结果；未运行写原因。
 - **review 结论**：列出 review_profile、通过 / finding / 需人工。
 - **机器验证**：列出 `workflow-verification` 结果和 `.agentic-framework/verify/report.json` 路径；必须包含 `spec_drift` 结论；注明配置消费状态（使用现有 / 缺失已跳过 / 建议刷新及原因——如 exit 2 或配置引用的命令、路径失效，提示用户之后运行 `/verify-config`，不在任务内改配置）。

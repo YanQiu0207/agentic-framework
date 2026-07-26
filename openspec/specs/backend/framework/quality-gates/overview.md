@@ -10,7 +10,7 @@
 | Tooling Task 门 | `workflow_control.py quality_passed` | 要求 Task 机器验证报告为 `PASS` |
 | Tooling Run 交付门 | `check_delivery.py` | 校验归档、终态、Review JSON、知识影响和 Git 状态 |
 | 机器 Verification | `workflow-verification/scripts/verify.py` | 执行项目配置、比较基线、检查 Spec Drift 并生成 JSON 报告 |
-| 语义 Review | `workflow-code-review` 与 `agents/` | 按风险分档审查 Diff，由 Judge 输出 Markdown 与结构化 JSON |
+| 语义 Review | `workflow-code-review` 与 `agents/` | 按风险分档审查 Diff；`lightweight` / `standard` 由 `comprehensive-reviewer` 自证并生成 Artifact，`strict` 由独立 Judge 输出最终 Markdown 与结构化 JSON |
 
 这些层相互提供证据，但不能互相替代。
 
@@ -69,10 +69,11 @@ Verification 基线、机器报告和 Run 级 Review JSON 统一位于仓库根 
 
 - `lightweight`、`standard`：调用 `comprehensive-reviewer`。
 - `strict`：调用 5 个专项 Reviewer；存在 Finding 时再调用 `review-critic`。
-- Strict 最终 Judge 必须与实现主体独立。
+- `lightweight`、`standard` 的 `comprehensive-reviewer` 可自证并生成 Review Artifact；被审方只能原样持久化，不得手写或改写 Artifact。
+- Strict 最终 Judge 必须与实现主体独立，并生成最终 Artifact。
 - 修复后只定向 Re-review，最多 2 轮；不得启动第二次全量首审。
 
-Review 同时输出 Markdown 和 Run 级 JSON。机器门校验 `verdict`、P0/P1 数量、`scope`、`review_profile` 和轮次，但 Reviewer 的语义判断仍需独立 Judge 负责（`skills/workflow-code-review/SKILL.md:14-59,270-300`）。OPSX 阶段门（`validate_change.py`）接受双格式 Review 报告：Envelope（裁决字段在 `payload` 内）或旧式扁平 JSON（裁决字段在顶层），按同一套字段校验，Envelope 额外要求顶层 `artifact_type` 为 `review-report`，顶层字段仅限 Run Envelope schema 定义的 13 个键（与 `payload` 同时携带裁决字段、`payload` 非 JSON 对象、或顶层携带该白名单外的未知字段，均拒绝）；Tooling Run 级报告仍必须是绑定 Run Context 的 Envelope（见 trust-model.md §6）。
+Review 同时输出 Markdown 和与交付路径匹配的 JSON。机器门校验 `verdict`、P0/P1 数量、`scope`、`review_profile` 和轮次；它只能验证 Artifact 合同，不能把被审方手写的 JSON 变成可信 Review。OPSX 阶段门（`validate_change.py`）接受双格式 Review 报告：Envelope（裁决字段在 `payload` 内）或旧式扁平 JSON（裁决字段在顶层），按同一套字段校验，Envelope 额外要求顶层 `artifact_type` 为 `review-report`，顶层字段仅限 Run Envelope schema 定义的 13 个键（与 `payload` 同时携带裁决字段、`payload` 非 JSON 对象、或顶层携带该白名单外的未知字段，均拒绝）；Tooling Run 级报告仍必须是绑定 Run Context 的 Envelope（见 trust-model.md §6）。
 
 ## 信任边界
 

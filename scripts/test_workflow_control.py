@@ -432,6 +432,94 @@ class WorkflowControlTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "尚未全部完成"):
             workflow_control.apply_event(tasks, 2, "start")
 
+    def test_missing_verify_config_blocks_all_dispatch_entry_points(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            original = tasks_text({1: "未开始"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(2, workflow_control.main([str(path), "dispatchable"]))
+            self.assertIn(
+                str(Path(workflow_control.__file__).resolve()), stderr.getvalue()
+            )
+            self.assertEqual(
+                2,
+                workflow_control.main([str(path), "event", "1", "start", "--write"]),
+            )
+            self.assertEqual(
+                2,
+                workflow_control.main([str(path), "recover"]),
+            )
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+    def test_skip_decision_allows_dispatch_without_verify_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+
+            self.assertEqual(
+                0,
+                workflow_control.main(
+                    [
+                        str(path),
+                        "verify-config-decision",
+                        "--choice",
+                        "skip",
+                        "--write",
+                    ]
+                ),
+            )
+            self.assertIn(
+                "- verify_config_decision: 跳过",
+                path.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(0, workflow_control.main([str(path), "dispatchable"]))
+            self.assertEqual(
+                0,
+                workflow_control.main([str(path), "event", "1", "start", "--write"]),
+            )
+
+    def test_initialize_decision_requires_existing_verify_config(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "tasks.md"
+            original = tasks_text({1: "未开始"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+
+            self.assertEqual(
+                2,
+                workflow_control.main(
+                    [
+                        str(path),
+                        "verify-config-decision",
+                        "--choice",
+                        "initialize",
+                        "--write",
+                    ]
+                ),
+            )
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+
+            (root / "verify.config.json").write_text("{}", encoding="utf-8")
+            self.assertEqual(
+                0,
+                workflow_control.main(
+                    [
+                        str(path),
+                        "verify-config-decision",
+                        "--choice",
+                        "initialize",
+                        "--write",
+                    ]
+                ),
+            )
+            self.assertIn(
+                "- verify_config_decision: 初始化",
+                path.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(0, workflow_control.main([str(path), "dispatchable"]))
+
     def test_cli_uses_atomic_writer_and_persists_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
@@ -490,6 +578,7 @@ class WorkflowControlTest(unittest.TestCase):
                 tasks_text({1: "完成", 2: "未开始"}, {1: [], 2: [1]}),
                 encoding="utf-8",
             )
+            (path.parent / "verify.config.json").write_text("{}", encoding="utf-8")
             self.assertEqual(0, workflow_control.main([str(path), "waves"]))
             self.assertEqual(
                 0,

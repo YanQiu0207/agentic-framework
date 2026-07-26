@@ -19,7 +19,7 @@
 
 ## 3. 何时进入本执行段
 
-`workflow-code-generation` 步骤 1 复杂度路由判定为**中等及以上**（不满足 Fast-Path 的「请求即计划」判据）、且 tasks.md 经用户批准后，即进入本执行段。波内并行度由 `depends_on` 决定：多 task 无依赖 → 并行分波；单 task / 串行依赖 → 逐波单 agent。
+`workflow-code-generation` 步骤 1 复杂度路由判定为**中等及以上**（不满足 Fast-Path 的「请求即计划」判据）、且 tasks.md 经用户批准后，即进入本执行段。波内并行度由 `depends_on` 决定：多 task 无依赖 → 并行分波；单 task / 纯串行依赖 → 单 agent 按任务顺序连续执行，不运行 `waves` / `dispatchable`。
 
 ## 4. 核心流程
 
@@ -30,7 +30,7 @@
 1. 完整读 `spec.md` + `tasks.md`。
 2. 加载编码规范（`bp-coding-best-practices` + `bp-performance-optimization` + 按文件类型 `std-*`）。
 3. 记录 `base_sha=$(git rev-parse HEAD)`，后续 `workflow-verification` 显式传 `--diff-base <base_sha>`。
-4. 由 `depends_on` 构建任务 **DAG**，**分波（wave）**：同波内任务互不依赖、可并行；后波依赖前波产物。无依赖信息时保守串行或回问用户。
+4. 仅对有可并行分支或非线性依赖图的任务，由 `depends_on` 构建任务 **DAG** 并分波（wave）：同波内任务互不依赖、可并行；后波依赖前波产物。单 task / 纯串行链直接按任务顺序执行；无依赖信息时保守串行或回问用户。
 
 ### Phase 1：逐波并行执行
 
@@ -38,7 +38,7 @@
 
 1. **并行 dispatch**：wave 内每个 task 派一个子 agent（模式 A 为 owner、模式 B 为 implementer），各自在**隔离 git worktree**（基于当前分支 HEAD）工作，受并发上限约束（超出排队）。
    - subagent 输入：task 描述 + `context_files` + `verification` + `artifacts` + spec/tasks 摘要 + 编码规范 + worktree 路径。
-   - subagent 动作：模式 A（owner）完成实现 → 写 + 跑测试（`workflow-test-generation`，与实现同批）→ 机器验证；`lightweight` / `standard` 自跑 review，`strict` 等待独立 Judge 裁决后修复 keep finding。模式 B（implementer）实现 + 写 / 跑测试。（可选 TDD：先写失败测试）
+   - subagent 动作：模式 A（owner）完成实现 → 写 + 跑测试（`workflow-test-generation`，与实现同批）→ 机器验证；`lightweight` / `standard` 可自证，但 Review Artifact 由 `comprehensive-reviewer` 生成、owner 仅原样保存；`strict` 等待独立 Judge 裁决后修复 keep finding。模式 B（implementer）实现 + 写 / 跑测试。（可选 TDD：先写失败测试）
 2. **每产物过质量门**（在各自 worktree 内；模式 A 按 review 档位分流，模式 B 由主 agent 跑）：
    - `workflow-code-review`（按风险分级：小需求轻量审，普通任务标准审，高风险任务严格审）。
    - `workflow-verification`（有配置跑 build / test / lint；无配置也跑内置 spec drift）——与 review 并列，机器能验的不靠 LLM 背书。

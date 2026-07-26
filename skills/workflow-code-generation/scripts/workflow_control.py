@@ -26,6 +26,11 @@ import runtime_workflow
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _TASK_DOCUMENT_NAME = "tasks.md"
+_VERIFY_CONFIG_NAME = "verify.config.json"
+_VERIFY_CONFIG_DECISION_FIELD = "verify_config_decision"
+_VERIFY_CONFIG_DECISIONS = {"初始化", "跳过"}
+
+
 @dataclass(frozen=True)
 class TaskDecision:
     """A validated task transition decision."""
@@ -209,6 +214,97 @@ def _validate_verify_report(report: object) -> None:
 def build_waves(tasks: dict[int, dict]) -> list[list[int]]:
     """Build stable topological waves from parsed tasks."""
     return _validate_dependencies(tasks)
+
+
+def _task_preamble(text: str) -> str:
+    """Return the document portion before the first task section."""
+    first_task = lint_task_deps.TASK_HEADER.search(text)
+    return text[: first_task.start()] if first_task else text
+
+
+def _verify_config_decision(text: str) -> str | None:
+    """Read the one global Verify configuration decision from ``tasks.md``."""
+    pattern = _field_pattern(_VERIFY_CONFIG_DECISION_FIELD)
+    matches = list(pattern.finditer(_task_preamble(text)))
+    if len(matches) > 1:
+        raise ValueError("verify_config_decision 只能记录一次")
+    if not matches:
+        return None
+    value = lint_task_deps.field(_task_preamble(text), _VERIFY_CONFIG_DECISION_FIELD)
+    if value not in _VERIFY_CONFIG_DECISIONS:
+        allowed = " / ".join(sorted(_VERIFY_CONFIG_DECISIONS))
+        raise ValueError(f"verify_config_decision 必须为 {allowed}：{value!r}")
+    return value
+
+
+def _verify_config_path(tasks_path: Path) -> Path:
+    """Return the Verify configuration path for a task document's repository."""
+    return _repository_root(tasks_path) / _VERIFY_CONFIG_NAME
+
+
+def _require_verify_config_decision(tasks_path: Path, text: str) -> None:
+    """Fail closed before dispatch when missing Verify configuration lacks consent."""
+    config_path = _verify_config_path(tasks_path)
+    if config_path.is_file():
+        return
+    decision = _verify_config_decision(text)
+    if decision == "跳过":
+        return
+    command = (
+        f'python "{Path(__file__).resolve()}" "{tasks_path}" '
+        "verify-config-decision --choice skip --write"
+    )
+    if decision == "初始化":
+        raise ValueError(
+            f"缺少 {config_path}；「初始化」记录要求该文件已实际存在。"
+            "请先运行 /verify-config 完成初始化，或由用户明确记录「跳过」。"
+        )
+    raise ValueError(
+        f"缺少 {config_path}，禁止 dispatch。请由用户运行 /verify-config 后记录"
+        f"「初始化」，或明确选择「跳过」：{command}"
+    )
+
+
+def _record_verify_config_decision(
+    tasks_path: Path, text: str, choice: str
+) -> tuple[str, str]:
+    """Validate and persist a user's initialization or skip decision."""
+    config_path = _verify_config_path(tasks_path)
+    if choice == "initialize":
+        if not config_path.is_file():
+            raise ValueError(
+                f"不能记录「初始化」：{config_path} 尚不存在。"
+                "请先运行 /verify-config。"
+            )
+        decision = "初始化"
+    else:
+        if config_path.is_file():
+            raise ValueError(
+                f"不能记录「跳过」：{config_path} 已存在，无需跳过配置验证。"
+            )
+        decision = "跳过"
+    return _update_verify_config_decision(text, decision), decision
+
+
+def _update_verify_config_decision(text: str, decision: str) -> str:
+    """Replace or insert the global Verify configuration decision in ``tasks.md``."""
+    preamble = _task_preamble(text)
+    pattern = _field_pattern(_VERIFY_CONFIG_DECISION_FIELD)
+    matches = list(pattern.finditer(preamble))
+    if len(matches) > 1:
+        raise ValueError("verify_config_decision 只能记录一次")
+    newline = "\r\n" if "\r\n" in text else "\n"
+    line = f"- {_VERIFY_CONFIG_DECISION_FIELD}: {decision}"
+    if matches:
+        match = matches[0]
+        replacement = f"{match.group(1)}{line}"
+        return text[: match.start()] + replacement + text[match.end() :]
+    first_task = lint_task_deps.TASK_HEADER.search(text)
+    if first_task is None:
+        raise ValueError("未解析到任何任务")
+    prefix = text[: first_task.start()].rstrip("\r\n")
+    suffix = text[first_task.start() :]
+    return f"{prefix}{newline}{newline}{line}{newline}{newline}{suffix}"
 
 
 def dispatchable_tasks(tasks: dict[int, dict]) -> list[int]:
@@ -730,6 +826,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     init_parser.add_argument("--adapter-command", nargs="+", required=True)
     init_parser.add_argument("--required-capability", action="append", default=[])
     init_parser.add_argument("--optional-capability", action="append", default=[])
+    decision_parser = subparsers.add_parser(
+        "verify-config-decision", help="记录用户的 Verify 配置选择"
+    )
+    decision_parser.add_argument(
+        "--choice", choices=("initialize", "skip"), required=True
+    )
+    decision_parser.add_argument("--write", action="store_true", required=True)
+    decision_parser.add_argument("--lock-timeout", type=float, default=10.0)
     block_parser = subparsers.add_parser("block", help="传播下游阻塞")
     block_parser.add_argument("--write", action="store_true")
     block_parser.add_argument("--lock-timeout", type=float, default=10.0)
@@ -768,11 +872,27 @@ def main(argv: list[str]) -> int:
             )
             print(json.dumps(context, ensure_ascii=False, indent=2))
             return 0
-        is_write = args.command in {"event", "block"} and args.write
+        is_write = (
+            args.command
+            in {
+                "event",
+                "block",
+                "verify-config-decision",
+            }
+            and args.write
+        )
         if is_write:
             with _task_write_lock(args.tasks_md, args.lock_timeout):
                 text, tasks = _load(args.tasks_md)
-                if args.command == "event":
+                if args.command == "verify-config-decision":
+                    updated, decision = _record_verify_config_decision(
+                        args.tasks_md, text, args.choice
+                    )
+                    _atomic_write(args.tasks_md, updated)
+                    output = {"verify_config_decision": decision}
+                elif args.command == "event":
+                    if args.event == "start":
+                        _require_verify_config_decision(args.tasks_md, text)
                     attempt = _attempts(tasks[args.task_id]) + 1
                     if args.event == "quality_passed":
                         _load_verify_report(
@@ -806,6 +926,7 @@ def main(argv: list[str]) -> int:
             if args.command == "waves":
                 output = build_waves(tasks)
             elif args.command == "dispatchable":
+                _require_verify_config_decision(args.tasks_md, text)
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
                 output = asdict(
@@ -820,6 +941,8 @@ def main(argv: list[str]) -> int:
                     )
                 )
             elif args.command == "event":
+                if args.event == "start":
+                    _require_verify_config_decision(args.tasks_md, text)
                 decision = apply_event(
                     tasks,
                     args.task_id,
@@ -831,10 +954,13 @@ def main(argv: list[str]) -> int:
             elif args.command == "block":
                 decisions = propagate_blocked(tasks)
                 output = [asdict(decision) for decision in decisions]
-            else:
+            elif args.command == "recover":
+                _require_verify_config_decision(args.tasks_md, text)
                 output = [
                     asdict(action) for action in plan_recovery(tasks, set(args.merged))
                 ]
+            else:
+                raise ValueError(f"未知命令: {args.command}")
     except (OSError, ValueError, runtime_workflow.RuntimeWorkflowError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
