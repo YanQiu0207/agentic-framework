@@ -8,6 +8,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 sys.path.insert(
     0,
@@ -285,6 +286,45 @@ class CheckDeliveryTest(unittest.TestCase):
         )
         self.assertEqual(1, result)
 
+    def test_runtime_run_requires_knowledge_impact(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, _ = self._fast_path_inputs(repo, review=PASSING_RUN_REPORT)
+        tasks = repo / "tasks.md"
+        spec = repo / "proposal.md"
+        tasks.write_text(TERMINAL_TASKS, encoding="utf-8")
+        spec.write_text("**状态**: Archived\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "tasks.md", "proposal.md"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-qm", "archive"],
+            check=True,
+            capture_output=True,
+        )
+        output = StringIO()
+        with (
+            patch.object(check_delivery, "check_review_report", return_value=[]),
+            redirect_stdout(output),
+        ):
+            result = check_delivery.main(
+                [
+                    "--repo",
+                    str(repo),
+                    "--run-dir",
+                    str(repo / ".agentic-framework" / "runs" / "run-1"),
+                    "--tasks",
+                    str(tasks),
+                    "--spec",
+                    str(spec),
+                    "--review-report",
+                    str(review),
+                ]
+            )
+        self.assertEqual(1, result)
+        self.assertIn("缺少 --knowledge-impact hit|none", output.getvalue())
+
     def test_main_fast_path_accepts_lightweight_delivery(self) -> None:
         repo = self._clean_repo_with_ignore()
         review, verify = self._fast_path_inputs(repo)
@@ -435,6 +475,7 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertEqual(0, code)
         verdict_payload = json.loads(verdict.read_text(encoding="utf-8"))
         self.assertIn("本次交付范围干净，预存残留未变化", output.getvalue())
+        self.assertIn("Scoped Delivery 知识影响：未命中", output.getvalue())
         self.assertNotIn("工作区干净", output.getvalue())
         self.assertNotIn("git-clean", output.getvalue())
         self.assertEqual(True, verdict_payload["evidence"]["scoped_delivery"])
@@ -596,6 +637,54 @@ class CheckDeliveryTest(unittest.TestCase):
             result = check_delivery.main(args)
         self.assertEqual(0, result)
         self.assertTrue(verdict_path.is_file())
+
+    def test_runtime_run_reports_knowledge_impact(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, _ = self._fast_path_inputs(repo, review=PASSING_RUN_REPORT)
+        tasks = repo / "tasks.md"
+        spec = repo / "proposal.md"
+        tasks.write_text(TERMINAL_TASKS, encoding="utf-8")
+        spec.write_text("**状态**: Archived\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(repo), "add", "tasks.md", "proposal.md"],
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-qm", "archive"],
+            check=True,
+            capture_output=True,
+        )
+        output = StringIO()
+        with (
+            patch.object(check_delivery, "check_review_report", return_value=[]),
+            patch.object(
+                check_delivery.runtime_workflow,
+                "finalize_run",
+                return_value={"verdict": "PASS"},
+            ),
+            redirect_stdout(output),
+        ):
+            result = check_delivery.main(
+                [
+                    "--repo",
+                    str(repo),
+                    "--run-dir",
+                    str(repo / ".agentic-framework" / "runs" / "run-1"),
+                    "--tasks",
+                    str(tasks),
+                    "--spec",
+                    str(spec),
+                    "--review-report",
+                    str(review),
+                    "--knowledge-impact",
+                    "none",
+                    "--knowledge-impact-reason",
+                    "requires no lasting knowledge update",
+                ]
+            )
+        self.assertEqual(0, result)
+        self.assertIn("Runtime Run 知识影响：未命中", output.getvalue())
 
     def test_native_delivery_requires_tasks_and_spec(self) -> None:
         repo = self._clean_repo_with_ignore()

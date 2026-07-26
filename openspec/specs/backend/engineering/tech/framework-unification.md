@@ -256,6 +256,7 @@ Tasks 获批
   - 完整 Runtime Run：`strict` Run 级 Review。
 - P0/P1 才触发修复；修复后只执行定向 re-review。
 - Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree、失败恢复和 Runtime 审计策略中。
+- Fast-Path、Native Delivery、Runtime Run 与 Scoped Delivery 的交付门都必须声明 `--knowledge-impact hit|none`；`none` 缺理由、参数缺失或非法值均失败关闭，不得按路径豁免。
 - 速度优化不得通过删除 Verification、失败接管或 intent 检查实现；worktree 与 DAG 按执行需求保留，不是普通任务的强制前置。
 
 ## 7. Shared Core
@@ -359,6 +360,7 @@ scope: task | integration | run
 | 配置弱化 | 失败关闭 | 失败关闭 |
 | 基线比较 | 必须 | Standard 及以上必须 |
 | Spec Drift | 必须 | 代码改动必须说明 |
+| 知识影响声明 | Archive 前核对 | 四条交付路径均必须声明；`none` 必须附理由 |
 | 生产资源测试 | 默认排除，受控执行 | 默认排除 |
 | 失败处理 | 阻止 Delivery | 阻止交付或转人工 |
 

@@ -444,9 +444,9 @@ def check_git_clean(repo: Path) -> list[str]:
 
 
 def check_knowledge_impact(impact: str | None, reason: str) -> list[str]:
-    """Native Delivery and its Fast-Path alias must declare knowledge impact."""
+    """Every delivery path must declare its knowledge impact."""
     if impact is None:
-        return ["Fast-Path 缺少 --knowledge-impact hit|none"]
+        return ["缺少 --knowledge-impact hit|none"]
     if impact == "none" and not reason.strip():
         return ["--knowledge-impact none 必须提供 --knowledge-impact-reason"]
     return []
@@ -501,7 +501,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--knowledge-impact",
         choices=("hit", "none"),
-        help="Native Delivery 或 Fast-Path 兼容别名的长期知识影响结论",
+        help="所有交付路径必填的长期知识影响结论",
     )
     parser.add_argument(
         "--knowledge-impact-reason",
@@ -605,26 +605,29 @@ def main(argv: list[str]) -> int:
     errors: list[str] = []
     checks = 0
 
-    requires_knowledge_impact = args.native_delivery or (
-        args.tasks is None and args.spec is None
+    checks += 1
+    found = check_knowledge_impact(
+        args.knowledge_impact, args.knowledge_impact_reason
     )
-    if requires_knowledge_impact:
-        checks += 1
-        found = check_knowledge_impact(
-            args.knowledge_impact, args.knowledge_impact_reason
+    errors.extend(found)
+    if args.scoped_delivery:
+        path_name = "Scoped Delivery"
+    elif args.run_dir is not None:
+        path_name = "Runtime Run"
+    elif args.native_delivery:
+        path_name = "Native Delivery"
+    else:
+        path_name = "Fast-Path"
+    print(
+        ("ERROR  " + "；".join(found))
+        if found
+        else (
+            f"PASS   {path_name} 知识影响：命中"
+            if args.knowledge_impact == "hit"
+            else f"PASS   {path_name} 知识影响：未命中；"
+            f"理由：{args.knowledge_impact_reason.strip()}"
         )
-        errors.extend(found)
-        path_name = "Native Delivery" if args.native_delivery else "Fast-Path"
-        print(
-            ("ERROR  " + "；".join(found))
-            if found
-            else (
-                f"PASS   {path_name} 知识影响：命中"
-                if args.knowledge_impact == "hit"
-                else f"PASS   {path_name} 知识影响：未命中；"
-                f"理由：{args.knowledge_impact_reason.strip()}"
-            )
-        )
+    )
 
     for label, path, checker in (
         ("tasks.md 全部任务处于终态且附原因", args.tasks, check_tasks),

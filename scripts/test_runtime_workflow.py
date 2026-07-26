@@ -170,6 +170,10 @@ class RuntimeWorkflowTest(unittest.TestCase):
                     str(spec),
                     "--review-report",
                     str(review_path),
+                    "--knowledge-impact",
+                    "none",
+                    "--knowledge-impact-reason",
+                    "test runtime has no lasting knowledge impact",
                 ]
             )
             manifest = json.loads(
