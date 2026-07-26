@@ -38,6 +38,15 @@ proposal.md / tasks.md 获批
 - `recover` 同时使用 `tasks.md` 状态和调用方提供的已合并事实；两者矛盾时失败关闭（`workflow_control.py:288-347`）。
 - 写状态使用锁和原子替换，避免并发写入静默覆盖；锁超时属于可报告错误。锁统一位于仓库根 `.agentic-framework/locks/`，文件名是目标 `tasks.md` 规范化绝对路径的 SHA-256 摘要，不同仓库或 Change 不共享锁名。旧相邻 `.tasks.md.lock` 仅在已存在时兼容加锁读取并提示迁移，不自动删除或覆盖。
 
+## 升级与批准（change 2039）
+
+- 任务声明 `- Escalation: <条件>` 后，`event escalate` 把任务从 `进行中` 暂停为「待批准」：持久化写回规范态 `需人工`（原因前缀 `待批准 <条件>`）加 `control_stage: awaiting_approval`。「待批准」只是执行期内部态，读侧规范值恒为五个，`parse_state` 不接受 `待批准`。
+- 恢复转移是 `event approval_granted`：要求任务块内 `- Approval: granted (<条件>)` 且条件集合与 `Escalation` 一致；缺失、`pending`、条件非法、条件不一致、声明缩进或列表错位，全部失败关闭（与 OPSX053 方向对齐）。恢复后回到 `进行中`。
+- `merge_success` 前的批准门：命中升级条件的任务必须已有 granted 证据；头部声明 `> 批准模式: per-task` 时每个任务都需要（缺省 `risk-triggered` 只看声明了条件的任务）。未声明任何升级条件的执行路径不经过批准门（零触发等价）。
+- 升级条件与批准模式词表逐项抄录 Production（`validate_change.py:102-113`），两侧集合相等有测试断言。
+- 传播行为：待批准（`需人工`＋`awaiting_approval`）与失败需人工一样阻塞下游、不被 `dispatchable` 派发；`recover` 对其输出 `await_approval` 动作（与 `manual` 区分）。
+- 词表事件只加新分支：`escalate`／`approval_granted` 两个新事件与两个新转移，既有事件与转移未改。
+
 ## 质量证据边界
 
 - `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。

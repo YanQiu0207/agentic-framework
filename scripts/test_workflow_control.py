@@ -25,6 +25,9 @@ sys.path.insert(
 import lint_task_deps
 import workflow_control
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import validate_change
+
 
 def passing_verify_result() -> dict[str, object]:
     """Return the minimum CheckResult serialization accepted by the gate."""
@@ -906,6 +909,265 @@ class WorkflowControlTest(unittest.TestCase):
         self.assertFalse("¹".isdecimal())
         with self.assertRaisesRegex(ValueError, "非法 attempts"):
             workflow_control._attempts(tasks[1])
+
+
+class ApprovalGateVocabularyTest(unittest.TestCase):
+    """change 2039：词表与 Production 逐项一致，不新建第二套。"""
+
+    def test_escalation_conditions_equal_production(self) -> None:
+        self.assertEqual(
+            validate_change.ESCALATION_CONDITIONS,
+            workflow_control.ESCALATION_CONDITIONS,
+        )
+
+    def test_approval_modes_equal_production(self) -> None:
+        self.assertEqual(
+            validate_change.APPROVAL_MODES, workflow_control.APPROVAL_MODES
+        )
+
+    def test_field_regexes_match_identically(self) -> None:
+        samples = [
+            "- Escalation: scope-change, irreversible\n",
+            "- Approval: granted (scope-change)\n",
+            "> 批准模式: per-task\n",
+        ]
+        for tooling_re, production_re in (
+            (workflow_control.ESCALATION_RE, validate_change.ESCALATION_RE),
+            (workflow_control.APPROVAL_RE, validate_change.APPROVAL_RE),
+            (workflow_control.APPROVAL_MODE_RE, validate_change.APPROVAL_MODE_RE),
+        ):
+            for sample in samples:
+                self.assertEqual(
+                    bool(production_re.search(sample)),
+                    bool(tooling_re.search(sample)),
+                    (production_re.pattern, sample),
+                )
+
+
+def escalated_tasks_text(
+    escalation: str = "- Escalation: scope-change",
+    approval: str = "",
+    mode: str = "",
+) -> str:
+    """构造带升级声明的两任务文档：任务 1 完成，任务 2 进行中。"""
+    header = "# 实施任务清单\n\n"
+    if mode:
+        header += f"> 批准模式: {mode}\n\n"
+    return (
+        header
+        + "### 任务 1：甲\n- 状态：完成\n- attempts：0\n- depends_on：[]\n"
+        + "### 任务 2：乙\n- 状态：进行中\n- attempts：0\n- depends_on：Task 1\n"
+        + (escalation + "\n" if escalation else "")
+        + (approval + "\n" if approval else "")
+    )
+
+
+class EscalateTransitionTest(unittest.TestCase):
+    """进入与恢复转移：语义与 manual 系明确区分，读侧恒 5 态。"""
+
+    def test_escalate_enters_awaiting_approval_via_canonical_state(self) -> None:
+        tasks = lint_task_deps.parse_tasks(escalated_tasks_text())
+        decision = workflow_control.apply_event(tasks, 2, "escalate")
+        # 持久化映射：状态写回规范态「需人工」，待批准经 control_stage 区分
+        self.assertEqual("需人工", decision.state)
+        self.assertEqual("awaiting_approval", decision.control_stage)
+        self.assertIn("待批准 scope-change", decision.reason)
+
+    def test_escalate_requires_declared_condition(self) -> None:
+        tasks = lint_task_deps.parse_tasks(escalated_tasks_text(escalation=""))
+        with self.assertRaisesRegex(ValueError, "未声明升级条件"):
+            workflow_control.apply_event(tasks, 2, "escalate")
+
+    def test_escalate_rejects_illegal_condition(self) -> None:
+        tasks = lint_task_deps.parse_tasks(
+            escalated_tasks_text(escalation="- Escalation: bogus-id")
+        )
+        with self.assertRaisesRegex(ValueError, "非法条件"):
+            workflow_control.apply_event(tasks, 2, "escalate")
+
+    def test_approval_granted_resumes_with_consistent_evidence(self) -> None:
+        text = escalated_tasks_text(approval="- Approval: granted (scope-change)")
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        decision = workflow_control.apply_event(tasks, 2, "approval_granted")
+        self.assertEqual("进行中", decision.state)
+        self.assertEqual("running", decision.control_stage)
+
+    def test_approval_granted_fails_closed_on_pending(self) -> None:
+        text = escalated_tasks_text(approval="- Approval: pending (scope-change)")
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        with self.assertRaisesRegex(ValueError, "尚未获批准"):
+            workflow_control.apply_event(tasks, 2, "approval_granted")
+
+    def test_approval_granted_fails_closed_on_missing_evidence(self) -> None:
+        text = escalated_tasks_text()
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        with self.assertRaisesRegex(ValueError, "缺少已批准的 Approval"):
+            workflow_control.apply_event(tasks, 2, "approval_granted")
+
+    def test_approval_granted_fails_closed_on_condition_mismatch(self) -> None:
+        text = escalated_tasks_text(approval="- Approval: granted (irreversible)")
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        with self.assertRaisesRegex(ValueError, "不一致"):
+            workflow_control.apply_event(tasks, 2, "approval_granted")
+
+    def test_approval_granted_fails_closed_on_misplaced_declaration(self) -> None:
+        text = escalated_tasks_text(approval="  - Approval: granted (scope-change)")
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        with self.assertRaisesRegex(ValueError, "格式错位"):
+            workflow_control.apply_event(tasks, 2, "approval_granted")
+
+    def test_recovery_distinguishes_awaiting_approval_from_manual(self) -> None:
+        text = escalated_tasks_text()
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        actions = {a.task_id: a for a in workflow_control.plan_recovery(tasks, set())}
+        self.assertEqual("await_approval", actions[2].action)
+
+    def test_awaiting_approval_blocks_descendants(self) -> None:
+        text = escalated_tasks_text() + "### 任务 3：丙\n- 状态：未开始\n- attempts：0\n- depends_on：Task 2\n"
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        decisions = workflow_control.propagate_blocked(tasks)
+        self.assertIn(3, [d.task_id for d in decisions])
+
+    def test_awaiting_approval_is_not_dispatchable(self) -> None:
+        text = escalated_tasks_text()
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        tasks = lint_task_deps.parse_tasks(text)
+        self.assertEqual([], workflow_control.dispatchable_tasks(tasks))
+
+    def test_read_side_states_stay_five(self) -> None:
+        self.assertEqual(5, len(lint_task_deps.TASK_STATES))
+        self.assertNotIn("待批准", lint_task_deps.TASK_STATES)
+        self.assertIsNone(lint_task_deps.parse_state("待批准"))
+        # 持久化后的文本读侧仍解析为「需人工」
+        text = escalated_tasks_text()
+        tasks = lint_task_deps.parse_tasks(text)
+        paused = workflow_control.apply_event(tasks, 2, "escalate")
+        text = workflow_control.update_task_state(text, paused)
+        self.assertEqual("需人工", lint_task_deps.parse_state(
+            lint_task_deps.field(lint_task_deps.parse_tasks(text)[2]["body"], "状态")
+        ))
+
+
+class ApprovalGateTest(unittest.TestCase):
+    """merge_success 批准门：零触发、risk-triggered 与 per-task 的失败关闭。"""
+
+    def test_zero_trigger_merge_success_unchanged(self) -> None:
+        text = escalated_tasks_text(escalation="")
+        tasks = lint_task_deps.parse_tasks(text)
+        self.assertEqual([], workflow_control.approval_gate_errors(text, tasks, 2))
+
+    def test_escalated_task_requires_approval_to_merge(self) -> None:
+        text = escalated_tasks_text()
+        tasks = lint_task_deps.parse_tasks(text)
+        self.assertTrue(workflow_control.approval_gate_errors(text, tasks, 2))
+
+    def test_escalated_task_merges_with_granted_approval(self) -> None:
+        text = escalated_tasks_text(approval="- Approval: granted (scope-change)")
+        tasks = lint_task_deps.parse_tasks(text)
+        self.assertEqual([], workflow_control.approval_gate_errors(text, tasks, 2))
+
+    def test_per_task_mode_requires_approval_without_escalation(self) -> None:
+        text = escalated_tasks_text(escalation="", mode="per-task")
+        tasks = lint_task_deps.parse_tasks(text)
+        errors = workflow_control.approval_gate_errors(text, tasks, 2)
+        self.assertTrue(any("per-task-mode" in e for e in errors), errors)
+
+    def test_per_task_mode_passes_with_per_task_approval(self) -> None:
+        text = escalated_tasks_text(
+            escalation="",
+            approval="- Approval: granted (per-task-mode)",
+            mode="per-task",
+        )
+        tasks = lint_task_deps.parse_tasks(text)
+        self.assertEqual([], workflow_control.approval_gate_errors(text, tasks, 2))
+
+    def test_orphan_approval_record_fails_closed(self) -> None:
+        text = escalated_tasks_text(
+            escalation="", approval="- Approval: granted (无)"
+        )
+        tasks = lint_task_deps.parse_tasks(text)
+        errors = workflow_control.approval_gate_errors(text, tasks, 2)
+        self.assertTrue(any("未声明 Escalation" in e for e in errors), errors)
+
+    def test_misplaced_mode_declaration_fails_closed(self) -> None:
+        text = escalated_tasks_text(escalation="").replace(
+            "### 任务 1", "- 批准模式: per-task\n\n### 任务 1"
+        )
+        tasks = lint_task_deps.parse_tasks(text)
+        with self.assertRaisesRegex(ValueError, "批准模式"):
+            workflow_control.approval_gate_errors(text, tasks, 2)
+
+    def test_cross_track_read_consistency(self) -> None:
+        """同一份 tasks.md，两轨对升级与批准字段的读取结果一致。"""
+        cases = [
+            escalated_tasks_text(),
+            escalated_tasks_text(approval="- Approval: granted (scope-change)"),
+            escalated_tasks_text(approval="- Approval: pending (scope-change)"),
+            escalated_tasks_text(approval="- Approval: granted (irreversible)"),
+        ]
+        for text in cases:
+            body = lint_task_deps.parse_tasks(text)[2]["body"]
+            # 字段命中数一致
+            self.assertEqual(
+                len(list(validate_change.ESCALATION_RE.finditer(body))),
+                len(list(workflow_control.ESCALATION_RE.finditer(body))),
+                text,
+            )
+            self.assertEqual(
+                len(list(validate_change.APPROVAL_RE.finditer(body))),
+                len(list(workflow_control.APPROVAL_RE.finditer(body))),
+                text,
+            )
+            # 条件集合解析一致
+            production_esc_match = validate_change.ESCALATION_RE.search(body)
+            tooling_esc_match = workflow_control.ESCALATION_RE.search(body)
+            self.assertEqual(
+                production_esc_match is None, tooling_esc_match is None, text
+            )
+            if production_esc_match is not None:
+                self.assertEqual(
+                    validate_change._condition_set(production_esc_match.group(1)),
+                    workflow_control._condition_set(tooling_esc_match.group(1)),
+                    text,
+                )
+            production_app_match = validate_change.APPROVAL_RE.search(body)
+            tooling_app_match = workflow_control.APPROVAL_RE.search(body)
+            self.assertEqual(
+                production_app_match is None, tooling_app_match is None, text
+            )
+            if production_app_match is not None:
+                self.assertEqual(
+                    validate_change._approval_conditions(
+                        production_app_match.group("status")
+                    ),
+                    workflow_control._approval_conditions(
+                        tooling_app_match.group("status")
+                    ),
+                    text,
+                )
 
 
 if __name__ == "__main__":

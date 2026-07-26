@@ -30,6 +30,71 @@ _VERIFY_CONFIG_NAME = "verify.config.json"
 _VERIFY_CONFIG_DECISION_FIELD = "verify_config_decision"
 _VERIFY_CONFIG_DECISIONS = {"初始化", "跳过"}
 
+# —— 升级与批准词表（change 2039）——
+# 逐项抄录自 scripts/validate_change.py:40-113，不自行增删；两侧集合相等、
+# 字段形式一致由 scripts/test_workflow_control.py 的断言保证。这些字段只在
+# 命中升级条件时生效：未声明的执行路径不经过本段任何分支（零触发等价）。
+ESCALATION_CONDITIONS = frozenset(
+    {
+        "scope-change",
+        "irreversible",
+        "gate-failure",
+        "assumption-broken",
+        "user-requested",
+        "per-task-mode",
+    }
+)
+NO_ESCALATION_VALUES = {"无", "none"}
+APPROVAL_MODES = {"risk-triggered", "per-task"}
+ESCALATION_RE = re.compile(
+    r"^-\s*Escalation\s*[:：]\s*(\S.*?)\s*$", re.IGNORECASE | re.MULTILINE
+)
+APPROVAL_RE = re.compile(
+    r"^-\s*Approval\s*[:：]\s*(?P<status>\S.*?)\s*$", re.IGNORECASE | re.MULTILINE
+)
+APPROVAL_MODE_RE = re.compile(
+    r"^\s*>\s*批准模式\s*[:：]\s*(?P<value>\S.*?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+# 失败关闭探测：缩进、列表标记或错位会让可选门无声消失（与 OPSX053 对齐）。
+LOOSE_ESCALATION_RE = re.compile(
+    r"^\s*[-*]\s*Escalation\s*[:：]", re.IGNORECASE | re.MULTILINE
+)
+LOOSE_APPROVAL_RE = re.compile(
+    r"^\s*[-*]\s*Approval\s*[:：]", re.IGNORECASE | re.MULTILINE
+)
+LOOSE_APPROVAL_MODE_RE = re.compile(
+    r"^\s*(?:[>*-]\s*)*批准模式\s*[:：]\s*(?P<mode>\S+)",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def _condition_set(value: str) -> set[str] | None:
+    """Parse a comma-separated condition set, or ``None`` when malformed."""
+    normalized = value.strip().casefold()
+    if normalized in NO_ESCALATION_VALUES:
+        return set()
+    conditions = {
+        item.strip().casefold() for item in re.split(r"[,，、]", value) if item.strip()
+    }
+    if not conditions or any(
+        not re.fullmatch(r"[a-z][a-z0-9-]*", item) for item in conditions
+    ):
+        return None
+    return conditions
+
+
+def _approval_conditions(value: str) -> tuple[str, set[str] | None] | None:
+    """Parse an Approval value into its status and declared condition set."""
+    match = re.fullmatch(
+        r"(?P<status>granted|pending)\s*\((?P<conditions>[^)]*)\)",
+        value.strip(),
+        re.IGNORECASE,
+    )
+    if match is None:
+        return None
+    return match.group("status").casefold(), _condition_set(match.group("conditions"))
+
 
 @dataclass(frozen=True)
 class TaskDecision:
@@ -324,9 +389,11 @@ _VALID_TRANSITIONS = {
     ("进行中", "running", "failure"),
     ("进行中", "running", "quality_passed"),
     ("进行中", "running", "manual"),
+    ("进行中", "running", "escalate"),
     ("进行中", "quality_passed", "merge_success"),
     ("进行中", "quality_passed", "merge_failure"),
     ("需人工", "manual", "manual_resolved"),
+    ("需人工", "awaiting_approval", "approval_granted"),
     ("阻塞", "blocked", "unblock"),
 }
 
@@ -386,6 +453,143 @@ def _handle_unblock(
     return TaskDecision(task_id, "未开始", "unblock", reason, attempts, "pending")
 
 
+def _escalation_declaration_errors(task_id: int, body: str) -> list[str]:
+    """校验任务块内的 Escalation 声明形式，返回错误列表（空为合规）。
+
+    缩进、列表标记或重复声明都失败关闭——升级门写错位置的默认后果是
+    静默消失（与 OPSX053 的方向对齐）。
+    """
+    strict = list(ESCALATION_RE.finditer(body))
+    loose = list(LOOSE_ESCALATION_RE.finditer(body))
+    if len(loose) > len(strict):
+        return [f"任务 {task_id} 的 Escalation 声明格式错位（缩进或列表式）"]
+    if len(strict) > 1:
+        return [f"任务 {task_id} 的 Escalation 声明重复"]
+    if not strict:
+        return []
+    conditions = _condition_set(strict[0].group(1))
+    if conditions is None:
+        return [f"任务 {task_id} 的 Escalation 条件格式非法"]
+    unknown = conditions - ESCALATION_CONDITIONS
+    if unknown:
+        return [f"任务 {task_id} 的 Escalation 包含非法条件：{', '.join(sorted(unknown))}"]
+    return []
+
+
+def _declared_conditions(body: str) -> set[str]:
+    """取任务块内已声明且合规的升级条件集合（无声明或「无」为空集）。"""
+    match = ESCALATION_RE.search(body)
+    if match is None:
+        return set()
+    return _condition_set(match.group(1)) or set()
+
+
+def _approval_evidence_errors(task_id: int, body: str, mode: str) -> list[str]:
+    """校验批准证据，语义镜像 Production 的 OPSX052/053/054 逐条判定。
+
+    expected_conditions = 声明的 Escalation 条件（per-task 模式下缺省为
+    {per-task-mode}）；缺失、pending、条件非法、条件不一致、未升级却挂
+    批准记录，全部失败关闭。
+    """
+    strict = list(APPROVAL_RE.finditer(body))
+    loose = list(LOOSE_APPROVAL_RE.finditer(body))
+    if len(loose) > len(strict):
+        return [f"任务 {task_id} 的 Approval 声明格式错位（缩进或列表式）"]
+    escalation = _declared_conditions(body)
+    requires_approval = bool(escalation) or mode == "per-task"
+    expected_conditions = escalation or (
+        {"per-task-mode"} if mode == "per-task" else set()
+    )
+    if not strict:
+        if requires_approval:
+            missing = ", ".join(sorted(expected_conditions))
+            return [f"任务 {task_id} 缺少已批准的 Approval 记录：{missing}"]
+        return []
+    if len(strict) != 1:
+        return [f"任务 {task_id} 的 Approval 声明重复"]
+    approval = _approval_conditions(strict[0].group("status"))
+    if approval is None:
+        return [f"任务 {task_id} 的 Approval 必须为 granted 或 pending 并携带条件 ID"]
+    status, approval_conditions = approval
+    if approval_conditions is None:
+        return [f"任务 {task_id} 的 Approval 条件格式非法"]
+    unknown = approval_conditions - ESCALATION_CONDITIONS
+    if unknown:
+        return [f"任务 {task_id} 的 Approval 包含非法条件：{', '.join(sorted(unknown))}"]
+    if approval_conditions != expected_conditions:
+        expected = ", ".join(sorted(expected_conditions)) or "无"
+        actual = ", ".join(sorted(approval_conditions)) or "无"
+        return [f"任务 {task_id} 的 Approval 条件与 Escalation 不一致：期望 {expected}，实际 {actual}"]
+    if requires_approval and status != "granted":
+        missing = ", ".join(sorted(expected_conditions))
+        return [f"任务 {task_id} 的 Approval 尚未获批准：{missing}"]
+    if not requires_approval:
+        return [f"任务 {task_id} 未声明 Escalation，却存在 Approval 记录"]
+    return []
+
+
+def approval_mode(text: str) -> str:
+    """读取 tasks.md 头部的批准模式声明；错位或非法时抛 ValueError。"""
+    first_task = lint_task_deps.TASK_HEADER.search(text)
+    header = text[: first_task.start()] if first_task else text
+    matches = list(APPROVAL_MODE_RE.finditer(header))
+    if len(matches) > 1:
+        raise ValueError("批准模式只能声明一次")
+    if matches:
+        mode = matches[0].group("value").casefold()
+        if mode not in APPROVAL_MODES:
+            raise ValueError(f"非法批准模式: {mode}")
+        return mode
+    # 头部未命中：全文有任何形式的命中说明声明错位，不得静默退回默认值。
+    if APPROVAL_MODE_RE.search(text) or LOOSE_APPROVAL_MODE_RE.search(text):
+        raise ValueError("批准模式声明格式不合法或不在 tasks.md 头部")
+    return "risk-triggered"
+
+
+def approval_gate_errors(text: str, tasks: dict[int, dict], task_id: int) -> list[str]:
+    """merge_success 前的批准门：命中升级条件或 per-task 模式时要求批准证据。
+
+    未声明 Escalation 且默认 risk-triggered 时立即返回空列表——默认路径
+    不经过任何新增分支（零触发等价）。
+    """
+    mode = approval_mode(text)
+    body = tasks[task_id]["body"]
+    declaration_errors = _escalation_declaration_errors(task_id, body)
+    if declaration_errors:
+        return declaration_errors
+    if mode == "risk-triggered" and not _declared_conditions(body):
+        approval_strict = list(APPROVAL_RE.finditer(body))
+        approval_loose = list(LOOSE_APPROVAL_RE.finditer(body))
+        if not approval_strict and not approval_loose:
+            return []  # 零触发：无任何升级与批准声明
+    return _approval_evidence_errors(task_id, body, mode)
+
+
+def _handle_escalate(tasks: dict[int, dict], task_id: int, reason: str, attempts: int) -> TaskDecision:
+    errors = _escalation_declaration_errors(task_id, tasks[task_id]["body"])
+    if errors:
+        raise ValueError(errors[0])
+    conditions = _declared_conditions(tasks[task_id]["body"])
+    if not conditions:
+        raise ValueError(f"任务 {task_id} 未声明升级条件，不能进入待批准")
+    cause = f"待批准 {', '.join(sorted(conditions))}"
+    if reason:
+        cause = f"{cause}—{reason}"
+    return TaskDecision(task_id, "需人工", "awaiting_approval", cause, attempts, "awaiting_approval")
+
+
+def _handle_approval_granted(tasks: dict[int, dict], task_id: int, reason: str, attempts: int) -> TaskDecision:
+    errors = _escalation_declaration_errors(task_id, tasks[task_id]["body"])
+    if errors:
+        raise ValueError(errors[0])
+    errors = _approval_evidence_errors(task_id, tasks[task_id]["body"], "risk-triggered")
+    if errors:
+        raise ValueError(errors[0])
+    return TaskDecision(
+        task_id, "进行中", "resume", reason or "批准证据齐备，恢复执行", attempts, "running"
+    )
+
+
 def _handle_failure(
     task_id: int, reason: str, attempts: int, max_attempts: int
 ) -> TaskDecision:
@@ -429,6 +633,10 @@ def apply_event(
         return _handle_manual_resolved(task_id, reason, attempts)
     if event == "unblock":
         return _handle_unblock(tasks, task_id, state, reason, attempts)
+    if event == "escalate":
+        return _handle_escalate(tasks, task_id, reason, attempts)
+    if event == "approval_granted":
+        return _handle_approval_granted(tasks, task_id, reason, attempts)
     if event == "failure":
         return _handle_failure(task_id, reason, attempts, max_attempts)
     raise ValueError(f"未知事件: {event}")
@@ -481,12 +689,19 @@ def _check_merge_state_conflict(
 def _recovery_action_for(
     task_id: int,
     state: str,
+    stage: str,
     merged_task_ids: set[int],
     deps_complete: bool,
 ) -> RecoveryAction:
     """Decide one task's recovery action by its own state, in priority order."""
     if state == "完成":
         return RecoveryAction(task_id, "skip", "任务已完成")
+    if state == "需人工" and stage == "awaiting_approval":
+        return RecoveryAction(
+            task_id,
+            "await_approval",
+            "等待批准证据，批准后执行 event approval_granted 恢复",
+        )
     if state == "需人工" and task_id in merged_task_ids:
         return RecoveryAction(task_id, "complete", "任务已人工解决并合并")
     if state == "需人工":
@@ -513,6 +728,9 @@ def plan_recovery(
     if unknown:
         raise ValueError(f"已合并集合包含未知任务 {min(unknown)}")
     states = _states(tasks)
+    stages = {
+        task_id: _control_stage(tasks[task_id], states[task_id]) for task_id in tasks
+    }
     for task_id in sorted(tasks):
         _check_merge_state_conflict(task_id, states[task_id], merged_task_ids)
     effective = {**states, **{task_id: "完成" for task_id in merged_task_ids}}
@@ -523,7 +741,7 @@ def plan_recovery(
         )
         actions.append(
             _recovery_action_for(
-                task_id, states[task_id], merged_task_ids, deps_complete
+                task_id, states[task_id], stages[task_id], merged_task_ids, deps_complete
             )
         )
     return actions
@@ -800,6 +1018,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
             "manual",
             "manual_resolved",
             "unblock",
+            "escalate",
+            "approval_granted",
         ),
     )
     event_parser.add_argument("--max-attempts", type=int, default=2)
@@ -901,6 +1121,10 @@ def main(argv: list[str]) -> int:
                             args.task_id,
                             attempt,
                         )
+                    if args.event == "merge_success":
+                        gate_errors = approval_gate_errors(text, tasks, args.task_id)
+                        if gate_errors:
+                            raise ValueError(gate_errors[0])
                     decision = apply_event(
                         tasks,
                         args.task_id,
@@ -943,6 +1167,10 @@ def main(argv: list[str]) -> int:
             elif args.command == "event":
                 if args.event == "start":
                     _require_verify_config_decision(args.tasks_md, text)
+                if args.event == "merge_success":
+                    gate_errors = approval_gate_errors(text, tasks, args.task_id)
+                    if gate_errors:
+                        raise ValueError(gate_errors[0])
                 decision = apply_event(
                     tasks,
                     args.task_id,

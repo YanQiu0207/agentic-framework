@@ -67,7 +67,7 @@
 
 - Tooling 旧文中的「task 级 Review + 最终 Review」改为：全部任务和测试完成后，只执行一次首轮 Code Review。
 - finding 修复后只执行定向 re-review，不重新启动完整首轮 Review。
-- Tooling 的 Tasks 获批后，执行段不再逐 Task 等待人工批准；Production 保留风险分档审核，并仅在风险触发升级条件时暂停、记录批准证据。
+- Tooling 的 Tasks 获批后，执行段不再逐 Task 等待人工批准；Production 保留风险分档审核，并仅在风险触发升级条件时暂停、记录批准证据。（补记，change 2039：「不再逐 Task 等待」是**默认**行为；任务声明升级条件后的「待批准」暂停是风险触发的例外，默认路径经零触发等价核验未变。）
 
 ## 3. 设计原则
 
@@ -250,6 +250,7 @@ Tasks 获批
 - Native Delivery 是 Tooling 的默认交付路径。Fast-Path 只作为局部低风险调用的兼容别名，保留其 lightweight 有界裁决。
 - 完整 Runtime Run 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用；任务文件数和模型版本不是升级条件。
 - `workflow_control.py` 的 DAG、waves、状态、锁、失败隔离和恢复可独立使用，不得因使用这些能力自动伪造或创建 Run Context。并行 worktree 写入本身是 Runtime 升级条件。
+- 风险触发的升级与批准（change 2039）：任务声明 `Escalation` 条件后可经 `event escalate` 进入「待批准」暂停，凭与 `Escalation` 一致的 `Approval: granted (<条件>)` 证据经 `event approval_granted` 恢复；`merge_success` 前按同一证据规则失败关闭，`per-task` 模式下每个任务都需批准。升级条件与批准模式词表逐项抄录 Production（`validate_change.py:102-113`），不新建第二套。「待批准」是执行期内部态：持久化映射为规范态 `需人工` 加 `control_stage: awaiting_approval`，读侧规范值恒为五个，`TASK_STATES` 与 `parse_state` 不含 `待批准`。未声明升级条件的执行路径零变化（零触发等价，波次／恢复／阻塞／可派发逐字节比对）。这是 §3.2 条件 3 的**部分**举证：审批规则可机器强制，其余强制规则仍未举证。
 - 每个任务可以执行测试和机器检查，但禁止启动 LLM Review；全部任务完成后只启动一次最终 Review。
 - Review Profile：
   - 低风险兼容调用：`lightweight`。
