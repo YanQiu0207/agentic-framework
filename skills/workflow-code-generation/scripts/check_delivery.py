@@ -2,7 +2,8 @@
 
 - **任务终态**（`--tasks`）：tasks.md 每个任务的 `状态` 必须是
   完成 / 需人工 / 阻塞；`需人工` 与 `阻塞` 必须附原因
-  （状态行内附注，或单独的 `- 原因:` 字段）。
+  （状态行内附注，或单独的 `- 原因:` 字段）。同时校验状态字段、任务头
+  标记与任务块复选框三向一致——只改状态字段不勾选复选框视为矛盾。
 - **spec 已归档**（`--spec`）：`**状态**:` 必须为 `Archived`。
 - **工作区干净**（总是检查）：`git status --porcelain` 必须为空——
   代码与归档产物（spec / tasks / ADR / issues）都已提交本地 git。
@@ -65,6 +66,10 @@ def check_tasks(text: str) -> list[str]:
                     f"任务 {tid} 标 `{state}` 但未附原因"
                     f"（状态行内补说明，或加 `- 原因:` 字段）"
                 )
+    # 状态字段只是完成信号之一：任务头标记与验收 / 子任务复选框必须同向，
+    # 否则归档记录自相矛盾（只改状态字段即可过门）。归档移动前应先跑
+    # `lint_task_deps.py --state-consistency`，此处是兜底。
+    errors.extend(lint_task_deps.state_consistency_errors(text))
     return errors
 
 

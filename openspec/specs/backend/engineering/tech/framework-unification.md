@@ -186,6 +186,7 @@ Requirements Clarification
 - `scope-change`、`irreversible`、`gate-failure`、`assumption-broken`、`user-requested` 或 `per-task-mode` 命中时，必须在 `tasks.md` 留下 `Escalation` 和用户 `Approval: granted` 证据；`validate_change.py delivery` 对缺失、`pending`、条件不一致或非法 ID 失败关闭。
 - 用户显式声明 `per-task` 模式时，所有 Completed Task 都必须具有已批准记录；缺省 `risk-triggered` 模式的未升级 Task 不要求 Approval。
 - `irreversible` 与 `Review Profile: strict` 双向绑定（OPSX055）：声明了 `Escalation` 字段的 Task，两者必须同时出现，反向约束防止 `strict` 档高风险 Task 不触发暂停即交付；在 `plan` 阶段即生效。缩进、列表式或错位的 `Escalation`/`Approval`/批准模式声明按 OPSX053 失败关闭，不静默退回。
+- `- 状态：` 字段与任务头标记双向一致（OPSX056）：该字段可选，未声明的 Task 跳过；声明时两处必须同向，`delivery` 与 `archive` 阶段生效。取值无法归类为完成／未完成，或区域内重复声明，均失败关闭。判定区域为任务头到下一个任意级别标题之前，避免把 `## 知识同步`、`## 知识冲突` 等尾部小节的 `- 状态:` 误判为任务状态。
 - 所有 Task、Verification 和 Delivery 门禁完成后，再执行一次五维 `strict` 集成审核。
 - 首轮存在 P0/P1 才进入修复循环。
 - 修复后重跑受影响的构建、测试和 Delivery，再执行定向 re-review。

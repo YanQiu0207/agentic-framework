@@ -1,0 +1,9 @@
+{
+    "verdict": "PASS",
+    "p0_count": 0,
+    "p1_count": 0,
+    "scope": "task",
+    "review_profile": "standard",
+    "round": 0,
+    "notes": "quality-gates/overview.md 新增「Tooling 任务状态一致性」小节并在 Production 阶段门补 OPSX056 段；framework-unification.md §5.3 补一条强制规则；SKILL.md 步骤 6 把 --state-consistency 定为归档移动前的前置检查；delegated-execution-guide.md 补勾选责任方，闭合根因 3.2（quality_passed 只写状态字段、勾选方职责悬空）。故障记录含可复现扫描命令、11 个任务 68 个未勾选项的实测数据、不回填归档的裁决理由与残余风险。markdown_links.py 与 lint_skill_graph.py 退出码 0，verify.py 总判定 PASS 且 spec_drift 为 pass。确认 OPSX 轨任务模板本身不含 - 状态： 字段，故无需同步 opsx-code-generation 模板。"
+}

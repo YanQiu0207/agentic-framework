@@ -1,0 +1,9 @@
+{
+    "verdict": "PASS",
+    "p0_count": 0,
+    "p1_count": 0,
+    "scope": "task",
+    "review_profile": "standard",
+    "round": 0,
+    "notes": "OPSX056 交叉核对 - 状态： 字段与任务头标记，双向违例都报，只在 require_completed 为真时生效。字段可选：未声明则跳过，保住 5 个无该字段的归档任务；取值无法归类或区域内重复声明均失败关闭，与 Change 2030 的 LOOSE 同向。新增 _metadata_region 而非改 _task_block，末任务不再吞掉尾部小节的 - 状态: Resolved，OPSX030/031/037 判定不变。全归档双阶段对比确认无回归。"
+}

@@ -1,0 +1,9 @@
+{
+    "verdict": "PASS",
+    "p0_count": 0,
+    "p1_count": 0,
+    "scope": "integration",
+    "review_profile": "standard",
+    "round": 1,
+    "notes": "两轨对称补齐任务状态一致性判定。workflow 轨新增 state_consistency_errors 与 --state-consistency 归档前开关并在交付门内联兜底；OPSX 轨新增 OPSX056 交叉核对状态字段与任务头，双向违例都报。集成审查发现并修复一个 P1 级实质缺口：初版把重复 - 状态： 声明下推给 field_errors，而 field() 用 re.search 只读第一行、对重复完全静默，使 完成 + 阻塞 并存的任务可整体通过 workflow 轨交付门——正是本 Change 要堵的绕过类型，已改为直接报错并与 OPSX056 对齐。另修正一处过严设计（任务头标记整体缺失误判为矛盾，test_runtime_workflow 夹具证明该形态合法）与一处不实验收表述（原称全量通过，实为本地缺 PYTHONUTF8=1）。24 个新测试覆盖三向一致、四个矛盾方向、四个非完成态、标记缺失双分支、重复声明、取值无法归类、围栏与尾部小节剔除、CLI 双退出码、plan 阶段不生效。全量 376 passed 退出码 0（基线 352）。既有 Change 逐一双阶段比对：仅 archive/4、archive/5 与活跃 Change 2 新增 OPSX056，三者改动前已分别有 52、84、81 个错误，本就未通过 delivery，非新增回归。残余风险（状态与复选框均为 Agent 自产文本、前缀匹配偏松、围栏内声明等价未声明）在 design §6 与故障记录 §7 显式记录，不在本 Change 解决。"
+}

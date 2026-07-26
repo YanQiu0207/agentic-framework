@@ -29,7 +29,25 @@
 
 OPSX055（Change `2030-approval-gate-hardening`）双向强制 `irreversible` ⟺ `Review Profile: strict`，且在 `plan` 阶段即生效——两个字段都是规划期产物。反向约束是关键：`strict` 档却未声明 `irreversible` 意味着高风险 Task 不触发暂停，这是风险触发门唯一可能弱于「无条件逐 Task 批准」的路径。该校验只对声明了 `Escalation` 字段的 Task 生效（值为「无」也算声明），未声明该字段的 Task 不参与，既有归档 Change 不回归。
 
+OPSX056（Change `2032-task-status-consistency-gate`）交叉核对 `- 状态：` 字段与任务头标记，在 `delivery` 与 `archive` 阶段生效。双向都判：`- 状态：完成` 配 `[pending]` 任务头，与 `[completed]` 任务头配 `- 状态：阻塞`，都是矛盾；后者更危险，因为读者按任务头会认为任务已完成。该字段是可选的，未声明的 Task 跳过（保兼容）；声明但取值无法归类为完成／未完成时失败关闭，区域内重复声明同样报错。
+
+判定区域为任务头行到下一个任意级别 Markdown 标题之前，围栏内内容剔除。这比 OPSX030／OPSX031 依赖的任务块更窄：末任务的任务块会延伸到文件末尾，吞掉 `## 知识同步`、`## 知识冲突` 等尾部小节，而这些小节自带 `- 状态: Resolved` 一类字段。
+
 同源失败关闭规则：缩进的 `  - Escalation:`、列表式 `- 批准模式：`、写在头部之外的批准模式声明，均在 `plan` 或 `delivery` 阶段报 OPSX053 而非静默放行。`Escalation` 与 `Approval` 是可选字段，写错位置的默认后果是升级门无声消失，与必填字段的失效方向相反，因此方向必须是失败关闭。
+
+## Tooling 任务状态一致性
+
+`tasks.md` 把「任务是否完成」表达三次：任务头复选框、`- 状态：` 字段、验收标准与子任务复选框。三者必须同向，否则归档记录自相矛盾——只改状态字段即可过门。
+
+`lint_task_deps.state_consistency_errors` 定义判定：`完成` 要求任务头标完成且区域内无未勾选复选框；`需人工`、`阻塞`、`进行中`、`未开始` 要求任务头不标完成，未勾选复选框不作约束（那正是「哪些验收项没达成」的记录）。任务头标记整体缺失时跳过标记比对，复选框判定不受影响。
+
+区域内重复声明 `- 状态：` 一律报错：`field()` 用 `re.search` 只读第一行，重复声明在 `field_errors` 里是静默的，若也在此跳过，`- 状态：完成` 配 `- 状态：阻塞` 就能整体过门。
+
+两个消费点：`lint_task_deps.py --state-consistency` 只读 `tasks.md`，在归档移动前作前置检查；`check_delivery.py` 的任务终态门内联同一判定作兜底。一致性不并入 `field_errors`——执行期 `workflow_control.py` 只写状态字段、不动复选框，若并入 plan 阶段字段校验，执行中途重跑 lint 会对每个刚完成的任务报错。
+
+门禁只判定不自动勾选：自动勾选会把「未验证」洗成「已验证」，比不一致更坏。复选框由执行方按真实完成情况勾选。
+
+历史背景与残余风险见 `openspec/issues/incidents/2026-07-26-dual-task-status-bypass.md`。
 
 ## Verification
 
