@@ -37,6 +37,8 @@ OPSX056（Change `2032-task-status-consistency-gate`）交叉核对 `- 状态：
 
 同源失败关闭规则：缩进的 `  - Escalation:`、列表式 `- 批准模式：`、写在头部之外的批准模式声明，均在 `plan` 或 `delivery` 阶段报 OPSX053 而非静默放行。`Escalation` 与 `Approval` 是可选字段，写错位置的默认后果是升级门无声消失，与必填字段的失效方向相反，因此方向必须是失败关闭。
 
+OPSX057-061（Change `2038-production-delivery-evidence`）在 `delivery` 阶段接入交付范围与工作区残留证据，复用 Tooling 的共享模块 `scripts/workspace_residue.py`（逐字节未改动）：未提供 `--workspace-residue-baseline` 或交付提交参数（OPSX057）、基线不可用或无法识别版本控制（OPSX058）、交付提交越出 `tasks.md` 声明的 `- 文件:` 范围（OPSX059）、工作区残留与基线不一致（OPSX060），均失败关闭。唯一出口是 tasks.md 头部的 `- 交付证据豁免: <原因>` 显式声明；豁免声明重复或缩进错位按 OPSX061 失败关闭，豁免记录即声明本身（随版本控制历史可审计）。快照格式与 Tooling 一致，同一份基线文件两轨都能校验。
+
 ## Tooling 任务状态一致性
 
 `tasks.md` 把「任务是否完成」表达三次：任务头复选框、`- 状态：` 字段、验收标准与子任务复选框。三者必须同向，否则归档记录自相矛盾——只改状态字段即可过门。

@@ -159,19 +159,33 @@ def _gate_snapshot(out_path: Path) -> None:
     for change in _change_dirs():
         relative = change.relative_to(REPO_ROOT).as_posix()
         entry: dict[str, dict] = {}
-        for phase in ("plan", "delivery"):
+        for phase in ("plan", "delivery", "archive"):
+            command = [
+                sys.executable,
+                str(REPO_ROOT / "scripts" / "validate_change.py"),
+                "--repo",
+                str(REPO_ROOT),
+                "--change",
+                str(change),
+                "--phase",
+                phase,
+                "--json",
+            ]
+            if phase == "archive":
+                command.extend(
+                    (
+                        "--archive-target",
+                        str(
+                            REPO_ROOT
+                            / "openspec"
+                            / "changes"
+                            / "archive"
+                            / f"probe-{change.name}"
+                        ),
+                    )
+                )
             completed = subprocess.run(
-                [
-                    sys.executable,
-                    str(REPO_ROOT / "scripts" / "validate_change.py"),
-                    "--repo",
-                    str(REPO_ROOT),
-                    "--change",
-                    str(change),
-                    "--phase",
-                    phase,
-                    "--json",
-                ],
+                command,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

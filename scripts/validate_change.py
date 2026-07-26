@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import task_ast
+import workspace_residue
 from typing import Sequence
 
 PHASES = ("plan", "delivery", "archive")
@@ -61,6 +62,19 @@ LOOSE_APPROVAL_MODE_RE = re.compile(
     r"^\s*(?:[>*-]\s*)*批准模式\s*[:：]\s*(?P<mode>\S+)",
     re.IGNORECASE | re.MULTILINE,
 )
+# 交付证据豁免：复用 Escalation 的「声明字段＋严格／宽松双正则＋失败关闭」
+# 机制（change 2038 §6.4 裁决）。严格式要求非空原因；宽松式探测缩进或
+# 列表标记错位——豁免字段写错位置会让门禁无声消失（失败打开），必须报
+# 格式错误而非静默放行。豁免的记录就是 tasks.md 里这条声明本身（随版本
+# 控制历史可审计），无记录的豁免不生效。
+DELIVERY_EVIDENCE_WAIVER_RE = re.compile(
+    r"^-\s*交付证据豁免\s*[:：]\s*(?P<reason>\S.*?)\s*$", re.MULTILINE
+)
+LOOSE_DELIVERY_EVIDENCE_WAIVER_RE = re.compile(
+    r"^\s*[-*]\s*交付证据豁免\s*[:：]", re.MULTILINE
+)
+TASK_FILES_RE = re.compile(r"^\s*-\s*文件\s*[:：]\s*(?P<value>.*)$", re.MULTILINE)
+BACKTICK_RE = re.compile(r"`([^`]+)`")
 SECTION_RE = re.compile(r"^(?P<marks>#{1,6})\s+(?P<title>.+?)\s*$")
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
 TICKETED_CHANGE_RE = re.compile(
@@ -1961,11 +1975,197 @@ def _validate_delivery(
     return findings
 
 
+def _validate_delivery_evidence(
+    repo: Path,
+    change: Path,
+    baseline_path: Path | None,
+    delivery_commit: str | None,
+    delivery_revision: str | None,
+) -> list[Finding]:
+    """OPSX057-061: delivery 阶段的交付范围与工作区残留证据（change 2038）。
+
+    证据链：基线文件（`--workspace-residue-baseline`，与 Tooling 同名同
+    格式）→ VCS 一致 → 交付提交路径 ⊆ tasks.md 声明范围 → 工作区残留与
+    基线一致。缺证据一律失败关闭，不静默跳过；唯一出口是 tasks.md 头部
+    的「- 交付证据豁免： <原因>」显式声明。本函数只读，不写任何文件。
+    """
+    tasks_path = change / "tasks.md"
+    if not _nonempty_file(tasks_path):
+        return []  # tasks.md 缺失或为空由既有规则覆盖
+    tasks, lines = _parse_tasks(tasks_path)
+    header_end = tasks[0].line - 1 if tasks else len(lines)
+    header_text = _metadata_text(lines[:header_end])
+
+    strict_waivers = list(DELIVERY_EVIDENCE_WAIVER_RE.finditer(header_text))
+    loose_waivers = list(LOOSE_DELIVERY_EVIDENCE_WAIVER_RE.finditer(header_text))
+    if len(strict_waivers) > 1 or len(loose_waivers) > len(strict_waivers):
+        return [
+            _finding(
+                "OPSX061",
+                tasks_path,
+                repo,
+                1,
+                "交付证据豁免声明重复或格式错位。",
+                "保留一条「- 交付证据豁免: <原因>」，顶格书写且原因非空。",
+            )
+        ]
+    if strict_waivers:
+        return []  # 豁免生效；声明本身即随版本控制历史留存的可审计记录
+
+    if baseline_path is None:
+        return [
+            _finding(
+                "OPSX057",
+                tasks_path,
+                repo,
+                1,
+                "Delivery 阶段缺少工作区证据基线。",
+                "提供 --workspace-residue-baseline 指向基线文件，"
+                "或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+            )
+        ]
+    try:
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        stored = workspace_residue.validate_workspace_residue_snapshot(
+            baseline["workspace_residue_snapshot"]
+        )
+    except (
+        OSError,
+        UnicodeError,
+        json.JSONDecodeError,
+        KeyError,
+        workspace_residue.WorkspaceResidueError,
+    ) as error:
+        return [
+            _finding(
+                "OPSX058",
+                baseline_path,
+                repo,
+                1,
+                f"工作区证据基线不可用：{error}",
+                "重新生成基线文件（含 workspace_residue_snapshot 对象）。",
+            )
+        ]
+    try:
+        vcs = workspace_residue.detect_vcs(repo)
+    except workspace_residue.WorkspaceResidueError as error:
+        return [
+            _finding(
+                "OPSX058",
+                tasks_path,
+                repo,
+                1,
+                f"无法识别版本控制：{error}。Production 的 Delivery 门要求版本控制证据。",
+                "在 Git 或 SVN 工作副本中运行，或显式声明交付证据豁免。",
+            )
+        ]
+    if vcs != stored["vcs"]:
+        return [
+            _finding(
+                "OPSX058",
+                tasks_path,
+                repo,
+                1,
+                f"当前 VCS（{vcs}）与基线快照（{stored['vcs']}）不一致。",
+                "用同一版本控制系统重新生成基线。",
+            )
+        ]
+    if vcs == "git":
+        if not delivery_commit or delivery_revision:
+            return [
+                _finding(
+                    "OPSX057",
+                    tasks_path,
+                    repo,
+                    1,
+                    "Git 交付证据必须提供 --delivery-commit，且不得提供 --delivery-revision。",
+                    "提供交付提交（必须为当前 HEAD）。",
+                )
+            ]
+        try:
+            paths = workspace_residue.git_commit_paths(
+                repo, stored["base_ref"], delivery_commit
+            )
+        except workspace_residue.WorkspaceResidueError as error:
+            return [
+                _finding(
+                    "OPSX058",
+                    tasks_path,
+                    repo,
+                    1,
+                    f"交付提交不可用：{error}",
+                    "确认 --delivery-commit 为当前 HEAD 且基线 base_ref 为其祖先。",
+                )
+            ]
+    else:
+        if not delivery_revision or delivery_commit:
+            return [
+                _finding(
+                    "OPSX057",
+                    tasks_path,
+                    repo,
+                    1,
+                    "SVN 交付证据必须提供 --delivery-revision，且不得提供 --delivery-commit。",
+                    "提供交付修订号（正整数）。",
+                )
+            ]
+        try:
+            paths = workspace_residue.svn_revision_paths(repo, delivery_revision)
+        except workspace_residue.WorkspaceResidueError as error:
+            return [
+                _finding(
+                    "OPSX058",
+                    tasks_path,
+                    repo,
+                    1,
+                    f"交付修订不可用：{error}",
+                    "确认 --delivery-revision 为有效的已提交修订号。",
+                )
+            ]
+
+    scope_values: list[str] = []
+    for task in tasks:
+        block_text = "\n".join(_task_block(lines, task))
+        for files_match in TASK_FILES_RE.finditer(block_text):
+            scope_values.extend(BACKTICK_RE.findall(files_match.group("value")))
+    if scope_values:
+        outside = workspace_residue.validate_delivery_paths(paths, scope_values)
+    else:
+        outside = sorted(paths)  # 未声明任何范围时，一切交付路径都越界
+    if outside:
+        return [
+            _finding(
+                "OPSX059",
+                tasks_path,
+                repo,
+                1,
+                "交付提交越出 tasks.md 声明范围：" + ", ".join(outside),
+                "把越界改动移出本次交付，或在相关任务的「- 文件:」中补充声明。",
+            )
+        ]
+    residue_changes = workspace_residue.compare_workspace_residue(repo, stored)
+    if residue_changes:
+        return [
+            _finding(
+                "OPSX060",
+                tasks_path,
+                repo,
+                1,
+                "工作区残留与基线不一致：" + ", ".join(residue_changes),
+                "提交或还原残留改动，使工作区回到基线状态。",
+            )
+        ]
+    return []
+
+
 def validate_change(
     repo: Path,
     change: Path,
     phase: str,
     archive_target: Path | None = None,
+    workspace_residue_baseline: Path | None = None,
+    delivery_commit: str | None = None,
+    delivery_revision: str | None = None,
 ) -> ValidationResult:
     """Validate an OPSX change without modifying repository files.
 
@@ -2012,6 +2212,11 @@ def validate_change(
     findings.extend(_validate_plan(repo, change, change_type))
     if phase == "delivery":
         findings.extend(_validate_delivery(repo, change, "PENDING", True))
+        findings.extend(
+            _validate_delivery_evidence(
+                repo, change, workspace_residue_baseline, delivery_commit, delivery_revision
+            )
+        )
     elif phase == "archive":
         findings.extend(_validate_delivery(repo, change, "PASS", False))
         findings.extend(_validate_archive_knowledge(repo, change))
@@ -2089,6 +2294,19 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Archive 阶段将要创建的目标目录",
     )
+    parser.add_argument(
+        "--workspace-residue-baseline",
+        type=Path,
+        help="Delivery 阶段的工作区证据基线文件（与 Tooling 同名同格式）",
+    )
+    parser.add_argument(
+        "--delivery-commit",
+        help="Delivery 阶段的 Git 交付提交（必须为当前 HEAD）",
+    )
+    parser.add_argument(
+        "--delivery-revision",
+        help="Delivery 阶段的 SVN 交付修订号",
+    )
     parser.add_argument("--json", action="store_true", help="输出 JSON")
     return parser
 
@@ -2126,6 +2344,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.change,
             args.phase,
             args.archive_target,
+            args.workspace_residue_baseline,
+            args.delivery_commit,
+            args.delivery_revision,
         )
     except InvocationError as error:
         if args.json:

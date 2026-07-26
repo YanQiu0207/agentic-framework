@@ -5,6 +5,8 @@
 
 - Review Report: review-reports/review-report.json
 
+- 交付证据豁免: 测试夹具不附工作区证据，本夹具用于覆盖既有 OPSX 规则
+
 ## 任务列表
 
 ### 任务 1：[completed] 实现校验器

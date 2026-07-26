@@ -21,7 +21,15 @@ FIXTURES = Path(__file__).parent / "fixtures" / "validate-change"
 CHANGE = Path("openspec/changes/1-example-change")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(
+    0,
+    str(
+        REPO_ROOT / "skills" / "workflow-code-generation" / "scripts"
+    ),
+)
+import check_delivery
 import validate_change
+import workspace_residue
 
 
 def archive_target() -> Path:
@@ -1786,6 +1794,166 @@ class ReviewProfileAliasRegexTest(unittest.TestCase):
             self.assertEqual(
                 [], list(validate_change.TASK_REVIEW_PROFILE_RE.finditer(text)), text
             )
+
+
+class DeliveryEvidenceTest(unittest.TestCase):
+    """change 2038：OPSX057-061 交付范围与工作区残留证据。"""
+
+    TASKS = (
+        "# 实施任务清单\n\n### 任务 1：[completed] 实现\n"
+        "- 依赖: 无\n- 文件: `code.py`\n"
+    )
+
+    def _git_repo(self, tasks_text: str | None = None) -> Path:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / ".gitignore").write_text(".agentic-framework/\n", encoding="utf-8")
+        change = repo / "openspec" / "changes" / "2099-evidence"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text(tasks_text or self.TASKS, encoding="utf-8")
+        (repo / "code.py").write_text("print('v1')\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "-c", "user.email=t@example.test",
+             "-c", "user.name=test", "commit", "-qm", "initial"],
+            check=True,
+        )
+        return repo
+
+    def _commit(self, repo: Path, message: str, paths: list[str]) -> str:
+        subprocess.run(["git", "-C", str(repo), "add", "--"] + paths, check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "-c", "user.email=t@example.test",
+             "-c", "user.name=test", "commit", "-qm", message],
+            check=True,
+        )
+        return subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True, encoding="utf-8",
+        ).stdout.strip()
+
+    def _baseline(self, repo: Path) -> Path:
+        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
+        snapshot = workspace_residue.capture_workspace_residue(
+            repo, "HEAD", ["code.py"]
+        )
+        baseline = repo / ".agentic-framework" / "verify" / "baseline.json"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text(
+            json.dumps({"workspace_residue_snapshot": snapshot}), encoding="utf-8"
+        )
+        return baseline
+
+    def _deliver(self, repo: Path, extra: str | None = None) -> tuple[Path, str]:
+        baseline = self._baseline(repo)
+        (repo / "code.py").write_text("print('v2')\n", encoding="utf-8")
+        paths = ["code.py"]
+        if extra:
+            (repo / extra).write_text("outside\n", encoding="utf-8")
+            paths.append(extra)
+        commit = self._commit(repo, "scope", paths)
+        return baseline, commit
+
+    def _run(self, repo, baseline=None, commit=None, revision=None):
+        return validate_change._validate_delivery_evidence(
+            repo,
+            repo / "openspec" / "changes" / "2099-evidence",
+            baseline,
+            commit,
+            revision,
+        )
+
+    def test_missing_baseline_param_fails_closed(self) -> None:
+        repo = self._git_repo()
+        findings = self._run(repo)
+        self.assertEqual(["OPSX057"], [f.rule_id for f in findings])
+
+    def test_missing_delivery_commit_fails_closed(self) -> None:
+        repo = self._git_repo()
+        baseline = self._baseline(repo)
+        findings = self._run(repo, baseline)
+        self.assertEqual(["OPSX057"], [f.rule_id for f in findings])
+
+    def test_unreadable_baseline_fails_closed(self) -> None:
+        repo = self._git_repo()
+        findings = self._run(repo, repo / "nonexistent.json", "HEAD")
+        self.assertEqual(["OPSX058"], [f.rule_id for f in findings])
+
+    def test_no_vcs_fails_closed(self) -> None:
+        source_repo = self._git_repo()
+        baseline = self._baseline(source_repo)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plain = Path(temp_dir)
+            change = plain / "openspec" / "changes" / "2099-evidence"
+            change.mkdir(parents=True)
+            (change / "tasks.md").write_text(self.TASKS, encoding="utf-8")
+            findings = validate_change._validate_delivery_evidence(
+                plain, change, baseline, "HEAD", None
+            )
+        self.assertEqual(["OPSX058"], [f.rule_id for f in findings])
+        self.assertIn("版本控制", findings[0].message + findings[0].hint)
+
+    def test_out_of_scope_delivery_fails_closed(self) -> None:
+        repo = self._git_repo()
+        baseline, commit = self._deliver(repo, extra="other.py")
+        findings = self._run(repo, baseline, commit)
+        self.assertEqual(["OPSX059"], [f.rule_id for f in findings])
+        self.assertIn("other.py", findings[0].message)
+
+    def test_residue_difference_fails_closed(self) -> None:
+        repo = self._git_repo()
+        baseline, commit = self._deliver(repo)
+        (repo / "residue.txt").write_text("changed\n", encoding="utf-8")
+        findings = self._run(repo, baseline, commit)
+        self.assertEqual(["OPSX060"], [f.rule_id for f in findings])
+        self.assertIn("residue.txt", findings[0].message)
+
+    def test_in_scope_delivery_passes(self) -> None:
+        repo = self._git_repo()
+        baseline, commit = self._deliver(repo)
+        self.assertEqual([], self._run(repo, baseline, commit))
+
+    def test_cross_track_same_baseline_both_pass(self) -> None:
+        """同一份基线文件，Production 与 Tooling 都能成功校验（跨轨互认）。"""
+        repo = self._git_repo()
+        baseline, commit = self._deliver(repo)
+        production = self._run(repo, baseline, commit)
+        tooling = check_delivery.check_scoped_delivery(repo, baseline, commit, None)
+        self.assertEqual([], production)
+        self.assertEqual([], tooling)
+
+    def test_waiver_skips_evidence(self) -> None:
+        tasks = self.TASKS.replace(
+            "### 任务 1", "- 交付证据豁免: 纯文档变更，无代码交付\n\n### 任务 1"
+        )
+        repo = self._git_repo(tasks)
+        self.assertEqual([], self._run(repo))
+
+    def test_duplicate_waiver_fails_closed(self) -> None:
+        tasks = self.TASKS.replace(
+            "### 任务 1",
+            "- 交付证据豁免: 甲\n- 交付证据豁免: 乙\n\n### 任务 1",
+        )
+        repo = self._git_repo(tasks)
+        findings = self._run(repo)
+        self.assertEqual(["OPSX061"], [f.rule_id for f in findings])
+
+    def test_misplaced_waiver_fails_closed(self) -> None:
+        tasks = self.TASKS.replace(
+            "### 任务 1", "  - 交付证据豁免: 缩进错位\n\n### 任务 1"
+        )
+        repo = self._git_repo(tasks)
+        findings = self._run(repo)
+        self.assertEqual(["OPSX061"], [f.rule_id for f in findings])
+
+    def test_new_check_is_read_only(self) -> None:
+        import inspect
+
+        source = inspect.getsource(validate_change._validate_delivery_evidence)
+        for token in ("write_text", "mkstemp", "os.link", "os.rename", "shutil"):
+            self.assertNotIn(token, source)
 
 
 if __name__ == "__main__":
