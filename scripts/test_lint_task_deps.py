@@ -68,6 +68,16 @@ class TaskDependencyTest(unittest.TestCase):
         errors = lint_task_deps.field_errors(lint_task_deps.parse_tasks(text))
         self.assertEqual([], errors)
 
+    def test_field_errors_ignore_state_consistency(self) -> None:
+        """一致性不并入 plan 阶段字段校验，避免执行中途重跑 lint 报噪声。"""
+        text = (
+            "### 任务 1: [ ] A\n- depends_on: []\n- review_profile: standard\n"
+            "- context_files:\n- verification:\n- artifacts:\n- 状态: 完成\n"
+            "- 验收标准:\n    - [ ] 未勾选项\n"
+        )
+        errors = lint_task_deps.field_errors(lint_task_deps.parse_tasks(text))
+        self.assertEqual([], errors)
+
     def test_main_parses_tasks_md_with_bom_prefix(self) -> None:
         text = (
             "### 任务 1：A\n- depends_on: []\n- review_profile: standard\n"
@@ -78,6 +88,108 @@ class TaskDependencyTest(unittest.TestCase):
             tasks_file = Path(temp_dir) / "tasks.md"
             tasks_file.write_bytes(text.encode("utf-8-sig"))
             self.assertEqual(0, lint_task_deps.main([str(tasks_file)]))
+
+
+class StateConsistencyTest(unittest.TestCase):
+    """Cover the three-way agreement between 状态, header mark, and checkboxes."""
+
+    def _task(self, mark: str, state: str, boxes: str = "") -> str:
+        return (
+            f"### 任务 1: [{mark}] A\n- depends_on: []\n- 状态: {state}\n{boxes}"
+        )
+
+    def test_consistent_completed_task_passes(self) -> None:
+        text = self._task("x", "完成", "- 验收标准:\n    - [x] 已勾选\n")
+        self.assertEqual([], lint_task_deps.state_consistency_errors(text))
+
+    def test_completed_state_with_unchecked_header_fails(self) -> None:
+        text = self._task(" ", "完成", "- 验收标准:\n    - [x] 已勾选\n")
+        errors = lint_task_deps.state_consistency_errors(text)
+        self.assertEqual(1, len(errors))
+        self.assertIn("任务头标记为 `[ ]`", errors[0])
+
+    def test_completed_state_with_unchecked_boxes_fails(self) -> None:
+        text = self._task("x", "完成", "- 验收标准:\n    - [x] 甲\n    - [ ] 乙\n")
+        errors = lint_task_deps.state_consistency_errors(text)
+        self.assertEqual(1, len(errors))
+        self.assertIn("有 1 个未勾选复选框", errors[0])
+
+    def test_completed_header_with_any_open_state_fails(self) -> None:
+        """反方向对每个非完成态都成立——读者按任务头会认为任务已完成。"""
+        for state in ("需人工（合并冲突）", "阻塞（上游未合并）", "进行中", "未开始"):
+            with self.subTest(state=state):
+                errors = lint_task_deps.state_consistency_errors(self._task("x", state))
+                self.assertEqual(1, len(errors))
+                self.assertIn("任务头标记为 `[x]`（完成）", errors[0])
+
+    def test_manual_state_keeps_unchecked_boxes(self) -> None:
+        """需人工 / 阻塞 是终态但非完成态，未勾选项正是未达成记录。"""
+        text = self._task(" ", "需人工（合并冲突）", "- 验收标准:\n    - [ ] 乙\n")
+        self.assertEqual([], lint_task_deps.state_consistency_errors(text))
+
+    def test_missing_header_mark_is_treated_as_undeclared(self) -> None:
+        """标记整体缺失时没有可对立的完成信号，跳过标记比对（保兼容）。"""
+        self.assertEqual(
+            [], lint_task_deps.state_consistency_errors("### 任务 1: A\n- 状态: 完成\n")
+        )
+
+    def test_missing_header_mark_still_checks_boxes(self) -> None:
+        """标记缺失不豁免复选框判定——两者是独立信号。"""
+        text = "### 任务 1: A\n- 状态: 完成\n- 验收标准:\n    - [ ] 甲\n"
+        errors = lint_task_deps.state_consistency_errors(text)
+        self.assertEqual(1, len(errors))
+        self.assertIn("有 1 个未勾选复选框", errors[0])
+
+    def test_trailing_sections_and_fences_are_excluded(self) -> None:
+        text = (
+            "### 任务 1: [x] A\n- 状态: 完成\n"
+            "```markdown\n- [ ] 围栏内示例\n- 状态: 阻塞\n```\n"
+            "## 知识同步\n\n- [ ] 尾部小节未勾选项\n- 状态: Pending\n"
+        )
+        self.assertEqual([], lint_task_deps.state_consistency_errors(text))
+
+    def test_duplicate_state_declaration_is_reported(self) -> None:
+        """`field()` 用 re.search 只读第一行，重复声明在 field_errors 里是
+        静默的，因此必须在此判定，否则 `完成` + `阻塞` 的矛盾形态可过门。"""
+        text = "### 任务 1: [ ] A\n- 状态: 完成\n- 状态: 阻塞\n"
+        errors = lint_task_deps.state_consistency_errors(text)
+        self.assertEqual(1, len(errors))
+        self.assertIn("声明了 2 个 状态 字段", errors[0])
+
+    def test_invalid_state_value_is_left_to_field_errors(self) -> None:
+        """取值非法由 field_errors 报，此处不重复。"""
+        self.assertEqual(
+            [],
+            lint_task_deps.state_consistency_errors("### 任务 1: [x] A\n- 状态: 已完结\n"),
+        )
+        errors = lint_task_deps.field_errors(
+            lint_task_deps.parse_tasks("### 任务 1: [x] A\n- depends_on: []\n- 状态: 已完结\n")
+        )
+        self.assertTrue(any("状态 `已完结` 不含合法值" in e for e in errors), errors)
+
+    def test_cli_state_consistency_switch_reports_exit_codes(self) -> None:
+        good = self._task("x", "完成", "- 验收标准:\n    - [x] 甲\n")
+        bad = self._task(" ", "完成", "- 验收标准:\n    - [ ] 甲\n")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for name, text, expected in (("ok", good, 0), ("bad", bad, 1)):
+                tasks_file = Path(temp_dir) / f"{name}.md"
+                tasks_file.write_text(text, encoding="utf-8")
+                self.assertEqual(
+                    expected,
+                    lint_task_deps.main([str(tasks_file), "--state-consistency"]),
+                    name,
+                )
+
+    def test_cli_state_consistency_skips_dependency_warnings(self) -> None:
+        """归档前开关只读状态一致性，不因缺 depends_on 等结构问题退非 0。"""
+        text = "### 任务 1: [x] A\n- 状态: 完成\n"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tasks_file = Path(temp_dir) / "tasks.md"
+            tasks_file.write_text(text, encoding="utf-8")
+            self.assertEqual(
+                0, lint_task_deps.main([str(tasks_file), "--state-consistency"])
+            )
+            self.assertEqual(1, lint_task_deps.main([str(tasks_file)]))
 
 
 if __name__ == "__main__":

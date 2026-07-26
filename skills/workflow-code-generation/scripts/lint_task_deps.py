@@ -22,6 +22,17 @@ from pathlib import Path
 
 TASK_HEADER = re.compile(r"^###\s*任务\s*(\d+)\s*[:：]", re.MULTILINE)
 BACKTICK = re.compile(r"`([^`]+)`")
+# 任务标题行的完成标记；标记缺失时 group("mark") 为 None。
+TASK_HEADER_LINE = re.compile(
+    r"^###\s*任务\s*(?P<number>\d+)\s*[:：]\s*(?:\[(?P<mark>[^]]*)\])?"
+)
+# 任意级别 Markdown 标题：任务元数据区在此结束，尾部小节（知识同步 /
+# 知识冲突等）自带 `- 状态:` 字段，不能被当成任务状态。
+ANY_HEADING = re.compile(r"^#{1,6}\s+")
+CHECKBOX = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
+STATE_FIELD = re.compile(r"^\s*-\s*状态\s*[:：]\s*(?P<value>.*)$")
+# 任务头标记里代表「已完成」的取值；其余取值一律按未完成处理。
+COMPLETED_MARKS = {"x", "completed", "complete", "done", "已完成", "完成"}
 
 REVIEW_PROFILES = {"lightweight", "standard", "strict"}
 TASK_STATES = ("未开始", "进行中", "完成", "需人工", "阻塞")
@@ -110,6 +121,88 @@ def field_errors(tasks: dict[int, dict]) -> list[str]:
     return errors
 
 
+def _metadata_region(lines: list[str], start: int) -> list[str]:
+    """取 `start`（任务标题行下一行）起的任务元数据区，剔除围栏内容。
+
+    区域到下一个任意级别标题（含下一个任务标题）之前结束。
+    """
+    region: list[str] = []
+    fence: str | None = None
+    for line in lines[start:]:
+        marker = line.lstrip()[:3]
+        if marker in {"```", "~~~"}:
+            fence = None if fence == marker else marker
+            continue
+        if fence is not None:
+            continue
+        if ANY_HEADING.match(line):
+            break
+        region.append(line)
+    return region
+
+
+def state_consistency_errors(text: str) -> list[str]:
+    """校验状态字段、任务头标记与任务块复选框三向一致。
+
+    `完成` 要求任务头标完成且区域内无未勾选复选框；其余状态要求任务头
+    不标完成（未勾选复选框正是「哪些验收项没达成」的记录，不作约束）。
+    """
+    lines = text.splitlines()
+    headers = [
+        (index, match)
+        for index, line in enumerate(lines)
+        if (match := TASK_HEADER_LINE.match(line))
+    ]
+    errors: list[str] = []
+    for index, match in headers:
+        tid = int(match.group("number"))
+        region = _metadata_region(lines, index + 1)
+        states = [
+            found.group("value").strip()
+            for line in region
+            if (found := STATE_FIELD.match(line))
+        ]
+        if not states:
+            continue  # 缺失由 field_errors 的必填字段校验负责
+        if len(states) > 1:
+            # 不能交给 field_errors：`field()` 用 re.search 只读第一行，重复
+            # 声明在那里是静默的。多个状态本身就是「哪个才算真」的矛盾。
+            errors.append(
+                f"任务 {tid} 声明了 {len(states)} 个 状态 字段"
+                f"（{'、'.join(f'`{s}`' for s in states)}），无法判定真实状态"
+            )
+            continue
+        state = parse_state(states[0])
+        if state is None:
+            continue  # 取值非法由 field_errors 判定
+        mark = match.group("mark")
+        # 标记整体缺失（`### 任务 1：实现`）视为「未声明」而非矛盾：没有
+        # 完成信号可与状态字段对立。复选框判定不受影响，仍照常执行。
+        mark_completed = mark is not None and mark.strip().casefold() in COMPLETED_MARKS
+        unchecked = sum(
+            1
+            for line in region
+            if (box := CHECKBOX.match(line)) and box.group("mark") == " "
+        )
+        if state == "完成":
+            if mark is not None and not mark_completed:
+                errors.append(
+                    f"任务 {tid} 状态为 `完成` 但任务头标记为 `[{mark}]`，"
+                    f"两处状态矛盾（任务头应标 `[x]`）"
+                )
+            if unchecked:
+                errors.append(
+                    f"任务 {tid} 状态为 `完成` 但区域内有 {unchecked} 个未勾选复选框，"
+                    f"两处状态矛盾（完成验收项与子任务后勾选，或按实际情况改状态）"
+                )
+        elif mark_completed:
+            errors.append(
+                f"任务 {tid} 任务头标记为 `[{mark}]`（完成）但状态为 `{state}`，"
+                f"两处状态矛盾（非完成态时任务头不得标完成）"
+            )
+    return errors
+
+
 def reachable(tasks: dict[int, dict]) -> dict[int, set[int]]:
     """每个任务经依赖可达的任务集合（传递闭包）。
 
@@ -137,21 +230,32 @@ def main(argv: list[str]) -> int:
 
     parser = argparse.ArgumentParser(description="校验 tasks.md 的依赖关系")
     parser.add_argument("tasks_md", type=Path, help="tasks.md 路径")
+    parser.add_argument(
+        "--state-consistency",
+        action="store_true",
+        help="只校验状态字段、任务头标记与复选框三向一致（归档前前置检查）",
+    )
     args = parser.parse_args(argv)
     if not args.tasks_md.is_file():
         print(f"error: 找不到 {args.tasks_md}", file=sys.stderr)
         return 2
 
+    text = args.tasks_md.read_text(encoding="utf-8-sig", errors="replace")
     try:
-        tasks = parse_tasks(
-            args.tasks_md.read_text(encoding="utf-8-sig", errors="replace")
-        )
+        tasks = parse_tasks(text)
     except ValueError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
     if not tasks:
         print("error: 未解析到任何任务（检查 tasks.md 是否符合 `### 任务 N:` 格式）", file=sys.stderr)
         return 2
+
+    if args.state_consistency:
+        consistency = state_consistency_errors(text)
+        for message in consistency:
+            print(f"ERROR  {message}")
+        print(f"\ntasks={len(tasks)} | state_consistency_errors={len(consistency)}")
+        return 1 if consistency else 0
 
     errors: list[str] = []
     warnings: list[str] = []

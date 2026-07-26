@@ -203,6 +203,23 @@ class CheckDeliveryTest(unittest.TestCase):
         )
         self.assertEqual([], check_delivery.check_tasks(text))
 
+    def test_completed_state_with_unchecked_boxes_fails_delivery(self) -> None:
+        """只改状态字段、不勾选复选框的形态必须被交付门拦住。"""
+        text = (
+            "### 任务 1: [ ] 实现\n- 状态: 完成\n- depends_on: []\n"
+            "- 验收标准:\n    - [ ] 测试通过\n"
+        )
+        errors = check_delivery.check_tasks(text)
+        self.assertTrue(any("任务头标记为 `[ ]`" in e for e in errors), errors)
+        self.assertTrue(any("未勾选复选框" in e for e in errors), errors)
+
+    def test_completed_header_with_manual_state_fails_delivery(self) -> None:
+        text = (
+            "### 任务 1: [x] 实现\n- 状态: 需人工（合并冲突）\n- depends_on: []\n"
+        )
+        errors = check_delivery.check_tasks(text)
+        self.assertTrue(any("但状态为 `需人工`" in e for e in errors), errors)
+
     def test_spec_must_be_archived(self) -> None:
         self.assertEqual([], check_delivery.check_spec("**状态**: Archived\n"))
         errors = check_delivery.check_spec("**状态**: Approved\n")

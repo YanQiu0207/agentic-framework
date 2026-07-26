@@ -1640,6 +1640,104 @@ class ValidateChangeCliTest(unittest.TestCase):
             result = self.run_repo(temporary_repo, "delivery")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
+    def test_state_field_absent_skips_opsx056(self) -> None:
+        """OPSX056 is opt-in: changes that never carried `- 状态：` keep passing."""
+        result = self.run_validator("valid-standard", "delivery")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_completed_state_field_with_pending_header_blocks(self) -> None:
+        """OPSX056: the shape glm-5.2 produced — only the 状态 field updated."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[pending] 实现校验器\n- 状态：完成\n",
+            )
+            rules = self._delivery_rules(temporary_repo)
+        self.assertIn("OPSX056", rules)
+
+    def test_completed_header_with_open_state_field_blocks(self) -> None:
+        """Reverse direction: readers trust the header, so this is worse."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n- 状态：阻塞（上游未合并）\n",
+            )
+            rules = self._delivery_rules(temporary_repo)
+        self.assertIn("OPSX056", rules)
+
+    def test_consistent_state_field_passes(self) -> None:
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n- 状态：已完成\n",
+            )
+            result = self.run_repo(temporary_repo, "delivery")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_unclassifiable_state_field_fails_closed(self) -> None:
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n- 状态：已收工\n",
+            )
+            rules = self._delivery_rules(temporary_repo)
+        self.assertIn("OPSX056", rules)
+
+    def test_duplicate_state_field_blocks(self) -> None:
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n- 状态：完成\n- 状态：阻塞\n",
+            )
+            rules = self._delivery_rules(temporary_repo)
+        self.assertIn("OPSX056", rules)
+
+    def test_trailing_section_state_not_read_as_task_state(self) -> None:
+        """`## 知识冲突` carries its own `- 状态: Resolved`; the last task must
+        not adopt it. Two archived changes already have this shape."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "- 结论：无冲突。\n",
+                "- 状态: Resolved。无冲突。\n",
+            )
+            result = self.run_repo(temporary_repo, "delivery")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_fenced_state_field_example_not_flagged(self) -> None:
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n\n```text\n- 状态：阻塞\n```\n\n",
+            )
+            result = self.run_repo(temporary_repo, "delivery")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_state_field_not_checked_at_plan(self) -> None:
+        """Plan-phase tasks are legitimately 未开始 beside a pending header."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "### 任务 1：[completed] 实现校验器\n",
+                "### 任务 1：[completed] 实现校验器\n- 状态：进行中\n",
+            )
+            result = self.run_repo(temporary_repo, "plan")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

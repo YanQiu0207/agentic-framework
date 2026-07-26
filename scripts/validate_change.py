@@ -85,6 +85,20 @@ QUICK_STATUS_RE = re.compile(
 )
 KNOWLEDGE_ROOTS = {"business", "frontend", "backend", "common"}
 COMPLETED_SYNC_STATUSES = {"completed", "complete", "done", "pass", "已完成"}
+# OPSX056 的 `- 状态:` 取值归类。按前缀匹配，长者优先，允许 `完成（附注）`
+# 一类后缀；两个集合都不命中时失败关闭，不静默跳过。
+STATE_FIELD_RE = re.compile(r"^\s*-\s*状态\s*[:：]\s*(?P<value>.*)$")
+COMPLETED_STATE_PREFIXES = ("已完成", "完成", "completed", "complete", "done", "x")
+OPEN_STATE_PREFIXES = (
+    "未开始",
+    "进行中",
+    "需人工",
+    "阻塞",
+    "pending",
+    "blocked",
+    "in progress",
+    "in-progress",
+)
 ESCALATION_CONDITIONS = frozenset(
     {
         "scope-change",
@@ -551,6 +565,46 @@ def _approval_conditions(value: str) -> tuple[str, set[str] | None] | None:
 
 def _completed_status(status: str) -> bool:
     return status.casefold() in {"x", "completed", "complete", "done"}
+
+
+def _metadata_region(lines: Sequence[str], task: Task) -> list[str]:
+    """Return one task's metadata region: header line to the next heading.
+
+    ``_task_block`` runs to the next task header, so the last task swallows
+    trailing sections (知识同步 / 知识冲突 / 实际 Diff 核对) that carry their
+    own ``- 状态:`` field. OPSX056 needs the narrower region; the wider block
+    stays untouched so OPSX030/OPSX031/OPSX037 keep their current behaviour.
+    """
+    region: list[str] = []
+    fence: str | None = None
+    for line in lines[task.line : task.end_line]:
+        marker = line.lstrip()[:3]
+        if marker in {"```", "~~~"}:
+            fence = None if fence == marker else marker
+            continue
+        if fence is not None:
+            continue
+        if SECTION_RE.match(line):
+            break
+        region.append(line)
+    return region
+
+
+def _state_field_kind(value: str) -> str | None:
+    """Classify a ``- 状态:`` value as ``completed``/``other``, or ``None``.
+
+    Prefix matching mirrors ``lint_task_deps.parse_state`` so annotated values
+    such as ``完成（单 worktree）`` classify. Longest prefix wins so ``已完成``
+    is not shadowed. ``None`` means unclassifiable — OPSX056 fails closed.
+    """
+    normalized = value.strip().casefold()
+    for prefix in COMPLETED_STATE_PREFIXES:
+        if normalized.startswith(prefix):
+            return "completed"
+    for prefix in OPEN_STATE_PREFIXES:
+        if normalized.startswith(prefix):
+            return "other"
+    return None
 
 
 def _header_review_status(
@@ -1094,6 +1148,80 @@ def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
     return findings
 
 
+def _validate_state_field_consistency(
+    task: Task,
+    lines: Sequence[str],
+    tasks_path: Path,
+    repo: Path,
+) -> list[Finding]:
+    """OPSX056: cross-check the ``- 状态:`` field against the task header mark.
+
+    The field is optional — tasks without it are skipped so archived changes
+    that never carried it keep passing. When present it must agree with the
+    header mark in both directions; a header marked complete beside a
+    ``阻塞`` field is the more dangerous direction, since readers trust the
+    header. Unclassifiable or duplicated declarations fail closed.
+    """
+    region = _metadata_region(lines, task)
+    declarations = [
+        (offset, match.group("value").strip())
+        for offset, line in enumerate(region)
+        if (match := STATE_FIELD_RE.match(line))
+    ]
+    if not declarations:
+        return []
+    if len(declarations) != 1:
+        return [
+            _finding(
+                "OPSX056",
+                tasks_path,
+                repo,
+                task.line,
+                f"Task {task.number} 声明了 {len(declarations)} 个「- 状态：」字段。",
+                "每个 Task 只保留一个「- 状态：」声明。",
+            )
+        ]
+    value = declarations[0][1]
+    kind = _state_field_kind(value)
+    if kind is None:
+        return [
+            _finding(
+                "OPSX056",
+                tasks_path,
+                repo,
+                task.line + 1 + declarations[0][0],
+                f"Task {task.number} 的「- 状态：{value}」无法归类为完成或未完成。",
+                "使用「完成」「已完成」或「未开始」「进行中」「需人工」「阻塞」等明确取值。",
+            )
+        ]
+    header_completed = _completed_status(task.status)
+    if kind == "completed" and not header_completed:
+        return [
+            _finding(
+                "OPSX056",
+                tasks_path,
+                repo,
+                task.line,
+                f"Task {task.number} 的「- 状态：{value}」与任务头 "
+                f"[{task.status}] 矛盾。",
+                "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+            )
+        ]
+    if kind == "other" and header_completed:
+        return [
+            _finding(
+                "OPSX056",
+                tasks_path,
+                repo,
+                task.line,
+                f"Task {task.number} 任务头为 [{task.status}] 但「- 状态：{value}」"
+                f"不是完成态。",
+                "两处状态改到同向；未完成时任务头不得标 completed。",
+            )
+        ]
+    return []
+
+
 def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[Finding]:
     tasks_path = change / "tasks.md"
     if not _nonempty_file(tasks_path):
@@ -1358,6 +1486,10 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
                             "确认 review-report.json 存在且 verdict 为 PASS、P0/P1 计数为 0。",
                         )
                     )
+        if require_completed:
+            findings.extend(
+                _validate_state_field_consistency(task, lines, tasks_path, repo)
+            )
         if require_completed and not _completed_status(task.status):
             findings.append(
                 _finding(
