@@ -13,4 +13,5 @@ Thumbs.db
 .claude/settings.local.json
 
 # tencent-workbuddy
-.workbuddy/
+.workbuddy/tmp.key
+tmp.key
