@@ -14,6 +14,8 @@
 
 这些层相互提供证据，但不能互相替代。
 
+Tooling 的 Fast-Path、Native Delivery、Runtime Run 与 Scoped Delivery 都必须声明 `--knowledge-impact hit|none`。`none` 必须附非空理由；缺失、空理由或非法值均失败关闭。Scoped Delivery 因必须同时使用 `--native-delivery` 而沿用同一检查，但输出以 Scoped Delivery 标识，避免将四条路径混淆。
+
 ## Production 阶段门
 
 `validate_change.py` 支持 `plan`、`delivery` 和 `archive` 三个阶段（`scripts/validate_change.py:17-57,1375-1479`）：
