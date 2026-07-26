@@ -33,6 +33,17 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 - **其余一切**（已有 spec / tasks，或 Quick Design 完成）→ **标准流程**（默认下放到 Native Delivery）。
 - **完整 Runtime Run** 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。无法确定风险时选 `standard`，不因不确定自动升级 Runtime；若无法确认是否命中执行条件，先澄清再开始。
 
+## 步骤 1.5：Verify 配置选择（路由后无条件）
+
+步骤 1 已得出可执行路由后，**无条件**检查仓库根 `verify.config.json`；此检查不依赖 `tasks.md` 是否存在。必须在进入 Native Delivery、读取／创建任务、下放 Agent、运行代码或测试前完成：
+
+- 配置存在 → 继续；动代码前仍按 `workflow-verification` 采基线。
+- 配置缺失 → **立即暂停**，要求用户明确选择「初始化」或「跳过」；不得把任务确认、内置 Spec Drift 或后续 `event start` 当成该选择的替代品。
+- 用户选择「初始化」→ 实际运行 `/verify-config` 并确认配置已生成后继续；用户选择「跳过」→ 本次只可运行内置门禁，并在最终报告标注。
+- 对 Standard／Runtime 路径，`tasks.md` 已存在时立刻写入该已作出的选择；尚未创建时，创建后第一时间写入，且必须早于任何 `event start`。使用 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-decision --choice initialize|skip --write`。Native Delivery 没有 `tasks.md` 时，保留用户明确选择并在最终报告如实记录。
+
+步骤 3 的任务确认**不再首次询问或推断**该选择，只负责持久化步骤 1.5 已取得的选择。任何预存 `tasks.md` 都不得绕过本暂停点。
+
 ---
 
 ## Native Delivery（轻量改动；Fast-Path 兼容别名）
@@ -40,7 +51,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 轻量任务由当前宿主执行；中等任务可下放 Agent 并按需使用 DAG。两者都属于 Native Delivery，不创建或伪造 Run Context。**Fast-Path 只是旧调用方的兼容别名，不再按「主会话直接修改」定义另一条默认路径。**兼容别名保留 lightweight integration Review；新的低／中风险标准交付使用 standard integration Review。两者都不增加完整 Runtime 的声明。
 
 1. 加载编码规范（同步骤 4）。
-2. 实现改动（动代码前若有 `verify.config.json`，先 `workflow-verification` 采基线；**无 config → 暂停**，提示用户先运行 `/verify-config` 初始化，用户明确跳过才继续，只跑内置门禁并在交付报告标注）。发现外溢（超出步骤 1 路由判据）→ **立即退出**，转标准流程。
+2. 实现改动（步骤 1.5 已完成配置选择；有 `verify.config.json` 时，动代码前先 `workflow-verification` 采基线；选择跳过时只跑内置门禁并在交付报告标注）。发现外溢（超出步骤 1 路由判据）→ **立即退出**，转标准流程。
 3. **机器验证**：加载 `workflow-verification`（有 config 比基线；无 config 也跑内置 spec drift 检查），绿才继续；失败回第 2 步修复，若只是无法证明相关规格已更新且确实无需更新，则补 `--spec-drift-reason` 后重跑。
 4. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证；产生代码改动时回到第 3 步重验。
 5. **统一 Code Review**：实现、测试和机器验证全部完成后，加载一次 `workflow-code-review`（Fast-Path 兼容别名使用 `review_profile: lightweight`；新的 Native Delivery 使用 `standard`；均为 `scope: integration`，`mode: initial`）。Review Artifact 必须由审查流程生成，implementer 只能原样保存，不得依据对话手写 JSON。结论为 `NEEDS_CHANGES`（存在 keep 的 P0 / P1）→ 自行修复、重跑受影响的机器验证，再按 `mode: re-review` 定向复核，最多 2 轮；禁止启动第二次全量首审。
@@ -70,7 +81,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 
 ### 步骤 3：检查 / 创建 tasks.md
 
-- **已存在** → 进入步骤 4。
+- **已存在** → 若步骤 1.5 时配置缺失，先持久化已作出的「初始化」／「跳过」选择，再进入步骤 4。
 - **不存在** → 先读 [reference/task_planning_guide.md](reference/task_planning_guide.md)，严格按其流程创建。每个 task 须带 `depends_on`、`review_profile`、`context_files`、`verification`、`artifacts`——**`depends_on` 是分波并行的依据，`review_profile` 是分级 review 的依据，均必填**。
 
 若本次改动可能涉及不可逆 / 高影响架构决策、放弃某方案或新增红线约束，预留一个「intent 沉淀」任务（步骤 6 收口）。
@@ -80,7 +91,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 - 测试任务：通过 `workflow-test-generation` 生成或补齐关键交互 / 状态测试。
 - 最终验证任务：执行 `bp-frontend-taste` 和 `frontend-playwright-verification`，失败则回到实现任务修复。
 
-> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。确认时若项目根无 `verify.config.json`，一并提示先运行 `/verify-config` 初始化或明确跳过（跳过则本次只跑内置门禁并在交付报告标注）；代码任务冻结既有检查和 `ignore_paths`。只有实现产生并已试运行、带非空 `_note` 的新入口时，才可按 `workflow-verification` 受限追加显式 `baseline_aware: false` 检查，不得改删既有配置或重采基线。选择必须在 `tasks.md` 留下控制流记录：初始化完成后执行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-decision --choice initialize --write`，明确跳过则执行同一命令并传 `--choice skip --write`。
+> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。此处不得首次询问或推断 Verify 配置选择：若步骤 1.5 时配置缺失，先将已作出的「初始化」／「跳过」选择写入 `tasks.md`，再展示任务并等待确认。代码任务冻结既有检查和 `ignore_paths`。只有实现产生并已试运行、带非空 `_note` 的新入口时，才可按 `workflow-verification` 受限追加显式 `baseline_aware: false` 检查，不得改删既有配置或重采基线。
 
 ### 步骤 4：加载编码规范（🚨 强制前置）
 

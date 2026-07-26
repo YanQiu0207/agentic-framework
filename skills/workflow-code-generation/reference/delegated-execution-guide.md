@@ -34,9 +34,10 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
 
 ## Phase 0：准备
 
-1. 记录 `base_sha`，有 `verify.config.json` 时采集基线。
-2. 仅在可能命中 Runtime 升级条件时运行路由命令；输出 `runtime-run` 时，才在后续 Phase 0 初始化 Run。无升级条件时直接走 Native Delivery。
-3. 存在可并行分支、非线性依赖图或中断恢复需求时，运行：
+1. 确认步骤 1.5 已在路由后无条件完成 Verify 配置选择；配置缺失时，`tasks.md` 中的「初始化」／「跳过」记录必须已在任何 `event start` 前写入。不得在 Phase 0 首次询问或推断该选择。
+2. 记录 `base_sha`，有 `verify.config.json` 时采集基线。
+3. 仅在可能命中 Runtime 升级条件时运行路由命令；输出 `runtime-run` 时，才在后续 Phase 0 初始化 Run。无升级条件时直接走 Native Delivery。
+4. 存在可并行分支、非线性依赖图或中断恢复需求时，运行：
 
     ```bash
     python scripts/workflow_control.py <tasks.md> waves

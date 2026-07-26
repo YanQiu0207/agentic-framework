@@ -19,7 +19,7 @@
 
 ## 3. 何时进入本执行段
 
-`workflow-code-generation` 步骤 1 复杂度路由判定为**中等及以上**（不满足 Fast-Path 的「请求即计划」判据）、且 tasks.md 经用户批准后，即进入本执行段。波内并行度由 `depends_on` 决定：多 task 无依赖 → 并行分波；单 task / 纯串行依赖 → 单 agent 按任务顺序连续执行，不运行 `waves` / `dispatchable`。
+`workflow-code-generation` 步骤 1 复杂度路由判定为**中等及以上**（不满足 Fast-Path 的「请求即计划」判据）后，先无条件执行步骤 1.5 的 Verify 配置选择；仓库根缺配置时立即暂停，不能因 `tasks.md` 已存在而跳过。用户选择已持久化到 `tasks.md` 且该文件经批准后，才进入本执行段。波内并行度由 `depends_on` 决定：多 task 无依赖 → 并行分波；单 task / 纯串行依赖 → 单 agent 按任务顺序连续执行，不运行 `waves` / `dispatchable`。
 
 ## 4. 核心流程
 
