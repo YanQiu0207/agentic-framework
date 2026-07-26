@@ -80,7 +80,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 - 测试任务：通过 `workflow-test-generation` 生成或补齐关键交互 / 状态测试。
 - 最终验证任务：执行 `bp-frontend-taste` 和 `frontend-playwright-verification`，失败则回到实现任务修复。
 
-> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。确认时若项目根无 `verify.config.json`，一并提示先运行 `/verify-config` 初始化或明确跳过（跳过则本次只跑内置门禁并在交付报告标注）；代码任务全程不修改该配置。选择必须在 `tasks.md` 留下控制流记录：初始化完成后执行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-decision --choice initialize --write`，明确跳过则执行同一命令并传 `--choice skip --write`。
+> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。确认时若项目根无 `verify.config.json`，一并提示先运行 `/verify-config` 初始化或明确跳过（跳过则本次只跑内置门禁并在交付报告标注）；代码任务冻结既有检查和 `ignore_paths`。只有实现产生并已试运行、带非空 `_note` 的新入口时，才可按 `workflow-verification` 受限追加显式 `baseline_aware: false` 检查，不得改删既有配置或重采基线。选择必须在 `tasks.md` 留下控制流记录：初始化完成后执行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-decision --choice initialize --write`，明确跳过则执行同一命令并传 `--choice skip --write`。
 
 ### 步骤 4：加载编码规范（🚨 强制前置）
 

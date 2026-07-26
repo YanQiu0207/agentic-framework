@@ -35,8 +35,8 @@ OPSX055（Change `2030-approval-gate-hardening`）双向强制 `irreversible` �
 
 `verify.py` 总是计算 Spec Drift；代码发生变化时，必须存在相关规格类更新或显式的无需更新理由（`verify.py:144-246`）。配置驱动检查支持退出码、输出匹配和数量基线，并对以下配置漂移失败关闭：
 
-- 已有检查被删除或修改。
-- `baseline_aware` 检查缺少基线条目或指纹。
+- 已有检查或 `ignore_paths` 被修改；只有本次实现产生且已试运行、带非空 `_note` 的新入口，才可追加显式 `baseline_aware: false` 检查并按绝对模式执行。
+- 基线缺少 `ignore_paths` 快照、或新增检查不是显式 `baseline_aware: false`、缺少非空 `_note` 时失败关闭。
 - 基线存在孤儿检查。
 
 退出码语义为：`0` 表示 PASS，`1` 表示新增违规，`2` 表示工具或配置错误（`verify.py:750-895`）。长期知识来源晚于 `source_ref` 时只输出 `WARN`，不改变总判定。

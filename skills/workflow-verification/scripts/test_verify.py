@@ -499,7 +499,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             baseline = Path(temp_dir) / "baseline.json"
             baseline.write_text(
-                json.dumps({"checks": {}, "config_snapshot": []}),
+                json.dumps({"checks": {}, "config_snapshot": [], "ignore_paths_snapshot": []}),
                 encoding="utf-8",
             )
             with mock.patch.object(
@@ -539,6 +539,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                     {
                         "checks": {},
                         "config_snapshot": [],
+                        "ignore_paths_snapshot": ["cfg/*.py"],
                         "changed_files_snapshot": ["pre-existing.py"],
                     }
                 ),
@@ -566,9 +567,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         self.assertEqual(["cfg/*.py"], positional[3])
         self.assertEqual(["pre-existing.py"], positional[4])
 
-    def test_changing_ignore_paths_does_not_trigger_rebaseline(self) -> None:
-        # P2-5: ignore_paths is intentionally not in config_snapshot, so changing
-        # only ignore_paths must not raise a config-drift error (exit 2).
+    def test_changing_ignore_paths_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             baseline = Path(temp_dir) / "baseline.json"
             config_v1 = {"checks": [], "ignore_paths": ["a/*.py"]}
@@ -578,18 +577,16 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                     {
                         "checks": {},
                         "config_snapshot": verify._config_snapshot(config_v1),
+                        "ignore_paths_snapshot": ["a/*.py"],
                         "changed_files_snapshot": [],
                     }
                 ),
                 encoding="utf-8",
             )
+            stderr = io.StringIO()
             with mock.patch.object(
-                verify,
-                "evaluate_spec_drift",
-                return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
-            ), mock.patch.object(
                 verify, "evaluate_check"
-            ), mock.patch("builtins.print"):
+            ) as evaluate_check, contextlib.redirect_stderr(stderr):
                 rc = verify.cmd_verify(
                     config_v2,
                     baseline,
@@ -597,7 +594,235 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                     "HEAD",
                     "",
                 )
+
+        self.assertEqual(2, rc)
+        evaluate_check.assert_not_called()
+        self.assertIn("ignore_paths 配置已变更", stderr.getvalue())
+
+
+class ConfigSnapshotTest(unittest.TestCase):
+    """Protect the implementation-period append-only configuration exception."""
+
+    def test_cmd_save_baseline_snapshots_ignore_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            config = {"checks": [], "ignore_paths": ["generated/**"]}
+            with mock.patch.object(
+                verify, "_changed_files", return_value=([], [], None)
+            ), mock.patch("builtins.print"):
+                rc = verify.cmd_save_baseline(config, baseline)
+
+            payload = json.loads(baseline.read_text(encoding="utf-8"))
+
         self.assertEqual(0, rc)
+        self.assertEqual(["generated/**"], payload["ignore_paths_snapshot"])
+
+    def test_cmd_verify_rejects_baseline_without_ignore_paths_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "checks": {},
+                        "config_snapshot": [],
+                        "changed_files_snapshot": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                rc = verify.cmd_verify(
+                    {"checks": []},
+                    baseline,
+                    Path(temp_dir) / "report.json",
+                    "HEAD",
+                    "",
+                )
+
+        self.assertEqual(2, rc)
+        self.assertIn("ignore_paths_snapshot", stderr.getvalue())
+
+    def test_cmd_verify_rejects_changed_existing_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            config_v1 = {
+                "checks": [
+                    {
+                        "name": "existing-test-entry",
+                        "type": "exit_code",
+                        "command": _python_command("print('existing')"),
+                        "baseline_aware": False,
+                    }
+                ]
+            }
+            config_v2 = {
+                "checks": [
+                    {
+                        "name": "existing-test-entry",
+                        "type": "exit_code",
+                        "command": _python_command("print('changed')"),
+                        "baseline_aware": False,
+                    }
+                ]
+            }
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "checks": {},
+                        "config_snapshot": verify._config_snapshot(config_v1),
+                        "ignore_paths_snapshot": [],
+                        "changed_files_snapshot": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stderr = io.StringIO()
+            with mock.patch.object(verify, "evaluate_check") as evaluate_check, contextlib.redirect_stderr(
+                stderr
+            ):
+                rc = verify.cmd_verify(
+                    config_v2, baseline, Path(temp_dir) / "report.json", "HEAD", ""
+                )
+
+        self.assertEqual(2, rc)
+        evaluate_check.assert_not_called()
+        self.assertIn("配置已变更", stderr.getvalue())
+
+    def test_cmd_verify_allows_new_nonbaseline_check_without_rebaseline(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            config_v1 = {"checks": []}
+            config_v2 = {
+                "checks": [
+                    {
+                        "name": "new-test-entry",
+                        "type": "exit_code",
+                        "command": _python_command("print('new entry')"),
+                        "baseline_aware": False,
+                        "_note": "本次实现新增测试入口；已在当前工作区试运行成功。",
+                    }
+                ]
+            }
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "checks": {},
+                        "config_snapshot": verify._config_snapshot(config_v1),
+                        "ignore_paths_snapshot": [],
+                        "changed_files_snapshot": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            report = Path(temp_dir) / "report.json"
+            with mock.patch.object(
+                verify,
+                "evaluate_spec_drift",
+                return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
+            ), mock.patch.object(verify, "knowledge_source_warnings", return_value=[]):
+                rc = verify.cmd_verify(config_v2, baseline, report, "HEAD", "")
+
+            payload = json.loads(report.read_text(encoding="utf-8"))
+
+        self.assertEqual(0, rc)
+        self.assertEqual("PASS", payload["verdict"])
+        self.assertEqual("new-test-entry", payload["results"][1]["name"])
+        self.assertEqual("pass", payload["results"][1]["status"])
+
+    def test_cmd_verify_rejects_new_baseline_aware_check_without_rebaseline(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            config_v1 = {"checks": []}
+            config_v2 = {
+                "checks": [
+                    {
+                        "name": "new-baseline-entry",
+                        "type": "exit_code",
+                        "command": _python_command("raise SystemExit(99)"),
+                        "baseline_aware": True,
+                    }
+                ]
+            }
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "checks": {},
+                        "config_snapshot": verify._config_snapshot(config_v1),
+                        "ignore_paths_snapshot": [],
+                        "changed_files_snapshot": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stderr = io.StringIO()
+            with mock.patch.object(
+                verify, "evaluate_check"
+            ) as evaluate_check, contextlib.redirect_stderr(stderr):
+                rc = verify.cmd_verify(
+                    config_v2, baseline, Path(temp_dir) / "report.json", "HEAD", ""
+                )
+
+        self.assertEqual(2, rc)
+        evaluate_check.assert_not_called()
+        self.assertIn("必须显式设置 baseline_aware: false", stderr.getvalue())
+
+    def test_cmd_verify_requires_explicit_nonbaseline_flag_and_note_for_new_check(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            config_v1 = {"checks": []}
+            baseline.write_text(
+                json.dumps(
+                    {
+                        "checks": {},
+                        "config_snapshot": verify._config_snapshot(config_v1),
+                        "ignore_paths_snapshot": [],
+                        "changed_files_snapshot": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            cases = [
+                (
+                    {
+                        "name": "missing-nonbaseline-flag",
+                        "type": "exit_code",
+                        "command": _python_command("raise SystemExit(99)"),
+                        "_note": "有试运行记录，但缺少显式非基线标记。",
+                    },
+                    "必须显式设置 baseline_aware: false",
+                ),
+                (
+                    {
+                        "name": "missing-new-entry-note",
+                        "type": "exit_code",
+                        "command": _python_command("raise SystemExit(99)"),
+                        "baseline_aware": False,
+                    },
+                    "缺少非空 _note",
+                ),
+            ]
+            for check, expected in cases:
+                with self.subTest(name=check["name"]):
+                    stderr = io.StringIO()
+                    with mock.patch.object(
+                        verify, "evaluate_check"
+                    ) as evaluate_check, contextlib.redirect_stderr(stderr):
+                        rc = verify.cmd_verify(
+                            {"checks": [check]},
+                            baseline,
+                            Path(temp_dir) / f"{check['name']}.json",
+                            "HEAD",
+                            "",
+                        )
+
+                    self.assertEqual(2, rc)
+                    evaluate_check.assert_not_called()
+                    self.assertIn(expected, stderr.getvalue())
 
 
 class KnowledgeSourceFreshnessTest(unittest.TestCase):

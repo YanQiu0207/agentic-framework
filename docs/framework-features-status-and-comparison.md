@@ -181,8 +181,8 @@ Tooling：
 - 配置驱动运行 Build、Test、Lint 等检查。
 - 改动前保存基线，改动后只拦截新增违规。
 - 识别「改了代码但相关 Spec、Tasks 或 ADR 没有同步」的 Spec Drift。
-- 验证配置在实现期间冻结，禁止为过门而删除检查项或重采基线。
-- `verify.config.json` 只允许通过 `/verify-config` 维护。
+- 既有验证检查和 `ignore_paths` 在实现期间冻结，禁止为过门而删除、修改检查项或重采基线；实现产生并试运行新入口时，只可追加带非空 `_note` 的显式 `baseline_aware: false` 检查。
+- `verify.config.json` 常规通过 `/verify-config` 维护；上述受限追加不推导未试运行的命令。
 
 无配置时，共享 Verification 仍执行内置 Spec Drift；Tooling 必须显式报告降级，Production 则要求有效配置。
 

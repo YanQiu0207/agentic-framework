@@ -1,6 +1,6 @@
 ---
 name: workflow-verification
-description: 研发后机器验证门。有 verify.config.json 时配置驱动跑 build / test / lint 等客观检查 + 改动前后基线对比、只追新增违规；内置 spec drift 检查：改了代码但相关 spec.md / ui-spec.md / tasks.md / ADR 未更新时，必须提供无需更新原因。Task 合并前、Native Delivery 最终 Review 前和完整 Runtime Run 最终 Review 前执行。workflow-code-generation 实现后判定「是否真做完」，或用户要求跑验证时使用；用户显式要求「初始化 / 刷新 verify 配置」（/verify-config）时进入配置维护模式——verify.config.json 的唯一写入路径。
+description: 研发后机器验证门。有 verify.config.json 时配置驱动跑 build / test / lint 等客观检查 + 改动前后基线对比、只追新增违规；内置 spec drift 检查：改了代码但相关 spec.md / ui-spec.md / tasks.md / ADR 未更新时，必须提供无需更新原因。Task 合并前、Native Delivery 最终 Review 前和完整 Runtime Run 最终 Review 前执行。workflow-code-generation 实现后判定「是否真做完」，或用户要求跑验证时使用；用户显式要求「初始化 / 刷新 verify 配置」（/verify-config）时进入配置维护模式——这是常规写入路径；实现产生已试运行的新入口时可受限追加非基线检查。
 ---
 
 > 输出一行：`Using workflow-verification`
@@ -85,9 +85,20 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 
 ## 配置维护模式（用户触发）
 
-用户显式要求「初始化 / 刷新 verify 配置」或运行 `/verify-config` 时进入。这是 `verify.config.json` 的**唯一写入路径**——代码任务全程只读配置，验证阶段不改写配置。
+用户显式要求「初始化 / 刷新 verify 配置」或运行 `/verify-config` 时进入。这是 `verify.config.json` 的**常规写入路径**；代码任务冻结既有检查，只有下方「实现产生新入口」的受限例外可以追加新检查。
 
 流程：检查仓库证据 → 生成或刷新 → 校验结构 → 试运行 → 弱化类变更经用户确认 → 写入并纳入版本控制。
+
+### 实现产生新入口的受限例外
+
+若已在改动前采集基线，且实现本身产生新的、安全且可在当前工作区试运行的构建、测试或 Lint 入口，允许在实现期**仅追加**一个或多个新检查，条件必须同时满足：
+
+- 现有 `verify.config.json` 和改动前基线均存在；缺配置或用户已选择跳过时，不得借此创建配置。
+- 新入口来自本次实现的仓库证据；命令在写入前已独立试运行成功，且不访问真实外部资源、不需要凭证、不修改外部状态。
+- 追加的检查使用唯一 `name`，显式设为 `baseline_aware: false`，并提供非空 `_note` 说明新入口及试运行证据；Verify 在执行前校验这两项。
+- 不得修改或删除既有检查、`ignore_paths`，不得重采基线，也不得把任何既有检查改为非基线模式。
+
+追加后仍须带原基线运行 Verify。新检查按绝对模式再次执行；新增检查若不是显式 `baseline_aware: false`，或缺少非空 `_note`，Verify 会在执行前报 ERROR，不属于本例外。`ignore_paths` 同样被冻结；旧基线缺少其快照时，必须先在配置维护模式重建基线。
 
 - 生成只依据仓库证据（CI、项目清单、构建入口、测试与 Lint 配置、`AGENTS.md` / Spec / ADR），无证据不更新，无变化保持字节级不变。
 - 至少包含一项试运行成功的编译（构建）或测试检查；仓库没有可安全执行的入口 → 返回 ERROR，不生成占位命令。
@@ -125,7 +136,7 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 | 文档同步 | 改代码但不改规格 / 任务 / ADR 时，必须写明无需更新原因 |
 | 无侵入 | 无 config 时仅运行内置门禁，不跑项目自定义命令 |
 | 不偷改 | 不得为过门删测试 / 放宽配置 |
-| 写入受限 | `verify.config.json` 只在用户触发的配置维护模式中修改；代码任务实现期间冻结，验证失败后不得重采基线 |
+| 写入受限 | 既有检查和 `ignore_paths` 在实现期冻结；只有已试运行、带非空 `_note` 的新入口可追加显式 `baseline_aware: false` 检查，验证失败后不得重采基线 |
 
 ## 信任边界
 

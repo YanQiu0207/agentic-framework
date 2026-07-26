@@ -872,10 +872,11 @@ def _check_fingerprint(check: dict) -> dict:
 
 
 def _config_snapshot(config: dict) -> list[dict]:
-    """所有 check 的规范化快照（按 name 排序），用于检测任何 check 被新增/修改/删除。
+    """所有 check 的规范化快照（按 name 排序），用于检测既有 check 被修改或删除。
 
     覆盖 baseline_aware=false 的 exit_code/count 等关键门槛——这些检查没有
-    per-check 指纹，仅靠此快照防止 build/test 检查被静默弱化。
+    per-check 指纹，仅靠此快照防止 build/test 检查被静默弱化。基线之后新增
+    检查必须显式为非基线模式并提供试运行记录，随后按绝对模式执行。
     """
     snap = []
     for check in config.get("checks", []):
@@ -1199,7 +1200,11 @@ def cmd_save_baseline(config: dict, out_path: Path, diff_base: str = "HEAD") -> 
     同时快照当时的 changed files（S0）：verify() 后续从当前改动 S1 扣除 S0，
     让动代码前已存在的本地改动不记为本次改动（基线快照差集忽略源）。
     """
-    baseline: dict[str, Any] = {"checks": {}, "config_snapshot": _config_snapshot(config)}
+    baseline: dict[str, Any] = {
+        "checks": {},
+        "config_snapshot": _config_snapshot(config),
+        "ignore_paths_snapshot": list(config.get("ignore_paths", [])),
+    }
     tracked_s0, untracked_s0, s0_error = _changed_files(diff_base)
     if s0_error:
         print(f"[verify] 无法记录基线改动快照：{s0_error}", file=sys.stderr)
@@ -1321,8 +1326,9 @@ def cmd_verify(
                 return 2
         baseline_data = checks_raw
 
-        # 全配置快照校验：覆盖所有 check（含 baseline_aware=false 的 build/test 等）。
-        # 任何 check 被新增/修改/删除 → fail-closed，防止在同一次变更里静默弱化门禁。
+        # 全配置快照校验：覆盖基线已有的所有 check（含 baseline_aware=false 的 build/test）。
+        # 删除或修改既有 check → fail-closed，防止在同一次变更里静默弱化门禁。
+        # 新增 check 必须显式为 non-baseline，并在执行前校验其试运行记录不为空。
         # 旧基线缺失 config_snapshot → 同样 fail-closed，要求重建基线——
         # 不能 fail-open，否则版本升级时旧基线对非 baseline_aware 检查完全失去保护。
         stored_snap = raw.get("config_snapshot")
@@ -1335,7 +1341,7 @@ def cmd_verify(
             return 2
         current_snap = _config_snapshot(config)
         # 按 check 粒度比对快照：删除或修改已有检查 → fail-closed（防门禁被弱化）；
-        # 新增检查 → 放行，以绝对模式执行，无需重建基线。
+        # 新增检查只有显式 non-baseline 且带试运行记录时才允许，以绝对模式执行。
         # 全量相等比对会把「同一 PR 合法新增 check + 跑 --baseline」阻断，
         # 迫使工程师在改后状态重采基线，新增违规可能被记入历史基线而绕过保护。
         stored_by_name = {e["name"]: e for e in stored_snap}
@@ -1356,7 +1362,48 @@ def cmd_verify(
                     file=sys.stderr,
                 )
                 return 2
-        # stored_by_name 中未出现的 check → 本次新增，以绝对模式执行，无需 rebaseline。
+        # stored_by_name 中未出现的 check → 本次新增。只允许显式 non-baseline
+        # 检查，且需留下入口来源与试运行记录；不满足则在执行前失败关闭。
+        for check in config.get("checks", []):
+            name = check.get("name", "<unnamed>")
+            if name in stored_by_name:
+                continue
+            if check.get("baseline_aware") is not False:
+                print(
+                    f"[verify] 新增 check '{name}' 必须显式设置 baseline_aware: false；"
+                    "基线采集后不得追加 baseline-aware 检查。",
+                    file=sys.stderr,
+                )
+                return 2
+            note = check.get("_note")
+            if not isinstance(note, str) or not note.strip():
+                print(
+                    f"[verify] 新增 check '{name}' 缺少非空 _note；"
+                    "必须记录本次实现的新入口来源与试运行证据。",
+                    file=sys.stderr,
+                )
+                return 2
+
+        # ignore_paths 会影响 Spec Drift 的输入，必须与基线时完全一致。旧基线
+        # 缺快照同样失败关闭，避免通过扩大或缩小忽略路径改变门禁范围。
+        stored_ignore_paths = raw.get("ignore_paths_snapshot")
+        if not isinstance(stored_ignore_paths, list) or not all(
+            isinstance(pattern, str) for pattern in stored_ignore_paths
+        ):
+            print(
+                "[verify] 基线缺少合法 ignore_paths_snapshot（旧版基线或结构损坏），"
+                "需重新运行 --save-baseline 重建基线。",
+                file=sys.stderr,
+            )
+            return 2
+        current_ignore_paths = list(config.get("ignore_paths", []))
+        if current_ignore_paths != stored_ignore_paths:
+            print(
+                "[verify] ignore_paths 配置已变更，需重新运行 --save-baseline 更新基线后再验证。",
+                file=sys.stderr,
+            )
+            return 2
+
         # changed_files_snapshot (S0)：基线快照差集忽略源的依据。旧基线缺字段 →
         # fail-closed，要求重采基线，不静默放过。
         baseline_snapshot = raw.get("changed_files_snapshot")
