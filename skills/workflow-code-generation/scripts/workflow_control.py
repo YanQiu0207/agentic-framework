@@ -794,7 +794,11 @@ def _replace_or_insert_after(
 
 
 def update_task_state(text: str, decision: TaskDecision) -> str:
-    """Precisely persist one validated decision without reserializing Markdown."""
+    """Precisely persist one validated decision without reserializing Markdown.
+
+    写回 `状态`／`attempts`／`control_stage` 三字段，并同步任务头完成标记
+    （change 2044）：状态机是任务状态与任务头标记的唯一写者，消除手改。
+    """
     _validate_reason(decision.reason)
     start, end = _task_bounds(text, decision.task_id)
     body = text[start:end]
@@ -822,7 +826,20 @@ def update_task_state(text: str, decision: TaskDecision) -> str:
         body, stage_pattern, attempts_pattern, stage_line, newline
     )
 
-    return text[:start] + body + text[end:]
+    # 同步任务头完成标记：状态机是标记的唯一写者（消除手改）。
+    mark = "[x]" if decision.state == "完成" else "[ ]"
+    header_pattern = re.compile(
+        rf"^(###\s*任务\s*{decision.task_id}\s*[:：]\s*)(?:\[[^]]*\])?(.*)$",
+        re.MULTILINE,
+    )
+
+    def _header_repl(match: re.Match[str]) -> str:
+        description = match.group(2)
+        suffix = f" {description.lstrip()}" if description.strip() else ""
+        return f"{match.group(1)}{mark}{suffix}"
+
+    new_text = text[:start] + body + text[end:]
+    return header_pattern.sub(_header_repl, new_text, count=1)
 
 
 def _load(path: Path) -> tuple[str, dict[int, dict]]:

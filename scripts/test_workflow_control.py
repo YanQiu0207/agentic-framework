@@ -25,6 +25,8 @@ sys.path.insert(
 import lint_task_deps
 import governance_guards
 import workflow_control
+from workflow_control import TaskDecision
+import re
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import validate_change
@@ -1282,6 +1284,55 @@ class GovernanceGuardTest(unittest.TestCase):
         # 不完整 Change（缺 proposal/spec/design）→ plan 总门必须失败关闭
         errors = governance_guards.plan_gate_errors(repo, change, "production")
         self.assertTrue(any("Plan 总门未通过" in e for e in errors), errors)
+
+
+class WritePathUnificationTest(unittest.TestCase):
+    """change 2044：状态机是状态字段与任务头标记的唯一写者。"""
+
+    def _decision(self, state: str, task_id: int = 1) -> TaskDecision:
+        return workflow_control.TaskDecision(task_id, state, "dispatch", "", 0, "running")
+
+    def test_header_mark_syncs_to_completed(self) -> None:
+        text = "### 任务 1：[ ] 实现\n- 状态：未开始\n- attempts：0\n"
+        updated = workflow_control.update_task_state(
+            text, workflow_control.TaskDecision(1, "完成", "complete", "", 0, "completed")
+        )
+        self.assertIn("### 任务 1：[x] 实现", updated)
+        self.assertIn("- 状态：完成", updated)
+
+    def test_header_mark_syncs_to_unfinished(self) -> None:
+        text = "### 任务 1：[x] 实现\n- 状态：完成\n- attempts：0\n"
+        updated = workflow_control.update_task_state(
+            text, workflow_control.TaskDecision(1, "进行中", "dispatch", "", 0, "running")
+        )
+        self.assertIn("### 任务 1：[ ] 实现", updated)
+
+    def test_unmarked_header_gets_mark(self) -> None:
+        text = "### 任务 1：实现\n- 状态：未开始\n- attempts：0\n"
+        updated = workflow_control.update_task_state(
+            text, workflow_control.TaskDecision(1, "完成", "complete", "", 0, "completed")
+        )
+        self.assertIn("### 任务 1：[x] 实现", updated)
+
+    def test_description_preserved_through_sync(self) -> None:
+        text = "### 任务 1：[ ] 实现登录功能\n- 状态：未开始\n- attempts：0\n"
+        updated = workflow_control.update_task_state(
+            text, workflow_control.TaskDecision(1, "完成", "complete", "理由", 1, "completed")
+        )
+        self.assertIn("### 任务 1：[x] 实现登录功能", updated)
+        self.assertIn("- 状态：完成（理由）", updated)
+        self.assertIn("- attempts：1", updated)
+
+    def test_update_is_the_only_state_and_mark_writer(self) -> None:
+        """状态字段与任务头标记的代码写者只有 update_task_state。"""
+        import inspect
+
+        source = inspect.getsource(workflow_control)
+        # 构造「- 状态：」写行的位置只有一处（update_task_state）
+        self.assertEqual(1, source.count('f"- 状态：'))
+        # 任务头标记的写回（[x]/[ ]）只在 update_task_state 内
+        self.assertIn('mark = "[x]"', source)
+        self.assertEqual(1, source.count('mark = "[x]"'))
 
 
 if __name__ == "__main__":

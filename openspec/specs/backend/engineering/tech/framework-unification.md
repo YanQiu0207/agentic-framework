@@ -315,7 +315,7 @@ Production 校验器是只读生命周期裁决器；Tooling 控制器是有状�
 | --- | --- | --- | --- |
 | 读层 | tasks.md 解析、任务边界、字段定位 | 条件已满足，见 §8.2 | 已解除 |
 | 门层 | 审批、风险分级、Review 档位、交付与归档证据 | **条件已满足并合并**（change 2043：守卫挂载转移、三判据与治理强度同时通过，证据见 `openspec/changes/2043-governance-overlay-merge/evidence_report.md`） | 已解除 |
-| 写层 | 任务状态写回、DAG waves、attempts、写锁、恢复 | 条件未满足 | 读层与门层均已合并且稳定运行；且写层合并后 Production 的只读性质有等价替代 |
+| 写层 | 任务状态写回、DAG waves、attempts、写锁、恢复 | **条件已满足并合并**（change 2044：`update_task_state` 收敛状态字段与任务头标记的唯一写者，`validate_change` 全程只读，可审计性经 Git／SVN 版本历史承载而非第二事实源） | 已解除 |
 
 「巨型」的可核验上限：任一层合并后，若降级等价判据无法执行或无法通过，即判定为越界，必须回退到合并前形态。
 
@@ -347,8 +347,10 @@ Production Tasks 服务逐阶段人工批准、Task Review 和归档证据；Too
 1. 先冻结两边现有 Fixtures 和行为。（已完成，change 2035：golden 基线与门禁双阶段快照前后逐字节相同）
 2. 建立公共 AST 和 Profile Adapter。（已完成，change 2035：`scripts/task_ast.py`）
 3. 先迁移只读调用方。（已完成，change 2035：`lint_task_deps.py` 与 `validate_change.py` 均已委托 AST）
-4. 最后迁移 Tooling 写状态路径。（未启动，由 change 2044 承载）
+4. 最后迁移 Tooling 写状态路径。（已完成，change 2044：`update_task_state` 收敛状态字段与任务头标记的唯一写者，写锁与恢复在单链上回归通过）
 5. 每迁移一个调用方都运行兼容性测试。
+
+§8.3 四步全部完成。写层合并的只读等价替代：`validate_change.py` 全程只读（无写入调用，检索证明），判定不依赖自身写入；状态写回由 `workflow_control.py` 原子带锁完成，时机与原因随决策落盘；审计痕迹由版本控制历史承载（Git 提交历史／SVN 修订日志），不另建第二事实源——状态仍只在 `tasks.md`，可审计性因写回带时机与原因而较「人手动改」增强。
 
 ### 8.4 依赖字段方言（change 2037）
 

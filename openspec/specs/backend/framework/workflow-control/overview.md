@@ -54,6 +54,14 @@ proposal.md / tasks.md 获批
 - 降级等价：`profile=tooling` 时守卫全部返回空，状态机行为与纯 Tooling 逐字节相同（事件序列基线比对＋change 2042 比对器「通过」）。
 - Profile 取得：start／merge_success 事件经 `--governance-profile` 或 manifest 解析；无法取得失败关闭——不能确认当前不是 production 就不放行。
 
+## 写路径统一（change 2044）
+
+- `update_task_state` 是任务状态字段（`- 状态:`）与任务头完成标记（`[x]`／`[ ]`）的**唯一写者**：状态机写回时同步两者，消除 Skill 流程或人手改 `tasks.md` 状态的做法——状态变更必须经状态机命令。
+- 写回经 `_atomic_write`（带锁、`os.replace` 原子替换），时机与原因随 `TaskDecision` 落盘；任务状态仍只在 `tasks.md`，不另建副本或第二事实源。
+- 审计痕迹由版本控制历史承载（Git 提交历史、SVN 修订日志），不引入独立转移日志——后者会与 `tasks.md` 形成双事实源。
+- `validate_change.py` 全程只读：写层合并后它仍是只读裁决器，只核对不写回；可审计性（判定可复现、不依赖自身写入）未下降。
+- 写锁（`_try_lock`／`_unlock`）、attempts、`plan_recovery` 在单一执行链上行为不变，由既有用例与 change 2043 的事件序列基线共同回归。
+
 ## 质量证据边界
 
 - `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。
