@@ -259,6 +259,7 @@ Tasks 获批
 - P0/P1 才触发修复；修复后只执行定向 re-review。
 - Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree、失败恢复和 Runtime 审计策略中。
 - Fast-Path、Native Delivery、Runtime Run 与 Scoped Delivery 的交付门都必须声明 `--knowledge-impact hit|none`；`none` 缺理由、参数缺失或非法值均失败关闭，不得按路径豁免。
+- 声明 `hit` 时知识影响门执行反自证交叉核对（change 2040）：从 Change 的 `specs/` 反推应同步目标，与 tasks.md 的知识同步表比对，Delta 漏报、声明误报、路径不匹配、同步状态未完成、知识冲突节为空或占位均失败关闭；无 `specs/` 时退回同步目标存在性核对（证据强度较低，报告中体现）。解析由共享模块 `scripts/knowledge_sync.py` 承载，两轨共同消费。这是 §3.2 条件 3 的**部分**举证：知识影响规则可机器强制，其余强制规则仍未举证。
 - 速度优化不得通过删除 Verification、失败接管或 intent 检查实现；worktree 与 DAG 按执行需求保留，不是普通任务的强制前置。
 
 ## 7. Shared Core

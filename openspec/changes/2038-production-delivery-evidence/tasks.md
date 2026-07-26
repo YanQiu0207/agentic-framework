@@ -48,8 +48,8 @@ Task 1 (冻结共享模块与既有判定基线)
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `quality-gates` | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | 完成 | 既有条目，无需改索引 |
-| `framework-unification` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | 完成 | 既有条目，无需改索引 |
+| `quality-gates` | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | 已完成 | 既有条目，无需改索引 |
+| `framework-unification` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | 已完成 | 既有条目，无需改索引 |
 
 ## 知识冲突
 

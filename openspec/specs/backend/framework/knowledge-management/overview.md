@@ -13,6 +13,7 @@
 | Legacy 迁移规划 | `scripts/migrate_project_knowledge.py` | 只生成逐文件映射和引用清单，不复制、不删除、不覆盖 |
 | 公共知识校验 | `scripts/validate_shared_knowledge.py` | 只读检查索引边界、元数据、私有链接和候选污染 |
 | Change 知识门 | `scripts/validate_change.py` | 检查项目索引、代码派生元数据、Delta、冲突和归档同步 |
+| 共享知识核对 | `scripts/knowledge_sync.py` | Delta 反推与知识同步表解析，Production 与 Tooling 共同消费（change 2040） |
 | 来源新鲜度 | `workflow-verification/scripts/verify.py` | 对 `meta.yaml` 来源漂移输出非阻塞告警 |
 
 ## 数据流
@@ -38,6 +39,10 @@
 - 公共校验器发现合同违规返回 `1`；读取、编码、遍历或根目录错误返回 `2`（`scripts/validate_shared_knowledge.py:218-253`）。
 - 公共索引不得桥接项目私有正文；操作边界不是文件系统 ACL。
 - 代码派生知识使用 `meta.yaml` 记录 `source_ref`、`source_paths` 和生成时间；`custom/` 不允许自动覆盖。
+
+## Tooling 侧反自证核对（change 2040）
+
+Tooling 的知识影响门不再只是「声明即算数」的计数：`check_delivery.py` 在声明 `hit` 且存在 `tasks.md` 时执行交叉核对——从 Change 的 `specs/` 反推应同步目标，与 tasks.md 的知识同步表比对。五类失败各自关闭：Delta 漏报、声明误报、目标路径不匹配、同步状态未完成、知识冲突节为空或占位。声明 `none` 时只做矛盾核对（有 Delta 却称无影响）。无 `specs/` 目录时退回同步目标存在性核对——只能证明「声明的目标存在」，不能证明「该同步的都同步了」，证据强度低于 Delta 反推，交付报告的核对模式行会体现该区分。解析逻辑由共享模块 `scripts/knowledge_sync.py` 承载，Production（OPSX042-048）与 Tooling 共同消费；这是 §3.2 条件 3 的部分举证。
 
 ## 主要验证证据
 

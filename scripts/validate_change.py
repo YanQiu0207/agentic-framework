@@ -13,6 +13,7 @@ import stat
 import sys
 from pathlib import Path
 
+import knowledge_sync
 import task_ast
 import workspace_residue
 from typing import Sequence
@@ -93,8 +94,6 @@ QUICK_STATUS_RE = re.compile(
     r"^\s*(?:\*\*)?状态(?:\*\*)?\s*[:：]\s*Quick\s+Draft\s*$",
     re.IGNORECASE,
 )
-KNOWLEDGE_ROOTS = {"business", "frontend", "backend", "common"}
-COMPLETED_SYNC_STATUSES = {"completed", "complete", "done", "pass", "已完成"}
 # OPSX056 的 `- 状态:` 取值归类。按前缀匹配，长者优先，允许 `完成（附注）`
 # 一类后缀；两个集合都不命中时失败关闭，不静默跳过。
 STATE_FIELD_RE = re.compile(r"^\s*-\s*状态\s*[:：]\s*(?P<value>.*)$")
@@ -409,24 +408,6 @@ def _section_has_content(lines: Sequence[str], alternatives: Sequence[str]) -> b
             if stripped and not _is_placeholder(stripped):
                 return True
     return False
-
-
-def _section_lines(lines: Sequence[str], title: str) -> tuple[list[str], int]:
-    """Return the body and source line of a Markdown section."""
-    normalized = _normalized_section_title(title)
-    for index, line in enumerate(lines):
-        match = SECTION_RE.match(line)
-        if not match or _normalized_section_title(match.group("title")) != normalized:
-            continue
-        level = len(match.group("marks"))
-        body: list[str] = []
-        for content_line in lines[index + 1 :]:
-            next_heading = SECTION_RE.match(content_line)
-            if next_heading and len(next_heading.group("marks")) <= level:
-                break
-            body.append(content_line)
-        return body, index + 1
-    return [], 1
 
 
 def _is_placeholder(value: str) -> bool:
@@ -942,45 +923,19 @@ def _validate_artifacts(repo: Path, change: Path) -> tuple[list[Finding], str]:
 
 def _delta_targets(repo: Path, change: Path) -> tuple[list[Finding], dict[str, str]]:
     """Validate deterministic Delta paths and return source-to-target mappings."""
-    findings: list[Finding] = []
-    mappings: dict[str, str] = {}
-    specs_root = change / "specs"
-    if not specs_root.is_dir():
-        return findings, mappings
-    for delta in specs_root.rglob("*.md"):
-        if not _nonempty_file(delta):
-            continue
-        relative = delta.relative_to(specs_root)
-        if len(relative.parts) < 2 or relative.parts[0] not in KNOWLEDGE_ROOTS:
-            findings.append(
-                _finding(
-                    "OPSX042",
-                    delta,
-                    repo,
-                    1,
-                    "Delta 路径不能映射到受控长期 Specs。",
-                    "将 Delta 放到 specs/business、frontend、backend 或 common 下，并镜像长期目标路径。",
-                )
-            )
-            continue
-        source = delta.relative_to(change).as_posix()
-        mappings[source] = (Path("openspec/specs") / relative).as_posix()
+    mappings, invalid = knowledge_sync.delta_map(change)
+    findings = [
+        _finding(
+            "OPSX042",
+            delta,
+            repo,
+            1,
+            "Delta 路径不能映射到受控长期 Specs。",
+            "将 Delta 放到 specs/business、frontend、backend 或 common 下，并镜像长期目标路径。",
+        )
+        for delta in invalid
+    ]
     return findings, mappings
-
-
-def _knowledge_sync_rows(lines: Sequence[str]) -> list[tuple[int, list[str]]]:
-    body, heading_line = _section_lines(lines, "知识同步")
-    rows: list[tuple[int, list[str]]] = []
-    for offset, line in enumerate(body, start=1):
-        if not line.strip().startswith("|"):
-            continue
-        cells = [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
-        if len(cells) < 5 or all(set(cell) <= {"-", ":"} for cell in cells):
-            continue
-        if cells[0].casefold() in {"delta", "增量"}:
-            continue
-        rows.append((heading_line + offset, cells))
-    return rows
 
 
 def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
@@ -992,7 +947,7 @@ def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
     proposal_lines = (
         _read_text(proposal_path).splitlines() if proposal_path.is_file() else []
     )
-    impact_body, impact_line = _section_lines(proposal_lines, "知识影响")
+    impact_body, impact_line = knowledge_sync.section_lines(proposal_lines, "知识影响")
     impact_text = "\n".join(impact_body).strip()
     if not impact_text or _is_placeholder(impact_text):
         findings.append(
@@ -1019,7 +974,7 @@ def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
         )
 
     tasks_lines = _read_text(tasks_path).splitlines() if tasks_path.is_file() else []
-    rows = _knowledge_sync_rows(tasks_lines)
+    rows = knowledge_sync.sync_rows(tasks_lines)
     row_mappings: dict[str, tuple[str, str, str, int]] = {}
     for line_number, cells in rows:
         source, target, action, status, index_update = cells[:5]
@@ -1046,7 +1001,7 @@ def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
                     "记录标准知识同步动作。",
                 )
             )
-        if status.casefold() not in COMPLETED_SYNC_STATUSES:
+        if status.casefold() not in knowledge_sync.COMPLETED_SYNC_STATUSES:
             findings.append(
                 _finding(
                     "OPSX045",
@@ -1094,7 +1049,7 @@ def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
             )
         )
 
-    conflict_body, conflict_line = _section_lines(tasks_lines, "知识冲突")
+    conflict_body, conflict_line = knowledge_sync.section_lines(tasks_lines, "知识冲突")
     conflict_text = "\n".join(conflict_body).strip()
     resolved = "无冲突" in conflict_text or bool(
         re.search(r"状态\s*[:：]\s*(?:Resolved|已解决)\b", conflict_text, re.IGNORECASE)
@@ -1110,7 +1065,7 @@ def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
                 "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
             )
         )
-    diff_body, diff_line = _section_lines(tasks_lines, "实际 Diff 核对")
+    diff_body, diff_line = knowledge_sync.section_lines(tasks_lines, "实际 Diff 核对")
     if not re.search(
         r"(?:PASS|退出码\s*0|已核对)", "\n".join(diff_body), re.IGNORECASE
     ):

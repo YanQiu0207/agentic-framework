@@ -904,5 +904,97 @@ class MainReviewReportTest(unittest.TestCase):
         self.assertEqual(1, code)
 
 
+class KnowledgeSyncCrossCheckTest(unittest.TestCase):
+    """change 2040：知识影响门从布尔计数升级为反自证交叉核对。"""
+
+    def _change(self, *, sync_table: str = "", conflict: str = "- 状态: 无冲突\n",
+                deltas: tuple[str, ...] = ()) -> tuple[Path, Path, Path]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        change = repo / "openspec" / "changes" / "2099-x"
+        change.mkdir(parents=True)
+        tasks = (
+            "# 实施任务清单\n\n### 任务 1: [x] 实现\n- 状态: 完成\n\n"
+            "## 知识同步\n\n"
+            "| Delta | 长期目标 | 动作 | 状态 | 索引更新 |\n"
+            "| --- | --- | --- | --- | --- |\n"
+            + sync_table
+            + "\n## 知识冲突\n\n"
+            + conflict
+        )
+        (change / "tasks.md").write_text(tasks, encoding="utf-8")
+        for relative in deltas:
+            delta = change / relative
+            delta.parent.mkdir(parents=True, exist_ok=True)
+            delta.write_text("# delta\n", encoding="utf-8")
+        return repo, change, change / "tasks.md"
+
+    def _check(self, repo, tasks, impact="hit"):
+        return check_delivery.check_knowledge_sync(repo, tasks, impact)
+
+    def test_valid_delta_sync_passes(self) -> None:
+        repo, _change, tasks = self._change(
+            sync_table="| `specs/backend/x.md` | `openspec/specs/backend/x.md` | MODIFIED | 已完成 | 既有条目 |\n",
+            deltas=("specs/backend/x.md",),
+        )
+        self.assertEqual([], self._check(repo, tasks))
+
+    def test_missing_declaration_fails(self) -> None:
+        repo, _change, tasks = self._change(deltas=("specs/backend/x.md",))
+        self.assertTrue(any("漏报" in e for e in self._check(repo, tasks)))
+
+    def test_false_declaration_fails(self) -> None:
+        repo, _change, tasks = self._change(
+            sync_table="| `specs/backend/ghost.md` | `openspec/specs/backend/ghost.md` | ADDED | 已完成 | 无 |\n"
+        )
+        self.assertTrue(any("误报" in e for e in self._check(repo, tasks)))
+
+    def test_target_mismatch_fails(self) -> None:
+        repo, _change, tasks = self._change(
+            sync_table="| `specs/backend/x.md` | `openspec/specs/backend/other.md` | MODIFIED | 已完成 | 无 |\n",
+            deltas=("specs/backend/x.md",),
+        )
+        self.assertTrue(any("不匹配" in e for e in self._check(repo, tasks)))
+
+    def test_incomplete_status_fails(self) -> None:
+        repo, _change, tasks = self._change(
+            sync_table="| `specs/backend/x.md` | `openspec/specs/backend/x.md` | MODIFIED | 未开始 | 无 |\n",
+            deltas=("specs/backend/x.md",),
+        )
+        self.assertTrue(any("尚未完成" in e for e in self._check(repo, tasks)))
+
+    def test_placeholder_conflict_section_fails(self) -> None:
+        repo, _change, tasks = self._change(
+            sync_table="| `specs/backend/x.md` | `openspec/specs/backend/x.md` | MODIFIED | 已完成 | 无 |\n",
+            conflict="- 状态: 待交付时填写\n",
+            deltas=("specs/backend/x.md",),
+        )
+        self.assertTrue(any("占位" in e for e in self._check(repo, tasks)))
+
+    def test_none_impact_with_deltas_is_contradiction(self) -> None:
+        repo, _change, tasks = self._change(deltas=("specs/backend/x.md",))
+        self.assertTrue(any("无长期知识影响" in e for e in self._check(repo, tasks, impact="none")))
+
+    def test_none_impact_without_deltas_passes(self) -> None:
+        repo, _change, tasks = self._change()
+        self.assertEqual([], self._check(repo, tasks, impact="none"))
+
+    def test_hit_without_anything_fails(self) -> None:
+        repo, _change, tasks = self._change()
+        self.assertTrue(any("无 Delta 且无知识同步记录" in e for e in self._check(repo, tasks)))
+
+    def test_no_specs_fallback_checks_target_existence(self) -> None:
+        repo, change, tasks = self._change(
+            sync_table="| `framework-x` | `openspec/specs/backend/framework/x/overview.md` | MODIFIED | 已完成 | 无 |\n"
+        )
+        # 目标不存在 → 失败（无 specs/ 的替代反向证据，不直接放行）
+        self.assertTrue(any("目标不存在" in e for e in self._check(repo, tasks)))
+        target = repo / "openspec" / "specs" / "backend" / "framework" / "x" / "overview.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("# overview\n", encoding="utf-8")
+        self.assertEqual([], self._check(repo, tasks))
+
+
 if __name__ == "__main__":
     unittest.main()

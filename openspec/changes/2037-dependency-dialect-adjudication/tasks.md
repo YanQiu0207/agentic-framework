@@ -44,8 +44,8 @@ Task 1 (冻结两轨解析差异基线)
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `framework-unification` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | 完成 | 既有条目，无需改索引 |
-| `workflow-control` | `openspec/specs/backend/framework/workflow-control/overview.md` | 不改 | 完成 | Task 1 确认该文件只记载 waves／dispatchable 的依赖图语义，未记载依赖字段解析方言，无需同步 |
+| `framework-unification` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | 已完成 | 既有条目，无需改索引 |
+| `workflow-control` | `openspec/specs/backend/framework/workflow-control/overview.md` | 不改 | 已完成 | Task 1 确认该文件只记载 waves／dispatchable 的依赖图语义，未记载依赖字段解析方言，无需同步 |
 
 ## 知识冲突
 

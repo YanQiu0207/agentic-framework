@@ -35,6 +35,7 @@ if str(_FRAMEWORK_SCRIPTS) not in sys.path:
 import runtime_workflow
 import runtime_schema
 import workspace_residue
+import knowledge_sync
 
 TERMINAL_STATES = {"完成", "需人工", "阻塞"}
 NEEDS_REASON = {"需人工", "阻塞"}
@@ -455,6 +456,62 @@ def check_knowledge_impact(impact: str | None, reason: str) -> list[str]:
     return []
 
 
+def check_knowledge_sync(repo: Path, tasks_path: Path, impact: str | None) -> list[str]:
+    """反自证交叉核对（change 2040）：从 Delta 反推应同步目标，与声明比对。
+
+    只在声明 `hit` 时执行五类核对——漏报、误报、路径不匹配、同步状态
+    未完成、知识冲突节为空或占位；声明 `none` 时只做矛盾核对（有 Delta
+    却称无影响）。无 `specs/` 目录时退回同步目标存在性核对，证据强度低
+    于 Delta 反推（报告行会体现该区分）。
+    """
+    if impact is None:
+        return []  # 声明缺失由 check_knowledge_impact 负责
+    change_dir = tasks_path.parent
+    lines = tasks_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    mappings, invalid = knowledge_sync.delta_map(change_dir)
+    errors: list[str] = []
+    for delta in invalid:
+        errors.append(
+            f"Delta 路径不能映射到受控长期 Specs：{delta.relative_to(change_dir).as_posix()}"
+        )
+    if impact == "none":
+        if mappings:
+            errors.append("声明无长期知识影响，但 Change 包含 Delta")
+        return errors
+    row_targets: dict[str, str] = {}
+    for _line_number, cells in knowledge_sync.sync_rows(lines):
+        source, target, _action, status = cells[0], cells[1], cells[2], cells[3]
+        row_targets[source] = target
+        if status.casefold() not in knowledge_sync.COMPLETED_SYNC_STATUSES:
+            errors.append(f"知识 {source} 的同步尚未完成（当前 `{status}`）")
+    for source, expected in mappings.items():
+        target = row_targets.get(source)
+        if target is None:
+            errors.append(f"Delta {source} 缺少知识同步记录（漏报）")
+        elif target != expected:
+            errors.append(
+                f"Delta {source} 的目标路径不匹配：声明 `{target}`，应为 `{expected}`"
+            )
+    for source in row_targets:
+        if source.startswith("specs/") and source not in mappings:
+            errors.append(f"声明了 Delta {source} 但该文件不存在（误报）")
+    conflict_body, _conflict_line = knowledge_sync.section_lines(lines, "知识冲突")
+    conflict_text = "\n".join(conflict_body).strip()
+    if not conflict_text or "待交付时填写" in conflict_text:
+        errors.append("知识冲突检查缺失或仍是占位文字")
+    if not mappings and not row_targets:
+        errors.append("声明知识影响命中，但无 Delta 且无知识同步记录")
+    if not mappings:
+        # 无 specs/ 时的替代反向证据：目标真实存在。只能证明「声明的同步
+        # 目标存在」，不能证明「该同步的都同步了」——强度低于 Delta 反推。
+        for source, target in row_targets.items():
+            if source.startswith("specs/"):
+                continue
+            if not (repo / target).exists():
+                errors.append(f"知识同步目标不存在：{target}")
+    return errors
+
+
 def write_native_delivery_verdict(path: Path, verdict: dict) -> None:
     """Atomically write one validated Native Delivery Verdict artifact."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -631,6 +688,24 @@ def main(argv: list[str]) -> int:
             f"理由：{args.knowledge_impact_reason.strip()}"
         )
     )
+
+    if args.tasks is not None:
+        checks += 1
+        found = check_knowledge_sync(args.repo, args.tasks, args.knowledge_impact)
+        errors.extend(found)
+        if args.knowledge_impact == "hit":
+            sync_mode = (
+                "Delta 反推"
+                if (args.tasks.parent / "specs").is_dir()
+                else "同步目标存在性（无 specs/，证据强度较低）"
+            )
+        else:
+            sync_mode = "矛盾核对"
+        print(
+            ("ERROR  " + "；".join(found))
+            if found
+            else f"PASS   知识同步交叉核对（{sync_mode}）"
+        )
 
     for label, path, checker in (
         ("tasks.md 全部任务处于终态且附原因", args.tasks, check_tasks),

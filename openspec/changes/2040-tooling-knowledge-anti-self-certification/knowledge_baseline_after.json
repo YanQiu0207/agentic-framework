@@ -1,0 +1,1420 @@
+{
+  "openspec/changes/2035-common-task-ast": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 63,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2035-common-task-ast/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 65,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2035-common-task-ast/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2035-common-task-ast",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2035-common-task-ast/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2036-profile-boundary-readjudication": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 51,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 53,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2036-profile-boundary-readjudication",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2037-dependency-dialect-adjudication": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 47,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录标准知识同步动作。",
+          "line": 48,
+          "message": "知识同步动作不是 ADDED、MODIFIED、REMOVED 或 RENAMED。",
+          "path": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 48,
+          "message": "知识 workflow-control 的同步尚未完成。",
+          "path": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 50,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2037-dependency-dialect-adjudication",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2038-production-delivery-evidence": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 51,
+          "message": "知识 quality-gates 的同步尚未完成。",
+          "path": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 52,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 54,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2038-production-delivery-evidence",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2039-tooling-approval-gate": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 51,
+          "message": "知识 workflow-control 的同步尚未完成。",
+          "path": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 52,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 54,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2039-tooling-approval-gate",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2040-tooling-knowledge-anti-self-certification": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 51,
+          "message": "知识 knowledge-management 的同步尚未完成。",
+          "path": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 52,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 54,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2040-tooling-knowledge-anti-self-certification",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2041-governance-profile-declaration": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 51,
+          "message": "知识 install-agentic-framework 的同步尚未完成。",
+          "path": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 52,
+          "message": "知识 quality-gates 的同步尚未完成。",
+          "path": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 53,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 55,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2041-governance-profile-declaration",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2042-downgrade-equivalence-harness": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 52,
+          "message": "知识 quality-gates 的同步尚未完成。",
+          "path": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 53,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 55,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2042-downgrade-equivalence-harness",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2043-governance-overlay-merge": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 50,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 51,
+          "message": "知识 quality-gates 的同步尚未完成。",
+          "path": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 52,
+          "message": "知识 workflow-control 的同步尚未完成。",
+          "path": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 54,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2043-governance-overlay-merge",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2044-write-state-path-unification": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 49,
+          "message": "知识 workflow-control 的同步尚未完成。",
+          "path": "openspec/changes/2044-write-state-path-unification/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 50,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2044-write-state-path-unification/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 52,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2044-write-state-path-unification/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2044-write-state-path-unification",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2044-write-state-path-unification/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/2045-opsx-orchestration-retirement": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 51,
+          "message": "知识 framework-unification 的同步尚未完成。",
+          "path": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 52,
+          "message": "知识 install-agentic-framework 的同步尚未完成。",
+          "path": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 54,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2045-opsx-orchestration-retirement",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "补充镜像 Delta 和知识同步记录，或在 Proposal 中说明无影响及理由。",
+          "line": 1,
+          "message": "知识影响非空，但没有可校验的 Delta 映射。",
+          "path": "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 1,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "在「实际 Diff 核对」章节记录命令或证据及 PASS 结论。",
+          "line": 1,
+          "message": "缺少实际 Diff 与 Change/测试证据的核对记录。",
+          "path": "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming/tasks.md",
+          "rule_id": "OPSX048"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-1-2026-07-22-enforce-ticketed-change-naming",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2026-07-19-accept-knowledge-routing": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2026-07-19-accept-knowledge-routing",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2026-07-19-accept-knowledge-routing/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "补充镜像 Delta 和知识同步记录，或在 Proposal 中说明无影响及理由。",
+          "line": 1,
+          "message": "知识影响非空，但没有可校验的 Delta 映射。",
+          "path": "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2026-07-19-add-bp-cli-tool-design",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2026-07-19-complete-framework-knowledge": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "补充镜像 Delta 和知识同步记录，或在 Proposal 中说明无影响及理由。",
+          "line": 1,
+          "message": "知识影响非空，但没有可校验的 Delta 映射。",
+          "path": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 79,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "在「实际 Diff 核对」章节记录命令或证据及 PASS 结论。",
+          "line": 85,
+          "message": "缺少实际 Diff 与 Change/测试证据的核对记录。",
+          "path": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+          "rule_id": "OPSX048"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2026-07-19-complete-framework-knowledge",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2026-07-19-knowledge-management-review-fixes": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2026-07-19-knowledge-management-review-fixes",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2026-07-19-knowledge-management-review-fixes/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "补充镜像 Delta 和知识同步记录，或在 Proposal 中说明无影响及理由。",
+          "line": 1,
+          "message": "知识影响非空，但没有可校验的 Delta 映射。",
+          "path": "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 1,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "在「实际 Diff 核对」章节记录命令或证据及 PASS 结论。",
+          "line": 1,
+          "message": "缺少实际 Diff 与 Change/测试证据的核对记录。",
+          "path": "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict/tasks.md",
+          "rule_id": "OPSX048"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2026-07-20-delivery-fast-path-bounded-verdict",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "在「知识同步」表中映射到 openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md。",
+          "line": 1,
+          "message": "Delta specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md 缺少准确的长期目标映射。",
+          "path": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 1,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "在「实际 Diff 核对」章节记录命令或证据及 PASS 结论。",
+          "line": 1,
+          "message": "缺少实际 Diff 与 Change/测试证据的核对记录。",
+          "path": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+          "rule_id": "OPSX048"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2026-07-20-machine-verifiable-agent-runtime",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "补充镜像 Delta 和知识同步记录，或在 Proposal 中说明无影响及理由。",
+          "line": 1,
+          "message": "知识影响非空，但没有可校验的 Delta 映射。",
+          "path": "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 1,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "在「实际 Diff 核对」章节记录命令或证据及 PASS 结论。",
+          "line": 1,
+          "message": "缺少实际 Diff 与 Change/测试证据的核对记录。",
+          "path": "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark/tasks.md",
+          "rule_id": "OPSX048"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2027-2026-07-23-real-task-quality-benchmark",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2028-2026-07-25-tooling-native-first": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2028-2026-07-25-tooling-native-first",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2028-2026-07-25-tooling-native-first/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2029-2026-07-25-risk-triggered-task-approval": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2029-2026-07-25-risk-triggered-task-approval",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2029-2026-07-25-risk-triggered-task-approval/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2030-2026-07-25-approval-gate-hardening": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2030-2026-07-25-approval-gate-hardening",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2030-2026-07-25-approval-gate-hardening/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2031-2026-07-26-enforce-verify-config-dispatch-gate": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "在「实际 Diff 核对」章节记录命令或证据及 PASS 结论。",
+          "line": 113,
+          "message": "缺少实际 Diff 与 Change/测试证据的核对记录。",
+          "path": "openspec/changes/archive/2031-2026-07-26-enforce-verify-config-dispatch-gate/tasks.md",
+          "rule_id": "OPSX048"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2031-2026-07-26-enforce-verify-config-dispatch-gate",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2031-2026-07-26-enforce-verify-config-dispatch-gate/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2032-2026-07-26-task-status-consistency-gate",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2033-2026-07-26-scoped-delivery-residue-guard": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2033-2026-07-26-scoped-delivery-residue-guard",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2033-2026-07-26-scoped-delivery-residue-guard/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/2034-2026-07-26-knowledge-gate-risk-inversion": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 138,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/archive/2034-2026-07-26-knowledge-gate-risk-inversion/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-2034-2026-07-26-knowledge-gate-risk-inversion",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/2034-2026-07-26-knowledge-gate-risk-inversion/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/3-2026-07-23-extension-overlay-support": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-3-2026-07-23-extension-overlay-support",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/3-2026-07-23-extension-overlay-support/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/4-2026-07-25-review-report-dual-format": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 51,
+          "message": "Task 1 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 79,
+          "message": "Task 2 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 103,
+          "message": "Task 3 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "每个 Delta 或知识产物只保留一条同步记录。",
+          "line": 142,
+          "message": "知识同步源 （Quick，无 Delta） 存在重复映射。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-4-2026-07-25-review-report-dual-format",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 51,
+          "message": "Task 1 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 79,
+          "message": "Task 2 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 103,
+          "message": "Task 3 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 59,
+          "message": "Task 1 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 88,
+          "message": "Task 2 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 114,
+          "message": "Task 3 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 140,
+          "message": "Task 4 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 165,
+          "message": "Task 5 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "人工核对并同步项目知识后，将状态更新为 Completed。",
+          "line": 207,
+          "message": "知识 （Quick，无 Delta） 的同步尚未完成。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX045"
+        },
+        {
+          "hint": "每个 Delta 或知识产物只保留一条同步记录。",
+          "line": 208,
+          "message": "知识同步源 （Quick，无 Delta） 存在重复映射。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "每个 Delta 或知识产物只保留一条同步记录。",
+          "line": 209,
+          "message": "知识同步源 （Quick，无 Delta） 存在重复映射。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "记录标准知识同步动作。",
+          "line": 209,
+          "message": "知识同步动作不是 ADDED、MODIFIED、REMOVED 或 RENAMED。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX044"
+        },
+        {
+          "hint": "记录「无冲突」，或记录双方证据并将已处理冲突标记为 Resolved。",
+          "line": 213,
+          "message": "知识冲突检查缺失或仍未解决。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX047"
+        },
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-5-2026-07-25-delivery-gate-hardening",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 59,
+          "message": "Task 1 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 88,
+          "message": "Task 2 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 114,
+          "message": "Task 3 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 140,
+          "message": "Task 4 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "任务头改为 [completed] 或 [x]，或按实际进度改状态字段。",
+          "line": 165,
+          "message": "Task 5 的「- 状态：完成」与任务头 [] 矛盾。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX056"
+        },
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  },
+  "openspec/changes/archive/6-2026-07-25-trust-gate-schema-hardening": {
+    "archive": {
+      "errors": [
+        {
+          "hint": "按工单号、日期和原 Change 名称生成归档目录，例如 123-2026-07-22-add-validation。",
+          "line": 1,
+          "message": "Archive 目录名不符合 <ticket>-YYYY-MM-DD-<change-name>。",
+          "path": "openspec/changes/archive/probe-6-2026-07-25-trust-gate-schema-hardening",
+          "rule_id": "OPSX041"
+        }
+      ],
+      "exit": 1
+    },
+    "delivery": {
+      "errors": [
+        {
+          "hint": "提供 --workspace-residue-baseline 指向基线文件，或在 tasks.md 头部声明「- 交付证据豁免: <原因>」。",
+          "line": 1,
+          "message": "Delivery 阶段缺少工作区证据基线。",
+          "path": "openspec/changes/archive/6-2026-07-25-trust-gate-schema-hardening/tasks.md",
+          "rule_id": "OPSX057"
+        }
+      ],
+      "exit": 1
+    },
+    "plan": {
+      "errors": [],
+      "exit": 1
+    }
+  }
+}
