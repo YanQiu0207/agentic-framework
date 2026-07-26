@@ -309,12 +309,25 @@ Production Tasks 服务逐阶段人工批准、Task Review 和归档证据；Too
 2. 两边至少 3 个稳定字段具有相同语义和生命周期。
 3. Adapter 不需要丢弃 Profile 专属状态。
 
+> 重新评估记录（change 2035，2026-07-26）：三条条件已满足，公共 AST 已按 §8.3 第 1 至 3 步提取。
+>
+> - 条件 1：`_metadata_region` 曾在 `scripts/validate_change.py:570` 与 `skills/workflow-code-generation/scripts/lint_task_deps.py:124` 重复实现（含围栏剔除逻辑的逐行复制），同一解析缺陷需两处重复修复的形态已出现。
+> - 条件 2：`状态`、`depends_on`／`依赖`、`review_profile` 三个稳定字段在两轨具有相同语义和生命周期。
+> - 条件 3：提取出的 `scripts/task_ast.py` 为只读解析层，两轨各自的裁决（OPSX 编号、错误消息、状态取值集合、依赖串格式）全部保留在调用方，Adapter 未丢弃任何 Profile 专属状态。
+>
+> 原判断依据保留：条件未满足时「不提取」的结论不变，本节开头两段描述的是第一阶段的状态；本次提取是三条重新评估条件同时满足后的正当后续，而非对当初判断的否定。
+>
+> 附带的显式放宽（均为单向放宽，原本通过的不得转为失败，已机械核对）：
+>
+> - Review Profile 字段名双写法合同：`review_profile` 与 `Review Profile` 归一为同一逻辑字段，匹配规则仅限大小写不敏感、`_` 与空格等价；同一任务两种写法取值不同则报错。取值集合不变（Tooling 仍限 lightweight／standard／strict，Production 仍限其既有集合）。这是**放宽**而非收敛——未来若要收敛为单一写法，需单独 Change。
+> - 任务状态取值归一：Tooling 读侧接受 Production 超集取值并映射回规范值（`已完成`／`completed`／`complete`／`done`／`x` → `完成`，`pending` → `未开始`，`in progress`／`in-progress` → `进行中`，`blocked` → `阻塞`）。写侧仍只产出五个规范值，未引入第六个取值。
+
 ### 8.3 后续提取顺序
 
-1. 先冻结两边现有 Fixtures 和行为。
-2. 建立公共 AST 和 Profile Adapter。
-3. 先迁移只读调用方。
-4. 最后迁移 Tooling 写状态路径。
+1. 先冻结两边现有 Fixtures 和行为。（已完成，change 2035：golden 基线与门禁双阶段快照前后逐字节相同）
+2. 建立公共 AST 和 Profile Adapter。（已完成，change 2035：`scripts/task_ast.py`）
+3. 先迁移只读调用方。（已完成，change 2035：`lint_task_deps.py` 与 `validate_change.py` 均已委托 AST）
+4. 最后迁移 Tooling 写状态路径。（未启动，由 change 2044 承载）
 5. 每迁移一个调用方都运行兼容性测试。
 
 ## 9. Code Review

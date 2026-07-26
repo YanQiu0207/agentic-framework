@@ -1,0 +1,957 @@
+{
+  "openspec/changes/2035-common-task-ast": {
+    "delivery": {
+      "count": 113,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 18,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2036-profile-boundary-readjudication": {
+    "delivery": {
+      "count": 71,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 12,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2037-dependency-dialect-adjudication": {
+    "delivery": {
+      "count": 63,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 13,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2038-production-delivery-evidence": {
+    "delivery": {
+      "count": 64,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 13,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2039-tooling-approval-gate": {
+    "delivery": {
+      "count": 65,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 13,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2040-tooling-knowledge-anti-self-certification": {
+    "delivery": {
+      "count": 63,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 13,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2041-governance-profile-declaration": {
+    "delivery": {
+      "count": 58,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 11,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2042-downgrade-equivalence-harness": {
+    "delivery": {
+      "count": 69,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 15,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2043-governance-overlay-merge": {
+    "delivery": {
+      "count": 73,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 15,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2044-write-state-path-unification": {
+    "delivery": {
+      "count": 62,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 13,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/2045-opsx-orchestration-retirement": {
+    "delivery": {
+      "count": 67,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 15,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming": {
+    "delivery": {
+      "count": 11,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 5,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX029"
+      ]
+    }
+  },
+  "openspec/changes/archive/2026-07-19-accept-knowledge-routing": {
+    "delivery": {
+      "count": 4,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX032",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 2,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003"
+      ]
+    }
+  },
+  "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design": {
+    "delivery": {
+      "count": 40,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 21,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/2026-07-19-complete-framework-knowledge": {
+    "delivery": {
+      "count": 39,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX027",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 20,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX027",
+        "OPSX029",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/2026-07-19-knowledge-management-review-fixes": {
+    "delivery": {
+      "count": 7,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX032",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 2,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003"
+      ]
+    }
+  },
+  "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict": {
+    "delivery": {
+      "count": 32,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 17,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX029",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime": {
+    "delivery": {
+      "count": 70,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX023",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 35,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX023",
+        "OPSX029",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark": {
+    "delivery": {
+      "count": 47,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX012",
+        "OPSX013",
+        "OPSX014",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX027",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 26,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX012",
+        "OPSX013",
+        "OPSX014",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX027",
+        "OPSX029",
+        "OPSX035",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/2028-2026-07-25-tooling-native-first": {
+    "delivery": {
+      "count": 6,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX029",
+        "OPSX032"
+      ]
+    },
+    "plan": {
+      "count": 5,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX029"
+      ]
+    }
+  },
+  "openspec/changes/archive/2029-2026-07-25-risk-triggered-task-approval": {
+    "delivery": {
+      "count": 3,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX032"
+      ]
+    },
+    "plan": {
+      "count": 2,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003"
+      ]
+    }
+  },
+  "openspec/changes/archive/2030-2026-07-25-approval-gate-hardening": {
+    "delivery": {
+      "count": 6,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX032",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 2,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003"
+      ]
+    }
+  },
+  "openspec/changes/archive/2031-2026-07-26-enforce-verify-config-dispatch-gate": {
+    "delivery": {
+      "count": 10,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX020",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034"
+      ]
+    },
+    "plan": {
+      "count": 6,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX020",
+        "OPSX029"
+      ]
+    }
+  },
+  "openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate": {
+    "delivery": {
+      "count": 5,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX029",
+        "OPSX032"
+      ]
+    },
+    "plan": {
+      "count": 4,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX029"
+      ]
+    }
+  },
+  "openspec/changes/archive/2033-2026-07-26-scoped-delivery-residue-guard": {
+    "delivery": {
+      "count": 40,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 21,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/2034-2026-07-26-knowledge-gate-risk-inversion": {
+    "delivery": {
+      "count": 32,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 17,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/3-2026-07-23-extension-overlay-support": {
+    "delivery": {
+      "count": 52,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 17,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/4-2026-07-25-review-report-dual-format": {
+    "delivery": {
+      "count": 55,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038",
+        "OPSX056"
+      ]
+    },
+    "plan": {
+      "count": 17,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening": {
+    "delivery": {
+      "count": 89,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX030",
+        "OPSX031",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038",
+        "OPSX056"
+      ]
+    },
+    "plan": {
+      "count": 25,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  },
+  "openspec/changes/archive/6-2026-07-25-trust-gate-schema-hardening": {
+    "delivery": {
+      "count": 32,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX032",
+        "OPSX033",
+        "OPSX034",
+        "OPSX037",
+        "OPSX038"
+      ]
+    },
+    "plan": {
+      "count": 17,
+      "error": null,
+      "exit": 1,
+      "rules": [
+        "OPSX002",
+        "OPSX003",
+        "OPSX018",
+        "OPSX019",
+        "OPSX023",
+        "OPSX026",
+        "OPSX029",
+        "OPSX037",
+        "OPSX038"
+      ]
+    }
+  }
+}

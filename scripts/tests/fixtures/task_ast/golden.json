@@ -1,0 +1,317 @@
+{
+  "inputs": [
+    "bare_number_deps.md",
+    "duplicate_task_id.md",
+    "empty_list_deps.md",
+    "empty_status_bracket.md",
+    "fenced_fake_header.md",
+    "mixed_dep_fields.md",
+    "no_status_bracket.md",
+    "orphan_heading.md"
+  ],
+  "production": {
+    "bare_number_deps.md": {
+      "tasks": [
+        [
+          1,
+          "pending",
+          "甲",
+          3,
+          5,
+          []
+        ],
+        [
+          2,
+          "pending",
+          "乙",
+          6,
+          7,
+          []
+        ]
+      ]
+    },
+    "duplicate_task_id.md": {
+      "tasks": [
+        [
+          1,
+          "pending",
+          "甲",
+          3,
+          5,
+          []
+        ],
+        [
+          1,
+          "pending",
+          "乙",
+          6,
+          7,
+          []
+        ]
+      ]
+    },
+    "empty_list_deps.md": {
+      "tasks": [
+        [
+          1,
+          "pending",
+          "甲",
+          3,
+          5,
+          []
+        ],
+        [
+          2,
+          "pending",
+          "乙",
+          6,
+          7,
+          []
+        ]
+      ]
+    },
+    "empty_status_bracket.md": {
+      "tasks": []
+    },
+    "fenced_fake_header.md": {
+      "tasks": [
+        [
+          1,
+          "pending",
+          "甲",
+          3,
+          6,
+          []
+        ],
+        [
+          99,
+          "x",
+          "伪任务",
+          7,
+          10,
+          [
+            1
+          ]
+        ],
+        [
+          2,
+          "pending",
+          "乙",
+          11,
+          12,
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    "mixed_dep_fields.md": {
+      "tasks": [
+        [
+          1,
+          "pending",
+          "甲",
+          3,
+          5,
+          []
+        ],
+        [
+          2,
+          "pending",
+          "乙",
+          6,
+          8,
+          [
+            1
+          ]
+        ],
+        [
+          3,
+          "pending",
+          "丙",
+          9,
+          10,
+          [
+            1,
+            2
+          ]
+        ]
+      ]
+    },
+    "no_status_bracket.md": {
+      "tasks": [
+        [
+          2,
+          "pending",
+          "实现登出",
+          7,
+          9,
+          [
+            1
+          ]
+        ]
+      ]
+    },
+    "orphan_heading.md": {
+      "tasks": [
+        [
+          1,
+          "pending",
+          "甲",
+          3,
+          10,
+          []
+        ],
+        [
+          2,
+          "pending",
+          "乙",
+          11,
+          12,
+          [
+            1
+          ]
+        ]
+      ]
+    }
+  },
+  "tooling": {
+    "bare_number_deps.md": {
+      "tasks": [
+        [
+          1,
+          [],
+          true,
+          30
+        ],
+        [
+          2,
+          [
+            1,
+            2
+          ],
+          true,
+          31
+        ]
+      ]
+    },
+    "duplicate_task_id.md": {
+      "error": "ValueError: 重复任务 ID: 1"
+    },
+    "empty_list_deps.md": {
+      "tasks": [
+        [
+          1,
+          [],
+          true,
+          30
+        ],
+        [
+          2,
+          [],
+          true,
+          28
+        ]
+      ]
+    },
+    "empty_status_bracket.md": {
+      "tasks": [
+        [
+          1,
+          [],
+          true,
+          35
+        ]
+      ]
+    },
+    "fenced_fake_header.md": {
+      "tasks": [
+        [
+          1,
+          [],
+          true,
+          38
+        ],
+        [
+          2,
+          [
+            1
+          ],
+          true,
+          33
+        ],
+        [
+          99,
+          [
+            1
+          ],
+          true,
+          34
+        ]
+      ]
+    },
+    "mixed_dep_fields.md": {
+      "tasks": [
+        [
+          1,
+          [],
+          true,
+          30
+        ],
+        [
+          2,
+          [
+            1
+          ],
+          true,
+          26
+        ],
+        [
+          3,
+          [
+            1,
+            2
+          ],
+          true,
+          41
+        ]
+      ]
+    },
+    "no_status_bracket.md": {
+      "tasks": [
+        [
+          1,
+          [],
+          true,
+          33
+        ],
+        [
+          2,
+          [
+            1
+          ],
+          true,
+          46
+        ]
+      ]
+    },
+    "orphan_heading.md": {
+      "tasks": [
+        [
+          1,
+          [],
+          true,
+          74
+        ],
+        [
+          2,
+          [
+            1
+          ],
+          true,
+          33
+        ]
+      ]
+    }
+  }
+}

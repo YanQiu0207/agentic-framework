@@ -20,22 +20,38 @@ import re
 import sys
 from pathlib import Path
 
+_FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
+if str(_FRAMEWORK_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+import task_ast
+
 TASK_HEADER = re.compile(r"^###\s*任务\s*(\d+)\s*[:：]", re.MULTILINE)
 BACKTICK = re.compile(r"`([^`]+)`")
-# 任务标题行的完成标记；标记缺失时 group("mark") 为 None。
-TASK_HEADER_LINE = re.compile(
-    r"^###\s*任务\s*(?P<number>\d+)\s*[:：]\s*(?:\[(?P<mark>[^]]*)\])?"
-)
-# 任意级别 Markdown 标题：任务元数据区在此结束，尾部小节（知识同步 /
-# 知识冲突等）自带 `- 状态:` 字段，不能被当成任务状态。
-ANY_HEADING = re.compile(r"^#{1,6}\s+")
 CHECKBOX = re.compile(r"^\s*-\s*\[(?P<mark>[ xX])\]")
 STATE_FIELD = re.compile(r"^\s*-\s*状态\s*[:：]\s*(?P<value>.*)$")
 # 任务头标记里代表「已完成」的取值；其余取值一律按未完成处理。
 COMPLETED_MARKS = {"x", "completed", "complete", "done", "已完成", "完成"}
 
 REVIEW_PROFILES = {"lightweight", "standard", "strict"}
+# Review Profile 的两种写法归一为同一逻辑字段（change 2035 Task 6）：匹配
+# 规则仅大小写不敏感、`_` 与空格等价；取值集合不变。同一任务两种写法取值
+# 不同则报错，不静默取其一。
+REVIEW_PROFILE_FIELD_NAMES = ("review_profile", "Review Profile")
 TASK_STATES = ("未开始", "进行中", "完成", "需人工", "阻塞")
+# 状态取值归一（change 2035 Task 7）：读侧接受 Production 超集取值并映射回
+# 规范值；英文别名大小写不敏感（与 Production `_state_field_kind` 的归类
+# 对齐）。只放宽读侧校验，写侧仍只产出五个规范值。
+_STATE_CANONICAL = {
+    "已完成": "完成",
+    "completed": "完成",
+    "complete": "完成",
+    "done": "完成",
+    "x": "完成",
+    "pending": "未开始",
+    "in progress": "进行中",
+    "in-progress": "进行中",
+    "blocked": "阻塞",
+}
 REQUIRED_FIELDS = ("review_profile", "context_files", "verification", "artifacts", "状态")
 
 
@@ -52,48 +68,68 @@ def has_field(body: str, name: str) -> bool:
     ) is not None
 
 
-def parse_deps(body: str) -> tuple[set[int], bool]:
-    """解析 depends_on，兼容旧字段 `依赖`，并返回字段是否存在。"""
-    has_depends_on = has_field(body, "depends_on")
-    has_legacy_dep = has_field(body, "依赖")
-    dep_text = field(body, "depends_on")
-    if not has_depends_on:
-        dep_text = field(body, "依赖")
-    field_exists = has_depends_on or has_legacy_dep
-    if not dep_text or dep_text in {"[]", "无"}:
+def parse_deps(
+    dep_field_raw: str | None, dep_field_name: str | None
+) -> tuple[set[int], bool]:
+    """把 AST 提供的依赖字段原始值解析为依赖集合，并返回字段是否存在。
+
+    `re.findall(r"\\d+")` 的宽松提取语义不变（裸数字也接受）；字段名只
+    用于判定「字段是否声明过」。depends_on 与遗留「依赖」的取舍在 AST 层
+    完成（depends_on 优先）。
+    """
+    field_exists = dep_field_name is not None
+    if not dep_field_raw or dep_field_raw in {"[]", "无"}:
         return set(), field_exists
-    return {int(n) for n in re.findall(r"\d+", dep_text)}, field_exists
+    return {int(n) for n in re.findall(r"\d+", dep_field_raw)}, field_exists
 
 
 def parse_tasks(text: str) -> dict[int, dict]:
     """解析 tasks.md，返回 {task_id: {"files": set, "deps": set}}。"""
-    headers = list(TASK_HEADER.finditer(text))
+    doc = task_ast.parse(text)
+    if doc.duplicate_ids:
+        raise ValueError(f"重复任务 ID: {doc.duplicate_ids[0]}")
     tasks: dict[int, dict] = {}
-    for idx, match in enumerate(headers):
-        tid = int(match.group(1))
-        if tid in tasks:
-            raise ValueError(f"重复任务 ID: {tid}")
-        start = match.end()
-        end = headers[idx + 1].start() if idx + 1 < len(headers) else len(text)
-        body = text[start:end]
-
-        files = {p.strip() for p in BACKTICK.findall(field(body, "文件"))}
-        deps, has_dep_field = parse_deps(body)
-        tasks[tid] = {
-            "files": files,
+    for node in doc.tasks:
+        deps, has_dep_field = parse_deps(node.dep_field_raw, node.dep_field_name)
+        tasks[node.number] = {
+            "files": {p.strip() for p in BACKTICK.findall(field(node.body, "文件"))},
             "deps": deps,
             "has_dep_field": has_dep_field,
-            "body": body,
+            "body": node.body,
+            "review_profile_fields": task_ast.find_fields(
+                node.body.splitlines(), REVIEW_PROFILE_FIELD_NAMES
+            ),
         }
     return tasks
 
 
-def parse_state(value: str) -> str | None:
-    """从 `状态` 字段值里取合法状态词（允许后跟原因等附注），无则返回 None。"""
+def state_prefix(value: str) -> str | None:
+    """返回 `状态` 字段值中匹配到的原始状态前缀（含别名原文），无则 None。
+
+    原因抽取须按本函数返回的原始前缀长度切片——归一后规范值与原始值
+    长度不再对应（如 `已完成` → `完成`）。
+    """
     for state in TASK_STATES:
         if value.startswith(state):
             return state
+    normalized = value.casefold()
+    for alias in _STATE_CANONICAL:
+        if normalized.startswith(alias):
+            return value[: len(alias)]
     return None
+
+
+def parse_state(value: str) -> str | None:
+    """从 `状态` 字段值里取合法状态词（允许后跟原因等附注），无则返回 None。
+
+    接受 Production 超集取值并归一为规范值（`_STATE_CANONICAL`）。
+    """
+    prefix = state_prefix(value)
+    if prefix is None:
+        return None
+    if prefix in TASK_STATES:
+        return prefix
+    return _STATE_CANONICAL[prefix.casefold()]
 
 
 def field_errors(tasks: dict[int, dict]) -> list[str]:
@@ -101,16 +137,29 @@ def field_errors(tasks: dict[int, dict]) -> list[str]:
     errors: list[str] = []
     for tid, info in sorted(tasks.items()):
         body = info["body"]
+        profile_fields = info["review_profile_fields"]
         for name in REQUIRED_FIELDS:
+            if name == "review_profile":
+                if not profile_fields:
+                    errors.append(f"任务 {tid} 缺少 review_profile 字段")
+                continue
             if not has_field(body, name):
                 errors.append(f"任务 {tid} 缺少 {name} 字段")
-        if has_field(body, "review_profile"):
-            profile = field(body, "review_profile")
-            if profile not in REVIEW_PROFILES:
+        if profile_fields:
+            values = {value for _name, value, _offset in profile_fields}
+            if len(values) > 1:
+                shown = "、".join(f"`{value}`" for value in sorted(values))
                 errors.append(
-                    f"任务 {tid} 的 review_profile `{profile}` 不合法"
-                    f"（lightweight / standard / strict）"
+                    f"任务 {tid} 声明了多个取值不同的 review_profile（{shown}），"
+                    f"无法判定真实档位"
                 )
+            else:
+                profile = profile_fields[0][1]
+                if profile not in REVIEW_PROFILES:
+                    errors.append(
+                        f"任务 {tid} 的 review_profile `{profile}` 不合法"
+                        f"（lightweight / standard / strict）"
+                    )
         if has_field(body, "状态"):
             status_value = field(body, "状态")
             if parse_state(status_value) is None:
@@ -121,42 +170,20 @@ def field_errors(tasks: dict[int, dict]) -> list[str]:
     return errors
 
 
-def _metadata_region(lines: list[str], start: int) -> list[str]:
-    """取 `start`（任务标题行下一行）起的任务元数据区，剔除围栏内容。
-
-    区域到下一个任意级别标题（含下一个任务标题）之前结束。
-    """
-    region: list[str] = []
-    fence: str | None = None
-    for line in lines[start:]:
-        marker = line.lstrip()[:3]
-        if marker in {"```", "~~~"}:
-            fence = None if fence == marker else marker
-            continue
-        if fence is not None:
-            continue
-        if ANY_HEADING.match(line):
-            break
-        region.append(line)
-    return region
-
-
 def state_consistency_errors(text: str) -> list[str]:
     """校验状态字段、任务头标记与任务块复选框三向一致。
 
     `完成` 要求任务头标完成且区域内无未勾选复选框；其余状态要求任务头
     不标完成（未勾选复选框正是「哪些验收项没达成」的记录，不作约束）。
     """
-    lines = text.splitlines()
-    headers = [
-        (index, match)
-        for index, line in enumerate(lines)
-        if (match := TASK_HEADER_LINE.match(line))
-    ]
+    doc = task_ast.parse(text)
     errors: list[str] = []
-    for index, match in headers:
-        tid = int(match.group("number"))
-        region = _metadata_region(lines, index + 1)
+    for node in doc.tasks:
+        tid = node.number
+        # 元数据区终止沿用本侧历史规则：任意级别标题（含孤立空标题行）。
+        region = task_ast.metadata_region(
+            doc.lines, node.line, node.end_line, stop_re=task_ast.ANY_HEADING_RE
+        )
         states = [
             found.group("value").strip()
             for line in region
@@ -175,7 +202,7 @@ def state_consistency_errors(text: str) -> list[str]:
         state = parse_state(states[0])
         if state is None:
             continue  # 取值非法由 field_errors 判定
-        mark = match.group("mark")
+        mark = node.status_raw
         # 标记整体缺失（`### 任务 1：实现`）视为「未声明」而非矛盾：没有
         # 完成信号可与状态字段对立。复选框判定不受影响，仍照常执行。
         mark_completed = mark is not None and mark.strip().casefold() in COMPLETED_MARKS

@@ -60,7 +60,10 @@ def check_tasks(text: str) -> list[str]:
                 f"任务 {tid} 状态为 `{state}`，未到终态（完成 / 需人工 / 阻塞）"
             )
         elif state in NEEDS_REASON:
-            note = value[len(state) :].strip(" \t:：，,()（）-")
+            # 按原始匹配前缀切片：归一后 state 是规范值而 value 是原始值，
+            # 长度不再对应（如 `blocked 依赖外部审批` → `阻塞`）。
+            prefix = lint_task_deps.state_prefix(value) or ""
+            note = value[len(prefix) :].strip(" \t:：，,()（）-")
             reason = lint_task_deps.field(info["body"], "原因")
             if not note and not reason:
                 errors.append(

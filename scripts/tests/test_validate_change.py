@@ -20,6 +20,9 @@ VALIDATOR = REPO_ROOT / "scripts" / "validate_change.py"
 FIXTURES = Path(__file__).parent / "fixtures" / "validate-change"
 CHANGE = Path("openspec/changes/1-example-change")
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import validate_change
+
 
 def archive_target() -> Path:
     """Return the valid archive destination for the fixture change."""
@@ -1737,6 +1740,52 @@ class ValidateChangeCliTest(unittest.TestCase):
             )
             result = self.run_repo(temporary_repo, "plan")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+
+class ReviewProfileAliasRegexTest(unittest.TestCase):
+    """change 2035 Task 6：TASK_REVIEW_PROFILE_RE 接受两种写法。
+
+    别名规则仅限大小写不敏感、`_` 与空格等价；取值集合与重复即报错的
+    基数检查不变。
+    """
+
+    def test_underscore_writing_matches(self) -> None:
+        text = "- review_profile: strict\n"
+        matches = list(validate_change.TASK_REVIEW_PROFILE_RE.finditer(text))
+        self.assertEqual(1, len(matches))
+        self.assertEqual("strict", matches[0].group("value"))
+
+    def test_spaced_writing_matches(self) -> None:
+        text = "- Review Profile: standard\n"
+        matches = list(validate_change.TASK_REVIEW_PROFILE_RE.finditer(text))
+        self.assertEqual(1, len(matches))
+        self.assertEqual("standard", matches[0].group("value"))
+
+    def test_same_value_two_writings_accepted(self) -> None:
+        # 归档实例：`- review_profile:` 与 `- Review Profile:` 同值并存（归档
+        # 2028 / knowledge-management-review-fixes），取值相同则接受。
+        text = "- review_profile: standard\n- Review Profile: standard\n"
+        self.assertEqual(
+            "standard", validate_change._review_profile_value(text)
+        )
+
+    def test_conflicting_writings_rejected(self) -> None:
+        text = "- review_profile: standard\n- Review Profile: strict\n"
+        self.assertIsNone(validate_change._review_profile_value(text))
+
+    def test_same_writing_duplicate_still_rejected(self) -> None:
+        text = "- Review Profile: standard\n- Review Profile: standard\n"
+        self.assertIsNone(validate_change._review_profile_value(text))
+
+    def test_no_fuzzy_or_prefix_match(self) -> None:
+        for text in (
+            "- review-profile: strict\n",
+            "- review_profile_extra: strict\n",
+            "- Review Profilex: strict\n",
+        ):
+            self.assertEqual(
+                [], list(validate_change.TASK_REVIEW_PROFILE_RE.finditer(text)), text
+            )
 
 
 if __name__ == "__main__":

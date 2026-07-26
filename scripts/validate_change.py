@@ -12,21 +12,18 @@ import re
 import stat
 import sys
 from pathlib import Path
+
+import task_ast
 from typing import Sequence
 
 PHASES = ("plan", "delivery", "archive")
-TASK_HEADER_RE = re.compile(
-    r"^###\s+任务\s+(?P<number>\d+)\s*[:：]\s*"
-    r"\[(?P<status>[^]]+)\]\s*(?P<description>.*)$",
-    re.IGNORECASE,
-)
 DEPENDENCY_RE = re.compile(
     r"^-\s*(?:依赖|depends_on)\s*[:：]\s*(?P<value>.*)$", re.IGNORECASE
 )
 TASK_REFERENCE_RE = re.compile(r"(?:Task|任务)\s*(\d+)", re.IGNORECASE)
 REVIEW_RE = re.compile(r"Code\s+Review\s*[:：]\s*(Pending|PASS)\b", re.IGNORECASE)
 TASK_REVIEW_PROFILE_RE = re.compile(
-    r"^-\s*Review\s+Profile\s*[:：]\s*(\S.*?)\s*$",
+    r"^-\s*(?P<field>Review[\s_]+Profile)\s*[:：]\s*(?P<value>\S.*?)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 TASK_REVIEW_STATUS_RE = re.compile(
@@ -425,38 +422,30 @@ def _is_placeholder(value: str) -> bool:
 
 
 def _parse_tasks(tasks_path: Path) -> tuple[list[Task], list[str]]:
-    lines = _read_text(tasks_path).splitlines()
-    headers: list[tuple[int, re.Match[str]]] = []
-    for line_number, line in enumerate(lines, start=1):
-        match = TASK_HEADER_RE.match(line)
-        if match:
-            headers.append((line_number, match))
-
+    doc = task_ast.parse(_read_text(tasks_path))
     tasks: list[Task] = []
-    for index, (line_number, match) in enumerate(headers):
-        end_line = headers[index + 1][0] - 1 if index + 1 < len(headers) else len(lines)
-        block = lines[line_number:end_line]
-        dependencies: list[int] = []
-        for line in block:
-            dependency_match = DEPENDENCY_RE.match(line.strip())
-            if dependency_match:
-                dependencies.extend(
-                    int(value)
-                    for value in TASK_REFERENCE_RE.findall(
-                        dependency_match.group("value")
-                    )
-                )
-        tasks.append(
-            Task(
-                number=int(match.group("number")),
-                status=match.group("status").strip(),
-                description=match.group("description").strip(),
-                line=line_number,
-                end_line=end_line,
-                dependencies=tuple(dict.fromkeys(dependencies)),
+    for node in doc.tasks:
+        # 收紧回 TASK_HEADER_RE 的既有严格度：`###` 与「任务」后必须有空白，
+        # 且状态括号必须存在且非空（AST 宽松识别，此处分流）。
+        if not node.strict_header or not node.status_raw:
+            continue
+        dependencies = tuple(
+            dict.fromkeys(
+                int(value)
+                for value in TASK_REFERENCE_RE.findall(node.dep_field_raw or "")
             )
         )
-    return tasks, lines
+        tasks.append(
+            Task(
+                number=node.number,
+                status=node.status_raw.strip(),
+                description=node.description,
+                line=node.line,
+                end_line=node.end_line - 1,  # AST 半开区间转回本文件的闭区间
+                dependencies=dependencies,
+            )
+        )
+    return tasks, doc.lines
 
 
 def _dependency_cycle(tasks: Sequence[Task]) -> list[int] | None:
@@ -565,29 +554,6 @@ def _approval_conditions(value: str) -> tuple[str, set[str] | None] | None:
 
 def _completed_status(status: str) -> bool:
     return status.casefold() in {"x", "completed", "complete", "done"}
-
-
-def _metadata_region(lines: Sequence[str], task: Task) -> list[str]:
-    """Return one task's metadata region: header line to the next heading.
-
-    ``_task_block`` runs to the next task header, so the last task swallows
-    trailing sections (知识同步 / 知识冲突 / 实际 Diff 核对) that carry their
-    own ``- 状态:`` field. OPSX056 needs the narrower region; the wider block
-    stays untouched so OPSX030/OPSX031/OPSX037 keep their current behaviour.
-    """
-    region: list[str] = []
-    fence: str | None = None
-    for line in lines[task.line : task.end_line]:
-        marker = line.lstrip()[:3]
-        if marker in {"```", "~~~"}:
-            fence = None if fence == marker else marker
-            continue
-        if fence is not None:
-            continue
-        if SECTION_RE.match(line):
-            break
-        region.append(line)
-    return region
 
 
 def _state_field_kind(value: str) -> str | None:
@@ -1162,7 +1128,11 @@ def _validate_state_field_consistency(
     ``阻塞`` field is the more dangerous direction, since readers trust the
     header. Unclassifiable or duplicated declarations fail closed.
     """
-    region = _metadata_region(lines, task)
+    # 元数据区终止沿用本侧历史规则：带标题字符的标题行（SECTION_RE 语义，
+    # 孤立 `### ` 空标题行不终止区域）。`end_line` 闭区间转 AST 半开区间。
+    region = task_ast.metadata_region(
+        lines, task.line, task.end_line + 1, stop_re=task_ast.SECTION_HEADING_RE
+    )
     declarations = [
         (offset, match.group("value").strip())
         for offset, line in enumerate(region)
@@ -1406,11 +1376,7 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
                 )
             )
         metadata_text = _metadata_text(block)
-        profile_matches = list(TASK_REVIEW_PROFILE_RE.finditer(metadata_text))
-        if len(profile_matches) != 1 or profile_matches[0].group(1).casefold() not in {
-            "standard",
-            "strict",
-        }:
+        if _review_profile_value(metadata_text) not in {"standard", "strict"}:
             findings.append(
                 _finding(
                     "OPSX037",
@@ -1622,6 +1588,28 @@ def _validate_escalation_field_format(
     return findings
 
 
+def _review_profile_value(metadata_text: str) -> str | None:
+    """Return the unique declared Review Profile value, or ``None``.
+
+    两种写法（`Review Profile` / `review_profile`）归一为同一逻辑字段：
+    取值相同则接受，取值不同则返回 None 报错（不静默取其一）。完全同形
+    的重复声明维持原有的基数报错（按原始字段文本分桶判定）。
+    """
+    by_raw_name: dict[str, list[str]] = {}
+    for match in TASK_REVIEW_PROFILE_RE.finditer(metadata_text):
+        by_raw_name.setdefault(match.group("field"), []).append(match.group("value"))
+    if not by_raw_name or any(len(values) > 1 for values in by_raw_name.values()):
+        return None
+    values = {
+        value.strip().casefold()
+        for values in by_raw_name.values()
+        for value in values
+    }
+    if len(values) != 1:
+        return None
+    return values.pop()
+
+
 def _validate_escalation_profile_coupling(
     task: Task, metadata_text: str, tasks_path: Path, repo: Path
 ) -> list[Finding]:
@@ -1640,9 +1628,10 @@ def _validate_escalation_profile_coupling(
     escalation_matches = list(ESCALATION_RE.finditer(metadata_text))
     if len(escalation_matches) != 1:
         return []
-    profile_matches = list(TASK_REVIEW_PROFILE_RE.finditer(metadata_text))
-    if len(profile_matches) != 1:
-        # 档位缺失或重复由 OPSX037 在 plan 阶段完整覆盖，此处不重复报。
+    profile = _review_profile_value(metadata_text)
+    if profile is None:
+        # 档位缺失、重复或两种写法取值冲突由 OPSX037 在 plan 阶段完整覆盖，
+        # 此处不重复报。
         return []
 
     declared = _condition_set(escalation_matches[0].group(1))
@@ -1650,7 +1639,6 @@ def _validate_escalation_profile_coupling(
         # 格式非法由 _validate_escalation_field_format 与 _condition_set 的
         # 调用方覆盖，此处不重复判定。
         return []
-    profile = profile_matches[0].group(1).strip().casefold()
     irreversible = "irreversible" in declared
 
     if irreversible and profile != "strict":

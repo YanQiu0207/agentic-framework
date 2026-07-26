@@ -204,6 +204,20 @@ class CheckDeliveryTest(unittest.TestCase):
         )
         self.assertEqual([], check_delivery.check_tasks(text))
 
+    def test_blocked_alias_with_inline_reason_passes(self) -> None:
+        """别名归一后，原因抽取按原始前缀切片（change 2035 Task 7）。"""
+        text = "### 任务 1: [ ] 实现\n- 状态: blocked 依赖外部审批\n- depends_on: []\n"
+        self.assertEqual([], check_delivery.check_tasks(text))
+
+    def test_blocked_alias_without_reason_fails(self) -> None:
+        text = "### 任务 1: [ ] 实现\n- 状态: blocked\n- depends_on: []\n"
+        errors = check_delivery.check_tasks(text)
+        self.assertTrue(any("未附原因" in e for e in errors), errors)
+
+    def test_completed_alias_is_terminal(self) -> None:
+        text = "### 任务 1: [x] 实现\n- 状态: 已完成\n- depends_on: []\n"
+        self.assertEqual([], check_delivery.check_tasks(text))
+
     def test_completed_state_with_unchecked_boxes_fails_delivery(self) -> None:
         """只改状态字段、不勾选复选框的形态必须被交付门拦住。"""
         text = (

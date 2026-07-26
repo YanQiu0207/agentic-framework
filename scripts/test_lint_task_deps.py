@@ -21,10 +21,10 @@ class TaskDependencyTest(unittest.TestCase):
     """Cover empty fields and duplicate identifiers."""
 
     def test_empty_depends_on_is_present(self) -> None:
-        self.assertEqual((set(), True), lint_task_deps.parse_deps("- depends_on:\n"))
+        self.assertEqual((set(), True), lint_task_deps.parse_deps("", "depends_on"))
 
     def test_missing_depends_on_is_absent(self) -> None:
-        self.assertEqual((set(), False), lint_task_deps.parse_deps("- 文件: `a.py`\n"))
+        self.assertEqual((set(), False), lint_task_deps.parse_deps(None, None))
 
     def test_duplicate_task_id_is_rejected(self) -> None:
         text = "### 任务 1：A\n- depends_on: []\n### 任务 1：B\n- depends_on: []\n"
@@ -88,6 +88,76 @@ class TaskDependencyTest(unittest.TestCase):
             tasks_file = Path(temp_dir) / "tasks.md"
             tasks_file.write_bytes(text.encode("utf-8-sig"))
             self.assertEqual(0, lint_task_deps.main([str(tasks_file)]))
+
+
+class ReviewProfileAliasTest(unittest.TestCase):
+    """change 2035 Task 6：review_profile 两种写法归一，取值集合不变。"""
+
+    def _errors(self, profile_lines: str) -> list[str]:
+        text = (
+            "### 任务 1：A\n- depends_on: []\n"
+            f"{profile_lines}"
+            "- context_files:\n- verification:\n- artifacts:\n- 状态: 未开始\n"
+        )
+        return lint_task_deps.field_errors(lint_task_deps.parse_tasks(text))
+
+    def test_spaced_writing_is_accepted(self) -> None:
+        self.assertEqual([], self._errors("- Review Profile: standard\n"))
+
+    def test_mixed_case_and_underscore_writing_is_accepted(self) -> None:
+        self.assertEqual([], self._errors("- REVIEW_PROFILE: strict\n"))
+
+    def test_value_set_is_unchanged(self) -> None:
+        errors = self._errors("- Review Profile: heavy\n")
+        self.assertTrue(any("review_profile `heavy` 不合法" in e for e in errors))
+
+    def test_conflicting_writings_are_an_error(self) -> None:
+        errors = self._errors(
+            "- review_profile: standard\n- Review Profile: strict\n"
+        )
+        self.assertTrue(any("取值不同的 review_profile" in e for e in errors))
+
+    def test_same_value_duplicates_are_accepted(self) -> None:
+        self.assertEqual(
+            [],
+            self._errors("- review_profile: standard\n- Review Profile: standard\n"),
+        )
+
+    def test_no_fuzzy_match(self) -> None:
+        errors = self._errors("- review-profile: standard\n")
+        self.assertTrue(any("缺少 review_profile 字段" in e for e in errors))
+
+
+class StateNormalizationTest(unittest.TestCase):
+    """change 2035 Task 7：状态取值归一为规范值，写侧不动。"""
+
+    def test_native_states_pass_through(self) -> None:
+        for state in lint_task_deps.TASK_STATES:
+            self.assertEqual(state, lint_task_deps.parse_state(state))
+
+    def test_completed_aliases_normalize(self) -> None:
+        for alias in ("已完成", "completed", "complete", "done", "x", "Completed", "X"):
+            self.assertEqual("完成", lint_task_deps.parse_state(alias), alias)
+
+    def test_open_aliases_normalize(self) -> None:
+        self.assertEqual("未开始", lint_task_deps.parse_state("pending"))
+        self.assertEqual("进行中", lint_task_deps.parse_state("in progress"))
+        self.assertEqual("进行中", lint_task_deps.parse_state("in-progress"))
+        self.assertEqual("阻塞", lint_task_deps.parse_state("blocked"))
+
+    def test_annotated_values_still_classify(self) -> None:
+        self.assertEqual("完成", lint_task_deps.parse_state("已完成（单 worktree）"))
+        self.assertEqual("阻塞", lint_task_deps.parse_state("blocked 依赖外部审批"))
+
+    def test_illegal_values_still_rejected(self) -> None:
+        self.assertIsNone(lint_task_deps.parse_state("已完结"))
+        self.assertIsNone(lint_task_deps.parse_state(""))
+
+    def test_state_prefix_returns_raw_matched_text(self) -> None:
+        self.assertEqual("已完成", lint_task_deps.state_prefix("已完成（附注）"))
+        self.assertEqual("Blocked", lint_task_deps.state_prefix("Blocked 原因"))
+        self.assertEqual("完成", lint_task_deps.state_prefix("完成（附注）"))
+        self.assertIsNone(lint_task_deps.state_prefix("已完结"))
 
 
 class StateConsistencyTest(unittest.TestCase):
