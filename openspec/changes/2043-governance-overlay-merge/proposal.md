@@ -1,0 +1,146 @@
+# Proposal：门层合并——Production 治理门叠加到 Tooling 底座
+
+**作者**：YanQiu0207（AI 辅助）
+**日期**：2026-07-26
+**变更**：governance-overlay-merge
+**状态**：Draft
+
+---
+
+## 1. 问题
+
+这是目标模型的核心一步，也是此前所有 Change 的汇聚点。
+
+目标模型（用户提出）：
+
+> Tooling 是统一执行底座；Production 是按风险启用的治理升级策略，而不是第二套独立流程。同一任务只走一条执行链；当风险命中时，在 Tooling 的节点上叠加 Production 门，而不是切换到另一套 `opsx-*` 生命周期。
+
+当前结构是两条独立链：
+
+```
+Production：Requirements → Specs → Design → Tasks → Plan 门 → 波次实现+Review
+           → 风险暂停+批准证据 → Verification → Delivery 门 → strict 集成 Review
+           → 知识检查 → Archive 门
+
+Tooling：  需求明确 → [Native Delivery / Quick Design / 完整 Tasks]
+           → workflow_control route → Native Delivery（DAG/worktree/Review）
+           → 或 Runtime Run（升级命中）
+```
+
+两条链各自推进任务，各自的门禁各自判定。**本 Change 把它们并为一条：任务只在 Tooling 的状态机上推进，Production 的治理门作为可声明的叠加，挂在同一状态机的转移上。**
+
+## 2. 本 Change 的大前提：前置 Change 全部就位
+
+门层合并不是孤立改动，它消费前面五个 Change 的成果：
+
+| 前置 | 提供什么 | 状态 |
+| --- | --- | --- |
+| change 2035 | 统一读层（AST、字段名别名、状态取值归一） | 已交付文档 |
+| change 2038 | Production 复用交付证据 | 已交付文档 |
+| change 2039 | Tooling 的审批／升级状态机能力 | 已交付文档 |
+| change 2040 | Tooling 的知识反自证 | 已交付文档 |
+| change 2041 | 可声明 Profile 开关 + `review_profile` 下限 | 已交付文档 |
+| change 2042 | 降级等价判据的可执行实现 | 已交付文档 |
+
+**前置未全部落地前，本 Change 不能执行。** 缺任何一个，门层合并都会在某一项治理规则上失去承载，违反 §3.2 条件 3。
+
+## 3. 目标
+
+1. 任务只在 Tooling 状态机上推进，不再有第二条执行链。
+2. Production 的治理门（审批、风险分级、逐任务 Review、严格集成 Review、归档与知识沉淀）作为可声明策略叠加到该状态机。
+3. §3.2 三条重新评估条件逐条举证。
+4. 降级等价判据通过：减去治理门后，行为与纯 Tooling 逐字节相同。
+5. 治理强度判据通过：§5.3 强制规则逐条仍可机器强制，不退化为散文。
+
+## 4. 非目标
+
+- **不删除 Production 的任何治理规则**。§5.3 一条不减，只是承载方式从独立链变为叠加门。
+- **不改写状态机本身**。状态机已在 change 2039 扩展出等待批准，本 Change 复用它，不再新增转移。
+- **不退役 `opsx-*`**。并行编排的退役由 change 2045 单独处理，本 Change 只让任务不再走它。
+- **不改 Review 的语义**。各档 Review 的内容、维度、Judge 独立性不变，只是触发方式变为策略叠加。
+- **不做降级等价判据的实现**。判据由 change 2042 建设，本 Change 只**接受其核验**。
+
+## 5. 「叠加而非替换」的判定
+
+change 2036 的 `design.md` §3.1 给了三条判据。门层合并必须满足判据二「门为叠加」：
+
+> Profile 门只增加状态转移的前置条件，不新增、不删除、不重定向状态转移本身。即 `production` 能让一个转移**不发生**，但不能让它转向 `tooling` 下不存在的目标状态。
+
+这条是本 Change 的结构性约束。它意味着：
+
+- 状态转移图**只有一份**，就是 Tooling 的（含 change 2039 扩展）。
+- Production 门是转移上的**守卫**，不是新的转移。
+- 把守卫全部关掉，剩下的就是纯 Tooling——这正是降级等价判据要验的。
+
+### 5.1 三判据的举证责任
+
+| 判据 | 内容 | 本 Change 如何举证 |
+| --- | --- | --- |
+| 状态源唯一 | 任务状态只有一个写入者 | 静态核验：`- 状态:` 与任务头标记只有 `workflow_control.py` 写 |
+| 门为叠加 | 守卫只增前置条件 | 转移图基线比对：叠加 Production 后转移图不变 |
+| 降级等价 | 降级后等于纯 Tooling | change 2042 的比对器跑通 |
+
+三条都过，才允许宣称「收敛为一条执行链」。任何一条不过，本 Change 不交付。
+
+## 6. 设计方案
+
+### 6.1 治理门的挂载点
+
+`framework-unification.md` §5.3 的强制规则，逐条映射到状态机转移上的守卫：
+
+| §5.3 规则 | 挂载的转移 | 守卫内容 |
+| --- | --- | --- |
+| `verify.config.json` 必须有效 | 任务进入实现前 | 配置缺失或弱化则阻塞 |
+| 普通 Task 一次 `standard` 审核 | 任务 `完成` 前 | 无合规 Review 证据则不转移 |
+| 高风险 Task 一次 `strict` 审核 + 独立 Judge | 同上（按 `review_profile`） | 无五维证据则不转移 |
+| 风险触发暂停 + 批准证据 | 命中 `ESCALATION_CONDITIONS` 时进入 `待批准` | 无 `Approval: granted` 不恢复 |
+| 五维 strict 集成 Review | 全部任务终态后、Delivery 前 | 无集成 Review 证据则不放行 |
+| 知识影响检查 + Delta 同步 | Archive 前 | change 2040 的反自证核对 |
+| 交付范围与工作区证据 | Delivery 前 | change 2038 的证据核对 |
+
+这张表是**设计起点，不是终稿**。实现方必须核对每一条 §5.3 规则都有挂载点，漏一条即违反条件 3。
+
+### 6.2 与「执行期推进控制」的关系
+
+老板在目标模型诊断里指出 Production 的一个真实缺口：`validate_change.py` 只在 plan／delivery／archive 三个阶段**末尾批量裁决**，执行期没有状态推进控制。
+
+门层合并恰好解决这一点：治理门挂在状态机转移上，状态机本身就是执行期推进控制。Production 不再需要「批量补裁」，因为每个转移都被即时守卫。**这是收敛带来的能力净增，不是简单的承载搬家。**
+
+### 6.3 未裁决项
+
+**逐任务 Review 的触发粒度。** Production 现在对每个 Task 做一次 Review，Tooling 只在全部完成后做一次。合并后按什么粒度，是「按 `review_profile` 声明逐任务」还是「统一收尾」？倾向：按任务的 `review_profile` 决定，且 change 2041 的下限保证 Production 下不低于 `standard`——这样粒度本身成为可声明策略。但需确认这与 §3.4「Production 普通 Task 做一次综合审核」不冲突。
+
+**Plan 阶段的批量检查去向。** Production 的 Plan 门在 Tasks 获批时做一批静态检查。合并后这批检查是保留为「进入执行前的总守卫」，还是拆到各转移上。倾向保留总守卫——获批时的整体把关与执行期的转移守卫是不同粒度，不冲突。
+
+## 7. 验收标准
+
+1. 任务状态只有一个写入者，静态核验证明。
+2. 状态转移图在叠加 Production 门后与纯 Tooling 一致，有基线比对。
+3. change 2042 的降级等价比对通过。
+4. §5.3 每条强制规则都有挂载守卫，逐条映射表完整无缺漏。
+5. 每条守卫在缺失证据时失败关闭，有用例。
+6. 治理强度判据：§5.3 强制规则逐条仍可机器强制，无任何一条退化为散文。
+7. 逐任务 Review 粒度裁决落地，与 §3.4 的冲突已核对。
+8. Plan 总守卫与执行期转移守卫的关系裁决落地。
+9. 任务不再走 `opsx-*` 执行链；但 `opsx-*` 文件未被删除（退役属 change 2045）。
+10. 前置六个 Change 的交付证据齐全，缺一则本 Change 不交付。
+11. 降级等价判据与治理强度判据**同时**通过，不得只过其一。
+12. `python -m pytest scripts -q` 全量通过。
+13. 按 md-zh 规范自检中文排版。
+
+## 8. 知识影响
+
+- `openspec/specs/backend/engineering/tech/framework-unification.md`：MODIFIED。§8.1 门层状态改为「条件已满足并合并」；§3.2 三条条件举证记录。
+- `openspec/specs/backend/framework/quality-gates/overview.md`：MODIFIED。治理门的挂载结构。
+- `openspec/specs/backend/framework/workflow-control/overview.md`：MODIFIED。守卫与转移的关系。
+
+## 9. 参考资料
+
+- 目标模型：用户提出，见 §1
+- 三判据：`openspec/specs/backend/engineering/tech/framework-unification.md` §8.1（change 2036）、change 2036 `design.md` §3.1
+- 收敛条件：`framework-unification.md` §3.2（change 2036）
+- Production 强制规则：`framework-unification.md:177-195`（§5.3）
+- 不删质量门原则：`framework-unification.md:122-128`（§3.4）
+- 前置 Change：2035、2038、2039、2040、2041、2042 的 `proposal.md`
+- 执行期推进缺口：`scripts/validate_change.py`（只在阶段末尾批量裁决）
+- 退役范围（非本 Change）：`openspec/changes/2045-opsx-orchestration-retirement/proposal.md`
