@@ -41,7 +41,7 @@ proposal.md / tasks.md 获批
 
 - `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。
 - Task 级不运行 LLM Review；全部任务合并后执行一次最终 Review。Native Delivery 消费 `standard` 集成 Review；完整 Runtime 的 Run 级 `strict` Review 由共享 `workflow-code-review` 绑定 Runtime Context。
-- `check_delivery.py --native-delivery` 校验终态 Tasks、已归档 Proposal、标准集成 Review、独立 Verify、知识影响和 Git 工作区，并输出有界 Verdict。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。
+- `check_delivery.py --native-delivery` 校验终态 Tasks、已归档 Proposal、标准集成 Review、独立 Verify、知识影响和 Git 工作区，并输出有界 Verdict。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。交付报告只能逐字引用成功命令的原始 stdout；缺少归档、干净 Git 状态或有效 Artifact 时不得声明「交付门 PASS」。
 - 结构化报告只能证明产物存在且字段满足合同，不能替代语义正确性判断。
 
 ## 主要验证证据

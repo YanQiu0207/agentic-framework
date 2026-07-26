@@ -7,9 +7,15 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 # Multi-Agent Code Review
 
-你是 **Judge**——编排流程、去重分诊、最终裁决、输出报告。你不是 reviewer，不产出 finding。
+你负责编排 Review、去重分诊和输出报告。`lightweight` / `standard` 由 `comprehensive-reviewer` 自证并生成 Artifact；只有 `strict` 由 Judge 完成最终裁决。Judge 不是 reviewer，不产出 finding。
 
 当 `review_profile: strict` 时，Judge 必须与本次改动的 owner / implementer 不是同一执行主体。owner / implementer 不得调用本 skill 完成最终裁决，只能提交产物、接收 keep finding 并修复；若当前调用者参与过实现，必须将 review 上提给主 agent 或另一个独立 Judge Agent。
+
+## Review Artifact 的生成边界
+
+- Review Artifact 必须由审查流程生成，**不得由被审方（owner / implementer）手写、补写或改写 verdict、P0/P1 数量与轮次**。编排方只能原样持久化审查方已经给出的完整 Artifact，不能据对话自行拼装 JSON。
+- `lightweight` / `standard`：`comprehensive-reviewer` 是 Artifact 生成方，可对其审查结果自证；此档不要求独立 Judge。
+- `strict`：未参与实现的独立 Judge 是最终 Artifact 生成方，必须基于 reviewer 和 critic 证据裁决；实现者不得代写或替换该 Artifact。
 
 ## Review 档位
 
@@ -102,6 +108,8 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 - P2：改进建议（不影响正确性/稳定性/性能基线）
 
 只报你的维度内的问题。其他维度的线索可以用一行 handoff note 提示。
+
+当 `review_profile` 为 `lightweight` 或 `standard` 时，`comprehensive-reviewer` 还必须在回复末尾输出本轮完整、可直接保存的 6 字段 JSON Artifact（`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round`）。编排方只能字节级原样保存该 JSON，不得手写、补全或改写字段。
 ```
 
 ### 4. 去重归类 & 输出 Reviewer 意见汇总
@@ -203,7 +211,7 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 ### 6. 最终裁决
 
-**主 agent 必须亲自调研后裁决**——不能简单采信 reviewer 或 critic 的结论。对每条 issue：
+`lightweight` / `standard` 由 `comprehensive-reviewer` 对其审查结果自证并生成最终 Artifact；`strict` 的独立 Judge 必须亲自调研后裁决，不能简单采信 reviewer 或 critic 的结论。严格档对每条 issue：
 
 1. **独立调研**：阅读相关代码上下文（调用方、被调用方、数据流）、spec 设计意图、相关注释和 git history，形成自己对该问题的理解
 2. **交叉验证**：将 reviewer 提出的证据、critic 的反证与自己调研的结果三方对比
@@ -270,13 +278,13 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 #### 机器可读产物
 
-输出 Markdown 报告的**同一步**，Judge 额外写一份机器可读 JSON；两者必须是同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。产物合同由交付路径决定，不能为了放行伪造 Run 字段：
+输出 Markdown 报告的**同一步**，Artifact 生成方额外产出一份机器可读 JSON；两者必须来自同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。`lightweight` / `standard` 的生成方是 `comprehensive-reviewer`，`strict` 的生成方是独立 Judge；owner / implementer 只能原样持久化，不得手写。产物合同由交付路径决定，不能为了放行伪造 Run 字段：
 
 | 交付路径 | JSON 位置 | 必填裁决字段 | Run Context 与可声明边界 |
 | --- | --- | --- | --- |
-| Native Delivery | 调用方保存为独立 `review-report.json`（建议 `.agentic-framework/review/review-integration.json`），并显式传给 `check_delivery.py` | 顶层 `verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile: "standard"`、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 或严格独立 Judge 声明。 |
-| 完整 Runtime Run | `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
-| Fast-Path 兼容别名 | 既有调用方保存的独立 `review-report.json` | 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
+| Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile: "standard"`、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 或严格独立 Judge 声明。 |
+| 完整 Runtime Run | 独立 Judge 生成 `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
+| Fast-Path 兼容别名 | `comprehensive-reviewer` 生成独立 `review-report.json`，由编排方原样保存 | 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
 
 无 Run 的 Native Delivery 标准 Review 使用以下扁平 JSON；`check_delivery.py --native-delivery` 只接受这 6 个字段：
 

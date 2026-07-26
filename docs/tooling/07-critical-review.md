@@ -20,7 +20,7 @@
 **1. 客观门禁缺失——曾是定位裂缝。** review-critic 抓的是推理错误，抓不了运行时错误；一段逻辑自洽但跑不起来的代码，5 维 reviewer 都可能放行。「质量深度高」一度实质是「审查深度高」。
 > ✅ **已补**：`workflow-verification`（配置驱动 build/test/lint + 基线对比 + 内置 spec drift 检查）已接入执行段，作为 merge 前与 review 并列的机器门。详见 `05` 的「客观门禁」格。
 
-**2. 自主与独立审查的张力。** 模式 A 的 `lightweight` / `standard` 仍由 owner 实现 + 自审 + 自修；`strict` 已将 review 和最终裁决上提给主 agent 或独立 Judge Agent，owner 只修复 keep finding。高风险 task 已实现执行主体分离，低风险档继续接受同模型家族自审的成本权衡。
+**2. 自主与独立审查的张力。** 模式 A 的 `lightweight` / `standard` 仍由 owner 实现 + 自修，并允许 `comprehensive-reviewer` 对审查结果自证；Review Artifact 必须由该 reviewer 生成，owner 只能原样保存。`strict` 已将 review 和最终裁决上提给主 agent 或独立 Judge Agent，owner 只修复 keep finding。高风险 task 已实现执行主体分离，低风险档继续接受同模型家族自审的成本权衡。
 
 **3. token 成本无显式预算闸。** 3 档 × 5 维 + critic + 并行 agent + worktree，对功能多的大工具是数量级开销，地板偏高，无显式预算上限。
 

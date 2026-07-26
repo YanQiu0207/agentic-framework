@@ -38,7 +38,7 @@
 
 1. **并行 dispatch**：wave 内每个 task 派一个子 agent（模式 A 为 owner、模式 B 为 implementer），各自在**隔离 git worktree**（基于当前分支 HEAD）工作，受并发上限约束（超出排队）。
    - subagent 输入：task 描述 + `context_files` + `verification` + `artifacts` + spec/tasks 摘要 + 编码规范 + worktree 路径。
-   - subagent 动作：模式 A（owner）完成实现 → 写 + 跑测试（`workflow-test-generation`，与实现同批）→ 机器验证；`lightweight` / `standard` 自跑 review，`strict` 等待独立 Judge 裁决后修复 keep finding。模式 B（implementer）实现 + 写 / 跑测试。（可选 TDD：先写失败测试）
+   - subagent 动作：模式 A（owner）完成实现 → 写 + 跑测试（`workflow-test-generation`，与实现同批）→ 机器验证；`lightweight` / `standard` 可自证，但 Review Artifact 由 `comprehensive-reviewer` 生成、owner 仅原样保存；`strict` 等待独立 Judge 裁决后修复 keep finding。模式 B（implementer）实现 + 写 / 跑测试。（可选 TDD：先写失败测试）
 2. **每产物过质量门**（在各自 worktree 内；模式 A 按 review 档位分流，模式 B 由主 agent 跑）：
    - `workflow-code-review`（按风险分级：小需求轻量审，普通任务标准审，高风险任务严格审）。
    - `workflow-verification`（有配置跑 build / test / lint；无配置也跑内置 spec drift）——与 review 并列，机器能验的不靠 LLM 背书。
