@@ -23,6 +23,7 @@ sys.path.insert(
 )
 
 import lint_task_deps
+import governance_guards
 import workflow_control
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -1168,6 +1169,119 @@ class ApprovalGateTest(unittest.TestCase):
                     ),
                     text,
                 )
+
+
+class GovernanceGuardTest(unittest.TestCase):
+    """change 2043：production 守卫挂载，tooling 下全部关闭（降级等价）。"""
+
+    def _repo_with_change(self, body_extra: str = "", review_profile: str = "standard"):
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        change = repo / "openspec" / "changes" / "2099-x"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text(
+            "# 实施任务清单\n\n### 任务 1：[completed] 实现\n"
+            f"- 依赖: 无\n- review_profile: {review_profile}\n{body_extra}",
+            encoding="utf-8",
+        )
+        return repo, change
+
+    def _body(self, repo: Path, change: Path) -> str:
+        return lint_task_deps.parse_tasks(
+            (change / "tasks.md").read_text(encoding="utf-8")
+        )[1]["body"]
+
+    def test_tooling_disables_all_guards(self) -> None:
+        repo, change = self._repo_with_change()
+        body = self._body(repo, change)
+        self.assertEqual(
+            [], governance_guards.plan_gate_errors(repo, change, "tooling")
+        )
+        self.assertEqual(
+            [], governance_guards.task_review_guard_errors(repo, body, 1, "tooling")
+        )
+        self.assertEqual(
+            [], governance_guards.integration_review_guard_errors(
+                {"review_profile": "standard"}, "tooling"
+            )
+        )
+
+    def test_task_review_guard_fails_without_pass_evidence(self) -> None:
+        repo, change = self._repo_with_change()
+        errors = governance_guards.task_review_guard_errors(
+            repo, self._body(repo, change), 1, "production"
+        )
+        self.assertTrue(any("Task Review 未 PASS" in e for e in errors), errors)
+
+    def test_task_review_guard_fails_on_missing_report(self) -> None:
+        repo, change = self._repo_with_change("- Task Review: PASS\n")
+        errors = governance_guards.task_review_guard_errors(
+            repo, self._body(repo, change), 1, "production"
+        )
+        self.assertTrue(any("Review Report" in e for e in errors), errors)
+
+    def test_task_review_guard_fails_on_profile_mismatch(self) -> None:
+        repo, change = self._repo_with_change(
+            "- Task Review: PASS\n- Review Report: review-task-1.json\n",
+            review_profile="strict",
+        )
+        (change.parent.parent.parent / "review-task-1.json").write_text(
+            json.dumps({
+                "verdict": "PASS", "p0_count": 0, "p1_count": 0,
+                "scope": "task", "review_profile": "standard", "round": 0,
+            }),
+            encoding="utf-8",
+        )
+        errors = governance_guards.task_review_guard_errors(
+            repo, self._body(repo, change), 1, "production"
+        )
+        self.assertTrue(any("粒度与声明不一致" in e for e in errors), errors)
+
+    def test_task_review_guard_passes_with_consistent_evidence(self) -> None:
+        repo, change = self._repo_with_change(
+            "- Task Review: PASS\n- Review Report: review-task-1.json\n",
+            review_profile="strict",
+        )
+        (change.parent.parent.parent / "review-task-1.json").write_text(
+            json.dumps({
+                "verdict": "PASS", "p0_count": 0, "p1_count": 0,
+                "scope": "task", "review_profile": "strict", "round": 0,
+            }),
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            [],
+            governance_guards.task_review_guard_errors(
+                repo, self._body(repo, change), 1, "production"
+            ),
+        )
+
+    def test_task_review_guard_rejects_lightweight_under_production(self) -> None:
+        repo, change = self._repo_with_change(review_profile="lightweight")
+        errors = governance_guards.task_review_guard_errors(
+            repo, self._body(repo, change), 1, "production"
+        )
+        self.assertTrue(any("低于 production 下限" in e for e in errors), errors)
+
+    def test_integration_review_guard_requires_strict(self) -> None:
+        self.assertTrue(
+            governance_guards.integration_review_guard_errors(
+                {"review_profile": "standard"}, "production"
+            )
+        )
+        self.assertEqual(
+            [],
+            governance_guards.integration_review_guard_errors(
+                {"review_profile": "strict"}, "production"
+            ),
+        )
+
+    def test_plan_gate_blocks_execution_on_plan_failure(self) -> None:
+        repo, change = self._repo_with_change()
+        # 不完整 Change（缺 proposal/spec/design）→ plan 总门必须失败关闭
+        errors = governance_guards.plan_gate_errors(repo, change, "production")
+        self.assertTrue(any("Plan 总门未通过" in e for e in errors), errors)
 
 
 if __name__ == "__main__":

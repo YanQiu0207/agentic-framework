@@ -93,11 +93,11 @@ Production 与 Tooling 共享 Artifact 协议，但生命周期差异不只是 R
 
 因此这五项差异必须始终存在，不得以「统一」为由删减任意一项。
 
-差异的承载方式是独立问题。当前由两个独立生命周期承载；是否改由单一执行链加可声明治理策略承载，按以下条件重新评估（change 2036 引入）：
+差异的承载方式已经 change 2036 裁决、change 2043 落地：**语义差异保留，承载合并为一条执行链**——任务只在 Tooling 状态机上推进，Production 的治理门作为可声明策略叠加在同一状态机的转移上，不再由两个独立生命周期承载。2036 的三条重新评估条件与举证：
 
-1. 五项差异全部可表达为 Profile 可声明的策略参数，且每项都有机器可读的取值来源。
-2. 存在降级等价判据的可执行实现：把 governance_profile 从 production 降到 tooling 后，剩余行为与纯 Tooling 逐字节相同。
-3. Production 现有的强制规则（§5.3）在收敛后逐条仍可被机器门禁强制，不退化为散文要求。
+1. 五项差异全部可表达为 Profile 可声明的策略参数，且每项都有机器可读的取值来源。（已满足：`--governance-profile` 与 manifest（change 2041）、`review_profile` 档位、批准模式、Escalation 条件均为机器可读策略参数）
+2. 存在降级等价判据的可执行实现：把 governance_profile 从 production 降到 tooling 后，剩余行为与纯 Tooling 逐字节相同。（已满足：change 2042 的比对器；2043 的三判据举证报告）
+3. Production 现有的强制规则（§5.3）在收敛后逐条仍可被机器门禁强制，不退化为散文要求。（已满足：2043 治理强度举证，逐条守卫与用例见 `openspec/changes/2043-governance-overlay-merge/evidence_report.md`）
 
 ### 3.3 代码事实源
 
@@ -203,6 +203,8 @@ Requirements Clarification
 - 发布、回滚、灰度、数据迁移、安全、兼容性和容量检查按风险条件启用，不在首轮合并中建设完整发布平台。
 
 以上风险触发批准规则由 Change `2029-risk-triggered-task-approval` 引入。
+
+§5.3 的守卫挂载点（change 2043，逐条映射与用例见 `openspec/changes/2043-governance-overlay-merge/s53_mount_mapping.md`）：`verify.config.json` 有效 → start 前 `_require_verify_config_decision`；逐任务 Review（standard 综合审核／strict 五维＋独立 Judge）→ `merge_success` 前 `governance_guards.task_review_guard_errors`；风险暂停＋批准证据、per-task 模式 → 2039 的 escalate／approval_granted 转移与批准门；`irreversible` ⟺ `strict`、OPSX053/055/056 → Plan 总门（`governance_guards.plan_gate_errors` 调 `validate_change` plan 阶段）；交付范围与工作区证据 → 2038 证据核对；五维 `strict` 集成审核 → 交付门 production 档（`check_delivery`）；知识影响 → 2040 反自证；串行波次 → 无并行写入、无 Run Context（结构性保持）。
 
 ### 5.4 变更目录
 
@@ -312,7 +314,7 @@ Production 校验器是只读生命周期裁决器；Tooling 控制器是有状�
 | 层 | 内容 | 当前状态 | 解除条件 |
 | --- | --- | --- | --- |
 | 读层 | tasks.md 解析、任务边界、字段定位 | 条件已满足，见 §8.2 | 已解除 |
-| 门层 | 审批、风险分级、Review 档位、交付与归档证据 | 未评估 | §3.2 三条条件全部满足 |
+| 门层 | 审批、风险分级、Review 档位、交付与归档证据 | **条件已满足并合并**（change 2043：守卫挂载转移、三判据与治理强度同时通过，证据见 `openspec/changes/2043-governance-overlay-merge/evidence_report.md`） | 已解除 |
 | 写层 | 任务状态写回、DAG waves、attempts、写锁、恢复 | 条件未满足 | 读层与门层均已合并且稳定运行；且写层合并后 Production 的只读性质有等价替代 |
 
 「巨型」的可核验上限：任一层合并后，若降级等价判据无法执行或无法通过，即判定为越界，必须回退到合并前形态。

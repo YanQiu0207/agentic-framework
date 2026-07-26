@@ -180,6 +180,8 @@ class CheckDeliveryTest(unittest.TestCase):
                 knowledge_impact,
                 "--knowledge-impact-reason",
                 "local change has no lasting knowledge impact",
+                "--governance-profile",
+                "tooling",
             ],
             verdict,
         )

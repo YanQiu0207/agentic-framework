@@ -47,6 +47,13 @@ proposal.md / tasks.md 获批
 - 传播行为：待批准（`需人工`＋`awaiting_approval`）与失败需人工一样阻塞下游、不被 `dispatchable` 派发；`recover` 对其输出 `await_approval` 动作（与 `manual` 区分）。
 - 词表事件只加新分支：`escalate`／`approval_granted` 两个新事件与两个新转移，既有事件与转移未改。
 
+## 治理守卫与转移的关系（change 2043）
+
+- 守卫只增前置条件，不新增、不删除、不重定向转移（门为叠加）：`_VALID_TRANSITIONS` 与 change 2043 交付前基线逐字节相同，是结构性约束而非约定。
+- 挂载点统一为 `guard_errors`：`start` 前挂 Plan 总门（production 下调 `validate_change` plan 阶段，整体守卫不拆散），`merge_success` 前挂逐任务 Review 守卫（按 `review_profile` 逐任务触发，禁止统一收尾）；2039 的批准门在前，2043 的守卫在后。
+- 降级等价：`profile=tooling` 时守卫全部返回空，状态机行为与纯 Tooling 逐字节相同（事件序列基线比对＋change 2042 比对器「通过」）。
+- Profile 取得：start／merge_success 事件经 `--governance-profile` 或 manifest 解析；无法取得失败关闭——不能确认当前不是 production 就不放行。
+
 ## 质量证据边界
 
 - `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。

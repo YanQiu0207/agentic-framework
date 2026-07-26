@@ -177,12 +177,18 @@ NATIVE_DELIVERY_VERIFY_FIELDS = {
 }
 
 
-def check_native_delivery_review(path: Path) -> list[str]:
-    """Require an unbound standard integration review for Native Delivery."""
+def check_native_delivery_review(
+    path: Path, expected_profile: str = "standard"
+) -> list[str]:
+    """Require an unbound integration review at the expected profile.
+
+    `standard` 是 Native Delivery 的合同档位；production 下由 change 2043
+    的集成守卫提升为 `strict`（五维集成审核）。
+    """
     found = check_review_report(
         path,
         expected_scope="integration",
-        expected_profile="standard",
+        expected_profile=expected_profile,
     )
     if found:
         return found
@@ -798,12 +804,24 @@ def main(argv: list[str]) -> int:
             else "PASS   Review 报告 verdict=PASS 且 P0/P1=0"
         )
     elif args.native_delivery:
-        found = check_native_delivery_review(args.review_report)
+        try:
+            delivery_profile = governance_profile.read_profile(
+                args.repo, args.governance_profile
+            )
+        except governance_profile.GovernanceProfileError as error:
+            delivery_profile = None
+            errors.append(f"无法取得治理 Profile：{error}")
+        expected_integration_profile = (
+            "strict" if delivery_profile == "production" else "standard"
+        )
+        found = check_native_delivery_review(
+            args.review_report, expected_integration_profile
+        )
         errors.extend(found)
         print(
             ("ERROR  " + "；".join(found))
             if found
-            else "PASS   Native Delivery standard Review：verdict=PASS 且 P0/P1=0"
+            else f"PASS   Native Delivery {expected_integration_profile} Review：verdict=PASS 且 P0/P1=0"
         )
         checks += 1
         verify_errors = check_native_delivery_verify(args.verify_report)

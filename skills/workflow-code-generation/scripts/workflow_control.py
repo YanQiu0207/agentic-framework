@@ -18,10 +18,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import lint_task_deps
+import governance_guards
 
 _FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
 if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+import governance_profile
 import runtime_workflow
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
@@ -1068,6 +1070,37 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _event_governance_errors(
+    args, text: str, tasks: dict[int, dict]
+) -> list[str]:
+    """start／merge_success 的治理守卫：先批准门（2039），再 Profile 守卫（2043）。
+
+    Profile 无法取得时失败关闭——不能确认当前不是 production 就不能放行。
+    守卫只增前置条件；`tooling` 下全部为空，与纯 Tooling 行为一致。
+    """
+    errors: list[str] = []
+    if args.event == "merge_success":
+        errors.extend(approval_gate_errors(text, tasks, args.task_id))
+    if args.event in {"start", "merge_success"}:
+        try:
+            profile = governance_profile.read_profile(
+                args.tasks_md.parent, args.governance_profile
+            )
+        except governance_profile.GovernanceProfileError as error:
+            raise ValueError(f"无法取得治理 Profile：{error}") from error
+        errors.extend(
+            governance_guards.guard_errors(
+                tasks,
+                args.task_id,
+                args.event,
+                profile,
+                _repository_root(args.tasks_md),
+                args.tasks_md.parent,
+            )
+        )
+    return errors
+
+
 def main(argv: list[str]) -> int:
     """Run the workflow control CLI."""
     args = _build_arg_parser().parse_args(argv)
@@ -1127,10 +1160,9 @@ def main(argv: list[str]) -> int:
                             args.task_id,
                             attempt,
                         )
-                    if args.event == "merge_success":
-                        gate_errors = approval_gate_errors(text, tasks, args.task_id)
-                        if gate_errors:
-                            raise ValueError(gate_errors[0])
+                    guard_errors = _event_governance_errors(args, text, tasks)
+                    if guard_errors:
+                        raise ValueError(guard_errors[0])
                     decision = apply_event(
                         tasks,
                         args.task_id,
@@ -1173,10 +1205,9 @@ def main(argv: list[str]) -> int:
             elif args.command == "event":
                 if args.event == "start":
                     _require_verify_config_decision(args.tasks_md, text)
-                if args.event == "merge_success":
-                    gate_errors = approval_gate_errors(text, tasks, args.task_id)
-                    if gate_errors:
-                        raise ValueError(gate_errors[0])
+                guard_errors = _event_governance_errors(args, text, tasks)
+                if guard_errors:
+                    raise ValueError(guard_errors[0])
                 decision = apply_event(
                     tasks,
                     args.task_id,
