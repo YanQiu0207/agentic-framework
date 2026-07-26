@@ -45,6 +45,10 @@ OPSX057-061（Change `2038-production-delivery-evidence`）在 `delivery` 阶段
 
 `review_profile` 的 Profile 级下限：`production` 下不得为 `lightweight`（Production 侧 OPSX063，Tooling lint 与交付门同规则）；`tooling` 下三个取值均合法；两轨都允许向上声明 `strict`。无法取得 Profile 时失败关闭（OPSX062）。**Quick 不构成下限例外**：现行实现对 Quick 与 Standard 的 Review 档位要求一致（OPSX037 系检查无 Quick 分支），与 §5.3「Standard 为默认路径；明确低风险且范围稳定时才允许 Quick」一致——Quick 的流程差异在工件（§5.4），不在 Review 档位。
 
+## 降级等价比对（change 2042）
+
+`scripts/downgrade_equivalence.py` 是门层改动的回归门：对同一输入分别走「production 降级到 tooling」与「纯 Tooling」两条命令路径，归一为「退出码＋排序后错误编号集合」（集合语义，重复计数不参与——归一规则显式声明）逐字节比对。三种结论：通过（退出码 0）、不通过（1，两路径都跑出可比结果但不一致，报告列首个差异点）、无法执行（3——开关不存在、开关无效果、基线缺失、输出格式不可比）。「无法执行」与「不通过」同判越界但原因分开标注；不存在按「暂不适用」放行的分支。报告头部固定写明判据局限：只验「减去治理门后等于 Tooling」，不验治理强度（后者由 §3.2 条件 3 承担）。当前两轨输出格式不可比（Tooling lint 无错误编号体系），默认路径对如实报告「无法执行」；门层合并后的回归门以合并引擎的两路径调用。比对器只调用门禁，不搬入任何判定逻辑；降级开关由 change 2041 的 `--governance-profile` 提供。
+
 ## Tooling 任务状态一致性
 
 `tasks.md` 把「任务是否完成」表达三次：任务头复选框、`- 状态：` 字段、验收标准与子任务复选框。三者必须同向，否则归档记录自相矛盾——只改状态字段即可过门。
