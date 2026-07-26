@@ -5,7 +5,7 @@
 > 核心原则：两轨实现互不依赖（Task 1 workflow 轨、Task 2 OPSX 轨），可并行；测试（Task 3）依赖两者；文档与 issue 记录（Task 4）最后同步。
 
 - Code Review: PASS
-- Review Report: openspec/changes/2032-task-status-consistency-gate/review-reports/integration-review.json
+- Review Report: openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/review-reports/integration-review.json
 - 构建: N/A：纯 Python 标准库仓库，无独立二进制构建产物；由 pytest 全量测试覆盖。`python scripts/lint_skill_graph.py` errors=0；`python scripts/markdown_links.py openspec` 退出码 0。
 - 测试: PASS（`python -m pytest scripts -q` → 376 passed / 21 skipped / 135 subtests，退出码 0；基线 7e864d3 为 352 passed / 21 skipped / 131 subtests，净增 24 个测试方法）。Windows 下须置 `PYTHONUTF8=1`，与 `verify.py` 的子进程环境一致。
 
@@ -70,7 +70,7 @@
 - 文档映射：`design.md` §2 判定区域、§3 workflow 轨落点
 - Review Profile: standard
 - Task Review: PASS
-- Review Report: openspec/changes/2032-task-status-consistency-gate/review-reports/task-1-review.json
+- Review Report: openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/review-reports/task-1-review.json
 - 文件：`skills/workflow-code-generation/scripts/lint_task_deps.py`、`skills/workflow-code-generation/scripts/check_delivery.py`
 - verification：`python -m pytest scripts/test_lint_task_deps.py scripts/test_check_delivery.py -q`
 - 验收标准：
@@ -95,7 +95,7 @@
 - 文档映射：`design.md` §2 判定区域、§4 OPSX 轨落点
 - Review Profile: standard
 - Task Review: PASS
-- Review Report: openspec/changes/2032-task-status-consistency-gate/review-reports/task-2-review.json
+- Review Report: openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/review-reports/task-2-review.json
 - 文件：`scripts/validate_change.py`
 - verification：`python -m pytest scripts/tests/test_validate_change.py -q`
 - 验收标准：
@@ -115,7 +115,7 @@
 - 文档映射：`proposal.md` §4 验收标准 9
 - Review Profile: standard
 - Task Review: PASS
-- Review Report: openspec/changes/2032-task-status-consistency-gate/review-reports/task-3-review.json
+- Review Report: openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/review-reports/task-3-review.json
 - 文件：`scripts/test_lint_task_deps.py`、`scripts/test_check_delivery.py`、`scripts/tests/test_validate_change.py`
 - verification：`python -m pytest scripts -q`
 - 验收标准：
@@ -135,7 +135,7 @@
 - 文档映射：`proposal.md` §6 知识影响、`proposal.md` §4 验收标准 10
 - Review Profile: standard
 - Task Review: PASS
-- Review Report: openspec/changes/2032-task-status-consistency-gate/review-reports/task-4-review.json
+- Review Report: openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/review-reports/task-4-review.json
 - 文件：`openspec/specs/backend/framework/quality-gates/overview.md`、`openspec/specs/backend/engineering/tech/framework-unification.md`、`skills/workflow-code-generation/SKILL.md`、`skills/workflow-code-generation/reference/delegated-execution-guide.md`、`openspec/issues/`
 - verification：`python scripts/markdown_links.py openspec`、`python scripts/lint_skill_graph.py`
 - 验收标准：
