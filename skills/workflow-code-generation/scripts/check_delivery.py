@@ -34,6 +34,7 @@ if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
 import runtime_workflow
 import runtime_schema
+import workspace_residue
 
 TERMINAL_STATES = {"完成", "需人工", "阻塞"}
 NEEDS_REASON = {"需人工", "阻塞"}
@@ -337,6 +338,12 @@ def check_native_delivery_verdict_path(
             "<repo>/.agentic-framework/native-delivery/"
         ]
 
+    try:
+        vcs = workspace_residue.detect_vcs(repo)
+    except workspace_residue.WorkspaceResidueError as error:
+        return [f"无法判定 Native Delivery 产物的 VCS：{error}"]
+    if vcs == "svn":
+        return []
     result = subprocess.run(
         [
             "git",
@@ -378,6 +385,43 @@ def check_verify_report(path: Path) -> list[str]:
         if not isinstance(value, int) or isinstance(value, bool) or value != 0:
             errors.append(f"机器验证 {field} 必须为整数 0：{value!r}")
     return errors
+
+
+def check_scoped_delivery(
+    repo: Path,
+    baseline_path: Path,
+    delivery_commit: str | None,
+    delivery_revision: str | None,
+) -> list[str]:
+    """校验冻结范围内的提交，以及 S0/S1 预存残留不变。"""
+    if not baseline_path.is_file():
+        return [f"找不到 Scoped Delivery 基线 {baseline_path}"]
+    try:
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        snapshot = baseline["workspace_residue_snapshot"]
+        stored = workspace_residue.validate_workspace_residue_snapshot(snapshot)
+        vcs = stored["vcs"]
+        if vcs == "git":
+            if not delivery_commit or delivery_revision:
+                return ["Git Scoped Delivery 必须提供 --delivery-commit，且不得提供 --delivery-revision"]
+            paths = workspace_residue.git_commit_paths(
+                repo, stored["base_ref"], delivery_commit
+            )
+        else:
+            if not delivery_revision or delivery_commit:
+                return ["SVN Scoped Delivery 必须提供 --delivery-revision，且不得提供 --delivery-commit"]
+            paths = workspace_residue.svn_revision_paths(repo, delivery_revision)
+        outside = workspace_residue.validate_delivery_paths(
+            paths, stored["scope_paths"]
+        )
+        if outside:
+            return ["交付提交超出冻结范围：" + ", ".join(outside)]
+        residue_changes = workspace_residue.compare_workspace_residue(repo, stored)
+        if residue_changes:
+            return ["预存残留与 S0 不一致：" + ", ".join(residue_changes)]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, workspace_residue.WorkspaceResidueError) as error:
+        return [f"Scoped Delivery 校验失败：{error}"]
+    return []
 
 
 def check_git_clean(repo: Path) -> list[str]:
@@ -465,6 +509,24 @@ def main(argv: list[str]) -> int:
         help="知识无影响的理由；--knowledge-impact none 时必填",
     )
     parser.add_argument(
+        "--scoped-delivery",
+        action="store_true",
+        help="显式启用 Scoped Delivery：校验冻结范围与预存残留 S0/S1 一致性",
+    )
+    parser.add_argument(
+        "--workspace-residue-baseline",
+        type=Path,
+        help="Verify --save-baseline 写入的 Scoped Delivery 基线路径",
+    )
+    parser.add_argument(
+        "--delivery-commit",
+        help="Git Scoped Delivery 的交付提交；必须等于当前 HEAD",
+    )
+    parser.add_argument(
+        "--delivery-revision",
+        help="SVN Scoped Delivery 的已提交 revision",
+    )
+    parser.add_argument(
         "--review-report",
         type=Path,
         required=True,
@@ -480,6 +542,23 @@ def main(argv: list[str]) -> int:
 
     if args.run_dir is not None and args.native_delivery:
         print("error: --run-dir 与 --native-delivery 不能同时提供", file=sys.stderr)
+        return 2
+    if args.scoped_delivery and args.run_dir is not None:
+        print("error: Scoped Delivery 不适用于完整 Runtime Run；请使用干净 worktree", file=sys.stderr)
+        return 2
+    if args.scoped_delivery and not args.native_delivery:
+        print("error: --scoped-delivery 必须与 --native-delivery 一起使用", file=sys.stderr)
+        return 2
+    scoped_arguments = (
+        args.workspace_residue_baseline,
+        args.delivery_commit,
+        args.delivery_revision,
+    )
+    if args.scoped_delivery and args.workspace_residue_baseline is None:
+        print("error: --scoped-delivery 必须提供 --workspace-residue-baseline", file=sys.stderr)
+        return 2
+    if not args.scoped_delivery and any(value is not None for value in scoped_arguments):
+        print("error: Scoped Delivery 参数必须与 --scoped-delivery 一起使用", file=sys.stderr)
         return 2
     if args.native_delivery and args.native_delivery_verdict is None:
         print(
@@ -513,6 +592,12 @@ def main(argv: list[str]) -> int:
     if args.native_delivery and args.tasks is None:
         print(
             "error: --native-delivery 必须提供 --tasks 与 --spec（标准交付）",
+            file=sys.stderr,
+        )
+        return 2
+    if args.scoped_delivery and args.tasks is None:
+        print(
+            "error: --scoped-delivery 必须提供 --tasks 与 --spec（标准交付）",
             file=sys.stderr,
         )
         return 2
@@ -556,13 +641,19 @@ def main(argv: list[str]) -> int:
         print(("ERROR  " + "；".join(found)) if found else f"PASS   {label}")
 
     checks += 1
-    found = check_git_clean(args.repo)
+    if args.scoped_delivery:
+        found = check_scoped_delivery(
+            args.repo,
+            args.workspace_residue_baseline,
+            args.delivery_commit,
+            args.delivery_revision,
+        )
+        success = "PASS   本次交付范围干净，预存残留未变化"
+    else:
+        found = check_git_clean(args.repo)
+        success = "PASS   工作区干净（代码与归档产物已提交）"
     errors.extend(found)
-    print(
-        ("ERROR  " + "；".join(found))
-        if found
-        else "PASS   工作区干净（代码与归档产物已提交）"
-    )
+    print(("ERROR  " + "；".join(found)) if found else success)
 
     checks += 1
     if args.run_dir is not None:
@@ -661,9 +752,18 @@ def main(argv: list[str]) -> int:
                 str(args.verify_report.resolve()),
                 args.knowledge_impact,
                 args.knowledge_impact_reason.strip(),
+                args.scoped_delivery,
             )
             write_native_delivery_verdict(args.native_delivery_verdict, verdict)
-            post_write_errors = check_git_clean(args.repo)
+            if args.scoped_delivery:
+                post_write_errors = check_scoped_delivery(
+                    args.repo,
+                    args.workspace_residue_baseline,
+                    args.delivery_commit,
+                    args.delivery_revision,
+                )
+            else:
+                post_write_errors = check_git_clean(args.repo)
             if post_write_errors:
                 checks += 1
                 errors.extend(post_write_errors)

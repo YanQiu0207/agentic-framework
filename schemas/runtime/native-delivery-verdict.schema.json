@@ -27,8 +27,7 @@
                 "review_report",
                 "verify_report",
                 "knowledge_impact",
-                "knowledge_impact_reason",
-                "git_clean"
+                "knowledge_impact_reason"
             ],
             "properties": {
                 "review_report": {
@@ -50,17 +49,18 @@
                 },
                 "git_clean": {
                     "const": true
+                },
+                "scoped_delivery": {
+                    "const": true
                 }
             },
             "additionalProperties": false
         },
         "verified_claims": {
-            "const": [
-                "git-clean",
-                "machine-verify",
-                "standard-review",
-                "knowledge-impact"
-            ]
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
         },
         "unprovable_claims": {
             "const": [

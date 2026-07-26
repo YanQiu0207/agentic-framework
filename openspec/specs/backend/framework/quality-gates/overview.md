@@ -63,6 +63,12 @@ OPSX056（Change `2032-task-status-consistency-gate`）交叉核对 `- 状态：
 
 Verification 基线、机器报告和 Run 级 Review JSON 统一位于仓库根 `.agentic-framework/verify/`，不纳入 Git。旧 `.verify/` 只作为迁移期读取来源；检测到旧产物时提示迁移，新版本不再写入、删除或覆盖旧产物。
 
+## Scoped Delivery
+
+Tooling 的 `check_delivery.py` 默认要求 Git 工作区干净。对存量残留场景，可显式启用 Scoped Delivery：Verify 在采基线时冻结任务可写路径和生成目录，并记录独立的 `workspace_residue_snapshot`（S0）；交付门仅在提交 Diff 位于该范围且当前 S1 残留与 S0 状态、路径和内容摘要一致时通过。
+
+`changed_files_snapshot`、`--ignore` 和 `ignore_paths` 仅用于 Spec Drift，不构成交付豁免。Git Scoped Delivery 需声明当前 `HEAD` commit；SVN Scoped Delivery 需声明已提交 revision。范围冲突、快照不完整、残留变化或提交证据缺失均失败关闭，并要求改用干净 worktree／工作副本。Scoped Delivery 仅用于 Native Delivery；框架自身 `.agentic-framework/` 本地运行产物不作为 SVN 残留。Scoped 成功只能声明「本次交付范围干净，预存残留未变化」。Production 的 `validate_change.py` 不消费该模式。
+
 ## Code Review
 
 共享 Review 入口按风险选择：

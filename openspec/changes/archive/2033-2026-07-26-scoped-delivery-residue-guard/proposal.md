@@ -4,7 +4,7 @@
 **日期**：2026-07-26
 **变更**：scoped-delivery-residue-guard
 **工单号**：2033
-**状态**：Quick Draft
+**状态**：Archived
 
 ---
 
@@ -36,7 +36,7 @@
 - Git Scoped Delivery 仅在声明提交从 `base_sha` 的 Diff 全部位于范围内，且 S1 与 S0 内容和状态完全一致时通过。
 - SVN Scoped Delivery 仅在提供提交 revision、该 revision Diff 位于范围内，且 S1 与 S0 内容和状态完全一致时通过。
 - S1 中新增、删除、改写或状态变化的预存残留均失败；报告列出差异。
-- 默认交付门仍要求绝对干净；Scoped Delivery 成功输出只可表述为「本次交付范围干净，预存残留未变化」。
+- 默认交付门仍要求绝对干净；Scoped Delivery 仅与 Native Delivery 一起使用，成功输出只可表述为「本次交付范围干净，预存残留未变化」。
 - `--ignore`、基线的 `changed_files_snapshot` 不影响 Scoped Delivery 判定。
 - 新增 Git、SVN、快照变化、范围冲突、缺少 SVN revision 与报告措辞的自动化测试。
 

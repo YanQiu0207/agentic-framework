@@ -151,6 +151,21 @@
 - **When** 交付门校验该交付
 - **Then** 必须使用带 `--run-dir` 的完整 Runtime Run 与 `strict` Review
 
+#### Scenario：Scoped Delivery 的预存残留不变
+
+- **Given** Tooling Native Delivery 在采基线时冻结了可写范围，并记录了独立的工作区残留 S0
+- **When** 交付门以 Scoped Delivery 模式校验 Git commit 或 SVN revision
+- **Then** 提交 Diff 必须全部位于冻结范围内，且 S1 残留的状态、路径和内容摘要必须与 S0 完全一致
+- **And** `spec_drift` 的 ignore、路径快照或基线差集不得作为交付豁免
+- **And** 成功结论只能声明「本次交付范围干净，预存残留未变化」
+
+#### Scenario：Scoped Delivery 证据不足
+
+- **Given** S0 与冻结范围重叠、内容摘要不可验证、Git commit 不是当前 HEAD，或 SVN 未提供已提交 revision
+- **When** 交付门尝试生成 Scoped Delivery 结论
+- **Then** 校验必须失败关闭并报告冲突或缺失证据
+- **And** 完整 Runtime Run 仍必须使用干净 worktree，不得改用 Scoped Delivery
+
 ### Requirement：本地运行产物统一收口
 
 框架必须将不纳入版本控制的本地运行产物统一写入仓库根 `.agentic-framework/`，不得继续在项目目录中新增平级私有状态目录或文件。

@@ -1243,3 +1243,50 @@ class SvnSupportTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ScopedBaselineTest(unittest.TestCase):
+    """Scoped Delivery 的 S0 必须独立、可写入且失败不覆盖。"""
+
+    def test_save_baseline_stores_workspace_residue_snapshot(self) -> None:
+        snapshot = {
+            "version": 1,
+            "vcs": "git",
+            "base_ref": "a" * 40,
+            "scope_paths": ["scripts"],
+            "entries": [],
+            "residue_digest": "sha256:" + "0" * 64,
+            "snapshot_digest": "sha256:" + "1" * 64,
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            with mock.patch.object(
+                verify, "_changed_files", return_value=([], [], None)
+            ), mock.patch.object(
+                verify, "capture_workspace_residue", return_value=snapshot
+            ):
+                result = verify.cmd_save_baseline(
+                    {"checks": []}, baseline, "HEAD", ["scripts"]
+                )
+            stored = json.loads(baseline.read_text(encoding="utf-8"))
+        self.assertEqual(0, result)
+        self.assertEqual(snapshot, stored["workspace_residue_snapshot"])
+        self.assertEqual([], stored["changed_files_snapshot"])
+
+    def test_save_baseline_does_not_overwrite_on_scope_snapshot_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            baseline = Path(temp_dir) / "baseline.json"
+            baseline.write_text('{"preserve": true}', encoding="utf-8")
+            with mock.patch.object(
+                verify, "_changed_files", return_value=([], [], None)
+            ), mock.patch.object(
+                verify,
+                "capture_workspace_residue",
+                side_effect=verify.WorkspaceResidueError("范围重叠"),
+            ), contextlib.redirect_stderr(io.StringIO()):
+                result = verify.cmd_save_baseline(
+                    {"checks": []}, baseline, "HEAD", ["scripts"]
+                )
+            content = baseline.read_text(encoding="utf-8")
+        self.assertEqual(2, result)
+        self.assertEqual('{"preserve": true}', content)

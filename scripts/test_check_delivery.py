@@ -247,6 +247,15 @@ class CheckDeliveryTest(unittest.TestCase):
         )
         self.assertEqual([], check_delivery.check_knowledge_impact("hit", ""))
 
+    def test_scoped_delivery_requires_native_delivery(self) -> None:
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            code = check_delivery.main(
+                ["--review-report", "missing.json", "--scoped-delivery"]
+            )
+        self.assertEqual(2, code)
+        self.assertIn("--native-delivery", stderr.getvalue())
+
     def test_main_rejects_partial_standard_arguments(self) -> None:
         stderr = StringIO()
         with redirect_stderr(stderr):
@@ -389,6 +398,48 @@ class CheckDeliveryTest(unittest.TestCase):
             ]
         )
         self.assertEqual(1, result)
+
+    def test_scoped_delivery_reports_scoped_claim_not_git_clean(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict = self._native_delivery_args(repo)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import workspace_residue
+
+        snapshot = workspace_residue.capture_workspace_residue(
+            repo, "HEAD", ["tasks.md", "proposal.md"]
+        )
+        baseline = repo / ".agentic-framework" / "verify" / "baseline.json"
+        baseline.parent.mkdir(parents=True, exist_ok=True)
+        baseline.write_text(
+            json.dumps({"workspace_residue_snapshot": snapshot}), encoding="utf-8"
+        )
+        commit = subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout.strip()
+        output = StringIO()
+        with redirect_stdout(output):
+            code = check_delivery.main(
+                args
+                + [
+                    "--scoped-delivery",
+                    "--workspace-residue-baseline",
+                    str(baseline),
+                    "--delivery-commit",
+                    commit,
+                ]
+            )
+        self.assertEqual(0, code)
+        verdict_payload = json.loads(verdict.read_text(encoding="utf-8"))
+        self.assertIn("本次交付范围干净，预存残留未变化", output.getvalue())
+        self.assertNotIn("工作区干净", output.getvalue())
+        self.assertNotIn("git-clean", output.getvalue())
+        self.assertEqual(True, verdict_payload["evidence"]["scoped_delivery"])
+        self.assertNotIn("git_clean", verdict_payload["evidence"])
+        self.assertIn("scoped-delivery-clean", verdict_payload["verified_claims"])
 
     def test_native_delivery_writes_bounded_verdict_without_runtime_finalize(self) -> None:
         repo = self._clean_repo_with_ignore()

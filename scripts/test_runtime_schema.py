@@ -192,6 +192,29 @@ class RuntimeSchemaTest(unittest.TestCase):
                 missing_reason, runtime_schema.NATIVE_DELIVERY_VERDICT_SCHEMA
             )
 
+    def test_scoped_native_delivery_verdict_does_not_claim_git_clean(self) -> None:
+        verdict = runtime_schema.build_native_delivery_verdict(
+            "review-report.json",
+            "verify-report.json",
+            "hit",
+            "",
+            scoped_delivery=True,
+        )
+        runtime_schema.validate_document(
+            verdict, runtime_schema.NATIVE_DELIVERY_VERDICT_SCHEMA
+        )
+        self.assertEqual(True, verdict["evidence"]["scoped_delivery"])
+        self.assertNotIn("git_clean", verdict["evidence"])
+        self.assertEqual(
+            [
+                "scoped-delivery-clean",
+                "machine-verify",
+                "standard-review",
+                "knowledge-impact",
+            ],
+            verdict["verified_claims"],
+        )
+
     def test_illegal_task_attempt_associations_fail_closed(self) -> None:
         run_level = artifact(
             "run-manifest",

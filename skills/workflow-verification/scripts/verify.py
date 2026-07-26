@@ -41,6 +41,14 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Sequence
 
+_FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
+if str(_FRAMEWORK_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+from workspace_residue import (
+    WorkspaceResidueError,
+    capture_workspace_residue,
+)
+
 RUNTIME_VERIFY_DIR = Path(".agentic-framework/verify")
 LEGACY_VERIFY_DIR = Path(".verify")
 
@@ -1190,7 +1198,12 @@ def _atomic_write_json(path: Path, data: Any) -> None:
         raise
 
 
-def cmd_save_baseline(config: dict, out_path: Path, diff_base: str = "HEAD") -> int:
+def cmd_save_baseline(
+    config: dict,
+    out_path: Path,
+    diff_base: str = "HEAD",
+    delivery_scope: Sequence[str] = (),
+) -> int:
     """采集基线：只记录 baseline_aware 检查的当前"值"。
 
     forbid_pattern 的 fail 表示「记录已存在的违规」，属正常用途，写入基线。
@@ -1211,6 +1224,14 @@ def cmd_save_baseline(config: dict, out_path: Path, diff_base: str = "HEAD") -> 
         baseline["changed_files_snapshot"] = []
     else:
         baseline["changed_files_snapshot"] = sorted(set(tracked_s0 + untracked_s0))
+    if delivery_scope:
+        try:
+            baseline["workspace_residue_snapshot"] = capture_workspace_residue(
+                Path.cwd(), diff_base, delivery_scope
+            )
+        except WorkspaceResidueError as error:
+            print(f"[verify] Scoped Delivery 残留快照采集失败：{error}", file=sys.stderr)
+            return 2
     blocked: list[CheckResult] = []
     for check in config.get("checks", []):
         if not check.get("baseline_aware"):
@@ -1580,14 +1601,25 @@ def main(argv: list[str] | None = None) -> int:
         help="忽略指定路径（glob，支持 * ? **；可重复）；被忽略文件不进入 spec drift 归类，"
         "openspec/ 下 spec/tasks 不可忽略",
     )
+    parser.add_argument(
+        "--delivery-scope",
+        metavar="PATH",
+        action="append",
+        default=[],
+        help="Scoped Delivery 冻结的可写路径或生成目录；仅可与 --save-baseline 一起使用，可重复",
+    )
     args = parser.parse_args(argv)
 
     require_config = bool(args.save_baseline or args.baseline)
     config = load_config(Path(args.config), require=require_config)
 
+    if args.delivery_scope and not args.save_baseline:
+        parser.error("--delivery-scope 仅可与 --save-baseline 一起使用")
     if args.save_baseline:
         save_path = resolve_verify_write_path(Path(args.save_baseline), Path.cwd())
-        return cmd_save_baseline(config, save_path, args.diff_base)
+        return cmd_save_baseline(
+            config, save_path, args.diff_base, args.delivery_scope
+        )
 
     baseline_path = (
         resolve_verify_read_path(Path(args.baseline), Path.cwd())

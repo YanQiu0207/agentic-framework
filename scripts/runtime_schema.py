@@ -19,6 +19,12 @@ NATIVE_DELIVERY_VERIFIED_CLAIMS = (
     "standard-review",
     "knowledge-impact",
 )
+SCOPED_DELIVERY_VERIFIED_CLAIMS = (
+    "scoped-delivery-clean",
+    "machine-verify",
+    "standard-review",
+    "knowledge-impact",
+)
 NATIVE_DELIVERY_UNPROVABLE_CLAIMS = (
     "runtime-trust-gate",
     "harness-capability-probe",
@@ -97,20 +103,27 @@ def build_native_delivery_verdict(
     verify_report: str,
     knowledge_impact: str,
     knowledge_impact_reason: str,
+    scoped_delivery: bool = False,
 ) -> dict[str, Any]:
     """Build the bounded verdict for a Native Delivery without a Runtime Run."""
+    evidence = {
+        "review_report": review_report,
+        "verify_report": verify_report,
+        "knowledge_impact": knowledge_impact,
+        "knowledge_impact_reason": knowledge_impact_reason,
+    }
+    if scoped_delivery:
+        evidence["scoped_delivery"] = True
+        claims = SCOPED_DELIVERY_VERIFIED_CLAIMS
+    else:
+        evidence["git_clean"] = True
+        claims = NATIVE_DELIVERY_VERIFIED_CLAIMS
     verdict = {
         "schema_version": 1,
         "artifact_type": "native-delivery-verdict",
         "verdict": "native-delivery-pass",
-        "evidence": {
-            "review_report": review_report,
-            "verify_report": verify_report,
-            "knowledge_impact": knowledge_impact,
-            "knowledge_impact_reason": knowledge_impact_reason,
-            "git_clean": True,
-        },
-        "verified_claims": list(NATIVE_DELIVERY_VERIFIED_CLAIMS),
+        "evidence": evidence,
+        "verified_claims": list(claims),
         "unprovable_claims": list(NATIVE_DELIVERY_UNPROVABLE_CLAIMS),
     }
     validate_document(verdict, NATIVE_DELIVERY_VERDICT_SCHEMA)
@@ -250,6 +263,22 @@ def validate_document(document: object, schema_name: str | None = None) -> None:
     ]
     registry = {item["$id"]: item for item in schemas if "$id" in item}
     _validate_instance(document, schema, registry)
+    if schema_name == NATIVE_DELIVERY_VERDICT_SCHEMA:
+        assert isinstance(document, dict)
+        evidence = document["evidence"]
+        claims = document["verified_claims"]
+        if evidence.get("git_clean") is True and set(evidence) == {
+            "review_report", "verify_report", "knowledge_impact", "knowledge_impact_reason", "git_clean"
+        }:
+            expected_claims = list(NATIVE_DELIVERY_VERIFIED_CLAIMS)
+        elif evidence.get("scoped_delivery") is True and set(evidence) == {
+            "review_report", "verify_report", "knowledge_impact", "knowledge_impact_reason", "scoped_delivery"
+        }:
+            expected_claims = list(SCOPED_DELIVERY_VERIFIED_CLAIMS)
+        else:
+            raise RuntimeSchemaError("native delivery evidence must prove git-clean or scoped-delivery-clean")
+        if claims != expected_claims:
+            raise RuntimeSchemaError("native delivery verified_claims do not match evidence")
     if schema_name == "task-state":
         assert isinstance(document, dict)
         payload = document["payload"]
