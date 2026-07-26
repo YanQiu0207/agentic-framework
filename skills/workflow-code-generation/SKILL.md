@@ -80,7 +80,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 - 测试任务：通过 `workflow-test-generation` 生成或补齐关键交互 / 状态测试。
 - 最终验证任务：执行 `bp-frontend-taste` 和 `frontend-playwright-verification`，失败则回到实现任务修复。
 
-> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。确认时若项目根无 `verify.config.json`，一并提示先运行 `/verify-config` 初始化或明确跳过（跳过则本次只跑内置门禁并在交付报告标注）；代码任务全程不修改该配置。
+> 🚨 **创建 tasks.md 后必须停下等用户确认。** 展示任务列表（含依赖），**停止等待回复**。这是**人把关的最后一道闸**；批准后执行段自主连跑、不再逐 task 停。确认时若项目根无 `verify.config.json`，一并提示先运行 `/verify-config` 初始化或明确跳过（跳过则本次只跑内置门禁并在交付报告标注）；代码任务全程不修改该配置。选择必须在 `tasks.md` 留下控制流记录：初始化完成后执行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-decision --choice initialize --write`，明确跳过则执行同一命令并传 `--choice skip --write`。
 
 ### 步骤 4：加载编码规范（🚨 强制前置）
 
@@ -115,7 +115,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 
 无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。主编排方在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>`，并按需传入 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification` 或 `--audit-required`。输出 `runtime-run` 时才进入完整 Runtime Run；输出 `native-delivery` 时不得创建或伪造 Run Context。
 
-**主会话必须通过控制流内核构建波次（wave）数组**：存在任务依赖、并行写入或中断恢复需求时，先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。每波 dispatch 前运行同一脚本的 `dispatchable`，只执行输出的 task。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。
+**主会话必须通过控制流内核构建波次（wave）数组**：存在任务依赖、并行写入或中断恢复需求时，先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。每波 dispatch 前运行同一脚本的 `dispatchable`，只执行输出的 task。仓库缺少 `verify.config.json` 且无用户「初始化」或「跳过」记录时，该命令和 `event <id> start` 都必须失败；不得绕过控制器直接派发。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。
 
 **先判定 CLI 嵌套能力**（派子 agent 试再派孙 agent；判定细则与 5 层上限见 reference 手册），选编排模式：
 - **模式 A（默认，Claude Code 支持嵌套）**：每 task 派 owner 子 agent 执行实现、测试和机器验证。

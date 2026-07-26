@@ -31,6 +31,7 @@ proposal.md / tasks.md 获批
 ## 状态与恢复
 
 - `waves` 对依赖图做稳定拓扑分波；`dispatchable` 只返回依赖均已完成的未开始任务（`workflow_control.py:123-137`）。
+- 对 `tasks.md` 驱动的委派调度，仓库根缺少 `verify.config.json` 时，`dispatchable`、`recover` 和 `event <id> start` 必须失败关闭，直到任务区之前存在用户记录的 `verify_config_decision`。用户先运行 `/verify-config` 实际生成配置后，以 `verify-config-decision --choice initialize --write` 记录「初始化」；或者在配置仍缺失时，以 `verify-config-decision --choice skip --write` 记录「跳过」。配置存在时不要求该记录；「初始化」记录对应的配置后来被删除时，调度再次阻断。
 - 状态迁移由事件表约束；失败默认最多修复 2 次，耗尽后进入「需人工」（`workflow_control.py:140-251`）。
 - `quality_passed` 只进入待合并阶段，不直接把任务标为完成；只有 `merge_success` 才完成任务（`workflow_control.py:174-183`）。
 - `recover` 同时使用 `tasks.md` 状态和调用方提供的已合并事实；两者矛盾时失败关闭（`workflow_control.py:288-347`）。
