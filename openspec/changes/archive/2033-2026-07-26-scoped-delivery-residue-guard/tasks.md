@@ -96,7 +96,7 @@ Task 4（Skill 与长期 Spec 同步）
 - 状态：完成
 - 文件：`scripts/workspace_residue.py`（修改）、`scripts/runtime_schema.py`（修改）、`schemas/runtime/native-delivery-verdict.schema.json`（修改）、`scripts/test_workspace_residue.py`（修改）、`scripts/test_runtime_schema.py`（修改）、`skills/workflow-code-generation/scripts/check_delivery.py`（修改）、`scripts/test_check_delivery.py`（修改）
 - depends_on: [Task 1]
-- review_profile: strict
+- review_profile: standard
 - 文档映射：proposal.md 1.目标／验收标准、2.1、2.2、2.3、2.5（1、2、4、5）
 - 说明：新增显式 Scoped Delivery CLI，读取 S0、比较 S1，校验 Git 提交或 SVN revision Diff 只覆盖冻结范围，并将成功报告限定为 Scoped 口径。
 - context_files:
