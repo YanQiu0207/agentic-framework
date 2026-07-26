@@ -15,6 +15,7 @@ sys.path.insert(
     ),
 )
 import lint_task_deps
+import task_ast
 
 
 class TaskDependencyTest(unittest.TestCase):
@@ -39,7 +40,7 @@ class TaskDependencyTest(unittest.TestCase):
             self.assertEqual(2, lint_task_deps.main([str(tasks_file)]))
 
     def test_self_dependency_is_preserved_and_rejected(self) -> None:
-        text = "### 任务 1：A\n- depends_on: [Task 1]\n"
+        text = "### 任务 1：A\n- depends_on: Task 1\n"
         tasks = lint_task_deps.parse_tasks(text)
         self.assertEqual({1}, tasks[1]["deps"])
         self.assertIn(1, lint_task_deps.reachable(tasks)[1])
@@ -158,6 +159,96 @@ class StateNormalizationTest(unittest.TestCase):
         self.assertEqual("Blocked", lint_task_deps.state_prefix("Blocked 原因"))
         self.assertEqual("完成", lint_task_deps.state_prefix("完成（附注）"))
         self.assertIsNone(lint_task_deps.state_prefix("已完结"))
+
+
+class StrictDependencyDialectTest(unittest.TestCase):
+    """change 2037：依赖方言统一为严格式，不再静默抓取数字。"""
+
+    def test_free_text_is_rejected_and_yields_no_ids(self) -> None:
+        raw = "见 2035 第 3 节"
+        self.assertEqual((set(), True), lint_task_deps.parse_deps(raw, "depends_on"))
+        self.assertIsNotNone(lint_task_deps.dep_format_error(1, raw, "depends_on"))
+
+    def test_bare_digits_are_rejected(self) -> None:
+        raw = "1, 2"
+        self.assertEqual((set(), True), lint_task_deps.parse_deps(raw, "depends_on"))
+        self.assertIsNotNone(lint_task_deps.dep_format_error(1, raw, "depends_on"))
+
+    def test_compliant_forms_match_production_extraction(self) -> None:
+        for raw, expected in (
+            ("Task 1, Task 2", {1, 2}),
+            ("任务 1、任务 2", {1, 2}),
+            ("Task1,Task2", {1, 2}),
+            ("Task 1，Task 2", {1, 2}),
+        ):
+            deps, _present = lint_task_deps.parse_deps(raw, "depends_on")
+            self.assertEqual(expected, deps, raw)
+            # 两轨产出相同 ID 集合（共享 task_ast.DEP_REFERENCE_RE）
+            self.assertEqual(
+                expected,
+                {int(n) for n in task_ast.DEP_REFERENCE_RE.findall(raw)},
+                raw,
+            )
+            self.assertIsNone(lint_task_deps.dep_format_error(1, raw, "depends_on"))
+
+    def test_empty_value_forms(self) -> None:
+        for raw in ("[]", "无", "none", "NONE"):
+            self.assertEqual((set(), True), lint_task_deps.parse_deps(raw, "depends_on"), raw)
+            self.assertIsNone(lint_task_deps.dep_format_error(1, raw, "depends_on"), raw)
+        self.assertEqual((set(), False), lint_task_deps.parse_deps(None, None))
+
+    def test_missing_field_is_not_a_format_error(self) -> None:
+        self.assertIsNone(lint_task_deps.dep_format_error(1, None, None))
+
+
+class LegacyClassificationTest(unittest.TestCase):
+    """change 2037 §6.2：归档违规归入 legacy 分类，规则唯一、无跳过分支。"""
+
+    TEXT = (
+        "### 任务 1：A\n- depends_on: []\n- review_profile: standard\n"
+        "- context_files:\n- verification:\n- artifacts:\n- 状态: 未开始\n"
+        "### 任务 2：B\n- depends_on: 见 2035 第 3 节\n- review_profile: standard\n"
+        "- context_files:\n- verification:\n- artifacts:\n- 状态: 未开始\n"
+    )
+
+    def test_archived_path_classifies_as_legacy(self) -> None:
+        report = lint_task_deps.lint_report(
+            self.TEXT, "openspec/changes/archive/2099-x/tasks.md"
+        )
+        self.assertEqual([], report["active"]["errors"])
+        self.assertTrue(any("不合规" in e for e in report["legacy"]["errors"]))
+
+    def test_active_path_classifies_as_active(self) -> None:
+        report = lint_task_deps.lint_report(self.TEXT, "openspec/changes/2099-x/tasks.md")
+        self.assertTrue(any("不合规" in e for e in report["active"]["errors"]))
+        self.assertEqual([], report["legacy"]["errors"])
+
+    def test_cli_and_library_give_same_structured_verdict(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            archived = Path(temp_dir) / "archive" / "2099-x"
+            archived.mkdir(parents=True)
+            tasks_file = archived / "tasks.md"
+            tasks_file.write_text(self.TEXT, encoding="utf-8")
+            import json as json_module
+            import subprocess
+
+            completed = subprocess.run(
+                [sys.executable, str(Path(lint_task_deps.__file__).resolve()),
+                 str(tasks_file), "--json"],
+                capture_output=True, text=True, encoding="utf-8",
+            )
+            cli_report = json_module.loads(completed.stdout)
+            lib_report = lint_task_deps.lint_report(self.TEXT, str(tasks_file))
+            self.assertEqual(lib_report, cli_report)
+            # 遗留违规不计入失败
+            self.assertEqual(0, completed.returncode)
+
+    def test_active_violations_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tasks_file = Path(temp_dir) / "2099-x" / "tasks.md"
+            tasks_file.parent.mkdir(parents=True)
+            tasks_file.write_text(self.TEXT, encoding="utf-8")
+            self.assertEqual(1, lint_task_deps.main([str(tasks_file)]))
 
 
 class StateConsistencyTest(unittest.TestCase):

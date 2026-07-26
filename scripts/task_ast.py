@@ -38,6 +38,15 @@ _FIELD_LINE_RE = re.compile(r"^\s*-\s*(?P<name>[^:：]+?)\s*[:：]\s*(?P<value>.
 # 依赖字段的两个候选名：depends_on 优先于遗留「依赖」（Tooling 的既有偏好）。
 _DEP_FIELD_NAMES = ("depends_on", "依赖")
 
+# 依赖字段值的统一方言（change 2037）：空值为 `[]`、`无`、`none`；非空为
+# `Task N`／`任务 N` 引用列表（半角逗号、全角逗号、顿号分隔）。方言只此
+# 一份，两轨各自引用本常量；「值不合规是否报错、报什么错」仍属调用方。
+DEP_VALUE_RE = re.compile(
+    r"(?:\[\]|无|none|(?:(?:Task|任务)\s*\d+\s*(?:[,，、]\s*)?)+)", re.IGNORECASE
+)
+# 从合规依赖值中提取任务编号。
+DEP_REFERENCE_RE = re.compile(r"(?:Task|任务)\s*(\d+)", re.IGNORECASE)
+
 
 @dataclasses.dataclass(frozen=True)
 class TaskNode:

@@ -330,6 +330,14 @@ Production Tasks 服务逐阶段人工批准、Task Review 和归档证据；Too
 4. 最后迁移 Tooling 写状态路径。（未启动，由 change 2044 承载）
 5. 每迁移一个调用方都运行兼容性测试。
 
+### 8.4 依赖字段方言（change 2037）
+
+依赖字段值的方言已统一为严格式，定义只有一份，在 `scripts/task_ast.py`（`DEP_VALUE_RE`／`DEP_REFERENCE_RE`），两轨各自引用：Production 的 OPSX023（`scripts/validate_change.py`）与 Tooling 的 `parse_deps`（`skills/workflow-code-generation/scripts/lint_task_deps.py`）。
+
+- 合法取值：空值 `[]`／`无`／`none`（大小写不敏感），或 `Task N`／`任务 N` 引用列表（半角逗号、全角逗号、顿号分隔）。空值词表对齐是 change 2037 的裁决项：保留 `[]`（本仓库大量使用且无歧义），Production 的 OPSX023 同步接受，除此之外 OPSX023 对既有用例判定不变。
+- 不合规值两轨都报错，不再用 `re.findall(r"\d+")` 静默抓取数字（`见 2035 第 3 节` 一类自由文本曾被误解析出幻影依赖 ID）。
+- 归档处理为统一合同：规则对活跃与归档一致，不存在「跳过归档」选项；归档违规在报告层归入独立的机器可解析分类（`lint_report` 的 `legacy` 字段），记录不拦截，依据是 §3.3「Archive 仅作为历史证据」。逐文件清单见 `openspec/changes/2037-dependency-dialect-adjudication/legacy_violations.md`（36 处，全部为 `[Task N]` 方括号形态）。
+
 ## 9. Code Review
 
 保留唯一共享入口：

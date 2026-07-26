@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -73,14 +74,34 @@ def parse_deps(
 ) -> tuple[set[int], bool]:
     """把 AST 提供的依赖字段原始值解析为依赖集合，并返回字段是否存在。
 
-    `re.findall(r"\\d+")` 的宽松提取语义不变（裸数字也接受）；字段名只
-    用于判定「字段是否声明过」。depends_on 与遗留「依赖」的取舍在 AST 层
-    完成（depends_on 优先）。
+    严格式（change 2037）：值必须整体符合 `task_ast.DEP_VALUE_RE`（空值
+    `[]`／`无`／`none`，或 `Task N`／`任务 N` 引用列表），从中提取编号。
+    不合规值产出空集合——报错由 `dep_format_error` 负责，此处不再用
+    `re.findall(r"\\d+")` 静默抓取数字。depends_on 与遗留「依赖」的取舍
+    在 AST 层完成（depends_on 优先）。
     """
     field_exists = dep_field_name is not None
-    if not dep_field_raw or dep_field_raw in {"[]", "无"}:
+    if not dep_field_raw or task_ast.DEP_VALUE_RE.fullmatch(dep_field_raw) is None:
         return set(), field_exists
-    return {int(n) for n in re.findall(r"\d+", dep_field_raw)}, field_exists
+    if dep_field_raw == "[]" or dep_field_raw.casefold() in {"无", "none"}:
+        return set(), field_exists
+    return {
+        int(n) for n in task_ast.DEP_REFERENCE_RE.findall(dep_field_raw)
+    }, field_exists
+
+
+def dep_format_error(
+    tid: int, dep_field_raw: str | None, dep_field_name: str | None
+) -> str | None:
+    """依赖字段值不合规时返回错误消息，合规或字段缺失时返回 None。"""
+    if dep_field_name is None or not dep_field_raw:
+        return None
+    if task_ast.DEP_VALUE_RE.fullmatch(dep_field_raw) is None:
+        return (
+            f"任务 {tid} 的 {dep_field_name} `{dep_field_raw}` 不合规"
+            f"（合法写法：`[]` / `无` / `none` / `Task N` 或 `任务 N` 列表）"
+        )
+    return None
 
 
 def parse_tasks(text: str) -> dict[int, dict]:
@@ -96,6 +117,9 @@ def parse_tasks(text: str) -> dict[int, dict]:
             "deps": deps,
             "has_dep_field": has_dep_field,
             "body": node.body,
+            "dep_error": dep_format_error(
+                node.number, node.dep_field_raw, node.dep_field_name
+            ),
             "review_profile_fields": task_ast.find_fields(
                 node.body.splitlines(), REVIEW_PROFILE_FIELD_NAMES
             ),
@@ -250,47 +274,23 @@ def reachable(tasks: dict[int, dict]) -> dict[int, set[int]]:
     return reach
 
 
-def main(argv: list[str]) -> int:
-    """解析 tasks.md 并报告依赖问题。"""
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台避免中文乱码
+def lint_report(text: str, source: str) -> dict:
+    """对 tasks.md 文本跑全部校验，返回结构化报告（change 2037 §6.2 统一合同）。
 
-    parser = argparse.ArgumentParser(description="校验 tasks.md 的依赖关系")
-    parser.add_argument("tasks_md", type=Path, help="tasks.md 路径")
-    parser.add_argument(
-        "--state-consistency",
-        action="store_true",
-        help="只校验状态字段、任务头标记与复选框三向一致（归档前前置检查）",
-    )
-    args = parser.parse_args(argv)
-    if not args.tasks_md.is_file():
-        print(f"error: 找不到 {args.tasks_md}", file=sys.stderr)
-        return 2
-
-    text = args.tasks_md.read_text(encoding="utf-8-sig", errors="replace")
-    try:
-        tasks = parse_tasks(text)
-    except ValueError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 2
-    if not tasks:
-        print("error: 未解析到任何任务（检查 tasks.md 是否符合 `### 任务 N:` 格式）", file=sys.stderr)
-        return 2
-
-    if args.state_consistency:
-        consistency = state_consistency_errors(text)
-        for message in consistency:
-            print(f"ERROR  {message}")
-        print(f"\ntasks={len(tasks)} | state_consistency_errors={len(consistency)}")
-        return 1 if consistency else 0
-
+    规则对所有输入一致；违规仅按来源路径分类：路径含 `archive` 目录段的
+    归入 `legacy`（遗留违规，记录不拦截），其余归入 `active`。任何调用方
+    对同一输入得到同一份结构化判定，不存在「跳过归档」这一选项。
+    """
+    tasks = parse_tasks(text)
     errors: list[str] = []
     warnings: list[str] = []
 
-    # dangling 依赖
+    # dangling 依赖与依赖值格式
     for tid, info in sorted(tasks.items()):
         if not info["has_dep_field"]:
             errors.append(f"任务 {tid} 缺少 depends_on 字段")
+        if info["dep_error"]:
+            errors.append(info["dep_error"])
         for dep in sorted(info["deps"]):
             if dep not in tasks:
                 errors.append(f"任务 {tid} 依赖不存在的任务 {dep}")
@@ -320,12 +320,84 @@ def main(argv: list[str]) -> int:
                 f"→ 确认是否需要加 depends_on"
             )
 
-    for message in errors:
-        print(f"ERROR  {message}")
-    for message in warnings:
-        print(f"WARN   {message}")
-    print(f"\ntasks={len(tasks)} | errors={len(errors)} warnings={len(warnings)}")
-    return 1 if errors or warnings else 0
+    legacy = "archive" in Path(source).parts
+    return {
+        "tasks": len(tasks),
+        "active": {
+            "errors": [] if legacy else errors,
+            "warnings": [] if legacy else warnings,
+        },
+        "legacy": {
+            "errors": errors if legacy else [],
+            "warnings": warnings if legacy else [],
+        },
+    }
+
+
+def main(argv: list[str]) -> int:
+    """解析 tasks.md 并报告依赖问题。"""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台避免中文乱码
+
+    parser = argparse.ArgumentParser(description="校验 tasks.md 的依赖关系")
+    parser.add_argument("tasks_md", type=Path, help="tasks.md 路径")
+    parser.add_argument(
+        "--state-consistency",
+        action="store_true",
+        help="只校验状态字段、任务头标记与复选框三向一致（归档前前置检查）",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="输出结构化报告（active／legacy 分类），供机器消费",
+    )
+    args = parser.parse_args(argv)
+    if not args.tasks_md.is_file():
+        print(f"error: 找不到 {args.tasks_md}", file=sys.stderr)
+        return 2
+
+    text = args.tasks_md.read_text(encoding="utf-8-sig", errors="replace")
+    try:
+        if args.state_consistency:
+            consistency = state_consistency_errors(text)
+            for message in consistency:
+                print(f"ERROR  {message}")
+            tasks = parse_tasks(text)
+            print(f"\ntasks={len(tasks)} | state_consistency_errors={len(consistency)}")
+            return 1 if consistency else 0
+        report = lint_report(text, str(args.tasks_md))
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+    if not report["tasks"]:
+        print("error: 未解析到任何任务（检查 tasks.md 是否符合 `### 任务 N:` 格式）", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        for message in report["active"]["errors"]:
+            print(f"ERROR  {message}")
+        for message in report["active"]["warnings"]:
+            print(f"WARN   {message}")
+        for message in report["legacy"]["errors"]:
+            print(f"LEGACY {message}（归档遗留违规，记录不拦截）")
+        for message in report["legacy"]["warnings"]:
+            print(f"LEGACY {message}（归档遗留警告，记录不拦截）")
+        active_errors = len(report["active"]["errors"])
+        active_warnings = len(report["active"]["warnings"])
+        legacy_count = len(report["legacy"]["errors"]) + len(
+            report["legacy"]["warnings"]
+        )
+        print(
+            f"\ntasks={report['tasks']} | errors={active_errors} "
+            f"warnings={active_warnings} legacy={legacy_count}"
+        )
+    return (
+        1
+        if report["active"]["errors"] or report["active"]["warnings"]
+        else 0
+    )
 
 
 if __name__ == "__main__":

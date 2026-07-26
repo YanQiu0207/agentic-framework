@@ -20,7 +20,6 @@ PHASES = ("plan", "delivery", "archive")
 DEPENDENCY_RE = re.compile(
     r"^-\s*(?:依赖|depends_on)\s*[:：]\s*(?P<value>.*)$", re.IGNORECASE
 )
-TASK_REFERENCE_RE = re.compile(r"(?:Task|任务)\s*(\d+)", re.IGNORECASE)
 REVIEW_RE = re.compile(r"Code\s+Review\s*[:：]\s*(Pending|PASS)\b", re.IGNORECASE)
 TASK_REVIEW_PROFILE_RE = re.compile(
     r"^-\s*(?P<field>Review[\s_]+Profile)\s*[:：]\s*(?P<value>\S.*?)\s*$",
@@ -432,7 +431,7 @@ def _parse_tasks(tasks_path: Path) -> tuple[list[Task], list[str]]:
         dependencies = tuple(
             dict.fromkeys(
                 int(value)
-                for value in TASK_REFERENCE_RE.findall(node.dep_field_raw or "")
+                for value in task_ast.DEP_REFERENCE_RE.findall(node.dep_field_raw or "")
             )
         )
         tasks.append(
@@ -1255,11 +1254,7 @@ def _validate_tasks(repo: Path, change: Path, require_completed: bool) -> list[F
             )
         else:
             dependency_value = dependency_lines[0][1].group("value").strip()
-            valid_dependencies = re.fullmatch(
-                r"(?:无|none|(?:(?:Task|任务)\s*\d+\s*(?:[,，、]\s*)?)+)",
-                dependency_value,
-                re.IGNORECASE,
-            )
+            valid_dependencies = task_ast.DEP_VALUE_RE.fullmatch(dependency_value)
             if len(dependency_lines) != 1 or valid_dependencies is None:
                 findings.append(
                     _finding(
@@ -1521,7 +1516,9 @@ def _validate_plan(repo: Path, change: Path, change_type: str) -> list[Finding]:
                 mapped_artifacts.add("spec")
             if "design.md" in artifact:
                 mapped_artifacts.add("design")
-            references = {int(value) for value in TASK_REFERENCE_RE.findall(cells[1])}
+            references = {
+                int(value) for value in task_ast.DEP_REFERENCE_RE.findall(cells[1])
+            }
             if not references or not references <= task_numbers:
                 invalid_reference_line = line_number
         missing = {"proposal", "spec", "design"} - mapped_artifacts

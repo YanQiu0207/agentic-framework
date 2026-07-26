@@ -93,7 +93,7 @@ def tasks_text(
             f"### 任务 {task_id}：测试\n\n"
             f"- 状态：{states[task_id]}\n"
             f"- attempts：{attempts}\n"
-            f"- depends_on：[{deps}]\n"
+            f"- depends_on：{deps or '[]'}\n"
         )
     return "\n".join(sections)
 

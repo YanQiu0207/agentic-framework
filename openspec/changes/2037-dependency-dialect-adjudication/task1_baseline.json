@@ -1,0 +1,2250 @@
+[
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 79,
+    "task": 1,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 98,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 121,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 142,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 162,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 3, Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3,
+      4
+    ],
+    "strict_ids": [
+      3,
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 180,
+    "task": 6,
+    "archived": false,
+    "raw": "Task 5",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      5
+    ],
+    "strict_ids": [
+      5
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 202,
+    "task": 7,
+    "archived": false,
+    "raw": "Task 6",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      6
+    ],
+    "strict_ids": [
+      6
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2035-common-task-ast/tasks.md",
+    "line": 224,
+    "task": 8,
+    "archived": false,
+    "raw": "Task 7",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      7
+    ],
+    "strict_ids": [
+      7
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+    "line": 66,
+    "task": 1,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+    "line": 84,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+    "line": 108,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+    "line": 128,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2036-profile-boundary-readjudication/tasks.md",
+    "line": 147,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+    "line": 63,
+    "task": 1,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+    "line": 81,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+    "line": 101,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+    "line": 118,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2037-dependency-dialect-adjudication/tasks.md",
+    "line": 137,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 3, Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3,
+      4
+    ],
+    "strict_ids": [
+      3,
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+    "line": 67,
+    "task": 1,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+    "line": 85,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+    "line": 105,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+    "line": 124,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2038-production-delivery-evidence/tasks.md",
+    "line": 142,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+    "line": 67,
+    "task": 1,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+    "line": 86,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+    "line": 105,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+    "line": 124,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2039-tooling-approval-gate/tasks.md",
+    "line": 142,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+    "line": 67,
+    "task": 1,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+    "line": 86,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+    "line": 105,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+    "line": 123,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2040-tooling-knowledge-anti-self-certification/tasks.md",
+    "line": 140,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+    "line": 68,
+    "task": 1,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+    "line": 89,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+    "line": 109,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2041-governance-profile-declaration/tasks.md",
+    "line": 126,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 2, Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2,
+      3
+    ],
+    "strict_ids": [
+      2,
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+    "line": 68,
+    "task": 0,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+    "line": 84,
+    "task": 1,
+    "archived": false,
+    "raw": "Task 0",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      0
+    ],
+    "strict_ids": [
+      0
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+    "line": 102,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+    "line": 121,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+    "line": 139,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2042-downgrade-equivalence-harness/tasks.md",
+    "line": 155,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+    "line": 67,
+    "task": 0,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+    "line": 86,
+    "task": 1,
+    "archived": false,
+    "raw": "Task 0",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      0
+    ],
+    "strict_ids": [
+      0
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+    "line": 104,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+    "line": 122,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+    "line": 139,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2043-governance-overlay-merge/tasks.md",
+    "line": 156,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 3, Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3,
+      4
+    ],
+    "strict_ids": [
+      3,
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2044-write-state-path-unification/tasks.md",
+    "line": 65,
+    "task": 0,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2044-write-state-path-unification/tasks.md",
+    "line": 81,
+    "task": 1,
+    "archived": false,
+    "raw": "Task 0",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      0
+    ],
+    "strict_ids": [
+      0
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2044-write-state-path-unification/tasks.md",
+    "line": 98,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2044-write-state-path-unification/tasks.md",
+    "line": 117,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2044-write-state-path-unification/tasks.md",
+    "line": 136,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 2, Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2,
+      3
+    ],
+    "strict_ids": [
+      2,
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+    "line": 67,
+    "task": 0,
+    "archived": false,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+    "line": 83,
+    "task": 1,
+    "archived": false,
+    "raw": "Task 0",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      0
+    ],
+    "strict_ids": [
+      0
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+    "line": 100,
+    "task": 2,
+    "archived": false,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+    "line": 117,
+    "task": 3,
+    "archived": false,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+    "line": 135,
+    "task": 4,
+    "archived": false,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/2045-opsx-orchestration-retirement/tasks.md",
+    "line": 152,
+    "task": 5,
+    "archived": false,
+    "raw": "Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming/tasks.md",
+    "line": 17,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming/tasks.md",
+    "line": 36,
+    "task": 2,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/1-2026-07-22-enforce-ticketed-change-naming/tasks.md",
+    "line": 58,
+    "task": 3,
+    "archived": true,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-accept-knowledge-routing/tasks.md",
+    "line": 12,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design/tasks.md",
+    "line": 61,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design/tasks.md",
+    "line": 87,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design/tasks.md",
+    "line": 113,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-add-bp-cli-tool-design/tasks.md",
+    "line": 140,
+    "task": 4,
+    "archived": true,
+    "raw": "[Task 2, Task 3]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      2,
+      3
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+    "line": 14,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+    "line": 23,
+    "task": 2,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+    "line": 32,
+    "task": 3,
+    "archived": true,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+    "line": 42,
+    "task": 4,
+    "archived": true,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-complete-framework-knowledge/tasks.md",
+    "line": 51,
+    "task": 5,
+    "archived": true,
+    "raw": "Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-knowledge-management-review-fixes/tasks.md",
+    "line": 25,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-knowledge-management-review-fixes/tasks.md",
+    "line": 49,
+    "task": 2,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-knowledge-management-review-fixes/tasks.md",
+    "line": 73,
+    "task": 3,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-knowledge-management-review-fixes/tasks.md",
+    "line": 97,
+    "task": 4,
+    "archived": true,
+    "raw": "Task 2、Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2,
+      3
+    ],
+    "strict_ids": [
+      2,
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 95,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 123,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 152,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 175,
+    "task": 4,
+    "archived": true,
+    "raw": "[Task 3]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 208,
+    "task": 5,
+    "archived": true,
+    "raw": "[Task 3]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 247,
+    "task": 6,
+    "archived": true,
+    "raw": "[Task 4, Task 5]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      4,
+      5
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 275,
+    "task": 7,
+    "archived": true,
+    "raw": "[Task 3]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 300,
+    "task": 8,
+    "archived": true,
+    "raw": "[Task 4, Task 5, Task 6]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      4,
+      5,
+      6
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md",
+    "line": 327,
+    "task": 9,
+    "archived": true,
+    "raw": "[Task 7, Task 8]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      7,
+      8
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict/tasks.md",
+    "line": 17,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict/tasks.md",
+    "line": 31,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-delivery-fast-path-bounded-verdict/tasks.md",
+    "line": 47,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 16,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 32,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 51,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 67,
+    "task": 4,
+    "archived": true,
+    "raw": "[Task 3]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 83,
+    "task": 5,
+    "archived": true,
+    "raw": "[Task 4]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      4
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 99,
+    "task": 6,
+    "archived": true,
+    "raw": "[Task 5]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      5
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 115,
+    "task": 7,
+    "archived": true,
+    "raw": "[Task 6]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      6
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2026-07-20-machine-verifiable-agent-runtime/tasks.md",
+    "line": 131,
+    "task": 8,
+    "archived": true,
+    "raw": "[Task 7]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      7
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark/tasks.md",
+    "line": 15,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark/tasks.md",
+    "line": 24,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2027-2026-07-23-real-task-quality-benchmark/tasks.md",
+    "line": 33,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2028-2026-07-25-tooling-native-first/tasks.md",
+    "line": 75,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2028-2026-07-25-tooling-native-first/tasks.md",
+    "line": 112,
+    "task": 2,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2028-2026-07-25-tooling-native-first/tasks.md",
+    "line": 149,
+    "task": 3,
+    "archived": true,
+    "raw": "Task 1、Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1,
+      2
+    ],
+    "strict_ids": [
+      1,
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2028-2026-07-25-tooling-native-first/tasks.md",
+    "line": 182,
+    "task": 4,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2028-2026-07-25-tooling-native-first/tasks.md",
+    "line": 216,
+    "task": 5,
+    "archived": true,
+    "raw": "Task 1、Task 2、Task 3、Task 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "strict_ids": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2029-2026-07-25-risk-triggered-task-approval/tasks.md",
+    "line": 60,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2029-2026-07-25-risk-triggered-task-approval/tasks.md",
+    "line": 83,
+    "task": 2,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2029-2026-07-25-risk-triggered-task-approval/tasks.md",
+    "line": 107,
+    "task": 3,
+    "archived": true,
+    "raw": "Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2029-2026-07-25-risk-triggered-task-approval/tasks.md",
+    "line": 129,
+    "task": 4,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2030-2026-07-25-approval-gate-hardening/tasks.md",
+    "line": 44,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2030-2026-07-25-approval-gate-hardening/tasks.md",
+    "line": 62,
+    "task": 2,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2030-2026-07-25-approval-gate-hardening/tasks.md",
+    "line": 80,
+    "task": 3,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2031-2026-07-26-enforce-verify-config-dispatch-gate/tasks.md",
+    "line": 50,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2031-2026-07-26-enforce-verify-config-dispatch-gate/tasks.md",
+    "line": 76,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/tasks.md",
+    "line": 69,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/tasks.md",
+    "line": 94,
+    "task": 2,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/tasks.md",
+    "line": 114,
+    "task": 3,
+    "archived": true,
+    "raw": "Task 1, Task 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1,
+      2
+    ],
+    "strict_ids": [
+      1,
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2032-2026-07-26-task-status-consistency-gate/tasks.md",
+    "line": 134,
+    "task": 4,
+    "archived": true,
+    "raw": "Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [
+      3
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2033-2026-07-26-scoped-delivery-residue-guard/tasks.md",
+    "line": 66,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2033-2026-07-26-scoped-delivery-residue-guard/tasks.md",
+    "line": 98,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2033-2026-07-26-scoped-delivery-residue-guard/tasks.md",
+    "line": 127,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 1, Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1,
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2033-2026-07-26-scoped-delivery-residue-guard/tasks.md",
+    "line": 154,
+    "task": 4,
+    "archived": true,
+    "raw": "[Task 3]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      3
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2034-2026-07-26-knowledge-gate-risk-inversion/tasks.md",
+    "line": 50,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2034-2026-07-26-knowledge-gate-risk-inversion/tasks.md",
+    "line": 74,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/2034-2026-07-26-knowledge-gate-risk-inversion/tasks.md",
+    "line": 100,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 1, Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1,
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/3-2026-07-23-extension-overlay-support/tasks.md",
+    "line": 59,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/3-2026-07-23-extension-overlay-support/tasks.md",
+    "line": 87,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/3-2026-07-23-extension-overlay-support/tasks.md",
+    "line": 114,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 1, Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1,
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+    "line": 56,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+    "line": 84,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/4-2026-07-25-review-report-dual-format/tasks.md",
+    "line": 108,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+    "line": 64,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+    "line": 93,
+    "task": 2,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+    "line": 119,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+    "line": 145,
+    "task": 4,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/5-2026-07-25-delivery-gate-hardening/tasks.md",
+    "line": 170,
+    "task": 5,
+    "archived": true,
+    "raw": "[Task 1, Task 2, Task 3]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1,
+      2,
+      3
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/6-2026-07-25-trust-gate-schema-hardening/tasks.md",
+    "line": 46,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/6-2026-07-25-trust-gate-schema-hardening/tasks.md",
+    "line": 66,
+    "task": 2,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/6-2026-07-25-trust-gate-schema-hardening/tasks.md",
+    "line": 90,
+    "task": 3,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-link-based-installation/tasks.md",
+    "line": 59,
+    "task": 1,
+    "archived": true,
+    "raw": "[]",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-link-based-installation/tasks.md",
+    "line": 88,
+    "task": 2,
+    "archived": true,
+    "raw": "[Task 1]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-link-based-installation/tasks.md",
+    "line": 113,
+    "task": 3,
+    "archived": true,
+    "raw": "[Task 2]",
+    "empty": false,
+    "strict_ok": false,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-unification/tasks.md",
+    "line": 7,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-unification/tasks.md",
+    "line": 17,
+    "task": 2,
+    "archived": true,
+    "raw": "任务 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-unification/tasks.md",
+    "line": 27,
+    "task": 3,
+    "archived": true,
+    "raw": "任务 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-unification/tasks.md",
+    "line": 37,
+    "task": 4,
+    "archived": true,
+    "raw": "任务 2",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2
+    ],
+    "strict_ids": [
+      2
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-unification/tasks.md",
+    "line": 47,
+    "task": 5,
+    "archived": true,
+    "raw": "任务 3、任务 4",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      3,
+      4
+    ],
+    "strict_ids": [
+      3,
+      4
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-unification/tasks.md",
+    "line": 58,
+    "task": 6,
+    "archived": true,
+    "raw": "任务 5",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      5
+    ],
+    "strict_ids": [
+      5
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-framework-unification/tasks.md",
+    "line": 69,
+    "task": 7,
+    "archived": true,
+    "raw": "任务 6",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      6
+    ],
+    "strict_ids": [
+      6
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-opsx-code-first-deterministic-validation/tasks.md",
+    "line": 48,
+    "task": 1,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-opsx-code-first-deterministic-validation/tasks.md",
+    "line": 66,
+    "task": 2,
+    "archived": true,
+    "raw": "Task 1",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      1
+    ],
+    "strict_ids": [
+      1
+    ],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-opsx-code-first-deterministic-validation/tasks.md",
+    "line": 82,
+    "task": 3,
+    "archived": true,
+    "raw": "无",
+    "empty": true,
+    "strict_ok": null,
+    "loose_ids": [],
+    "strict_ids": [],
+    "phantom_loose": []
+  },
+  {
+    "file": "openspec/changes/archive/legacy-opsx-code-first-deterministic-validation/tasks.md",
+    "line": 105,
+    "task": 4,
+    "archived": true,
+    "raw": "Task 2、Task 3",
+    "empty": false,
+    "strict_ok": true,
+    "loose_ids": [
+      2,
+      3
+    ],
+    "strict_ids": [
+      2,
+      3
+    ],
+    "phantom_loose": []
+  }
+]
