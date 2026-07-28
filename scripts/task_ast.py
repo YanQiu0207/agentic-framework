@@ -156,15 +156,25 @@ def _dep_field(region_lines: list[str]) -> tuple[str | None, str | None]:
 
 
 def parse(text: str) -> TaskDocument:
-    """把 tasks.md 文本解析为 TaskDocument。重复任务 ID 只记录不抛异常。"""
+    """把 tasks.md 文本解析为 TaskDocument。重复任务 ID 只记录不抛异常。
+
+    代码围栏内的行不识别为任务头（codex 审核：围栏内示例不得当真任务）。
+    """
     lines = text.splitlines()
     headers: list[tuple[re.Match[str], re.Match[str], int, int]] = []
     offset = 0
+    fence: str | None = None
     for line_number, content_line in enumerate(lines, start=1):
-        core = _HEADER_CORE_RE.match(content_line)
-        if core:
-            rest = _HEADER_REST_RE.match(content_line[core.end() :])
-            headers.append((core, rest, line_number, offset))
+        marker = content_line.lstrip()[:3]
+        if marker in {"```", "~~~"}:
+            fence = None if fence == marker else marker
+            offset += len(content_line) + 1
+            continue
+        if fence is None:
+            core = _HEADER_CORE_RE.match(content_line)
+            if core:
+                rest = _HEADER_REST_RE.match(content_line[core.end() :])
+                headers.append((core, rest, line_number, offset))
         offset += len(content_line) + 1  # splitlines 后每行以 "\n" 重新计位
 
     tasks: list[TaskNode] = []

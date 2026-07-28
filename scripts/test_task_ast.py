@@ -78,13 +78,13 @@ class TaskNodeContractTest(unittest.TestCase):
         self.assertEqual([1], doc.duplicate_ids)
         self.assertEqual(3, len(doc.tasks))
 
-    def test_fenced_fake_header_is_still_a_header(self) -> None:
-        # 两侧旧实现都在扫任务头时不剔除围栏，伪任务头会被当真——AST 保持该行为，
-        # 分歧是否消除是独立的策略问题（design §8）。
+    def test_fenced_fake_header_is_not_parsed(self) -> None:
+        # codex 审核：代码围栏内的任务头不得当真任务——围栏内是示例或
+        # 文档内容，不应进入逐任务校验或影响任务块边界。
         doc = task_ast.parse(
             "### 任务 1：甲\n```text\n### 任务 99：伪\n```\n### 任务 2：乙\n"
         )
-        self.assertEqual([1, 99, 2], [node.number for node in doc.tasks])
+        self.assertEqual([1, 2], [node.number for node in doc.tasks])
 
 
 class CoordinateInvariantTest(unittest.TestCase):
