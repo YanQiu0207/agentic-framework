@@ -1832,6 +1832,24 @@ class MalformedHeaderTest(unittest.TestCase):
         opsx064 = [f for f in findings if f.rule_id == "OPSX064"]
         self.assertTrue(any("任务 2" in f.message for f in opsx064))
 
+    def test_same_number_malformed_duplicate_is_caught(self) -> None:
+        """codex 第二轮 edge case：合法任务 1 + 同号畸形任务 1 必须报 OPSX064。"""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        change = repo / "openspec" / "changes" / "2099-x"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text(
+            "# 实施任务清单\n\n"
+            "### 任务 1：[pending] 正常任务\n- 依赖: 无\n- Review Profile: standard\n"
+            "- 文件: `a.py`\n- 文档映射: `proposal.md` §1\n\n"
+            "### 任务 1：畸形同号无括号\n- 依赖: 无\n",
+            encoding="utf-8",
+        )
+        findings = validate_change._validate_tasks(repo, change, False)
+        opsx064 = [f for f in findings if f.rule_id == "OPSX064"]
+        self.assertTrue(len(opsx064) >= 1, "同号畸形任务头必须报 OPSX064")
+
 
 class ReviewProfileFloorGateTest(unittest.TestCase):
     """change 2041：OPSX062/063——下限判定只在触及 lightweight 时读取 Profile。"""
