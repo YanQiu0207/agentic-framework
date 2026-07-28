@@ -486,11 +486,13 @@ openspec/
 
 ### 14.2 Production
 
-- `opsx-requirements-clarification`：需求前读取项目索引，Change-local Delta 镜像长期 Specs 路径。
-- `opsx-system-design`：设计前读取相关业务、公共契约、模块人工知识和 Issues。
-- `opsx-code-generation`：实现前读取当前 Change 与相关模块约束。
-- `opsx-test-generation`：使用验收条件、业务规则、契约和 Issues 生成测试。
-- `opsx-archive`：执行知识影响检查、Delta 合并和索引更新后再移动目录。
+Production 与 Tooling 共用统一入口（change 2045），以下为各阶段的知识读取职责：
+
+- `/requirements-clarification`：需求前读取项目索引，Change-local Delta 镜像长期 Specs 路径。
+- `/system-design`：设计前读取相关业务、公共契约、模块人工知识和 Issues。
+- `/code-generation`：实现前读取当前 Change 与相关模块约束。
+- `/test-generation`：使用验收条件、业务规则、契约和 Issues 生成测试。
+- 归档阶段（`validate_change.py` archive 门 + `check_delivery.py`）：执行知识影响检查、Delta 合并和索引更新后再移动目录。
 
 ### 14.3 Tooling
 
@@ -599,6 +601,6 @@ openspec/
 - 参考资料一：`E:/work/my-ai-resource/notes/从AI_Coding到Harness_Engineering的端到端工程开发实践.md`，重点见第 41～186、380～427 行。
 - 参考资料二：`E:/work/my-ai-resource/notes/开启Harness_Engineering探索之旅.md`，重点见第 239～256、365～445、508～585 行。
 - 当前双 Profile 合同：`docs/design-docs/framework-unification/spec.md`。
-- 当前 Production Change 契约：`skills/opsx-*/SKILL.md`。
+- 当前 Production 与 Tooling 统一 Change 契约：`skills/workflow-code-generation/SKILL.md`（change 2045 起统一入口）。
 - 当前 Tooling 项目知识契约：`skills/project-knowledge/SKILL.md`。
 - 架构决策：[ADR 002](adr/002-unify-project-knowledge-layout.md)。

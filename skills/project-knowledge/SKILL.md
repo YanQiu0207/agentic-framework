@@ -253,7 +253,7 @@ Delta 使用 `ADDED`、`MODIFIED`、`REMOVED` 和 `RENAMED` 表达变化。临�
 
 ## 10. 与工作流的关系
 
-- Production 的 `opsx-*` 和 Tooling 的 `workflow-*` 必须调用本 Skill 的同一读写路由。
+- Production 与 Tooling 统一的 `workflow-*` 必须调用本 Skill 的同一读写路由。
 - Tooling Fast-Path 可以不创建 Change，但必须完成知识影响检查，并说明为什么没有长期知识影响。
 - Requirements、Design、Code、Test、Review、Troubleshooting 和 Archive 阶段分别按第 3 节读取，不得把公共知识当项目事实。
 - Archive 必须执行第 7 节的同步门禁；只移动 Change、未完成知识同步的归档不合格。

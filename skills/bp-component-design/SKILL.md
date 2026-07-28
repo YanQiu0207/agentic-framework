@@ -7,7 +7,7 @@ description: 提供组件级设计原则，包括类/模块设计、接口设计
 
 # 组件设计
 
-> **使用场景**：`opsx-system-design` 讨论 `design.md` 组件设计，或 `workflow-system-design` 讨论 `spec.md` 4.2 组件设计时加载。
+> **使用场景**：`/system-design` 讨论 `design.md` 组件设计或 `spec.md` 4.2 组件设计时加载。
 
 ## 第一性原理
 

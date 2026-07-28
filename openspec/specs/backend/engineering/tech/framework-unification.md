@@ -142,8 +142,7 @@ agentic-engineering-framework/
 │   ├── bp-* / std-*          # Shared Core
 │   ├── workflow-code-review/ # Shared Core
 │   ├── workflow-verification/ # Shared Core
-│   ├── opsx-*                # Production
-│   ├── workflow-*            # Tooling
+│   ├── workflow-*            # Production 与 Tooling 统一入口（change 2045）
 │   └── frontend / OCR        # Optional Packs；project-init 已进入 Core
 ├── commands/                  # 由安装器按 Profile / Pack 白名单选择
 ├── scripts/
@@ -521,9 +520,9 @@ task
 
 ### 14.2 Production
 
-- 全部 `opsx-*`。
+- 全部 `workflow-*`（change 2045 起与 Tooling 统一入口）。
 - `validate_change.py` 及 Fixtures。
-- OPSX Commands。
+- `governance_guards.py`（转移守卫）。
 - 受控长期 Specs、Change Delta、归档同步和代码事实源方案文档。
 
 ### 14.3 Tooling

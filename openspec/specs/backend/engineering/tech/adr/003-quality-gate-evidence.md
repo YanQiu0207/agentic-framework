@@ -31,7 +31,7 @@ Tooling 的 `workflow_control.py`（`quality_passed` 事件）与 Production 的
 
 ## 适用条件
 
-适用于本仓库 Tooling（`workflow-code-generation`）与 Production（`opsx-code-generation` / `validate_change.py`）两条主执行链路的质量门。若未来引入新的质量门机制或第三个 Profile，需重新评估是否纳入同一套证据契约，而不是默认复用。
+适用于本仓库 Tooling（`workflow-code-generation`）与 Production（`workflow-code-generation` + `validate_change.py` + `governance_guards.py`）两条主执行链路的质量门。若未来引入新的质量门机制或第三个 Profile，需重新评估是否纳入同一套证据契约，而不是默认复用。
 
 ## 参考
 

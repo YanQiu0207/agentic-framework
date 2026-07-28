@@ -85,31 +85,32 @@ Agent 应该会加载 `workflow-code-review` skill 并按照定义的审查流�
 
 ## 双 Profile 路由
 
+两个 Profile 共用统一的 `workflow-*` 入口与状态机；差异由 manifest 的 `profile` 字段与治理守卫（`governance_guards.py`）承载，不再由独立入口集合表达（change 2045 退役 `opsx-*` 后统一）。
+
 | 判断 | Production | Tooling |
 | --- | --- | --- |
 | 适用场景 | 进入生产环境的功能、修复和架构变更 | 大型非生产工具 |
-| 入口 | `/opsx-requirements-clarification` | `/requirements-clarification` 或 `/quick-design` |
+| 入口 | `/requirements-clarification` 或 `/quick-design` | 同左 |
 | Artifact | `openspec/changes/<name>/` | `openspec/changes/<name>/` |
-| 执行节奏 | 逐阶段批准、逐 Task 推进 | Tasks 批准后 DAG 分波自主执行 |
-| Task Review | 普通 Task 单综合审核；高风险 Task 五维审核 | 不启动 LLM Review |
-| 最终 Review | 固定五维集成审核 | 全部完成后一次风险分级审核 |
+| 执行节奏 | 同一状态机；治理守卫在转移点逐 Task 判定 | Tasks 批准后 DAG 分波自主执行 |
+| Task Review | 普通 Task 单综合审核；高风险 Task 五维审核（守卫强制） | 不启动 LLM Review |
+| 最终 Review | 固定五维集成审核（守卫强制 `strict`） | 全部完成后一次风险分级审核 |
 | 当前实现事实源 | 代码 | 代码 |
 
 ### Production 工作流
 
-```
-/opsx-requirements-clarification  →  生成 proposal.md + specs/<capability>/spec.md
-         ↓
-/opsx-system-design               →  Standard 路径生成 design.md
-         ↓
-/opsx-code-generation             →  Plan 门禁后逐 Task 实现、测试和风险分档审核
-         ↓
-Delivery 门禁               →  全部任务完成后校验，通过后五维集成 Review
-         ↓
-/opsx-archive                     →  Archive 门禁通过后整目录归档
+Production 与 Tooling 共用同一入口，Production 的治理语义由 `governance_guards.py` 的转移守卫在执行期即时承载：
+
+```text
+/requirements-clarification 或 /quick-design
+    → /system-design
+    → /code-generation 路由（Plan 总门 + 逐任务 Review 守卫 + 批准门）
+        → 实现、测试和风险分档审核
+        → Delivery 门禁（交付证据 + 五维 strict 集成 Review）
+        → Archive 门禁（知识影响 + Delta 同步）
 ```
 
-门禁由 `scripts/validate_change.py` 提供，只检查文件、任务依赖、状态和覆盖映射等确定性规则。Skill 从自身目录向上定位 `../../scripts/validate_change.py`，因此安装时必须同步复制根目录的 `scripts/` 目录。
+门禁由 `scripts/validate_change.py`（Plan／Delivery／Archive 三阶段）与 `skills/workflow-code-generation/scripts/governance_guards.py`（执行期转移守卫）共同提供。Skill 从自身目录向上定位 `../../scripts/validate_change.py`，因此安装时必须同步复制根目录的 `scripts/` 目录。
 
 本框架维护受控的 `openspec/specs/` 长期辅助知识库；**代码、Schema、配置、测试和运行证据仍是当前实现事实源**。Change Artifacts 记录本次变更契约，并在归档前同步已验证、具有长期价值的 Delta。
 
@@ -175,8 +176,8 @@ AI 在不同阶段扮演不同角色：需求阶段是**引导者**（通过结�
 
 **流程的严格程度与任务的风险成正比**——不必每次都走完整流程：
 
-- **小 bug 修复？** → 直接 `/opsx-code-generation`
-- **内部工具或小型服务？** → 直接 `/opsx-quick-design`
+- **小 bug 修复？** → 直接 `/code-generation`
+- **内部工具或小型服务？** → 直接 `/quick-design`
 - **线上故障？** → 直接 `/troubleshooting`
 - **优化热点路径？** → 直接 `/performance-optimization`
 - **审查一个 diff？** → 直接 `/code-review`
@@ -196,7 +197,7 @@ AI agent 没有跨会话记忆——这一轮对话中纠正过的错误，下�
 |------------|-----------|
 | "变量命名应该用 snake_case" | `std-*` 编码规范 Skill |
 | "这个模块的锁应该用 bthread mutex" | `std-*` 模块规范 Skill |
-| "不要跳过 spec 直接写代码" | `opsx-code-generation` Skill |
+| "不要跳过 spec 直接写代码" | `workflow-code-generation` Skill |
 | "错误处理要用 Status 而不是返回 -1" | `bp-coding-best-practices` Skill |
 
 这使得团队的工程经验可以**从对话中自然生长**，而非依赖人工维护文档。每次纠正都是一次改进框架的机会。
@@ -273,9 +274,9 @@ skills/
 
 | 集成点 | 何时添加 |
 |--------|----------|
-| `opsx-code-generation` → 步骤 4（加载编码规范） | 编码时需要遵循的规范 |
+| `workflow-code-generation` → 步骤 4（加载编码规范） | 编码时需要遵循的规范 |
 | `workflow-code-review` → 审查维度 | Review 时需要检查的维度 |
-| `opsx-test-generation` → 测试策略 | 需要考虑的测试类别 |
+| `workflow-test-generation` → 测试策略 | 需要考虑的测试类别 |
 | `troubleshooting` → 模块专项指南 | 特定领域的排查知识 |
 
 ### 添加排查案例
@@ -368,7 +369,7 @@ AI 编码 agent 能力很强，但缺乏纪律性。没有明确的流程约束�
 
 ```
 agents/      → Subagent 定义（如代码审查中的专项 reviewer）
-commands/    → 用户触发的入口（如 /opsx-code-generation、/troubleshooting）
+commands/    → 用户触发的入口（如 /code-generation、/troubleshooting）
 skills/      → 详细的工作流和知识定义（按需加载，不消耗常驻上下文）
 ```
 
@@ -405,12 +406,12 @@ Command 是加载对应 skill 的快捷方式：
 
 | Command | 加载的 Skill |
 |---------|-------------|
-| `/opsx-requirements-clarification` | `opsx-requirements-clarification` |
-| `/opsx-system-design` | `opsx-system-design` |
-| `/opsx-quick-design` | `opsx-quick-design` |
-| `/opsx-code-generation` | `opsx-code-generation` |
-| `/opsx-test-generation` | `opsx-test-generation` |
-| `/opsx-archive` | `opsx-archive` |
+| `/requirements-clarification` | `workflow-requirements-clarification` |
+| `/system-design` | `workflow-system-design` |
+| `/quick-design` | `workflow-quick-design` |
+| `/code-generation` | `workflow-code-generation` |
+| `/test-generation` | `workflow-test-generation` |
+| 归档阶段 | `validate_change.py` archive 门 + `check_delivery.py` |
 
 **Tooling 工作流**
 
@@ -437,8 +438,7 @@ Skill 分为五类：
 
 | 前缀 | 类型 | 角色 | 示例 |
 |------|------|------|------|
-| `opsx-*` | Production 工作流 | 可溯源、逐阶段门禁 | `opsx-code-generation`、`opsx-archive` |
-| `workflow-*` | Tooling 与共享质量门 | 自主执行、验证和 Review | `workflow-code-generation`、`workflow-code-review` |
+| `workflow-*` | 统一执行入口（Production 与 Tooling 共用） | 自主执行、验证、Review 与治理守卫 | `workflow-code-generation`、`workflow-code-review` |
 | `bp-*` | 最佳实践 | 通用工程知识，由工作流按需加载 | `bp-coding-best-practices`、`bp-distributed-systems` |
 | `std-*` | 编码规范 | 语言/团队特定的编码标准 | `std-cpp`、`std-go` |
 | *（其他）* | 工具型 | 独立能力 | `troubleshooting`、`self-refinement` |

@@ -23,7 +23,7 @@ description: 提供性能优化方法论、设计原则和具体优化规则。�
    - 热点在哪里？
 
 **如果以上问题不清楚**：
-- 涉及代码修改 → 先走当前 Profile 的代码生成入口：Production 使用 `opsx-code-generation`，Tooling 使用 `workflow-code-generation`
+- 涉及代码修改 → 先走当前 Profile 的代码生成入口：统一使用 `/code-generation`（入口已统一，Profile 差异由治理守卫承载）
 - 仅做分析 → 先与用户确认优化目标和当前数据
 
 ---

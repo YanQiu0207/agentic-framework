@@ -4,7 +4,7 @@
 
 ## 项目概述
 
-Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周期：Production 使用 `opsx-*` 和阶段校验器，Tooling 使用 `workflow-*`、DAG、Worktree 和失败恢复。Commands 是用户入口，Skills 保存执行策略，Agents 负责语义审查，确定性脚本负责安装、状态、门禁、校验和 Telemetry。
+Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周期：Production 与 Tooling 共用统一的 `workflow-*` 入口与状态机，差异由治理守卫承载。Commands 是用户入口，Skills 保存执行策略，Agents 负责语义审查，确定性脚本负责安装、状态、门禁、校验和 Telemetry。
 
 ## 导航
 
