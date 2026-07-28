@@ -1185,6 +1185,26 @@ def _validate_tasks(
             )
         ]
 
+    # 畸形任务头不得静默丢弃（codex 审核 finding 1）：AST 宽松识别但
+    # _parse_tasks 按 strict 过滤，被过滤掉的节点必须显式报错，否则绕过
+    # 后续 Review Profile／Approval／文件／完成态等全部逐任务校验。
+    raw_doc = task_ast.parse(_read_text(tasks_path))
+    strict_numbers = {task.number for task in tasks}
+    for node in raw_doc.tasks:
+        if node.number in strict_numbers:
+            continue
+        reason = "格式不满足严格间距" if not node.strict_header else "状态括号缺失或为空"
+        findings.append(
+            _finding(
+                "OPSX064",
+                tasks_path,
+                repo,
+                node.line,
+                f"任务 {node.number} 的标题头{reason}，已被解析器忽略，该任务未接受任何逐任务校验。",
+                "使用「### 任务 N：[pending] 描述」格式，### 与「任务」后须有空白，状态括号非空。",
+            )
+        )
+
     task_numbers = {task.number for task in tasks}
     if len(task_numbers) != len(tasks):
         findings.append(

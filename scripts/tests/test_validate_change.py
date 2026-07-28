@@ -1809,6 +1809,30 @@ class ReviewProfileAliasRegexTest(unittest.TestCase):
             )
 
 
+class MalformedHeaderTest(unittest.TestCase):
+    """codex 审核 finding 1：畸形任务头不得静默丢弃。"""
+
+    def test_malformed_header_is_reported_not_silently_dropped(self) -> None:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        change = repo / "openspec" / "changes" / "2099-x"
+        change.mkdir(parents=True)
+        # 任务 1 格式正常；任务 2 缺状态括号（畸形头）
+        (change / "tasks.md").write_text(
+            "# 实施任务清单\n\n"
+            "### 任务 1：[pending] 正常任务\n- 依赖: 无\n- Review Profile: standard\n"
+            "- 文件: `a.py`\n- 文档映射: `proposal.md` §1\n\n"
+            "### 任务 2：畸形任务无括号\n- 依赖: 无\n",
+            encoding="utf-8",
+        )
+        findings = validate_change._validate_tasks(repo, change, False)
+        rule_ids = {f.rule_id for f in findings}
+        self.assertIn("OPSX064", rule_ids)
+        opsx064 = [f for f in findings if f.rule_id == "OPSX064"]
+        self.assertTrue(any("任务 2" in f.message for f in opsx064))
+
+
 class ReviewProfileFloorGateTest(unittest.TestCase):
     """change 2041：OPSX062/063——下限判定只在触及 lightweight 时读取 Profile。"""
 

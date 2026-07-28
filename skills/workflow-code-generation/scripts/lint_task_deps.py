@@ -288,6 +288,19 @@ def reachable(tasks: dict[int, dict]) -> dict[int, set[int]]:
     return reach
 
 
+def _is_archived_source(source: str) -> bool:
+    """判定来源路径是否位于 openspec/changes/archive/ 下（codex 审核 finding 2）。
+
+    不用任意 `archive` 目录段——那会把工作区恰好含 `archive` 目录的活跃
+    变更误判为归档，门禁静默返回 0。只认 `openspec/changes/archive` 段。
+    """
+    parts = Path(source).resolve().parts
+    for i in range(len(parts) - 2):
+        if parts[i] == "openspec" and parts[i + 1] == "changes" and parts[i + 2] == "archive":
+            return True
+    return False
+
+
 def lint_report(text: str, source: str, governance: str | None = None) -> dict:
     """对 tasks.md 文本跑全部校验，返回结构化报告（change 2037 §6.2 统一合同）。
 
@@ -335,7 +348,7 @@ def lint_report(text: str, source: str, governance: str | None = None) -> dict:
                 f"→ 确认是否需要加 depends_on"
             )
 
-    legacy = "archive" in Path(source).parts
+    legacy = _is_archived_source(source)
     return {
         "tasks": len(tasks),
         "active": {

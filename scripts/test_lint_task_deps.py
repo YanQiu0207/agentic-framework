@@ -249,6 +249,35 @@ class StrictDependencyDialectTest(unittest.TestCase):
         self.assertIsNone(lint_task_deps.dep_format_error(1, None, None))
 
 
+class ArchivedSourceClassificationTest(unittest.TestCase):
+    """codex 审核 finding 2：archive 路径判定收紧。"""
+
+    def test_real_archive_path_classified_as_legacy(self) -> None:
+        text = "### 任务 1：A\n- depends_on: bogus-id\n"
+        report = lint_task_deps.lint_report(
+            text, "openspec/changes/archive/2099-x/tasks.md"
+        )
+        self.assertEqual([], report["active"]["errors"])
+        self.assertTrue(len(report["legacy"]["errors"]) > 0)
+
+    def test_arbitrary_archive_directory_not_misclassified(self) -> None:
+        text = "### 任务 1：A\n- depends_on: bogus-id\n"
+        report = lint_task_deps.lint_report(
+            text, "/home/user/archive/projects/tasks.md"
+        )
+        # 路径含 archive 但不是 openspec/changes/archive → active，不降级为 legacy
+        self.assertTrue(len(report["active"]["errors"]) > 0)
+        self.assertEqual([], report["legacy"]["errors"])
+
+    def test_active_change_not_misclassified(self) -> None:
+        text = "### 任务 1：A\n- depends_on: bogus-id\n"
+        report = lint_task_deps.lint_report(
+            text, "openspec/changes/2099-x/tasks.md"
+        )
+        self.assertTrue(len(report["active"]["errors"]) > 0)
+        self.assertEqual([], report["legacy"]["errors"])
+
+
 class LegacyClassificationTest(unittest.TestCase):
     """change 2037 §6.2：归档违规归入 legacy 分类，规则唯一、无跳过分支。"""
 
@@ -273,7 +302,8 @@ class LegacyClassificationTest(unittest.TestCase):
 
     def test_cli_and_library_give_same_structured_verdict(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            archived = Path(temp_dir) / "archive" / "2099-x"
+            # codex 审核 finding 2：路径判定收紧为 openspec/changes/archive
+            archived = Path(temp_dir) / "openspec" / "changes" / "archive" / "2099-x"
             archived.mkdir(parents=True)
             tasks_file = archived / "tasks.md"
             tasks_file.write_text(self.TEXT, encoding="utf-8")
