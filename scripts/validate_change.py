@@ -1185,8 +1185,9 @@ def _validate_tasks(
             )
         ]
 
-    # 畸形任务头不得静默丢弃（codex 审核 finding 1 + 第二轮 edge case）：
-    # 按行号（而非任务号）比对——同号畸形任务头不会被合法版误判为已消费。
+    # 畸形任务头不得静默丢弃（codex 审核 finding 1 + 第二轮/第三轮）：
+    # 不仅检查 task_ast 能识别但被 strict 过滤掉的节点，还要检查连 task_ast
+    # 核心正则都不匹配的更宽畸形头（如缺冒号 `### 任务 1 实现`）。
     raw_doc = task_ast.parse(_read_text(tasks_path))
     strict_lines = {task.line for task in tasks}
     for node in raw_doc.tasks:
@@ -1203,6 +1204,22 @@ def _validate_tasks(
                 "使用「### 任务 N：[pending] 描述」格式，### 与「任务」后须有空白，状态括号非空。",
             )
         )
+    # 更宽的候选扫描：任何 `### 任务 N` 行（不要求冒号），若未被严格解析则报 OPSX064
+    candidate_re = re.compile(r"^###\s*任务\s*(\d+)")
+    ast_lines = {node.line for node in raw_doc.tasks}
+    for line_number, line in enumerate(lines, start=1):
+        match = candidate_re.match(line)
+        if match and line_number not in strict_lines and line_number not in ast_lines:
+            findings.append(
+                _finding(
+                    "OPSX064",
+                    tasks_path,
+                    repo,
+                    line_number,
+                    f"任务 {match.group(1)} 的标题头格式严重畸形（行 {line_number}），已被解析器忽略，该任务未接受任何逐任务校验。",
+                    "使用「### 任务 N：[pending] 描述」格式，编号后须有冒号。",
+                )
+            )
 
     task_numbers = {task.number for task in tasks}
     if len(task_numbers) != len(tasks):

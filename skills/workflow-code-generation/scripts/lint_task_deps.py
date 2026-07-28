@@ -292,9 +292,10 @@ def _is_archived_source(source: str) -> bool:
     """判定来源路径是否位于 openspec/changes/archive/ 下（codex 审核 finding 2）。
 
     不用任意 `archive` 目录段——那会把工作区恰好含 `archive` 目录的活跃
-    变更误判为归档，门禁静默返回 0。只认 `openspec/changes/archive` 段。
+    变更误判为归档，门禁静默返回 0。只认 `openspec/changes/archive` 段，
+    且大小写不敏感（Windows 路径大小写不敏感）。
     """
-    parts = Path(source).resolve().parts
+    parts = tuple(p.casefold() for p in Path(source).resolve().parts)
     for i in range(len(parts) - 2):
         if parts[i] == "openspec" and parts[i + 1] == "changes" and parts[i + 2] == "archive":
             return True
