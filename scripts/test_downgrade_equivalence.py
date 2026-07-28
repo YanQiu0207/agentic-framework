@@ -113,7 +113,7 @@ class CanonicalPairTest(unittest.TestCase):
             extractor_a=downgrade_equivalence.DEFAULT_EXTRACTOR_A,
             path_b=downgrade_equivalence.DEFAULT_PATH_B,
             extractor_b=downgrade_equivalence.DEFAULT_EXTRACTOR_B,
-            input_path=Path("openspec/changes/2035-common-task-ast"),
+            input_path=Path("openspec/changes/archive/2035-2026-07-28-common-task-ast"),
         )
         self.assertEqual("无法执行", report["verdict"])
         self.assertIn("输出格式不可比", report["reason"])
@@ -139,7 +139,7 @@ class CanonicalPairTest(unittest.TestCase):
                 sys.executable,
                 "scripts/downgrade_equivalence.py",
                 "--input",
-                "openspec/changes/2035-common-task-ast",
+                "openspec/changes/archive/2035-2026-07-28-common-task-ast",
             ],
             capture_output=True,
             text=True,
