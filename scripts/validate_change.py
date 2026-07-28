@@ -1204,20 +1204,30 @@ def _validate_tasks(
                 "使用「### 任务 N：[pending] 描述」格式，### 与「任务」后须有空白，状态括号非空。",
             )
         )
-    # 更宽的候选扫描：任何 `### 任务 N` 行（不要求冒号），若未被严格解析则报 OPSX064
-    candidate_re = re.compile(r"^###\s*任务\s*(\d+)")
+    # 更宽的候选扫描：任何 `### 任务 N` 行（允许前导空白，不要求冒号），
+    # 若未被严格解析则报 OPSX064。跳过代码围栏内容，避免误报围栏内示例。
+    candidate_re = re.compile(r"^\s*###\s*任务\s*(\d+)")
     ast_lines = {node.line for node in raw_doc.tasks}
+    fence: str | None = None
     for line_number, line in enumerate(lines, start=1):
+        marker = line.lstrip()[:3]
+        if marker in {"```", "~~~"}:
+            fence = None if fence == marker else marker
+            continue
+        if fence is not None:
+            continue
+        if line_number in strict_lines or line_number in ast_lines:
+            continue
         match = candidate_re.match(line)
-        if match and line_number not in strict_lines and line_number not in ast_lines:
+        if match:
             findings.append(
                 _finding(
                     "OPSX064",
                     tasks_path,
                     repo,
                     line_number,
-                    f"任务 {match.group(1)} 的标题头格式严重畸形（行 {line_number}），已被解析器忽略，该任务未接受任何逐任务校验。",
-                    "使用「### 任务 N：[pending] 描述」格式，编号后须有冒号。",
+                    f"任务 {match.group(1)} 的标题头格式畸形（行 {line_number}），已被解析器忽略，该任务未接受任何逐任务校验。",
+                    "使用「### 任务 N：[pending] 描述」格式，### 须顶格，编号后须有冒号，状态括号非空。",
                 )
             )
 

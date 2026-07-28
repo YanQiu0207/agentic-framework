@@ -1850,6 +1850,42 @@ class MalformedHeaderTest(unittest.TestCase):
         opsx064 = [f for f in findings if f.rule_id == "OPSX064"]
         self.assertTrue(len(opsx064) >= 1, "同号畸形任务头必须报 OPSX064")
 
+    def test_indented_malformed_header_is_caught(self) -> None:
+        """codex 第五轮：缩进畸形头（前导空白）必须报 OPSX064。"""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        change = repo / "openspec" / "changes" / "2099-x"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text(
+            "# 实施任务清单\n\n"
+            "### 任务 1：[pending] 正常任务\n- 依赖: 无\n- Review Profile: standard\n"
+            "- 文件: `a.py`\n- 文档映射: `proposal.md` §1\n\n"
+            "  ### 任务 2 缩进且缺冒号\n- 依赖: 无\n",
+            encoding="utf-8",
+        )
+        findings = validate_change._validate_tasks(repo, change, False)
+        opsx064 = [f for f in findings if f.rule_id == "OPSX064"]
+        self.assertTrue(any("任务 2" in f.message for f in opsx064), "缩进畸形头必须报 OPSX064")
+
+    def test_fenced_example_not_false_reported(self) -> None:
+        """围栏内的任务头示例不得误报 OPSX064。"""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        repo = Path(temp_dir.name)
+        change = repo / "openspec" / "changes" / "2099-x"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text(
+            "# 实施任务清单\n\n"
+            "### 任务 1：[pending] 正常任务\n- 依赖: 无\n- Review Profile: standard\n"
+            "- 文件: `a.py`\n- 文档映射: `proposal.md` §1\n\n"
+            "```markdown\n  ### 任务 99 示例不在围栏外\n```\n",
+            encoding="utf-8",
+        )
+        findings = validate_change._validate_tasks(repo, change, False)
+        opsx064 = [f for f in findings if f.rule_id == "OPSX064"]
+        self.assertFalse(any("99" in f.message for f in opsx064), "围栏内示例不得误报")
+
 
 class ReviewProfileFloorGateTest(unittest.TestCase):
     """change 2041：OPSX062/063——下限判定只在触及 lightweight 时读取 Profile。"""
