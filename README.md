@@ -43,6 +43,8 @@ python scripts/install_agentic_framework.py E:/path/to/tooling-project \
 | `open-code-review` | 接入外部 OCR 审查工具 | Production、Tooling |
 | `telemetry` | 会话成本和收敛情况分析 | Production、Tooling |
 
+> 两个 Profile 安装的 Skill 与 Command 集合完全相同；`--profile` 只影响运行时治理强度（Review 档位、批准门、归档证据）以及是否装入 `validate_change.py`（仅 Production）。`frontend` pack 仅 Tooling 可用。详见 [「双 Profile 路由」](#双-profile-路由)。
+
 目标路径使用 `.` 时，表示把框架安装到当前目录；给其他项目安装时，应填写该项目的真实路径。
 
 安装器同时写入 `.codex/` 和 `.claude/`，并在目标项目的 `.agentic-framework/manifest.json` 记录 Profile、Packs、Overlay 描述符（名称、来源、清单哈希、Skill 与链接快照）和受管核心链接。每个 Overlay 的规则与链接状态单独写入 `.agentic-framework/extensions/<name>.json`，并与描述符交叉校验。用户级 Registry 位于 `~/.agentic-framework/installations.json`，记录框架仓库安装到了哪些项目及其 Overlay 来源选择。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
@@ -110,7 +112,7 @@ Production 与 Tooling 共用同一入口，Production 的治理语义由 `gover
         → Archive 门禁（知识影响 + Delta 同步）
 ```
 
-门禁由 `scripts/validate_change.py`（Plan／Delivery／Archive 三阶段）与 `skills/workflow-code-generation/scripts/governance_guards.py`（执行期转移守卫）共同提供。Skill 从自身目录向上定位 `../../scripts/validate_change.py`，因此安装时必须同步复制根目录的 `scripts/` 目录。
+门禁由 `scripts/validate_change.py`（Plan／Delivery／Archive 三阶段）与 `skills/workflow-code-generation/scripts/governance_guards.py`（执行期转移守卫）共同提供。Skill 从自身目录向上定位 `../../scripts/validate_change.py`；安装器只在 **Production Profile** 下把该文件以软链接单独装入目标的 `.codex/scripts/` 与 `.claude/scripts/`（单文件软链接，不复制整个 `scripts/` 目录，Tooling Profile 不装）。
 
 本框架维护受控的 `openspec/specs/` 长期辅助知识库；**代码、Schema、配置、测试和运行证据仍是当前实现事实源**。Change Artifacts 记录本次变更契约，并在归档前同步已验证、具有长期价值的 Delta。
 

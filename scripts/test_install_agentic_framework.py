@@ -220,6 +220,25 @@ class InstallTest(unittest.TestCase):
                         targets,
                     )
 
+    def test_both_profiles_install_identical_assets_except_validator(self) -> None:
+        # change 2046：两 Profile 安装内容等价（除 validate_change.py 仅 Production）。
+        production_ops = installer.build_operations(REPO_ROOT, "production", set())
+        tooling_ops = installer.build_operations(REPO_ROOT, "tooling", set())
+        production_targets = {
+            operation.relative_target.as_posix() for operation in production_ops
+        }
+        tooling_targets = {
+            operation.relative_target.as_posix() for operation in tooling_ops
+        }
+        self.assertEqual(
+            production_targets - tooling_targets,
+            {
+                ".codex/scripts/validate_change.py",
+                ".claude/scripts/validate_change.py",
+            },
+        )
+        self.assertEqual(tooling_targets - production_targets, set())
+
     def test_legacy_project_init_pack_is_safe_for_production(self) -> None:
         operations = installer.build_operations(
             REPO_ROOT,

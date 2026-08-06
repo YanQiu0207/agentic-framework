@@ -25,3 +25,5 @@ Manifest 的 `profile` 字段现被四个门禁脚本消费：`validate_change.p
 ## 白名单统一（change 2045）
 
 `opsx-*` 六个 Skill 与六个 Command 已退役归档（`openspec/changes/archive/opsx-retirement-2026-07-27/`）。Production 与 Tooling 现共用统一的 `workflow-*` 入口——Profile 差异仅由 manifest 的 `profile` 字段与治理守卫（`governance_guards.py`）承载，不再由独立 Skill 集合表达。`--switch-profile` 切换只改 manifest 字段，不增减已安装文件（两个 Profile 的文件集合已一致）。归档中的 `opsx-*` 引用不改动。
+
+change 2046（2026-08-02）让代码追平上述文本：安装器内 `PRODUCTION_SKILLS`／`TOOLING_SKILLS` 等四组逐元素相同的常量已坍缩为单一 `DELIVERY_SKILLS`／`DELIVERY_COMMANDS`／`MANAGED_SKILL_ROOTS`／`MANAGED_COMMAND_FILES`；`_forbidden_entry_paths`／`_cross_pollution_errors` 这两处交叉污染检查已删除：装前那处因两 Profile 入口集合合并而恒为空（死逻辑）；装后那处在受管链接创建后检查、退化为恒抛 `FileExistsError` 的 always-fail 隐患（change 2045 后引入，被符号链接守门的测试在无 Developer Mode 的 Windows 上 skip 掩盖）。删除同时清理死逻辑与修复该隐患；「拒绝替换未受管目标」的前置防护由 `_preflight` 独立承载，不受影响。Profile 在安装内容层面已无差异，仅由 manifest 的 `profile` 字段、运行时治理守卫，以及两处有意保留的差异（`validate_change.py` 仅 Production、`frontend` pack 仅 Tooling）承载。

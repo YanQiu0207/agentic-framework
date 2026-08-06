@@ -43,14 +43,7 @@ CORE_SKILLS = {
     "workflow-code-review",
     "workflow-verification",
 }
-PRODUCTION_SKILLS = {
-    "workflow-code-generation",
-    "workflow-quick-design",
-    "workflow-requirements-clarification",
-    "workflow-system-design",
-    "workflow-test-generation",
-}
-TOOLING_SKILLS = {
+DELIVERY_SKILLS = {
     "workflow-code-generation",
     "workflow-quick-design",
     "workflow-requirements-clarification",
@@ -65,16 +58,7 @@ CORE_COMMANDS = {
     "skill-authoring.md",
     "troubleshooting.md",
 }
-PRODUCTION_COMMANDS = {
-    "code-generation.md",
-    "quick-design.md",
-    "requirements-clarification.md",
-    "system-design.md",
-    "test-generation.md",
-    "verification.md",
-    "verify-config.md",
-}
-TOOLING_COMMANDS = {
+DELIVERY_COMMANDS = {
     "code-generation.md",
     "quick-design.md",
     "requirements-clarification.md",
@@ -116,7 +100,8 @@ ACTIVE_AGENT_FILES = {
 }
 # Append-only compatibility namespaces for previously installed manifests. When a
 # source entry is retired, remove it from the install selection above but retain it
-# here so an older installation can still be safely uninstalled.
+# here so an older installation can still be safely uninstalled. Profile 在安装内容
+# 层面已无差异（change 2045），以下为单一受管集合，覆盖两个 Profile 的卸载语义。
 MANAGED_AGENT_FILES = frozenset(
     {
         "codebase-researcher.md",
@@ -129,94 +114,48 @@ MANAGED_AGENT_FILES = frozenset(
         "standards-reviewer.md",
     }
 )
-MANAGED_PROFILE_SKILL_ROOTS = {
-    "production": frozenset(
-        {
-            "bp-architecture-design",
-            "bp-cli-tool-design",
-            "bp-coding-best-practices",
-            "bp-component-design",
-            "bp-distributed-systems",
-            "bp-performance-optimization",
-            "bp-skill-authoring",
-            "project-init",
-            "project-knowledge",
-            "self-refinement",
-            "std-cpp",
-            "std-go",
-            "std-python",
-            "troubleshooting",
-            "workflow-code-generation",
-            "workflow-code-review",
-            "workflow-quick-design",
-            "workflow-requirements-clarification",
-            "workflow-system-design",
-            "workflow-test-generation",
-            "workflow-verification",
-        }
-    ),
-    "tooling": frozenset(
-        {
-            "bp-architecture-design",
-            "bp-cli-tool-design",
-            "bp-coding-best-practices",
-            "bp-component-design",
-            "bp-distributed-systems",
-            "bp-performance-optimization",
-            "bp-skill-authoring",
-            "project-init",
-            "project-knowledge",
-            "self-refinement",
-            "std-cpp",
-            "std-go",
-            "std-python",
-            "troubleshooting",
-            "workflow-code-generation",
-            "workflow-code-review",
-            "workflow-quick-design",
-            "workflow-requirements-clarification",
-            "workflow-system-design",
-            "workflow-test-generation",
-            "workflow-verification",
-        }
-    ),
-}
-MANAGED_PROFILE_COMMAND_FILES = {
-    "production": frozenset(
-        {
-            "code-generation.md",
-            "code-review.md",
-            "performance-optimization.md",
-            "project-init.md",
-            "quick-design.md",
-            "reflect.md",
-            "requirements-clarification.md",
-            "skill-authoring.md",
-            "system-design.md",
-            "test-generation.md",
-            "troubleshooting.md",
-            "verification.md",
-            "verify-config.md",
-        }
-    ),
-    "tooling": frozenset(
-        {
-            "code-generation.md",
-            "code-review.md",
-            "performance-optimization.md",
-            "project-init.md",
-            "quick-design.md",
-            "reflect.md",
-            "requirements-clarification.md",
-            "skill-authoring.md",
-            "system-design.md",
-            "test-generation.md",
-            "troubleshooting.md",
-            "verification.md",
-            "verify-config.md",
-        }
-    ),
-}
+MANAGED_SKILL_ROOTS = frozenset(
+    {
+        "bp-architecture-design",
+        "bp-cli-tool-design",
+        "bp-coding-best-practices",
+        "bp-component-design",
+        "bp-distributed-systems",
+        "bp-performance-optimization",
+        "bp-skill-authoring",
+        "project-init",
+        "project-knowledge",
+        "self-refinement",
+        "std-cpp",
+        "std-go",
+        "std-python",
+        "troubleshooting",
+        "workflow-code-generation",
+        "workflow-code-review",
+        "workflow-quick-design",
+        "workflow-requirements-clarification",
+        "workflow-system-design",
+        "workflow-test-generation",
+        "workflow-verification",
+    }
+)
+MANAGED_COMMAND_FILES = frozenset(
+    {
+        "code-generation.md",
+        "code-review.md",
+        "performance-optimization.md",
+        "project-init.md",
+        "quick-design.md",
+        "reflect.md",
+        "requirements-clarification.md",
+        "skill-authoring.md",
+        "system-design.md",
+        "test-generation.md",
+        "troubleshooting.md",
+        "verification.md",
+        "verify-config.md",
+    }
+)
 MANAGED_PACK_SKILL_ROOTS = {
     "frontend": frozenset(
         {
@@ -326,12 +265,8 @@ def _selected_names(profile: str, packs: set[str]) -> tuple[set[str], set[str]]:
 
     skills = set(CORE_SKILLS)
     commands = set(CORE_COMMANDS)
-    if profile == "production":
-        skills.update(PRODUCTION_SKILLS)
-        commands.update(PRODUCTION_COMMANDS)
-    else:
-        skills.update(TOOLING_SKILLS)
-        commands.update(TOOLING_COMMANDS)
+    skills.update(DELIVERY_SKILLS)
+    commands.update(DELIVERY_COMMANDS)
     for pack in packs:
         skills.update(PACK_SKILLS[pack])
         commands.update(PACK_COMMANDS[pack])
@@ -407,11 +342,10 @@ def _is_within(path: Path, root: Path) -> bool:
 
 def _all_core_skill_names() -> set[str]:
     """Return every built-in skill name reserved by the framework."""
-    names = set(CORE_SKILLS) | PRODUCTION_SKILLS | TOOLING_SKILLS
+    names = set(CORE_SKILLS) | DELIVERY_SKILLS
     for skills in PACK_SKILLS.values():
         names.update(skills)
-    for skills in MANAGED_PROFILE_SKILL_ROOTS.values():
-        names.update(skills)
+    names.update(MANAGED_SKILL_ROOTS)
     for skills in MANAGED_PACK_SKILL_ROOTS.values():
         names.update(skills)
     return names
@@ -572,8 +506,8 @@ def _manifest_allowed_path(path_text: str, profile: str, packs: set[str]) -> boo
         return "telemetry" in packs and path.name == "analyze_session_metrics.py"
     if len(path.parts) < 3 or path.parts[0] not in CLIENT_DIRS:
         return False
-    skills = set(MANAGED_PROFILE_SKILL_ROOTS[profile])
-    commands = set(MANAGED_PROFILE_COMMAND_FILES[profile])
+    skills = set(MANAGED_SKILL_ROOTS)
+    commands = set(MANAGED_COMMAND_FILES)
     for pack in packs:
         skills.update(MANAGED_PACK_SKILL_ROOTS[pack])
         commands.update(MANAGED_PACK_COMMAND_FILES[pack])
@@ -890,29 +824,6 @@ def validate_extensions(target: Path) -> dict:
 
 def _managed_paths(manifest: dict | None) -> set[str]:
     return {item["path"] for item in _manifest_entries(manifest)}
-
-
-def _forbidden_entry_paths(profile: str) -> set[Path]:
-    skills = TOOLING_SKILLS if profile == "production" else PRODUCTION_SKILLS
-    commands = TOOLING_COMMANDS if profile == "production" else PRODUCTION_COMMANDS
-    paths: set[Path] = set()
-    for client in CLIENT_DIRS:
-        paths.update(Path(client, "skills", skill) for skill in skills)
-        paths.update(Path(client, "commands", command) for command in commands)
-    return paths
-
-
-def _cross_pollution_errors(
-    target: Path, profile: str, removable_paths: set[str]
-) -> list[str]:
-    errors: list[str] = []
-    for relative in _forbidden_entry_paths(profile):
-        path = _safe_target(target, relative, allow_leaf_link=True)
-        if not os.path.lexists(path):
-            continue
-        if relative.as_posix() not in removable_paths:
-            errors.append(str(relative))
-    return errors
 
 
 def _normalized_link_path(path: str | Path) -> str:
@@ -1257,12 +1168,6 @@ def install(
         )
     old_paths = _managed_paths(old_manifest)
     old_extension_paths = _extension_managed_paths(old_extension_states.values())
-    pollution = _cross_pollution_errors(target, profile, old_paths)
-    if pollution:
-        raise FileExistsError(
-            "Opposite-profile entries are not managed by this installer: "
-            + ", ".join(pollution)
-        )
     _preflight(
         target,
         operations,
@@ -1342,11 +1247,6 @@ def install(
                     _safe_target(
                         target, operation.relative_target, allow_leaf_link=True
                     ),
-                )
-            post_pollution = _cross_pollution_errors(target, profile, set())
-            if post_pollution:
-                raise FileExistsError(
-                    "Profile installation is contaminated: " + ", ".join(post_pollution)
                 )
             _write_manifest(target, manifest)
             for extension in extensions:
