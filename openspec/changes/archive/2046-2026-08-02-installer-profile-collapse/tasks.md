@@ -169,7 +169,7 @@ Task 1,2,3,4 ─▶ Task 5 (知识同步与归档)
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `openspec/specs/backend/framework/install-agentic-framework/overview.md` | 同左 | MODIFIED | Done | 无需更新索引（已有条目） |
+| `openspec/specs/backend/framework/install-agentic-framework/overview.md` | `openspec/specs/backend/framework/install-agentic-framework/overview.md` | MODIFIED | Done | 无需更新索引（已有条目） |
 
 ## 知识冲突
 
