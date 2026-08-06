@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -144,6 +145,7 @@ class CanonicalPairTest(unittest.TestCase):
             capture_output=True,
             text=True,
             encoding="utf-8",
+            env=dict(os.environ, PYTHONUTF8="1"),
         )
         report = json.loads(completed.stdout)
         self.assertEqual("无法执行", report["verdict"])
