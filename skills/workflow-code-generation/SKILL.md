@@ -31,7 +31,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 - **需求与验收标准清楚，但需要补实现方案或文件定位** → 直接调用 `workflow-quick-design`，不先走需求澄清。若 Quick Design 识别出安全、权限、数据迁移、并发、分布式、性能关键路径、公共 API 或大范围重构，再升级为完整需求与系统设计流程。
 - **需求或验收标准不清楚** → 调用 `workflow-requirements-clarification`。
 - **其余一切**（已有 spec / tasks，或 Quick Design 完成）→ **标准流程**（默认下放到 Native Delivery）。
-- **完整 Runtime Run** 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。无法确定风险时选 `standard`，不因不确定自动升级 Runtime；若无法确认是否命中执行条件，先澄清再开始。
+- **完整 Runtime Run** 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。无法确定风险时选 `standard`，不因不确定自动升级 Runtime；若无法确认是否命中执行条件，先澄清再开始。**SVN 工作副本不适用完整 Runtime Run**：`route` 检测到 SVN 后恒输出 `native-delivery`（升级原因保留在 `runtime_upgrade_reasons`），不得创建或伪造 Run Context。
 
 ## 步骤 1.5：Verify 配置选择（路由后无条件）
 
@@ -124,7 +124,7 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 | `standard` | 默认档：普通功能、Bug 修复，或涉及多个模块之间的行为、契约、交互变化但风险可控 |
 | `strict` | 高风险：生产关键路径、安全 / 权限 / 数据迁移 / 并发 / 分布式 / 性能敏感 / 公共 API / 大范围重构 |
 
-无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。无 `strict` 风险及 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required` 任一升级条件时，直接进入 Native Delivery，不运行恒为 `native-delivery` 的 `route` 步骤。可能命中升级条件时，主编排方才在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>` 并传入对应 flag；输出 `runtime-run` 时才进入完整 Runtime Run，输出 `native-delivery` 时不得创建或伪造 Run Context。
+无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。无 `strict` 风险及 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required` 任一升级条件时，直接进入 Native Delivery，不运行恒为 `native-delivery` 的 `route` 步骤。可能命中升级条件时，主编排方才在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>` 并传入对应 flag；输出 `runtime-run` 时才进入完整 Runtime Run，输出 `native-delivery` 时不得创建或伪造 Run Context。SVN 工作副本下 `route` 恒输出 `native-delivery`（见步骤 1）。
 
 **主会话只在并行分支、非线性依赖图或中断恢复时通过控制流内核构建波次（wave）数组**：先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [reference/delegated-execution-guide.md](reference/delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。仅该路径在每波 dispatch 前运行 `dispatchable`。单 task 或纯串行的小任务按 `tasks.md` 顺序直接执行 `event <id> start --write`；该命令仍校验前置依赖与 Verify 配置选择，不得绕过。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。
 

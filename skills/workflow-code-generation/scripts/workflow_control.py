@@ -11,6 +11,7 @@ import math
 import os
 import re
 import stat
+import subprocess
 import sys
 import tempfile
 import time
@@ -945,6 +946,40 @@ def _repository_root(path: Path) -> Path:
     return resolved.parent
 
 
+def _detect_vcs(directory: Path) -> str | None:
+    """Detect the version control backend of a directory: 'git' / 'svn' / None.
+
+    Git 优先于 SVN（git-svn 混合工作副本的 diff 语义以 Git 为准）；二进制缺失
+    （纯 SVN 环境未装 git）不抛异常，降级探测下一后端。两者都探测不到时返回
+    None——临时目录等非仓库场景不干预 route 结果。
+    """
+    cwd = directory.resolve(strict=False)
+    try:
+        git_code = subprocess.run(
+            ["git", "-C", str(cwd), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        ).returncode
+    except (OSError, FileNotFoundError):
+        git_code = 1
+    if git_code == 0:
+        return "git"
+    try:
+        svn_code = subprocess.run(
+            ["svn", "info"],
+            cwd=str(cwd),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        ).returncode
+    except (OSError, FileNotFoundError):
+        svn_code = 1
+    if svn_code == 0:
+        return "svn"
+    return None
+
+
 def _task_lock_path(path: Path) -> Path:
     """Build a collision-resistant runtime lock path for one tasks.md."""
     resolved = path.resolve(strict=False)
@@ -1208,17 +1243,30 @@ def main(argv: list[str]) -> int:
                 _require_verify_config_decision(args.tasks_md, text)
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
-                output = asdict(
-                    select_execution_route(
-                        args.review_profile,
-                        parallel_worktree_write=args.parallel_worktree_write,
-                        long_task_recovery=args.long_task_recovery,
-                        cross_host_capability_verification=(
-                            args.cross_host_capability_verification
-                        ),
-                        audit_required=args.audit_required,
-                    )
+                selected = select_execution_route(
+                    args.review_profile,
+                    parallel_worktree_write=args.parallel_worktree_write,
+                    long_task_recovery=args.long_task_recovery,
+                    cross_host_capability_verification=(
+                        args.cross_host_capability_verification
+                    ),
+                    audit_required=args.audit_required,
                 )
+                # SVN 工作副本不支持完整 Runtime Run（Runtime 只认 Git commit）；
+                # 强制降级并在 stderr 明示，升级原因保留供下游核对。
+                if (
+                    selected.path == "runtime-run"
+                    and _detect_vcs(_repository_root(args.tasks_md)) == "svn"
+                ):
+                    print(
+                        "[workflow-control] 检测到 SVN 工作副本：完整 Runtime Run 仅支持 Git，"
+                        "route 强制降级为 native-delivery。",
+                        file=sys.stderr,
+                    )
+                    selected = ExecutionRoute(
+                        "native-delivery", selected.runtime_upgrade_reasons
+                    )
+                output = asdict(selected)
             elif args.command == "event":
                 if args.event == "start":
                     _require_verify_config_decision(args.tasks_md, text)

@@ -227,6 +227,77 @@ class WorkflowControlTest(unittest.TestCase):
                 )
             self.assertIn('"path": "runtime-run"', stdout.getvalue())
 
+    def test_route_command_forces_native_delivery_on_svn(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [
+                            str(path),
+                            "route",
+                            "--review-profile",
+                            "standard",
+                            "--audit-required",
+                        ]
+                    ),
+                )
+            self.assertIn('"path": "native-delivery"', stdout.getvalue())
+            self.assertIn('"audit-required"', stdout.getvalue())
+            self.assertIn("SVN", stderr.getvalue())
+
+    def test_detect_vcs_git_priority_svn_fallback_and_none(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            directory = Path(temp_dir)
+
+            def run_side_effect(args, **kwargs):
+                result = mock.Mock()
+                result.returncode = 0 if args[0] == "git" else 1
+                return result
+
+            with mock.patch.object(
+                workflow_control.subprocess, "run", side_effect=run_side_effect
+            ):
+                self.assertEqual("git", workflow_control._detect_vcs(directory))
+
+            def svn_only(args, **kwargs):
+                result = mock.Mock()
+                result.returncode = 1 if args[0] == "git" else 0
+                return result
+
+            with mock.patch.object(
+                workflow_control.subprocess, "run", side_effect=svn_only
+            ):
+                self.assertEqual("svn", workflow_control._detect_vcs(directory))
+
+            def neither(args, **kwargs):
+                result = mock.Mock()
+                result.returncode = 1
+                return result
+
+            with mock.patch.object(
+                workflow_control.subprocess, "run", side_effect=neither
+            ):
+                self.assertIsNone(workflow_control._detect_vcs(directory))
+
+            def git_missing(args, **kwargs):
+                if args[0] == "git":
+                    raise FileNotFoundError
+                result = mock.Mock()
+                result.returncode = 0
+                return result
+
+            with mock.patch.object(
+                workflow_control.subprocess, "run", side_effect=git_missing
+            ):
+                self.assertEqual("svn", workflow_control._detect_vcs(directory))
+
     def test_quality_passed_without_verify_report_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"

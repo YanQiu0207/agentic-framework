@@ -27,7 +27,7 @@ proposal.md / tasks.md 获批
             → Run 级 Review → check_delivery.py --run-dir → Trust Gate
 ```
 
-`waves`、`dispatchable`、状态迁移、阻塞和恢复不是完整 Runtime 专属能力：只有并行分支、非线性依赖图或中断恢复需要时才调用 `waves` / `dispatchable`。单 Task 或纯串行链直接以 `event start` 启动下一任务，依赖和 Verify 配置选择仍由该命令失败关闭。完整 Runtime 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时初始化 Run；无升级条件时直接 Native Delivery，不调用恒为 Native 的 `route`；控制器禁止为 Native Delivery 伪造 Run Context。
+`waves`、`dispatchable`、状态迁移、阻塞和恢复不是完整 Runtime 专属能力：只有并行分支、非线性依赖图或中断恢复需要时才调用 `waves` / `dispatchable`。单 Task 或纯串行链直接以 `event start` 启动下一任务，依赖和 Verify 配置选择仍由该命令失败关闭。完整 Runtime 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时初始化 Run；无升级条件时直接 Native Delivery，不调用恒为 Native 的 `route`；控制器禁止为 Native Delivery 伪造 Run Context。SVN 工作副本不适用完整 Runtime：`route` 在裁决前探测仓库 VCS，检测到 SVN 时恒输出 `native-delivery` 并在 stderr 明示降级，升级原因保留在 `runtime_upgrade_reasons` 供下游核对；VCS 探测对 Git 优先、二进制缺失时降级探测下一后端、两者皆无时不干预 route 结果。
 
 ## 状态与恢复
 

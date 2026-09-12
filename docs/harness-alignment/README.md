@@ -1,6 +1,6 @@
 # Harness 工程对齐专题（harness-alignment）
 
-> 本目录沉淀对外部 Harness Engineering 实践文章的研究、它们与本框架的差距分析，以及据此制定的改进路线图。属于「调研 + 规划」专题，不是 feature spec。当前已收录两篇来源，按来源分组编号。
+> 本目录沉淀对外部 Harness Engineering 实践文章的研究、它们与本框架的差距分析、宿主原生能力对齐复查，以及据此制定的改进路线图。属于「调研 + 规划」专题，不是 feature spec。当前已收录两篇文章来源与一次宿主能力对齐复查，按来源分组编号。
 
 ## 为什么有这个专题
 
@@ -28,6 +28,12 @@
 | [05-source2-gap-analysis.md](05-source2-gap-analysis.md) | 文章实践 × 本框架现状对照（带证据） | 想知道我们缺什么、强在哪 |
 
 > 本来源尚未生成 roadmap；已识别 3 个 gap（验证防篡改物理层、组件生命周期 A/B 评测、并发集成失败排障方法论），待决定实施再补 `06-source2-roadmap.md`。
+
+### 宿主原生能力对齐（2026-09）
+
+| 文档 | 内容 | 何时读 |
+| --- | --- | --- |
+| [07-host-capability-alignment.md](07-host-capability-alignment.md) | Claude Code 2026 年原生能力 × 框架现状对照，含吸收/保留建议与优先级动作（P1 门禁 hooks 化、P2 Workflow 波次深化、P3 plugin 双通道） | 判断框架与宿主重叠、决定是否落变更时 |
 
 ## 一句话结论
 
