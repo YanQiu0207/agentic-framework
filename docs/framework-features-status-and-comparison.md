@@ -1,6 +1,6 @@
 # Agentic Engineering Framework 特性、进展与框架对比
 
-**更新时间**：2026-07-19（统一知识管理方案落地后复核）
+**更新时间**：2026-09-12（change 2047：追平 change 2028-2046 与 SVN 降级后的仓库现状；上一次全文复核为 2026-07-19）
 
 **文档定位**：面向框架使用者和维护者，统一说明当前能力、开发进展、实际使用边界、历史演进及与开源框架的差异。
 
@@ -12,8 +12,8 @@
 
 当前成熟度不能笼统描述为「已完成」，必须分层判断：
 
-1. **确定性代码最成熟**：安装隔离、OPSX 三阶段校验、Tooling DAG 状态机、任务依赖检查、Verification、Spec Drift 和离线遥测都有 Python 实现与测试。
-2. **工作流已接线但依赖宿主 Agent**：需求澄清、系统设计、Agent 调度、worktree、Code Review 和知识写回主要由 Skills 约束 Codex 或 Claude Code 执行，不是一个独立 Workflow Engine。
+1. **确定性代码最成熟**：安装隔离、`validate_change.py` 三阶段门禁与执行期治理守卫（`governance_guards.py`）、Tooling DAG 状态机、任务依赖检查、Verification、Spec Drift、离线遥测和 harness 能力矩阵合同都有 Python 实现与测试。
+2. **工作流已接线但依赖宿主 Agent**：需求澄清、系统设计、Agent 调度、worktree、Code Review 和知识写回主要由 Skills 约束 Codex 或 Claude Code 执行，不是一个独立 Workflow Engine；并行波次的执行调度已约定交给宿主 Workflow 工具（见 `docs/harness-alignment/07-host-capability-alignment.md` §4.1），Python 内核保留状态、锁与门禁等治理语义。
 3. **知识管理首期已闭环，效果评测仍在建设**：项目知识目录、Change Delta、归档同步、公共知识晋升和只读校验已经落地；真实查询命中率、触发评测、Telemetry 运行时采集和上下文效果验证尚未形成长期数据。
 4. **生产发布平台没有实现**：灰度、回滚、容量、安全、数据迁移和线上反馈仍是路线候选，不能宣传为已有能力。
 5. **Production 尚缺真实生产项目验收**：当前测试能证明框架合同和确定性脚本工作，不能证明生产项目中的缺陷率、交付效率或 Token ROI。
@@ -49,12 +49,12 @@
 
 | Profile | 场景 | 执行方式 | Review 策略 |
 | --- | --- | --- | --- |
-| Production | 进入生产环境的功能、修复和架构变更 | 逐阶段批准、逐 Task 推进、确定性门禁 | 普通 Task 单综合 Review；高风险 Task 五维 Review；最终五维集成 Review |
+| Production | 进入生产环境的功能、修复和架构变更 | 同一状态机；治理守卫在转移点逐 Task 判定，逐阶段批准 | 普通 Task 单综合 Review；高风险 Task 五维 Review；最终五维集成 Review |
 | Tooling | 大型非生产工具 | Tasks 批准后 DAG 分波、自主执行 | Task 内不启动 LLM Review；全部完成后一次风险分级 Review |
 
-两个 Profile 共用 Standards、Best Practices、Review、Verification、Self-Refinement 和 Troubleshooting，但生命周期入口相互隔离。安装时必须显式二选一，不能默认双装。
+change 2045 退役 `opsx-*` 后，两个 Profile 共用统一的 `workflow-*` 入口与状态机；差异由目标 Manifest 的 `profile` 字段与执行期治理守卫（`governance_guards.py`）承载，不再由独立入口集合表达。两个 Profile 安装的 Skill 与 Command 集合完全相同，唯一文件差异是 `validate_change.py` 仅在 Production Profile 下装入目标项目。安装时必须显式二选一，不能默认双装；切换需显式 `--switch-profile`。
 
-证据：`README.md:70-112`、`scripts/install_agentic_framework.py:23-95,266-320`。
+证据：`README.md:88-115`、`scripts/install_agentic_framework.py:260-320`（`build_operations`）、`skills/workflow-code-generation/scripts/governance_guards.py`、`skills/workflow-code-generation/scripts/workflow_control.py:1125`（`_event_governance_errors`）。
 
 ### 3.2 代码是当前实现事实源，长期 Specs 辅助理解
 
@@ -77,7 +77,7 @@
 
 框架刻意避免用关键词数量、文档长度或文件数量伪装成语义质量判断。
 
-证据：`docs/design-docs/opsx/code-first-deterministic-validation/spec.md:64-80,322-355`。
+证据：`docs/design-docs/opsx/code-first-deterministic-validation/spec.md:64-80,322-355`（历史设计快照）、`skills/workflow-verification/scripts/verify.py`（现行基线与 Spec Drift 实现）。
 
 ## 4. 功能与开发进展
 
@@ -85,10 +85,11 @@
 
 | 特性 | 当前状态 | 使用情况 | 证据与限制 |
 | --- | --- | --- | --- |
-| 需求澄清、设计、任务、执行 | 已实现并接线 | Production 与 Tooling 各有完整和 Quick 入口 | 当前存在两族 Lifecycle Skills；语义质量依赖宿主 Agent |
-| Production OPSX | 已实现并接线 | 支持 Standard、Quick、Plan、Delivery、Archive | `scripts/validate_change.py`；不是官方 OpenSpec CLI |
+| 需求澄清、设计、任务、执行 | 已实现并接线 | 两 Profile 共用 `workflow-*` 统一入口（完整与 Quick 两档） | change 2045 已退役 `opsx-*` 双入口；语义质量依赖宿主 Agent |
+| Production 三阶段门禁 | 已实现并接线 | Plan、Delivery、Archive 三阶段 + 执行期治理守卫 | `scripts/validate_change.py`；`governance_guards.py`；不是官方 OpenSpec CLI |
 | Tooling DAG 分波 | 已实现并接线 | 根据 `depends_on` 生成稳定 Wave | `workflow_control.py` 和 `lint_task_deps.py` 有测试 |
 | 状态机与失败隔离 | 已实现并接线 | 支持重试、阻塞传播、人工接管和恢复 | 状态写回是代码；Agent 执行事实由外部编排提供 |
+| Native Delivery / Runtime Run 双路由 | 已实现并接线 | 按风险与升级条件路由；SVN 工作副本恒走 Native Delivery | `workflow_control.py route`、`check_delivery.py`；Run Envelope 见 `machine-verifiable-agent-runtime` spec |
 | worktree 隔离 | 已接线，依赖宿主执行 | 中高风险 Tooling Task 使用独立 worktree | 仓库没有自建 Git/worktree Runner |
 | Fast-Path | 已接线，依赖语义判断 | 小改动由主会话直接完成 | 尚无稳定自动判级和端到端效果评测 |
 
@@ -108,9 +109,9 @@ Tooling 确定性内核实现了 Task 解析、拓扑分波、状态转换、阻
 
 证据：`docs/tooling/design-docs/workflow-code-generation/write-lock-timeout/spec.md:7-120`、`docs/tooling/design-docs/workflow-code-generation/write-lock-timeout/tasks.md:46-102`。
 
-### 4.2 Production OPSX
+### 4.2 Production 门禁（原 OPSX，change 2045 起并入统一入口）
 
-Production 的当前流程是：
+Production 与 Tooling 共用 `workflow-*` 统一入口，Production 的治理语义由执行期守卫承载。当前流程是：
 
 ```text
 Requirements
@@ -133,17 +134,17 @@ Requirements
 | Delivery | Task 完成状态、构建/测试记录、任务 Review 元数据与结构化报告证据、覆盖映射 |
 | Archive | Delivery 条件、最终 Review 结构化报告证据、归档目标和命名 |
 
-稳定退出码为：`0` 通过，`1` 规则违规，`2` 调用或校验器内部错误。证据：`docs/design-docs/opsx/code-first-deterministic-validation/spec.md:182-320`。
+稳定退出码为：`0` 通过，`1` 规则违规，`2` 调用或校验器内部错误。证据：`docs/design-docs/opsx/code-first-deterministic-validation/spec.md:182-320`（历史设计快照）、`scripts/validate_change.py`。
 
 当前边界：
 
-- OPSX 是采用 OpenSpec Change Artifact 思想的本地 fork，不是官方 OpenSpec CLI 的兼容层。
+- 门禁协议是采用 OpenSpec Change Artifact 思想的本地 fork，不是官方 OpenSpec CLI 的兼容层。
 - 维护受控的项目长期 `openspec/specs/`，并在 Archive 前校验 Change Delta 的目标映射和知识同步状态；这是本框架自己的确定性协议，不是官方 OpenSpec Delta Sync 实现。
 - 长期 Specs 是辅助知识，不是当前实现的中央事实源；当前行为仍需以代码、Schema、配置、测试和运行证据核实。
-- Production 要求项目根存在有效 `verify.config.json`；缺失或失效时不得进入 Review。证据：`skills/opsx-code-generation/SKILL.md:84-103`。
+- Production 要求项目根存在有效 `verify.config.json`；缺失或失效时不得进入 Review。证据：`skills/workflow-code-generation/SKILL.md`、`skills/workflow-code-generation/scripts/workflow_control.py`（`event start` 的 Verify 配置校验）。
 - 尚无真实生产项目验收证据。证据：`docs/design-docs/framework-unification/spec.md:698-704`。
 
-历史实施账本显示 OPSX 代码事实源方案的 4 个 Task 已完成，三阶段校验、Fixtures 和稳定退出码均已落地。后续统一知识管理的 9 个 Task 又补齐了长期 Specs、Change Delta、归档同步和公共知识边界；旧 `opsx-project-knowledge` 已由 Shared Core `project-knowledge` 替代。证据：`docs/design-docs/opsx/code-first-deterministic-validation/tasks.md:46-122`、`docs/design-docs/knowledge-management/tasks.md:90-349`。
+历史实施账本显示 OPSX 代码事实源方案的 4 个 Task 已完成，三阶段校验、Fixtures 和稳定退出码均已落地。后续统一知识管理的 9 个 Task 又补齐了长期 Specs、Change Delta、归档同步和公共知识边界；旧 `opsx-project-knowledge` 已由 Shared Core `project-knowledge` 替代。change 2045 已把双入口编排退役为统一 `workflow-*` 入口（归档：`openspec/changes/archive/2045-2026-07-28-opsx-orchestration-retirement/`）。证据：`docs/design-docs/opsx/code-first-deterministic-validation/tasks.md:46-122`、`docs/design-docs/knowledge-management/tasks.md:90-349`。
 
 ### 4.3 Code Review
 
@@ -350,36 +351,46 @@ python scripts/install_agentic_framework.py <project> \
 | --- | --- | --- |
 | Tier 0 | Frontmatter、引用、依赖图和固定结构检查 | 已实现 |
 | Tier 1 | Should-trigger、Should-not-trigger 和边界路由 | 有 Evaluation Cases，缺统一自动 Runner |
-| Tier 2 | 高风险机制的 A/B 效果评测 | 未形成稳定基线 |
+| Tier 2 | 高风险机制的 A/B 效果评测 | Native Delivery 三任务试点已完成合同级回归（2026-07-25）；Run 级审计证据与稳定基线未形成 |
 | Tier 3 | 缺陷率、速度和 Token ROI | 未形成真实项目数据集 |
 
-证据：`docs/tooling/08-evaluation-strategy.md:12-19,29-76`。
+证据：`docs/tooling/08-evaluation-strategy.md:12-19,29-76`、`evaluation/swebench/`、`evaluation/native-delivery-pilot.md`。
 
 Tier 1 当前是评测资产，不是效果结果；存在 Case 文件不能证明模型触发准确率已经达标。
 
+### 4.12 Harness 能力矩阵与机器可验证运行协议
+
+状态：**合同与静态声明已实现；运行时 Adapter 探测与双宿主实机验证仍在推进。**
+
+- `harness/capabilities/codex.json` 与 `harness/capabilities/claude-code.json` 使用统一能力词汇（subagents、worktree_isolation、transcript_access、lifecycle_hooks、structured_tool_results）和三态声明（`supported` / `degraded` / `unsupported`）。静态 `unsupported` 表示「启动前尚无可执行证据」，不是产品能力结论；运行时必须由 Harness Adapter 执行探测，探测结果覆盖静态默认值。合同见 `harness/README.md`。
+- `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` 定义 Run Envelope 与证据链：Review、Verify、Task 结果绑定相同 `run_id` 与 `task_id`/`attempt`，统一 Run、Artifact、Profile、Harness、Commit 与配置摘要的语义。
+- 执行路由分两档：Native Delivery（主会话直接完成小改动）与完整 Runtime Run（命中 `strict` 风险、`--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required` 任一升级条件时）。SVN 工作副本下 `route` 恒输出 `native-delivery`（完整 Runtime Run 的证据链硬编码 Git）。
+- 交付门 `check_delivery.py` 校验 Run/Review Artifact 的字段集与档位；工具对照见 `agentic-framework-delivery-gate`（用户级 skill）。
+
+证据：`harness/README.md:1-15`、`harness/capabilities/*.json`、`openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md`、`skills/workflow-code-generation/scripts/workflow_control.py`（`route` / `_detect_vcs`）、`openspec/changes/archive/svn-disable-runtime-run-2026-09-12/proposal.md`。
+
 ## 5. 当前验证快照
 
-2026-07-19 在统一知识管理方案合并后使用当前环境执行：
+2026-09-12 在 change 2046 合并后使用当前环境执行：
 
 ```bash
 python -m pytest scripts -q
 python scripts/lint_skill_graph.py
 python skills/workflow-verification/scripts/verify.py \
     --baseline .agentic-framework/verify/baseline.json \
-    --diff-base d5cd0263b2dc47578d38144ab63cb6b0fa695f94
+    --diff-base HEAD
 python scripts/validate_shared_knowledge.py \
     --root E:/work/shared-knowledge-base
 ```
 
 结果：
 
-- Pytest：155 passed、17 skipped、39 subtests passed。
+- Pytest：547 passed、21 skipped、132 subtests passed。
 - 跳过项主要来自当前 Windows 环境未授予软连接创建权限；Windows Junction 专项场景已有测试覆盖。
-- Skill 图：32 Skills、20 Commands、8 Agents，0 错误、0 警告。
-- Workflow Verification：通过；Spec Drift 通过；测试计数为 172，基线为 138。
-- 公共知识库只读校验：0 项违规。
-- 统一知识管理的 9 个 Task 全部完成，独立 Strict Review 最终为 PASS，无 P0/P1。
-- 双 Profile、外置链接、冲突报告、项目私有边界和公共晋升均有端到端验收记录。
+- Skill 图：27 Skills、14 Commands、8 Agents，0 错误、0 警告。
+- Workflow Verification：通过；Spec Drift 通过；测试计数不减于基线。
+- 公共知识库只读校验：0 项违规（2026-07-19 复核结论，本次未复跑）。
+- 历史验收（统一知识管理 9 Task Strict Review PASS、双 Profile 与公共晋升端到端验收）见 `openspec/acceptance/2026-07-19-knowledge-management.md`，本次未复跑。
 
 验收记录：`docs/design-docs/knowledge-management/tasks.md:322-357`、`openspec/acceptance/2026-07-19-knowledge-management.md`。机器报告位于本地 `.agentic-framework/verify/report.json`，不作为提交内容。
 
@@ -390,6 +401,8 @@ python scripts/validate_shared_knowledge.py \
 - 每次宿主模型都严格遵守 Skill。
 - 外部知识库和遥测已经形成足够样本。
 
+本节数字是快照而非保证；每次对外引用前应重跑上述命令并更新日期。
+
 ## 6. 使用方式
 
 ### 6.1 Production
@@ -399,22 +412,18 @@ python scripts/install_agentic_framework.py <production-project> \
     --profile production
 ```
 
-推荐入口：
+Production 与 Tooling 共用同一套 `workflow-*` 入口，Production 的治理语义由 `governance_guards.py` 转移守卫与 `validate_change.py` 三阶段门禁承载：
 
 ```text
-/opsx-requirements-clarification
-    → /opsx-system-design
-    → /opsx-code-generation
-    → /opsx-archive
+/requirements-clarification 或 /quick-design
+    → /system-design
+    → /code-generation（Plan 总门 + 逐任务 Review 守卫 + 批准门）
+        → 实现、测试和风险分档审核
+        → Delivery 门禁（交付证据 + 五维 strict 集成 Review）
+        → Archive 门禁（知识影响 + Delta 同步）
 ```
 
-低风险 Quick 变更：
-
-```text
-/opsx-quick-design
-    → /opsx-code-generation
-    → /opsx-archive
-```
+低风险 Quick 变更走 Native Delivery，不进入完整 Runtime Run（见 §4.12）。
 
 ### 6.2 Tooling
 
@@ -458,6 +467,19 @@ python scripts/install_agentic_framework.py --refresh-all
 ## 7. 与开源框架的对比
 
 > 本节基于 2026-06-28 的公开资料研究，没有重新联网，也没有逐一安装运行各框架最新版。外部项目迭代很快，以下内容是历史比较基线，不是其当前版本的保证。正式对外发布前应重新核验官方文档。
+
+### 7.0 2026-09-12 增量核验
+
+以下为 change 2047 当天联网核验的增量事实（官方 CHANGELOG 2.1.261-2.1.269、官方文档与社区来源），不推翻上表历史基线，仅补充时间线：
+
+| 事实 | 来源 | 对本框架的含义 |
+| --- | --- | --- |
+| Codex CLI 已有 hooks 体系：`hooks.json`、PreToolUse/PostToolUse/Stop/SessionStart 等 lifecycle 事件、`/hooks` 命令；0.150.1（2026-08-27）起非受管 hook 需信任审核 | learn.chatgpt.com/docs/hooks；社区核验记录 | 07 号对齐文档 P1「门禁 hooks 化」的最大障碍消除，双宿主可两侧同时强制执行；实施前仍需用 harness Adapter 探测确认目标版本 |
+| Spec Kit 发布正式文档站（github.github.com/spec-kit/），自我定位从「toolkit」升级为「extensible, intent-driven harness」 | github.github.com/spec-kit（2026-08-21） | 上表 Spec Kit 行的「路径与 GitHub 生态」描述偏旧 |
+| Claude Code 2.1.269 新增 `/skill-doctor`（未使用 skill 与上下文成本）、`claude plugin eval`（可打分、可复现的插件评测）、`CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS`（1-256，Workflow 并发上限） | anthropics/claude-code 官方 CHANGELOG | Tier 1 skill 触发评测可借 `/skill-doctor`；P2 波次深化可利用并发上限；P3 plugin 通道更成熟 |
+| Superpowers 已进入官方 plugin 目录（claude.com/plugins/superpowers），star 数各来源口径不一（3 万-4 万+），skills 生态已目录化、跨 Claude Code/Cursor/Codex 复用 | claude.com/plugins；多方报道 | 印证双宿主分发反向优势，同时 plugin 化紧迫性上升（07 文档 P3） |
+
+Claude Code 宿主 2026 年原生能力（Workflow 工具、内置 `/code-review`、`--worktree`、OTEL 等）与本框架各块的逐项对齐见 `docs/harness-alignment/07-host-capability-alignment.md`，此处不重复。
 
 | 框架 | 相对优势 | 本框架的差异化优势 | 取舍 |
 | --- | --- | --- | --- |

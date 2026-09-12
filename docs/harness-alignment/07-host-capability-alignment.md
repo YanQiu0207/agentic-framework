@@ -2,7 +2,7 @@
 
 > 本专题的第三次对齐：前两次对标外部 Harness Engineering 方法论文章（来源一、来源二），本次对标宿主（Claude Code）2026 年原生新增能力。属于「调研 + 规划」，不是 feature spec；实施时按本目录「后续约定」走 `docs/design-docs/`。
 
-**更新日期**：2026-09-12
+**更新日期**：2026-09-12（change 2047 当天二次修订：修正 3 处被 change 2046 漂移的行号引用，行号引用改为「函数名 + 行号」格式；解除第 5 节 P1 的 Codex hooks 未核实项）
 
 ## 1. 背景
 
@@ -38,9 +38,9 @@
 
 ### 4.1 Tooling DAG 状态机：部分吸收
 
-**框架现状**：确定性控制流内核 `skills/workflow-code-generation/scripts/workflow_control.py`（约 1254 行）负责全部状态机决策，与 Agent 调度严格分离：
+**框架现状**：确定性控制流内核 `skills/workflow-code-generation/scripts/workflow_control.py`（1302 行，2026-09-12）负责全部状态机决策，与 Agent 调度严格分离。行号引用统一采用「函数名 + 行号」格式：函数名在重构后可 `grep` 重定位，行号仅辅助当前版本定位。
 
-- 确定性代码：Kahn 拓扑分波（:187-201）、10 个合法状态迁移（:389-400）、重试与转人工（:595-602）、阻塞传播（:647-677）、跨进程写锁（:900-979）、原子写回（:882-897）、批准门（:551-567）、治理 Profile 守卫（:1090-1118）、Verify 报告合同校验（:255-278）、中断恢复计划（:724-749）
+- 确定性代码：Kahn 拓扑分波（`_kahn_waves` :187-201）、10 个合法状态迁移（`_VALID_TRANSITIONS` :389-400）、重试与转人工（`_handle_failure` :595-602）、阻塞传播（`propagate_blocked` :647-677）、跨进程写锁（`_try_lock` 起 :900-979）、原子写回（`_atomic_write` :882-897）、批准门（`approval_gate_errors` :551-567）、治理守卫（`_event_governance_errors` :1125 + `governance_guards.py`）、Verify 报告合同校验（`_validate_verify_report` :255-278）、中断恢复计划（`plan_recovery` :724-749）
 - 依赖宿主执行的 Skill 指令：调度靠宿主 Subagent（SKILL.md:131-133）；`tasks.md` 的「状态：」字段是续跑真相源（SKILL.md:135）
 
 **与宿主的重叠**：**高**。波次编排职责与宿主 Workflow 工具重叠。框架已有一处接口约定——并行波次产出后「传入 Workflow 工具的 `args.waves`」（SKILL.md:129），但全仓仅此一处痕迹，未深化。
@@ -49,7 +49,7 @@
 
 ### 4.2 Review：保留
 
-**框架现状**：Review 编排是纯 Skill 指令，无自建运行时；reviewer 与 Judge 全部是宿主 Subagent（`agents/*.md` 共 8 个定义，安装器软连到 `.claude/agents` 与 `.codex/agents`，install_agentic_framework.py:290-296）。差异全在合同层：五维分派（workflow-code-review/SKILL.md:26）、lightweight/standard 单综合 reviewer（:22-25）、独立 Judge（:10-18、:214-223）、机器产物 `review-report.json`（:279-339）、最多两轮定向复审后转人工（:50-64）。
+**框架现状**：Review 编排是纯 Skill 指令，无自建运行时；reviewer 与 Judge 全部是宿主 Subagent（`agents/*.md` 共 8 个定义，安装器软连到 `.claude/agents` 与 `.codex/agents`，install_agentic_framework.py `build_operations` 内 agents 循环 :290-296）。差异全在合同层：五维分派（workflow-code-review/SKILL.md:26）、lightweight/standard 单综合 reviewer（:22-25）、独立 Judge（:10-18、:214-223）、机器产物 `review-report.json`（:279-339）、最多两轮定向复审后转人工（:50-64）。
 
 **与宿主的重叠**：**高**，但重叠在「调度机制」（同源宿主 Subagent），不在「合同」。宿主 `/code-review` 是通用正确性审查，不带工程变更契约。
 
@@ -57,7 +57,7 @@
 
 ### 4.3 worktree：保留
 
-**框架现状**：无自建 Git/worktree Runner，只有指令约定——文档明确自认缺口（docs/tooling/13-agentic-workflow-engine-references.md:87）。Skill 指令定义「何时用、失败保留、恢复核对」（delegated-execution-guide.md:47、:64-65、:97）；确定性代码只把 `--parallel-worktree-write` 当 Runtime 升级的路由信号（workflow_control.py:133、:143、:1027），不执行任何 Git 操作。
+**框架现状**：无自建 Git/worktree Runner，只有指令约定——文档明确自认缺口（docs/tooling/13-agentic-workflow-engine-references.md:87）。Skill 指令定义「何时用、失败保留、恢复核对」（delegated-execution-guide.md:47、:64-65、:97）；确定性代码只把 `--parallel-worktree-write` 当 Runtime 升级的路由信号（workflow_control.py `parse_arguments` 升级词表 :133、`select_execution_route` strict 判定 :143、`route` 输出 :1027 附近），不执行任何 Git 操作。
 
 **与宿主的重叠**：**高**，但零冲突——框架从未自建，宿主原生增强是纯利好。
 
@@ -65,7 +65,7 @@
 
 ### 4.4 安装器：评估双通道
 
-**框架现状**：自建 symlink 分发模型 `scripts/install_agentic_framework.py`（1400+ 行）：双宿主统一建链（:276-327）、manifest v3（:1189-1197）、用户级 registry（:1102-1132）、`--refresh-all` 批量刷新（:1341）、事务快照回滚（:960-1011）、Pack（:70-87）、Overlay 扩展（:20-21、:371、:797）、Windows Developer Mode 提示（:1020-1034）。
+**框架现状**：自建 symlink 分发模型 `scripts/install_agentic_framework.py`（1478 行，2026-09-12）：双宿主统一建链（`build_operations` :276-327）、manifest v3（:1189-1197）、用户级 registry（`_update_registry` :1102-1132）、`--refresh-all` 批量刷新（`refresh_all` :1341）、事务快照回滚（`_snapshot_entries` 起 :960-1011）、Pack（`PACK_SKILLS` :70-87）、Overlay 扩展（:20-21、:371、:797）、Windows Developer Mode 提示（`_create_link` :1020-1034）。
 
 **与宿主的重叠**：**中**。官方 plugin 是 skills + hooks + subagents + MCP 打包的单一安装单元，走 marketplace 发现/更新/启用。框架安装器覆盖 skills、subagents、commands 三类资产，**不覆盖** hooks、MCP server 配置、marketplace 通道。反向优势：官方 plugin 只覆盖 `.claude`，框架双宿主（`.codex` + `.claude`）统一分发是 plugin 机制做不到的。
 
@@ -81,7 +81,7 @@
 
 ### 4.6 权限治理：平行，观察
 
-框架侧对应物是自建批准门（workflow_control.py:551-567）与治理 Profile 守卫（:1090-1118），与宿主 auto mode 无调用关系，属平行实现。语义不同：auto mode 治理「权限提示」，框架批准门治理「变更契约」。观察项：auto mode 默认化改变了「用户在权限提示处把关」的交互模式，需留意对 Production 逐 Task 批准假设的影响。
+框架侧对应物是自建批准门（workflow_control.py `approval_gate_errors` :551-567）与治理守卫（`_event_governance_errors` :1125 + `governance_guards.py`），与宿主 auto mode 无调用关系，属平行实现。语义不同：auto mode 治理「权限提示」，框架批准门治理「变更契约」。观察项：auto mode 默认化改变了「用户在权限提示处把关」的交互模式，需留意对 Production 逐 Task 批准假设的影响。
 
 ## 5. 优先级动作清单
 
@@ -91,7 +91,7 @@
 
 **方向**：把 `validate_change.py`（Plan/Delivery/Archive 三阶段）、`lint_task_deps.py`、Verify 基线校验等确定性脚本做成宿主 hooks（如 PreToolUse 拦截「无 Plan 门禁直接写代码」的路径）。做成后，门禁从「Skill 描述的义务」变为「宿主强制执行的约束」。
 
-**未核实项**：本复查只核对了 Claude Code 侧 hooks 能力；**Codex 是否有等价 hooks 机制未核实**。双宿主框架不能只在一侧强制执行，实施前需确认 Codex 侧方案。
+**已核验（2026-09-12 change 2047，解除本节原「未核实项」）**：Codex CLI 已有等价 hooks 体系——`hooks.json` 配置、PreToolUse/PostToolUse/Stop/SessionStart 等 12-13 个 lifecycle 事件、`/hooks` 管理命令；Codex 0.150.1（2026-08-27）起非受管 hook 须经信任审核后运行（来源：learn.chatgpt.com/docs/hooks；社区核验：blakecrosley.com/blog/codex-hooks-make-the-harness-real、agenticcontrolplane.com/blog/codex-cli-hooks-reference）。**双宿主 hooks 化路径已通**；实施前仍需用 `harness/capabilities/*.json` 的运行时 Adapter 探测确认目标机器上两个宿主的实际版本能力。注意：`harness/capabilities/codex.json` 的 `lifecycle_hooks` 静态默认值仍为 `unsupported`——这是「启动前尚无可执行证据」的待探测声明，按其自身合同由运行时探测覆盖，本核验属文档证据，不改该文件。
 
 ### P2：Workflow 波次深化
 
@@ -110,7 +110,7 @@
 ## 6. 待决事项
 
 1. P1/P2/P3 是否落变更、先后顺序。按仓库约定，实施时在 `docs/design-docs/<module>/<feature>/` 建 `spec.md` 与 `tasks.md`，本文件作为输入。
-2. P1 的 Codex 侧 hooks 等价物确认（第 5 节未核实项）。
+2. ~~P1 的 Codex 侧 hooks 等价物确认（第 5 节未核实项）~~。已核验（2026-09-12，见第 5 节 P1）；余下待决项是 harness Adapter 对两宿主 hooks 的运行时探测。
 3. P3 的 plugin 化与 Overlay/Pack/registry 关系设计。
 
 ## 7. 参考资料
@@ -126,3 +126,9 @@
 
 - Claude Code 官方 What's New：https://code.claude.com/docs/zh-CN/whats-new
 - 官方 CHANGELOG 汇总：https://releasebot.io/updates/anthropic/claude-code（转载自 `anthropics/claude-code` 官方 CHANGELOG.md）
+
+Codex hooks 来源（2026-09-12 change 2047 增补）：
+
+- Codex 官方 Hooks 文档：https://learn.chatgpt.com/docs/hooks
+- Codex hooks 信任审核与 0.150.1 行为：https://blakecrosley.com/blog/codex-hooks-make-the-harness-real
+- Codex hooks 事件参考（PreToolUse/PostToolUse 等）：https://agenticcontrolplane.com/blog/codex-cli-hooks-reference
