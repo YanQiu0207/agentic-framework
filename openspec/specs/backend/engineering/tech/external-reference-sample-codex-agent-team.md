@@ -107,7 +107,7 @@ Live-Validation Gate：静态检查（lint、validate、synth、plan、unit test
 | 独立评审与角色分离 | synthesizer 加 analyst 提示词 | review_profile 分档加独立 Judge 加门禁失败关闭 | 当前更强 |
 | Verify the verifier | 提示词 | machine-verifiable 核心行为可回归加 evidence-skipping 用例加配置弱化失败关闭 | 当前更强 |
 | Recovery（沉默不等于失败） | 提示词 | 事件驱动恢复（Event Journal 加 Checkpoint）加状态源冲突失败关闭 | 当前更强 |
-| 停止规则 | 三轮全局 non-resetting 预算 | 每 Scope 首轮加最多 2 轮复审，仍 `NEEDS_CHANGES` 标「需人工」终止（workflow-code-review 循环语义） | 当前等价（多 Scope 各自封顶），模型不同非缺口，见核实结论 |
+| 停止规则 | 三轮全局 non-resetting 预算 | 每 Scope 首轮加最多 10 轮复审，仍 `NEEDS_CHANGES` 标「需人工」终止（workflow-code-review 循环语义） | 当前采用更宽的有界预算（多 Scope 各自封顶），见核实结论 |
 | 静态与运行时验证 | Live-Validation Gate 显式区分 | verify.py 跑 exit_code、forbid_pattern、count 机器检查，无静态/运行时分级，验不了的检查不入配置 | 场景相关：云与部署扩展时值得引入证据分级，见核实结论 |
 | 中途决策落点 | `decisions.md` 追加式 ADR | 决策在 design.md 备选加 custom/decisions.md 长期 | 见补强点 3 |
 | Steer（纠进行中 scope drift） | 显式原语 | 有 escalate 与 approval（暂停与恢复），无显式最小纠正原语 | 见补强点 4 |
@@ -119,7 +119,7 @@ Live-Validation Gate：静态检查（lint、validate、synth、plan、unit test
 
 ### 补强点 1：whole-change 全局 Review 预算——核实后判定非缺口
 
-`workflow-code-review` 的循环语义已规定：仅 keep 的 P0/P1 触发「修复 → 复审」循环，**修复-复审最多 2 轮**，第 2 轮仍 `NEEDS_CHANGES` 标「需人工」终止，禁止继续循环；且每个 Scope 只有一次首轮，同一 Scope 的修复只能进 re-review。这是 per Scope 的硬上限（task、integration、run 各自首轮加最多 2 轮复审）。AWS 的「全局 3 cycle」是单一 integrated scope 模型下的设计；当前框架用「多 Scope 加每 Scope 2 轮加需人工终止」达到等价的停止效果——单一 Scope 不会无限自转。残留差异仅是「跨 Scope 的 change 级总轮数无上界」，属规模成本而非无限自转风险，不构成缺口。
+`workflow-code-review` 的循环语义已规定：仅 keep 的 P0/P1 触发「修复 → 复审」循环，**修复-复审最多 10 轮**，第 10 轮仍 `NEEDS_CHANGES` 标「需人工」终止，禁止继续循环；且每个 Scope 只有一次首轮，同一 Scope 的修复只能进 re-review。这是 per Scope 的硬上限（task、integration、run 各自首轮加最多 10 轮复审）。AWS 的「全局 3 cycle」是单一 integrated scope 模型下的设计；当前框架采用更宽的「多 Scope 加每 Scope 10 轮加需人工终止」预算，仍保证单一 Scope 不会无限自转。残留差异仅是「跨 Scope 的 change 级总轮数无上界」，属规模成本而非无限自转风险，不构成缺口。
 
 ### 补强点 2：静态/运行时验证分级——场景相关补强点（部分成立）
 

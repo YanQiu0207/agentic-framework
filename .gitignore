@@ -18,3 +18,8 @@ Thumbs.db
 # tencent-workbuddy
 .workbuddy/tmp.key
 tmp.key
+
+# CAO Windows + Herdr 实验产物
+.artifacts/cao-user-test/
+resource_downloads/cli-agent-orchestrator/
+vendor/cli-agent-orchestrator-windows/

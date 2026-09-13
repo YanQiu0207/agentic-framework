@@ -100,7 +100,7 @@ Tooling 的 `check_delivery.py` 默认要求 Git 工作区干净。对存量残�
 - `strict`：调用 5 个专项 Reviewer；存在 Finding 时再调用 `review-critic`。
 - `lightweight`、`standard` 的 `comprehensive-reviewer` 可自证并生成 Review Artifact；被审方只能原样持久化，不得手写或改写 Artifact。
 - Strict 最终 Judge 必须与实现主体独立，并生成最终 Artifact。
-- 修复后只定向 Re-review，最多 2 轮；不得启动第二次全量首审。
+- 修复后只定向 Re-review，最多 10 轮；不得启动第二次全量首审。
 
 Review 同时输出 Markdown 和与交付路径匹配的 JSON。机器门校验 `verdict`、P0/P1 数量、`scope`、`review_profile` 和轮次；它只能验证 Artifact 合同，不能把被审方手写的 JSON 变成可信 Review。OPSX 阶段门（`validate_change.py`）接受双格式 Review 报告：Envelope（裁决字段在 `payload` 内）或旧式扁平 JSON（裁决字段在顶层），按同一套字段校验，Envelope 额外要求顶层 `artifact_type` 为 `review-report`，顶层字段仅限 Run Envelope schema 定义的 13 个键（与 `payload` 同时携带裁决字段、`payload` 非 JSON 对象、或顶层携带该白名单外的未知字段，均拒绝）；Tooling Run 级报告仍必须是绑定 Run Context 的 Envelope（见 trust-model.md §6）。
 
