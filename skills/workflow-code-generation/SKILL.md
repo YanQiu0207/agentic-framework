@@ -136,6 +136,15 @@ description: 代码文件修改的统一入口。任何代码变更（新功能�
 
 当路由为 `runtime-run` 时，Phase 0 必须先调用 `workflow_control.py <tasks.md> init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明与 Adapter 命令。该命令在业务副作用前冻结规则输入与完整 Task Plan、生成 Run Context、执行 Harness 启动能力门并创建 Journal；失败时禁止 dispatch。此路径的每次 `quality_passed --write` 必须同时传 `--run-dir` 和该次执行生成的 Envelope Verify Artifact，旧式无 Run/Task/Attempt 绑定的顶层 `PASS` JSON 不得放行。路由为 `native-delivery` 时，不调用 `init-run`；`quality_passed --write --verify-report <standalone-report.json>` 必须校验 `PASS` 顶层结论、零错误／违规，以及每项完整的 `CheckResult` 合同，不写入任何 Run Artifact。
 
+**内置 Harness Adapter 不得漏查**：Adapter 只负责运行时能力探测，不负责启动或下放 Agent。先从当前 Skill 的真实路径向上定位框架根，再按宿主选择框架自带文件：
+
+| 宿主 | Harness 声明 | Adapter 命令 |
+| --- | --- | --- |
+| Codex | `<framework-root>/harness/capabilities/codex.json` | `python <framework-root>/scripts/codex_adapter.py` |
+| Claude Code | `<framework-root>/harness/capabilities/claude-code.json` | `python <framework-root>/scripts/claude_code_adapter.py` |
+
+`init-run` 的 `--required-capability` 只声明本次任务确实依赖的能力；不得因为 Adapter 将 `subagents` 或 `worktree_isolation` 报为 `unsupported`，就误判为「没有 Adapter」。未被声明为 required 的能力按降级模式记录，不阻塞主宿主通过原生 Agent 工具执行。只有内置 Adapter 文件缺失、运行时探测失败，或任务必需能力确实不受支持时，才将 Harness 启动门报告为阻塞；不得用临时脚本伪造探测结果。
+
 ### 步骤 6：功能交付与 intent 沉淀（🚨 强制，全部 task 完成后触发）
 
 全部 wave 处理完、`tasks.md` 任务为 `完成` / `需人工` / `阻塞` 时，**禁止直接宣布交付**，先走：

@@ -47,6 +47,10 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
 4. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖和 Verify 配置选择。每个并行 Task 使用独立 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由必须传 `--parallel-worktree-write` 并升级 Runtime。
 5. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`。
 6. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。失败时禁止 dispatch。
+   - Codex 使用 `<framework-root>/harness/capabilities/codex.json` 与 `python <framework-root>/scripts/codex_adapter.py`。
+   - Claude Code 使用 `<framework-root>/harness/capabilities/claude-code.json` 与 `python <framework-root>/scripts/claude_code_adapter.py`。
+   - Adapter 只探测能力，不负责下放 Agent；`subagents` 或 `worktree_isolation` 为 `unsupported` 不等于 Adapter 缺失。只把任务实际依赖的能力传给 `--required-capability`，其余能力按降级模式记录。
+   - 仅当内置 Adapter 缺失、探测失败或必需能力不受支持时报告阻塞；禁止用临时脚本伪造能力结果。
 
 ## Phase 1：逐波执行
 
