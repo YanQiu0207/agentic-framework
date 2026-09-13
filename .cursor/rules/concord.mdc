@@ -1,4 +1,7 @@
-@AGENTS.md
+---
+description: Concord shared work-state tools for coding agents
+alwaysApply: true
+---
 
 <!-- concord:start -->
 ## Concord — shared work-state for coding agents

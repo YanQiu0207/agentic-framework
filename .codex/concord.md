@@ -1,5 +1,3 @@
-@AGENTS.md
-
 <!-- concord:start -->
 ## Concord — shared work-state for coding agents
 

@@ -18,3 +18,4 @@ Thumbs.db
 # tencent-workbuddy
 .workbuddy/tmp.key
 tmp.key
+.concord/
