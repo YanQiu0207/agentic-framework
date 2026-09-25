@@ -1,6 +1,6 @@
 ---
 name: workflow-verification
-description: 研发后机器验证门。有 verify.config.json 时配置驱动跑 build / test / lint 等客观检查 + 改动前后基线对比、只追新增违规；内置 spec drift 检查：改了代码但相关 spec.md / ui-spec.md / tasks.md / ADR 未更新时，必须提供无需更新原因。Task 合并前、Native Delivery 最终 Review 前和完整 Runtime Run 最终 Review 前执行。workflow-code-generation 实现后判定「是否真做完」，或用户要求跑验证时使用；用户显式要求「初始化 / 刷新 verify 配置」（/verify-config）时进入配置维护模式——这是常规写入路径；实现产生已试运行的新入口时可受限追加非基线检查。
+description: 研发后机器验证门。有 verify.config.json 时配置驱动跑 build / test / lint 等客观检查 + 改动前后基线对比、只追新增违规；内置 spec drift 检查：改了代码但相关 proposal.md / design.md / spec.md / ui-spec.md / tasks.md / Delta / 长期知识 / ADR 未更新时，必须提供无需更新原因。Task 合并前、Native Delivery 最终 Review 前和完整 Runtime Run 最终 Review 前执行。workflow-code-generation 实现后判定「是否真做完」，或用户要求跑验证时使用；用户显式要求「初始化 / 刷新 verify 配置」（/verify-config）时进入配置维护模式——这是常规写入路径；实现产生已试运行的新入口时可受限追加非基线检查。
 ---
 
 > 输出一行：`Using workflow-verification`
@@ -31,9 +31,10 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
 - Git 工作副本 → `git diff --name-only <base>` + `git ls-files --others`。
 - SVN 工作副本 → `svn status`（`A/M/D` 计为已纳入改动，`?` 计为未跟踪，`I` 跳过）。纯 SVN 模式按规则「只 `svn add`、不 `svn commit`」，一个 Change 期间无提交，工作副本本地改动即「本次改动」的全部，`--diff-base` 在 SVN 下不使用。
 - 两端都探测不到 → spec drift 判 error，提示不在 Git 仓库或 SVN 工作副本内。
+- **规格类文件判定**：活跃 Change 的 `proposal.md` / `design.md` / `spec.md` / `ui-spec.md` / `tasks.md` 与 `openspec/changes/` 下其余 `.md`（Delta 等）、长期 `openspec/specs|issues/` 下 `.md`、ADR 目录下 `.md`。
 
-- 改了代码文件，且无法证明相关活跃 Change（`spec.md` / `ui-spec.md` / `tasks.md`）或长期 `openspec/specs/`、`openspec/issues/` 已按知识影响更新 → FAIL。
-- 相关性只做机械判定：`tasks.md` 中出现代码路径，或代码文件位于同一规格目录下；判不出相关时必须传 `--spec-drift-reason "<原因>"`。旧 `docs/design-docs/` 只作为迁移输入，不作为新改动的规格写入目标。
+- 改了代码文件，且无法证明相关活跃 Change（`proposal.md` / `design.md` / `ui-spec.md` / `tasks.md` / `specs/` 下 Delta）或长期 `openspec/specs/`、`openspec/issues/`、ADR 已按知识影响更新 → FAIL。
+- 相关性只做机械判定：规格类文件（含 ADR）正文出现改动代码路径；判不出相关时必须传 `--spec-drift-reason "<原因>"`。旧 `docs/design-docs/` 只作为迁移输入，不作为新改动的规格写入目标。
 - 标准 / 下放流程（Git 模式）必须在 Phase 0 记录 `base_sha`，后续验证显式传 `--diff-base <base_sha>`；禁止在已提交 / 已合并后的 clean 工作区裸用默认 `HEAD` 作为基准。SVN 模式无此要求，spec drift 直接读工作副本本地改动。
 - 知识源新鲜度：`meta.yaml` 的 `source_ref` 校验 `git:<sha>`（commit 存在且来源路径最后提交是其祖先）与 `svn:<rev>`（revision 存在且来源路径最后修订号 `<= ref rev`，需 SVN 1.9+ 的 `--show-item`）两种形式，其余前缀报「不可解析」。
 - 报告写入 `.agentic-framework/verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
@@ -47,7 +48,7 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
   - `verify.config.json` 顶层 `ignore_paths: [glob, ...]`（项目级长期忽略）。
   - 基线快照差集：`--save-baseline` 时自动记录当时的 changed files（S0），`verify` 时本次改动 = S1 − S0（动代码前已存在的本地改动自动排除）。旧基线缺 `changed_files_snapshot` 字段时 fail-closed，要求重采基线。
 - **glob 语义**：`fnmatchcase`（大小写敏感、跨 OS 一致），`*` / `**` 跨目录、`?` 单字符；目录模式（`dir/` 或 `dir`）覆盖其下全部文件。被忽略文件在 report 中按来源标注（`ignore_sources`：cli / config / baseline）。
-- **安全护栏**：`openspec/` 下的 `spec.md` / `ui-spec.md` / `tasks.md` / ADR 永不可忽略——忽略它们会让 spec drift 被静默绕过；命中忽略但仍属规格类的文件记入 report 的 `refused_ignores` 并照常归类。
+- **安全护栏**：`openspec/` 下的 `proposal.md` / `design.md` / `spec.md` / `ui-spec.md` / `tasks.md` / ADR 永不可忽略——忽略它们会让 spec drift 被静默绕过；命中忽略但仍属规格类的文件记入 report 的 `refused_ignores` 并照常归类。
 - **审计**：被忽略文件写入 report 的 `spec_drift.value.ignored_files`，供 Review 核查。
 - **硬约束**：`--ignore` 只作用于 spec drift 归类；build / test / lint 仍编译运行工作树全部文件，`M` 半成品仍需物理隔离（patch 往返 / 第二工作副本）。
 
@@ -123,7 +124,7 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 3. **exit 1**（代码问题：编译错 / 测试挂 / 新增违规）→ 回实现改代码重跑，有限轮次仍 FAIL → 标 `需人工` + 附输出。**不停其他并行 task**。
 4. **exit 2**（门禁自身坏了：工具缺失 / 正则非法 / 基线损坏）→ 改代码没用，直接标 `需人工` 排查配置 / 环境。
 5. 无 config → 只跑内置门禁，汇报「未做项目自定义机器验证」，并提示可运行 `/verify-config` 初始化。
-6. `spec_drift` FAIL → 更新对应 Change、长期 Specs、Issues 或知识同步任务，或补 `--spec-drift-reason` 后重跑。
+6. `spec_drift` FAIL → 更新对应 Change（`proposal.md` / `design.md` / Delta / `tasks.md`，正文引用改动代码路径）、长期 Specs、Issues 或 ADR，或补 `--spec-drift-reason` 后重跑。
 
 ## 与 workflow-code-generation 集成
 

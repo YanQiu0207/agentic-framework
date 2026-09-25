@@ -1,11 +1,14 @@
-"""Lint spec.md 的章节完整性（设计 / 编码前的确定性门禁）。
+"""Lint proposal.md / design.md / Quick Draft 的章节完整性（确定性门禁）。
 
-按 spec 的 `状态` 与 `--phase` 校验章节完整性，替代「AI 自述已写好」：
+按文件的 `状态` 与 `--phase` 校验章节完整性，替代「AI 自述已写好」：
 
 - **状态字段**：必须从模板占位中选定单一合法值
   （Draft / In Review / Approved / Archived / Quick Draft）。
-- **标准 spec**：`--phase design` 要求 1~3 章、`--phase code` 要求 1~4 章
-  存在且有实质内容；不适用的章节必须显式标 `N/A`。
+- **proposal.md（标准）**：`--phase design` 要求 1~3 章、`--phase code`
+  要求 1~3 章存在且有实质内容；不适用的章节必须显式标 `N/A`。
+  （第 4 章起是知识影响与参考资料，不在此校验范围。）
+- **design.md**：用 `--phase design-code` 要求 4~9 章存在且有实质内容
+  （design 沿用旧 spec 全局章节号 4~9）。
 - **Quick Draft**：要求 问题 / 目标 / 整体方案 / 验收标准 四节有实质内容。
 
 「实质内容」判定：对照生成用模板（默认随框架仓库定位，可用 `--template` 覆盖），
@@ -26,10 +29,13 @@ from pathlib import Path
 # 框架仓库与安装后的 .claude/.codex skills 目录布局一致，两处均可解析。
 SKILLS_ROOT = Path(__file__).resolve().parents[2]
 STANDARD_TEMPLATE = (
-    SKILLS_ROOT / "workflow-requirements-clarification" / "reference" / "spec_template.md"
+    SKILLS_ROOT / "workflow-requirements-clarification" / "reference" / "proposal_template.md"
+)
+DESIGN_TEMPLATE = (
+    SKILLS_ROOT / "workflow-system-design" / "reference" / "design_template.md"
 )
 QUICK_TEMPLATE = (
-    SKILLS_ROOT / "workflow-quick-design" / "reference" / "quick-spec-template.md"
+    SKILLS_ROOT / "workflow-quick-design" / "reference" / "quick-proposal-template.md"
 )
 
 STATUSES = {"Draft", "In Review", "Approved", "Archived", "Quick Draft"}
@@ -41,7 +47,12 @@ COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 # 单独成行的占位词不算实质内容
 PLACEHOLDER_RE = re.compile(r"^(?:todo|tbd|xxx|待补充|待填写|待定)$", re.IGNORECASE)
 
-PHASE_CHAPTERS = {"design": (1, 2, 3), "code": (1, 2, 3, 4)}
+PHASE_CHAPTERS = {
+    "design": (1, 2, 3),
+    "code": (1, 2, 3),
+    # design.md 沿用旧 spec 全局章节号（4~9），与 proposal 的 1~5 不重叠
+    "design-code": (4, 5, 6, 7, 8, 9),
+}
 QUICK_SECTIONS = ("问题", "目标", "整体方案", "验收标准")
 
 
@@ -171,13 +182,13 @@ def main(argv: list[str]) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")  # Windows 控制台默认非 UTF-8，避免中文乱码
 
-    parser = argparse.ArgumentParser(description="校验 spec.md 章节完整性")
-    parser.add_argument("spec_md", type=Path, help="spec.md 路径")
+    parser = argparse.ArgumentParser(description="校验 proposal.md / design.md 章节完整性")
+    parser.add_argument("spec_md", type=Path, help="proposal.md / design.md 路径")
     parser.add_argument(
         "--phase",
-        choices=("design", "code"),
+        choices=("design", "code", "design-code"),
         default="code",
-        help="design：设计前查 1~3 章；code（默认）：编码前查 1~4 章。Quick Draft 忽略此项。",
+        help="design / code：proposal.md 查 1~3 章；design-code：design.md 查 4~9 章。Quick Draft 忽略此项。",
     )
     parser.add_argument(
         "--template",
@@ -193,9 +204,14 @@ def main(argv: list[str]) -> int:
     status = parse_status(text)
 
     warnings: list[str] = []
-    template_path = args.template or (
-        QUICK_TEMPLATE if status == "Quick Draft" else STANDARD_TEMPLATE
-    )
+    template_path = args.template
+    if template_path is None:
+        if status == "Quick Draft":
+            template_path = QUICK_TEMPLATE
+        elif args.phase == "design-code":
+            template_path = DESIGN_TEMPLATE
+        else:
+            template_path = STANDARD_TEMPLATE
     template_text: str | None = None
     if template_path.is_file():
         template_text = read(template_path)

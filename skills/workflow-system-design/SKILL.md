@@ -49,6 +49,7 @@ AI 通过提问帮助用户发现问题和权衡：
 
 - `proposal.md` 已存在且背景、目标、需求和验收标准完整
 - `design.md` 不存在时，从 `reference/design_template.md` 复制创建；旧 `spec.md` 只允许迁移读取，不作为新写入目标
+- **章节号约定**：design.md 沿用旧单文件 spec 的全局章节号（4~9），与 proposal.md 的 1~5 章不重叠；「4.1 方案概览」是历史延续编号，不是笔误。跨文件引用写「design.md §4.1」
 - 如果不存在或不完整 → **停止，切换到 `workflow-requirements-clarification` Skill**
 
 ## 触发条件

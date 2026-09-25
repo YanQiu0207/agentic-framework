@@ -1,3 +1,5 @@
+<!-- ⚠️ 已弃用（仅作历史迁移读取）：Quick Draft 用 quick-proposal-template.md，
+lint_spec.py 的占位对照已改用 quick-proposal-template.md，不再读本文件。 -->
 # Tool/Service: XXX
 
 **作者**: xxx

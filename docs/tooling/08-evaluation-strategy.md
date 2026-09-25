@@ -44,7 +44,8 @@ python scripts/lint_skill_graph.py          # ERROR 即退出码 1
 python scripts/lint_skill_graph.py --graph  # 输出引用图，交 LLM 判语义遗漏
 # 以下三道门随 workflow-code-generation skill 分发（skills/workflow-code-generation/scripts/）
 python skills/workflow-code-generation/scripts/lint_task_deps.py <tasks.md> # tasks.md 依赖与必填字段
-python skills/workflow-code-generation/scripts/lint_spec.py <spec.md> --phase design|code  # spec 章节完整性门
+python skills/workflow-code-generation/scripts/lint_spec.py <proposal.md> --phase design|code  # proposal 章节完整性门（1~3 章）
+python skills/workflow-code-generation/scripts/lint_spec.py <design.md> --phase design-code  # design 章节完整性门（4~9 章）
 python skills/workflow-code-generation/scripts/check_delivery.py --tasks <tasks.md> --spec <spec.md> --review-report <review-report.json>  # 交付门
 ```
 

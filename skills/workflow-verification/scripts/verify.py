@@ -99,7 +99,15 @@ _CODE_SUFFIXES = {
     ".tsx",
 }
 _CODE_FILE_NAMES = {"dockerfile", "makefile"}
-_SPEC_FILE_NAMES = {"spec.md", "ui-spec.md", "tasks.md"}
+# 活跃 Change 的规格类文件名（任意目录）；Delta（openspec/changes/**.md）、
+# 长期知识（openspec/specs|issues）与 ADR 目录由 _is_spec_file 按路径识别。
+_SPEC_FILE_NAMES = {
+    "spec.md",
+    "ui-spec.md",
+    "tasks.md",
+    "proposal.md",
+    "design.md",
+}
 _DOC_SUFFIXES = {".md", ".mdx"}
 
 
@@ -458,6 +466,14 @@ def _is_spec_file(path_text: str) -> bool:
         return True
     if name in _SPEC_FILE_NAMES:
         return True
+    # 活跃 Change 目录下的 Delta 等其余 .md 也属规格类
+    if (
+        path.suffix.lower() in _DOC_SUFFIXES
+        and len(lower_parts) >= 3
+        and lower_parts[0] == "openspec"
+        and lower_parts[1] == "changes"
+    ):
+        return True
     if path.suffix.lower() in _DOC_SUFFIXES and parts.intersection({"adr", "adrs"}):
         return True
     return False
@@ -597,39 +613,32 @@ def evaluate_spec_drift(
         "Z-spec-drift",
         "spec_drift",
         "fail",
-        "改了代码，但未能证明相关 spec.md / ui-spec.md / tasks.md / ADR 已更新；"
-        "请补更新，或通过 --spec-drift-reason 写明无需更新原因",
+        "改了代码，但未能证明相关 proposal.md / design.md / spec.md / ui-spec.md / "
+        "tasks.md / Delta / 长期知识 / ADR 已更新；"
+        "请补更新（正文需引用改动代码路径），或通过 --spec-drift-reason 写明无需更新原因",
         value=value,
     )
 
 
 def _related_spec_files(code_files: list[str], spec_files: list[str]) -> list[str]:
-    """Return spec files that can be mechanically tied to changed code files."""
+    """Return spec files that can be mechanically tied to changed code files.
+
+    统一判定：规格类文件正文出现任一改动代码路径（posix 或原样）即算相关。
+    tasks.md / proposal.md / design.md / Delta / 长期知识 / ADR 均按此处理；
+    文件名规则命中的 spec.md / ui-spec.md 若不位于 openspec/ 下（如旧目录），
+    其父目录与代码路径通常无交集，同样按正文判定。
+    """
     related: set[str] = set()
     for spec_file in spec_files:
         path = Path(spec_file)
-        lower_parts = tuple(part.lower() for part in path.parts)
-        is_knowledge_document = (
-            len(lower_parts) >= 2
-            and lower_parts[0] == "openspec"
-            and lower_parts[1] in {"specs", "issues"}
-        )
-        if path.name.lower() == "tasks.md" or is_knowledge_document:
-            try:
-                body = path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                continue
-            for code_file in code_files:
-                if code_file in body or Path(code_file).as_posix() in body:
-                    related.add(spec_file)
-                    break
-        if path.name.lower() in {"spec.md", "ui-spec.md"}:
-            feature_dir = path.parent
-            if any(
-                _is_relative_to(Path(code_file), feature_dir)
-                for code_file in code_files
-            ):
+        try:
+            body = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for code_file in code_files:
+            if code_file in body or Path(code_file).as_posix() in body:
                 related.add(spec_file)
+                break
     return sorted(related)
 
 

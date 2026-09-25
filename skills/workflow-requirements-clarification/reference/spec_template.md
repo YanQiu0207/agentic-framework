@@ -1,3 +1,5 @@
+<!-- ⚠️ 已弃用（仅作历史迁移读取）：新 Change 的需求写入 proposal_template.md，
+lint_spec.py 的占位对照已改用 proposal_template.md，不再读本文件。 -->
 # Feature: XXX
 
 **作者**: xxx  

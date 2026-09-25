@@ -367,6 +367,75 @@ class EvaluateSpecDriftTest(unittest.TestCase):
             result = verify.evaluate_spec_drift("HEAD", "")
         self.assertEqual("fail", result.status)
 
+    def test_proposal_and_design_files_classify_as_spec(self) -> None:
+        """现行产物名 proposal.md / design.md 按文件名任意目录命中规格类。"""
+        self.assertTrue(verify._is_spec_file("openspec/changes/add-tool/proposal.md"))
+        self.assertTrue(verify._is_spec_file("openspec/changes/add-tool/design.md"))
+        # 文件名命中不受目录限制（与 spec.md / tasks.md 口径一致）
+        self.assertTrue(verify._is_spec_file("docs/notes/design.md"))
+        self.assertFalse(verify._is_code_file("openspec/changes/add-tool/proposal.md"))
+
+    def test_change_delta_markdown_classifies_as_spec(self) -> None:
+        """openspec/changes/ 下其余 .md（Delta 等）必须被认作规格类文件。"""
+        self.assertTrue(verify._is_spec_file("openspec/changes/add-tool/specs/api/tool.md"))
+        self.assertTrue(verify._is_spec_file("openspec/changes/add-tool/notes.md"))
+        self.assertFalse(verify._is_spec_file("openspec/other/specs/api/tool.md"))
+        self.assertFalse(verify._is_spec_file("changes/add-tool/specs/api/tool.md"))
+
+    def test_adr_with_code_path_proves_related_update(self) -> None:
+        """ADR 正文引用改动代码路径时必须计入 related（修复前永不计入）。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            adr = root / "docs/adr/0001-tool.md"
+            adr.parent.mkdir(parents=True)
+            adr.write_text("决策：src/tool.py 改用连接池。\n", encoding="utf-8")
+            related = verify._related_spec_files(
+                ["src/tool.py"], [str(adr)]
+            )
+        self.assertEqual([str(adr)], related)
+
+    def test_proposal_with_code_path_can_prove_related_update(self) -> None:
+        """proposal / design 正文引用改动代码路径即可通过 spec drift。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            change = root / "openspec/changes/add-tool"
+            change.mkdir(parents=True)
+            (change / "proposal.md").write_text(
+                "## 1. 背景\n改动 src/tool.py\n", encoding="utf-8"
+            )
+            (change / "design.md").write_text(
+                "## 4. 设计方案\n涉及 src/tool.py\n", encoding="utf-8"
+            )
+            with mock.patch.object(
+                verify,
+                "_changed_files",
+                return_value=(
+                    [
+                        "src/tool.py",
+                        "openspec/changes/add-tool/proposal.md",
+                        "openspec/changes/add-tool/design.md",
+                    ],
+                    [],
+                    None,
+                ),
+            ):
+                old_cwd = Path.cwd()
+                try:
+                    import os
+
+                    os.chdir(root)
+                    result = verify.evaluate_spec_drift("HEAD", "")
+                finally:
+                    os.chdir(old_cwd)
+        self.assertEqual("pass", result.status)
+        self.assertEqual(
+            [
+                "openspec/changes/add-tool/design.md",
+                "openspec/changes/add-tool/proposal.md",
+            ],
+            result.value["related_spec_files"],
+        )
+
     def test_change_tasks_can_prove_related_update(self) -> None:
         """An active Change tasks file can map a changed code path."""
         with tempfile.TemporaryDirectory() as temp_dir:
