@@ -147,3 +147,26 @@ def test_manual_initialization_and_telemetry_fields_preserved() -> None:
     )
     assert "最多 10 轮" in generation and "最多 10 轮" in delegated
     assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation
+
+
+def test_existing_svn_is_detected_before_git_initialization() -> None:
+    """Existing SVN or an unresolved marker must not become a Git repo."""
+    text = read("skills/project-init/SKILL.md")
+    routing, initialization = text.split("## 初始化", 1)
+    for required in (
+        "当前目录及祖先",
+        "`svn info`",
+        "已有 SVN 工作副本",
+        "先查询 `knowledge-advanced`",
+        "缺包或查询失败时停止",
+        "不能转而执行 `git init`",
+        "有 `.svn` 标记但 SVN 不可用",
+        "不擅自执行高级初始化",
+    ):
+        assert required in routing
+    assert "确认不存在 SVN 工作副本或未决状态" in initialization
+    assert "用户确认 Git 模式后" in initialization
+    assert "不把任何失败都当成「不是仓库」" in initialization
+    generation = read("skills/workflow-code-generation/SKILL.md")
+    assert "普通 SVN Native Delivery 不额外要求高级初始化能力包" in generation
+    assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation

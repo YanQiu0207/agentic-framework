@@ -165,7 +165,7 @@ class ProfileContractTest(unittest.TestCase):
         ):
             self.assertIn(required, text)
         self.assertIn("](reference/advanced-init.md)", text)
-        self.assertIn("仅当用户要求 SVN、外置正文或公共库接线时", text)
+        self.assertIn("仅当用户要求 SVN、外置正文或公共库接线", text)
         self.assertIn("默认不询问外置和公共接线", text)
         self.assertIn("缺包时停止所请求的高级操作", text)
         self.assertIn("--show-packs <project>", text)

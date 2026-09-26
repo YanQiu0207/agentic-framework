@@ -31,7 +31,7 @@ description: 代码修改的统一入口。新增功能、修复 Bug、优化或
 - **需求与验收标准清楚，但需要补实现方案或文件定位** → 直接调用 `workflow-quick-design`，不先走需求澄清。若 Quick Design 识别出安全、权限、数据迁移、并发、分布式、性能关键路径、公共 API 或大范围重构，再升级为完整需求与系统设计流程。
 - **需求或验收标准不清楚** → 调用 `workflow-requirements-clarification`。
 - **其余一切**（已有 spec / tasks，或 Quick Design 完成）→ **标准流程**（默认下放到 Native Delivery）。
-- **完整 Runtime Run** 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。无法确定风险时选 `standard`，不因不确定自动升级 Runtime；若无法确认是否命中执行条件，先澄清再开始。**SVN 工作副本不适用完整 Runtime Run**：命中升级条件时停止，建议使用 Git 隔离工作区；不得降级风险或伪造 Run Context。普通 SVN Native Delivery 需启用 `knowledge-advanced`。
+- **完整 Runtime Run** 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。无法确定风险时选 `standard`，不因不确定自动升级 Runtime；若无法确认是否命中执行条件，先澄清再开始。**SVN 工作副本不适用完整 Runtime Run**：命中升级条件时停止，建议使用 Git 隔离工作区；不得降级风险或伪造 Run Context。普通 SVN Native Delivery 不额外要求高级初始化能力包。
 
 ## 步骤 1.5：Verify 配置选择（路由后无条件）
 
