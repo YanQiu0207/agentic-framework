@@ -14,7 +14,7 @@ disable-model-invocation: true
 
 先以只读方式检查当前目录及祖先的 Git／SVN 工作副本标记，再分别用 `git rev-parse --is-inside-work-tree` 和可用的 `svn info` 核实。发现已有 SVN 工作副本时，只识别并报告，不擅自执行高级初始化；先查询 `knowledge-advanced`，缺包或查询失败时停止，不能转而执行 `git init`。有 `.svn` 标记但 SVN 不可用或状态无法核实时，同样停止，不推断为新项目。
 
-只有确认没有既有 SVN 工作副本或未决版本管理状态后，才默认建议 Git 和项目内 `openspec/`。确认版本管理方式和框架 Profile；Production 使用 OPSX 生命周期与 Production Review，Tooling 使用 DAG、Worktree、失败隔离和最终 Review。Profile 不改变知识目录。
+只有确认没有既有 SVN 工作副本或未决版本管理状态后，才默认建议 Git 和项目内 `openspec/`。确认版本管理方式和框架 Profile；两个 Profile 共用 workflow 入口；Production 通过阶段治理与审查门禁体现差异，Tooling 使用 DAG、Worktree、失败隔离和最终 Review。Profile 不改变知识目录。
 
 仅当用户要求 SVN、外置正文或公共库接线，或检测到已有 SVN 工作副本时，先查询 `knowledge-advanced`，再读取 [reference/advanced-init.md](reference/advanced-init.md)；默认不询问外置和公共接线，也不读取高级说明。
 
