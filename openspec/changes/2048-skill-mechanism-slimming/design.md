@@ -2,7 +2,7 @@
 
 ## 4.1 方案概览
 
-只维护一条普通交付路径。轻量任务可无 Proposal／Tasks，但仍使用 standard integration Review、完整独立 Verify、知识影响结论与 Native Delivery Verdict；有任务文件时仍检查终态、归档和知识同步。旧的隐式 Fast-Path 调用拒绝并提示迁移，禁止弱证据继续放行。
+只维护一条普通交付路径。轻量任务可无 Proposal／Tasks，但仍使用 integration Review（Tooling 为 standard，Production 保留 strict）、完整独立 Verify、知识影响结论与 Native Delivery Verdict；有任务文件时仍检查终态、归档和知识同步。旧的隐式 Fast-Path 调用拒绝并提示迁移，禁止弱证据继续放行。
 
 复用安装器 `--with` 与 manifest.packs。新增 `runtime` 和 `knowledge-advanced` 能力标记；前端与 `open-code-review` 原本已选装，无需重建。新安装默认核心包。普通重装继承已选能力，显式增减由参数表达。旧清单用明确版本标记区分并继承此前默认可用的 Runtime／高级知识能力；已禁用的新清单不得被刷新重新启用。
 
