@@ -35,3 +35,4 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - 多 Agent 协作样例（AWS sample-codex-agent-team）协议设计逐文件解读、维度级对比与补强点候选：[`external-reference-sample-codex-agent-team.md`](specs/backend/engineering/tech/external-reference-sample-codex-agent-team.md)
 - HarnessX Agent Harness Foundry 的组合模型、轨迹驱动演化、模型共演化、证据边界及适配候选：[`external-reference-harnessx.md`](specs/backend/engineering/tech/external-reference-harnessx.md)
 - Alibaba skill-up 的 Skill 评测、with/without 基线、对话式演进、与 HarnessX 的分层对比及试点候选：[`external-reference-skill-up.md`](specs/backend/engineering/tech/external-reference-skill-up.md)
+- Comet 流程编排状态机（rpamis/comet）的双工作流、源码核验机制、三层扩展模型、与本框架 27 skills 的迁移对照及共存策略：[`external-reference-comet.md`](specs/backend/engineering/tech/external-reference-comet.md)
