@@ -110,7 +110,9 @@ class ProfileContractTest(unittest.TestCase):
 
     def test_project_knowledge_uses_shared_openspec_contract(self) -> None:
         """Shared project-knowledge 锁定统一读写、冲突与晋升边界。"""
-        text = (ROOT / "skills/project-knowledge/SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "skills/project-knowledge/SKILL.md").read_text(
+            encoding="utf-8"
+        )
         for required in (
             "Production 与 Tooling 的 Shared Core 合同",
             "openspec/index.md",
@@ -120,33 +122,72 @@ class ProfileContractTest(unittest.TestCase):
             "不得覆盖、重写、移动或删除任何 `custom/` 文件",
             "Change Delta 与 Archive",
             "用户明确确认后",
-            "公共 `changes/` 只记录公共知识库自身治理",
             "交付前 intent 沉淀检查",
         ):
             self.assertIn(required, text)
+        # Advanced protections must remain reachable behind the capability gate.
+        self.assertIn("](reference/knowledge-advanced.md)", text)
+        self.assertIn("仅在用户要求", text)
+        self.assertIn("`knowledge-advanced` 能力包", text)
+        self.assertIn("缺包时停止高级操作", text)
+        self.assertIn("--show-packs <project>", text)
+        advanced = (
+            ROOT / "skills/project-knowledge/reference/knowledge-advanced.md"
+        ).read_text(encoding="utf-8")
+        for required in (
+            "用户明确授权晋升后执行",
+            "未确认候选不得写入公共库任何目录",
+            "公共 `changes/` 只记录公共知识库自身治理",
+            "不得反向链接项目私有正文",
+        ):
+            self.assertIn(required, advanced)
         for forbidden in (
             "docs/design-docs/",
             "docs/issues/",
             "候选写入共用库 `changes/",
         ):
-            self.assertNotIn(forbidden, text)
+            self.assertNotIn(forbidden, text + advanced)
 
     def test_project_init_uses_unified_private_openspec_layout(self) -> None:
-        text = (ROOT / "skills/project-init/SKILL.md").read_text(encoding="utf-8")
+        text = (ROOT / "skills/project-init/SKILL.md").read_text(
+            encoding="utf-8"
+        )
         for required in (
             "Production",
             "Tooling",
             "openspec/index.md",
             "openspec/specs/index.md",
             "openspec/issues/index.md",
-            "外部私有目录",
-            "链接恢复",
-            "单独询问公共知识库接线",
-            "不得覆盖",
+            "已有同名章节不覆盖",
+            "未跟踪内容也不得移动或删除",
+            "disable-model-invocation: true",
             ".agentic-framework/",
         ):
             self.assertIn(required, text)
-        self.assertNotIn("docs/design-docs/", text)
+        self.assertIn("](reference/advanced-init.md)", text)
+        self.assertIn("仅当用户要求 SVN、外置正文或公共库接线时", text)
+        self.assertIn("默认不询问外置和公共接线", text)
+        self.assertIn("缺包时停止所请求的高级操作", text)
+        self.assertIn("--show-packs <project>", text)
+        advanced = (
+            ROOT / "skills/project-init/reference/advanced-init.md"
+        ).read_text(encoding="utf-8")
+        for required in (
+            "`knowledge-advanced` 启用后读取",
+            "用户提供绝对路径",
+            "外部私有正文不得与项目根或公共库重叠",
+            "仍不得覆盖文件",
+            "纯 SVN 不引入 Git",
+            "链接恢复",
+            "仅当用户要求接线时单独确认",
+            "不覆盖已有章节，不修改全局配置",
+            "无版本管理且无备份时停止",
+            "Windows 无符号链接权限时",
+            "禁止静默复制",
+            "不执行 `svn commit`",
+        ):
+            self.assertIn(required, advanced)
+        self.assertNotIn("docs/design-docs/", text + advanced)
 
 
 if __name__ == "__main__":
