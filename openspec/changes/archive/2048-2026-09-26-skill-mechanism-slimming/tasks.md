@@ -110,6 +110,13 @@ Task 3 → Task 4
 
 安装、质量门、工作流和知识管理的 4 份模块说明、3 份工程合同与 README 已按实际实现同步；Delta 位于本 Change 的 `specs/backend/framework/`。相关来源元数据同步至已集成提交，未修改遥测模块的既有元数据。
 
+| Delta | 长期目标 | 动作 | 状态 | 索引更新 |
+| --- | --- | --- | --- | --- |
+| `specs/backend/framework/install-agentic-framework/overview.md` | `openspec/specs/backend/framework/install-agentic-framework/overview.md` | MODIFIED | 已完成 | 沿用既有安装器入口 |
+| `specs/backend/framework/quality-gates/overview.md` | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | 已完成 | 沿用既有质量门入口 |
+| `specs/backend/framework/workflow-control/overview.md` | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | 已完成 | 沿用既有控制流入口 |
+| `specs/backend/framework/knowledge-management/overview.md` | `openspec/specs/backend/framework/knowledge-management/overview.md` | MODIFIED | 已完成 | 沿用既有知识管理入口 |
+
 ## 知识冲突
 
 以本次批准的新行为替换活跃规则；历史 Change 与旧候选不覆盖。
