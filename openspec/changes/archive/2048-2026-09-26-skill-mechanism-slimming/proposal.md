@@ -1,6 +1,6 @@
 # Skill 机制精简
 
-**状态**：Approved
+**状态**：Archived
 
 ## 1. 背景
 

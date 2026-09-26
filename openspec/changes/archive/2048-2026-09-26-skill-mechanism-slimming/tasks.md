@@ -77,10 +77,10 @@ Task 3 → Task 4
   - `scripts/test_skill_slimming_contracts.py`
   - `skills/workflow-code-generation/SKILL.md`
 
-### 任务 4：[ ] 集成验证、独立审查与知识同步
-- 状态：进行中
+### 任务 4：[x] 集成验证、独立审查与知识同步
+- 状态：完成
 - attempts：0
-- control_stage：quality_passed
+- control_stage：completed
 - 文件：`openspec/specs/backend/framework/`、`openspec/specs/backend/engineering/tech/framework-unification.md`、`openspec/specs/backend/engineering/tech/knowledge-management.md`、`openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md`、`README.md`、当前 Change
 - depends_on: Task 2, Task 3
 - review_profile: strict

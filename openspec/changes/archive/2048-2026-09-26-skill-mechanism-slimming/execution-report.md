@@ -61,7 +61,7 @@ python skills/workflow-verification/scripts/verify.py --baseline .agentic-framew
 
 所有工作在隔离工作树完成。未修改全局安装，未 push。原工作区的 `.gitignore`、`.codex/`、`.artifacts/` 不纳入本次提交；合回前后核对原 `.gitignore` SHA-256：`3a64fc54925c0ed48da0ed22aaf4f987d8391e47eaece7240e1b90de9c800acd`。
 
-实现提交：`c66e0e6`、`a5e370e`、`9753e5b`、`631418f`、`f2d382a`；文档与指引校准：`4bee303`、`29a355c`、`044ac0f`、`ae9010b`。最终归档和提交状态在收尾时记录。
+实现提交：`c66e0e6`、`a5e370e`、`9753e5b`、`631418f`、`f2d382a`；文档与指引校准：`4bee303`、`29a355c`、`044ac0f`、`ae9010b`；集成记录：`0ffefdf`。本 Change 按实际实现、测试、审查和知识同步结果归档，归档不代表消除了下述 Runtime 证据局限。
 
 前端截图／DOM 验证：不涉及，本次只改前端 Skill 指令，没有 UI 实现。
 
