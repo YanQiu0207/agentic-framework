@@ -261,7 +261,7 @@ Tasks 获批
 - 风险触发的升级与批准（change 2039）：任务声明 `Escalation` 条件后可经 `event escalate` 进入「待批准」暂停，凭与 `Escalation` 一致的 `Approval: granted (<条件>)` 证据经 `event approval_granted` 恢复；`merge_success` 前按同一证据规则失败关闭，`per-task` 模式下每个任务都需批准。升级条件与批准模式词表逐项抄录 Production（`validate_change.py:102-113`），不新建第二套。「待批准」是执行期内部态：持久化映射为规范态 `需人工` 加 `control_stage: awaiting_approval`，读侧规范值恒为五个，`TASK_STATES` 与 `parse_state` 不含 `待批准`。未声明升级条件的执行路径零变化（零触发等价，波次／恢复／阻塞／可派发逐字节比对）。这是 §3.2 条件 3 的**部分**举证：审批规则可机器强制，其余强制规则仍未举证。
 - 每个任务可以执行测试和机器检查，但禁止启动 LLM Review；全部任务完成后只启动一次最终 Review。
 - Review Profile：
-  - Native Delivery：`standard` 集成 Review。
+  - Native Delivery：Tooling 使用 `standard` 集成 Review，Production 使用 `strict` 集成 Review；后者是治理下限，不自动等同于 Runtime 风险升级。
   - 完整 Runtime Run：`strict` Run 级 Review。
 - P0/P1 才触发修复；修复后只执行定向 re-review。
 - Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree、失败恢复和 Runtime 审计策略中。

@@ -16,6 +16,8 @@
 
 Tooling 的 Native Delivery、Runtime Run 与 Scoped Delivery 都必须声明 `--knowledge-impact hit|none`。`none` 必须附非空理由；缺失、空理由或非法值均失败关闭。Scoped Delivery 因必须同时使用 `--native-delivery` 而沿用同一检查，但输出以 Scoped Delivery 标识，避免混淆交付范围与 Runtime 证据。轻量 Native Delivery 仅在 `none` 且附具体理由时允许同时省略 `--tasks` 与 `--spec`；两参数必须成对，有知识影响但无 Change 时先停止并建立 Change。Fast-Path 隐式交付不再放行。
 
+Native Delivery 的 integration Review 档位由治理 Profile 决定：Tooling 为 `standard`，Production 为 `strict`，轻量双省略路径也不能降低该下限。Production 的治理严格要求不等于任务风险命中 Runtime；只有既定风险或执行条件命中时才升级。
+
 Runtime 的路由与初始化必须先通过 `runtime` 能力检查；缺包或清单非法时停止。SVN 命中 Runtime 升级需求时同样停止，不能降级成 Native Delivery；普通 SVN Native Delivery 不因此要求 `knowledge-advanced`。
 
 ## Production 阶段门

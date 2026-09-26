@@ -47,9 +47,13 @@ python scripts/install_agentic_framework.py E:/path/to/tooling-project \
 
 > 两个 Profile 安装的 Skill 与 Command 集合完全相同；`--profile` 只影响运行时治理强度（Review 档位、批准门、归档证据）以及是否装入 `validate_change.py`（仅 Production）。`frontend` pack 仅 Tooling 可用。详见 [「双 Profile 路由」](#双-profile-路由)。
 
-新安装默认只启用 Core。`--with <pack>` 增量增加能力，普通重装继承既有选择；只有 `--without <pack>` 显式移除能力，同一包不能同时增加和移除。新 Manifest 写入 `pack_selection_version: 1`；缺少该字段的旧安装保留此前默认可用的 `runtime` 和 `knowledge-advanced`，迁移后明确关闭的能力不会被刷新重新启用。Manifest 与 Registry 同步记录最终选择。
+新安装默认启用 Core；用 `--with <pack>` 增加能力，用 `--without <pack>` 显式移除。查询当前项目：
 
-只读查询使用 `python <trusted-framework-root>/scripts/install_agentic_framework.py --show-packs <project>`，返回 `enabled`、`source` 和 `path`。受信根来自已加载 Skill 的真实路径，不得从目标 Manifest 的 `source` 执行代码。查询先检查项目及祖先的 Manifest；非法清单失败关闭。只有当前执行模块所属的真实框架源码树在没有安装清单时可使用完整能力，普通无安装项目不能靠同名文件冒充。能力包控制入口，不提供文件系统隔离。
+```bash
+python scripts/install_agentic_framework.py --show-packs E:/path/to/project
+```
+
+重装继承、旧版迁移和安全查询规则统一见 [安装器概览](openspec/specs/backend/framework/install-agentic-framework/overview.md#可选能力)。
 
 目标路径使用 `.` 时，表示把框架安装到当前目录；给其他项目安装时，应填写该项目的真实路径。
 
@@ -138,7 +142,7 @@ Tooling 默认走 Native Delivery；DAG、状态和恢复按任务依赖、并�
             → Trust Gate
 ```
 
-完整 Runtime Run 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用，并要求 `runtime` 能力包；缺包或查询失败时停止，不降低风险。SVN 不支持完整 Runtime，命中升级条件时停止并建议使用 Git 隔离工作区；普通 SVN Native Delivery 不要求高级初始化能力包。Native Delivery 只证明独立机器验证、标准集成 Review、知识影响和工作区检查；不证明 Trust Gate、Harness 能力、完整证据图或严格独立 Judge。Fast-Path 独立兼容交付已退役，轻量任务也使用 Native Delivery。只有声明 `--knowledge-impact none` 且提供具体理由时，才可同时省略 `--spec` 与 `--tasks`；有长期知识影响则先创建 Change。两者必须同时提供或同时省略，不能绕过 Review、Verify 和工作区检查。
+完整 Runtime Run 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用，并要求 `runtime` 能力包；缺包或查询失败时停止，不降低风险。SVN 不支持完整 Runtime，命中升级条件时停止并建议使用 Git 隔离工作区；普通 SVN Native Delivery 不要求高级初始化能力包。Native Delivery 按治理 Profile 要求 integration Review：Tooling 使用 `standard`，Production 使用 `strict`；Production 的治理下限本身不等于任务命中 Runtime 风险。其有界 Verdict 只证明独立机器验证、对应档位的 Review 产物、知识影响和工作区检查；不证明 Trust Gate、Harness 能力、完整证据图或严格独立 Judge。Fast-Path 独立兼容交付已退役，轻量任务也使用 Native Delivery。只有声明 `--knowledge-impact none` 且提供具体理由时，才可同时省略 `--spec` 与 `--tasks`；有长期知识影响则先创建 Change。两者必须同时提供或同时省略，不能绕过 Review、Verify 和工作区检查。
 
 Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 消耗；机器验证、失败隔离和 intent 检查仍保留。
 

@@ -65,8 +65,8 @@ proposal.md / tasks.md 获批
 ## 质量证据边界
 
 - `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。
-- Task 级不运行 LLM Review；全部任务合并后执行一次最终 Review。Native Delivery 消费 `standard` 集成 Review；完整 Runtime 的 Run 级 `strict` Review 由共享 `workflow-code-review` 绑定 Runtime Context。
-- `check_delivery.py --native-delivery` 校验标准集成 Review、独立 Verify、知识影响和工作区，并输出有界 Verdict。存在 Change 时，`--tasks` 与 `--spec` 必须成对传入，并检查任务终态和归档；轻量交付仅在 `--knowledge-impact none` 且提供具体理由时允许同时省略，两者只传一个或无 Change 却声明 `hit` 均失败。Fast-Path 隐式调用已退役。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。交付报告只能逐字引用成功命令的原始 stdout；有 Change 却缺少归档，或工作区检查、Artifact 校验未通过时不得声明「交付门 PASS」。
+- Task 级不运行 LLM Review；全部任务合并后执行一次最终 Review。Native Delivery 按治理 Profile 消费集成 Review：Tooling 为 `standard`，Production 为 `strict`；Production 的治理严格下限本身不触发 Runtime 升级；完整 Runtime 的 Run 级 `strict` Review 由共享 `workflow-code-review` 绑定 Runtime Context。
+- `check_delivery.py --native-delivery` 校验与治理 Profile 匹配的集成 Review、独立 Verify、知识影响和工作区，并输出有界 Verdict。存在 Change 时，`--tasks` 与 `--spec` 必须成对传入，并检查任务终态和归档；轻量交付仅在 `--knowledge-impact none` 且提供具体理由时允许同时省略，两者只传一个或无 Change 却声明 `hit` 均失败。Fast-Path 隐式调用已退役。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。交付报告只能逐字引用成功命令的原始 stdout；有 Change 却缺少归档，或工作区检查、Artifact 校验未通过时不得声明「交付门 PASS」。
 - 结构化报告只能证明产物存在且字段满足合同，不能替代语义正确性判断。
 
 ## 主要验证证据

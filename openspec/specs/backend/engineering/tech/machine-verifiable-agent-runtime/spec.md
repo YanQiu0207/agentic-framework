@@ -138,7 +138,7 @@
 
 - **Given** 一次未命中 Runtime 升级条件的标准交付未走完整 Run（无 `--run-dir`）
 - **When** 交付门以 Native Delivery 模式校验
-- **Then** 必须校验 `standard` integration Review、机器验证报告、工作区干净与知识影响结论
+- **Then** 必须按治理 Profile 校验 integration Review（Tooling 为 `standard`，Production 为 `strict`）、机器验证报告、工作区干净与知识影响结论
 - **And** 裁决必须为 `native-delivery-pass`，不得表述为 strict Trust Gate PASS
 - **And** 必须显式声明 `strict-independent-review` 与 `run-manifest-evidence-graph` 为不可证明
 
@@ -147,8 +147,10 @@
 - **Given** 一次局部低风险改动没有 Change
 - **When** 交付门显式使用 `--native-delivery`
 - **Then** 仅 `--knowledge-impact none` 且附具体理由时允许同时省略 `--tasks` 与 `--spec`
-- **And** 仍校验 standard integration Review、完整独立 Verify 与工作区；只传一个路径或声明 `hit` 均失败关闭
+- **And** 仍校验与治理 Profile 匹配的 integration Review（Tooling 为 `standard`，Production 为 `strict`）、完整独立 Verify 与工作区；只传一个路径或声明 `hit` 均失败关闭
 - **And** 旧 Fast-Path 隐式调用拒绝并提示迁移，不输出 `fast-path-pass`
+
+Production 的治理 `strict` 下限本身不触发 Runtime 升级；以下升级条件指任务风险或实际执行需求。
 
 #### Scenario：Runtime 启用检查
 
