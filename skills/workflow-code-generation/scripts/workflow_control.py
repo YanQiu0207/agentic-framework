@@ -25,6 +25,7 @@ _FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
 if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
 import governance_profile
+import framework_packs
 import runtime_workflow
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
@@ -1157,12 +1158,19 @@ def main(argv: list[str]) -> int:
     """Run the workflow control CLI."""
     args = _build_arg_parser().parse_args(argv)
     try:
-        if hasattr(sys.stdout, "reconfigure"):
-            sys.stdout.reconfigure(encoding="utf-8")  # 避免 Windows 控制台中文乱码
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8")
         if args.command == "init-run":
+            repo = _repository_root(args.tasks_md)
+            framework_packs.require_pack(repo, "runtime")
+            if _detect_vcs(repo) == "svn":
+                raise ValueError(
+                    "完整 Runtime Run 仅支持 Git；SVN 不得降级为 Native Delivery"
+                )
             _, tasks = _load(args.tasks_md)
             context = runtime_workflow.initialize_run(
-                args.tasks_md.resolve().parents[3],
+                repo,
                 args.run_dir,
                 run_id=args.run_id,
                 profile=args.profile,
@@ -1252,20 +1260,13 @@ def main(argv: list[str]) -> int:
                     ),
                     audit_required=args.audit_required,
                 )
-                # SVN 工作副本不支持完整 Runtime Run（Runtime 只认 Git commit）；
-                # 强制降级并在 stderr 明示，升级原因保留供下游核对。
-                if (
-                    selected.path == "runtime-run"
-                    and _detect_vcs(_repository_root(args.tasks_md)) == "svn"
-                ):
-                    print(
-                        "[workflow-control] 检测到 SVN 工作副本：完整 Runtime Run 仅支持 Git，"
-                        "route 强制降级为 native-delivery。",
-                        file=sys.stderr,
-                    )
-                    selected = ExecutionRoute(
-                        "native-delivery", selected.runtime_upgrade_reasons
-                    )
+                if selected.path == "runtime-run":
+                    repo = _repository_root(args.tasks_md)
+                    framework_packs.require_pack(repo, "runtime")
+                    if _detect_vcs(repo) == "svn":
+                        raise ValueError(
+                            "完整 Runtime Run 仅支持 Git；SVN 不得降级为 Native Delivery"
+                        )
                 output = asdict(selected)
             elif args.command == "event":
                 if args.event == "start":

@@ -8,8 +8,7 @@
 - **工作区干净**（总是检查）：`git status --porcelain` 必须为空——
   代码与归档产物（spec / tasks / ADR / issues）都已提交本地 git。
 
-Fast-Path 兼容别名（无 spec / tasks）还必须传 lightweight integration Review、
-独立 Verify 报告与结构化知识影响结论；`none` 必须附理由。
+轻量 Native Delivery 可同时省略 spec / tasks，但必须声明知识无影响并附理由。
 Native Delivery 使用标准 integration Review 与独立 Verify；只有完整 Runtime Run 使用
 scope=run、strict Review 与 Run-bound Artifact。
 非 0 退出即禁止宣布交付；输出应原样贴进交付报告。
@@ -139,23 +138,6 @@ def check_review_report(
     ):
         errors.append(f"Review 报告 round 必须为非负整数：{round_number!r}")
     return errors
-
-
-def check_fast_path_review(path: Path) -> list[str]:
-    """Legacy Fast-Path is a Native Delivery alias with lightweight review."""
-    found = check_review_report(
-        path,
-        run_dir=None,
-        expected_scope="integration",
-        expected_profile="lightweight",
-    )
-    if found:
-        return found
-    report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    unexpected = sorted(set(report) - NATIVE_DELIVERY_REVIEW_FIELDS)
-    if unexpected:
-        return ["Fast-Path Review 包含无 Run 合同外字段：" + ", ".join(unexpected)]
-    return []
 
 
 NATIVE_DELIVERY_REVIEW_FIELDS = {
@@ -568,10 +550,9 @@ def write_native_delivery_verdict(path: Path, verdict: dict) -> None:
 
 def main(argv: list[str]) -> int:
     """Run the delivery gate and report per-check results."""
-    if hasattr(sys.stdout, "reconfigure"):
-        sys.stdout.reconfigure(
-            encoding="utf-8"
-        )  # Windows 控制台默认非 UTF-8，避免中文乱码
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
 
     parser = argparse.ArgumentParser(description="交付前确定性门禁")
     parser.add_argument("--tasks", type=Path, help="tasks.md 路径（标准流程必传）")
@@ -624,13 +605,13 @@ def main(argv: list[str]) -> int:
         "--review-report",
         type=Path,
         required=True,
-        help="workflow-code-review 产出的 review-report.json 路径（Fast-Path 亦必传）",
+        help="workflow-code-review 产出的 review-report.json 路径（所有路径必传）",
     )
     parser.add_argument(
         "--verify-report",
         type=Path,
         default=Path(".agentic-framework/verify/report.json"),
-        help="workflow-verification 产出的机器验证报告路径（Fast-Path 必传）",
+        help="workflow-verification 产出的机器验证报告路径（Native Delivery 必传）",
     )
     parser.add_argument(
         "--governance-profile",
@@ -684,19 +665,33 @@ def main(argv: list[str]) -> int:
 
     if (args.tasks is None) != (args.spec is None):
         print(
-            "error: --tasks 与 --spec 必须同时提供（标准交付）或同时省略（Fast-Path 兼容别名）",
+            "error: --tasks 与 --spec 必须同时提供（标准交付）或同时省略（轻量 Native Delivery）",
             file=sys.stderr,
         )
         return 2
-    if args.native_delivery and args.tasks is None:
+    if args.run_dir is not None and args.tasks is None:
         print(
-            "error: --native-delivery 必须提供 --tasks 与 --spec（标准交付）",
+            "error: --run-dir 必须提供 --tasks 与 --spec（Runtime 交付）",
             file=sys.stderr,
         )
         return 2
     if args.scoped_delivery and args.tasks is None:
         print(
             "error: --scoped-delivery 必须提供 --tasks 与 --spec（标准交付）",
+            file=sys.stderr,
+        )
+        return 2
+
+    if args.run_dir is None and not args.native_delivery:
+        print(
+            "error: Fast-Path 隐式交付已退役；请迁移到 --native-delivery，"
+            "提供 --native-delivery-verdict、standard integration Review 与完整独立 Verify",
+            file=sys.stderr,
+        )
+        return 2
+    if args.tasks is None and args.knowledge_impact == "hit":
+        print(
+            "error: 知识影响命中时必须创建 Change，提供 --tasks 与 --spec 以核验知识同步",
             file=sys.stderr,
         )
         return 2
@@ -713,10 +708,8 @@ def main(argv: list[str]) -> int:
         path_name = "Scoped Delivery"
     elif args.run_dir is not None:
         path_name = "Runtime Run"
-    elif args.native_delivery:
-        path_name = "Native Delivery"
     else:
-        path_name = "Fast-Path"
+        path_name = "Native Delivery"
     print(
         ("ERROR  " + "；".join(found))
         if found
@@ -831,50 +824,29 @@ def main(argv: list[str]) -> int:
             if verify_errors
             else "PASS   Native Delivery 机器验证报告 verdict=PASS"
         )
-    else:
-        found = check_fast_path_review(args.review_report)
-        errors.extend(found)
-        print(
-            ("ERROR  " + "；".join(found))
-            if found
-            else "PASS   Fast-Path 兼容别名 lightweight integration Review：verdict=PASS 且 P0/P1=0"
-        )
-        checks += 1
-        verify_errors = check_native_delivery_verify(args.verify_report)
-        errors.extend(verify_errors)
-        print(
-            ("ERROR  " + "；".join(verify_errors))
-            if verify_errors
-            else "PASS   Fast-Path 机器验证报告 verdict=PASS"
-        )
 
     if not errors and args.run_dir is not None:
-        if args.tasks is None:
-            task_states = [
-                {"task_id": "fast-path", "state": "completed", "attempts": 0}
-            ]
-        else:
-            parsed = lint_task_deps.parse_tasks(
-                args.tasks.read_text(encoding="utf-8", errors="replace")
+        parsed = lint_task_deps.parse_tasks(
+            args.tasks.read_text(encoding="utf-8", errors="replace")
+        )
+        state_names = {
+            "完成": "completed",
+            "需人工": "manual",
+            "阻塞": "blocked",
+        }
+        task_states = []
+        for task_id, task in sorted(parsed.items()):
+            state = lint_task_deps.parse_state(
+                lint_task_deps.field(task["body"], "状态")
             )
-            state_names = {
-                "完成": "completed",
-                "需人工": "manual",
-                "阻塞": "blocked",
-            }
-            task_states = []
-            for task_id, task in sorted(parsed.items()):
-                state = lint_task_deps.parse_state(
-                    lint_task_deps.field(task["body"], "状态")
-                )
-                attempts = lint_task_deps.field(task["body"], "attempts") or "0"
-                task_states.append(
-                    {
-                        "task_id": str(task_id),
-                        "state": state_names[state],
-                        "attempts": int(attempts),
-                    }
-                )
+            attempts = lint_task_deps.field(task["body"], "attempts") or "0"
+            task_states.append(
+                {
+                    "task_id": str(task_id),
+                    "state": state_names[state],
+                    "attempts": int(attempts),
+                }
+            )
         try:
             trust_report = runtime_workflow.finalize_run(
                 args.repo.resolve(),
@@ -929,17 +901,6 @@ def main(argv: list[str]) -> int:
             checks += 1
             errors.append(f"Native Delivery Verdict 写入失败：{error}")
             print(f"ERROR  Native Delivery Verdict 写入失败：{error}")
-    elif not errors:
-        checks += 1
-        print("PASS   Fast-Path 兼容别名交付裁决：fast-path-pass")
-        print(
-            "       verified_claims: git-clean, machine-verify, "
-            "lightweight-review, knowledge-impact"
-        )
-        print(
-            "       unprovable_claims: strict-independent-review, "
-            "run-manifest-evidence-graph, harness-capability-probe"
-        )
 
     print(f"\nchecks={checks} | errors={len(errors)}")
     return 1 if errors else 0

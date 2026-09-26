@@ -204,7 +204,11 @@ class WorkflowControlTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
-            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            with mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as stdout, mock.patch.object(
+                workflow_control.framework_packs, "require_pack"
+            ):
                 self.assertEqual(
                     0,
                     workflow_control.main(
@@ -212,7 +216,11 @@ class WorkflowControlTest(unittest.TestCase):
                     ),
                 )
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
-            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            with mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as stdout, mock.patch.object(
+                workflow_control.framework_packs, "require_pack"
+            ):
                 self.assertEqual(
                     0,
                     workflow_control.main(
@@ -227,17 +235,21 @@ class WorkflowControlTest(unittest.TestCase):
                 )
             self.assertIn('"path": "runtime-run"', stdout.getvalue())
 
-    def test_route_command_forces_native_delivery_on_svn(self) -> None:
+    def test_route_command_rejects_runtime_on_svn(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
             with mock.patch.object(
                 workflow_control, "_detect_vcs", return_value="svn"
-            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout, mock.patch(
+            ), mock.patch.object(
+                workflow_control.framework_packs, "require_pack"
+            ), mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as stdout, mock.patch(
                 "sys.stderr", new_callable=io.StringIO
             ) as stderr:
                 self.assertEqual(
-                    0,
+                    2,
                     workflow_control.main(
                         [
                             str(path),
@@ -248,8 +260,142 @@ class WorkflowControlTest(unittest.TestCase):
                         ]
                     ),
                 )
+            self.assertEqual("", stdout.getvalue())
+            self.assertIn("SVN", stderr.getvalue())
+
+    def test_runtime_route_rejects_invalid_manifest_without_downgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            manifest = Path(temp_dir) / ".agentic-framework" / "manifest.json"
+            manifest.parent.mkdir()
+            manifest.write_text("{}", encoding="utf-8")
+            path.write_text(
+                tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+            )
+            for profile, flags in (
+                ("strict", []),
+                ("standard", ["--audit-required"]),
+            ):
+                with self.subTest(profile=profile), mock.patch(
+                    "sys.stdout", new_callable=io.StringIO
+                ) as stdout, mock.patch(
+                    "sys.stderr", new_callable=io.StringIO
+                ) as stderr:
+                    self.assertEqual(
+                        2,
+                        workflow_control.main(
+                            [
+                                str(path),
+                                "route",
+                                "--review-profile",
+                                profile,
+                                *flags,
+                            ]
+                        ),
+                    )
+                self.assertEqual("", stdout.getvalue())
+                self.assertIn("manifest", stderr.getvalue())
+
+    def test_native_route_does_not_require_optional_packs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            with mock.patch.object(
+                workflow_control.framework_packs, "require_pack"
+            ) as require, mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(0, workflow_control.main([
+                    str(path), "route", "--review-profile", "standard"
+                ]))
+            require.assert_not_called()
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
-            self.assertIn('"audit-required"', stdout.getvalue())
+
+    def test_runtime_route_checks_enabled_pack_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(
+                tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+            )
+            for packs, expected in ((set(), 2), ({"runtime"}, 0)):
+                with self.subTest(packs=packs), mock.patch.object(
+                    workflow_control.framework_packs,
+                    "enabled_packs",
+                    return_value=packs,
+                ), mock.patch(
+                    "sys.stdout", new_callable=io.StringIO
+                ) as stdout, mock.patch(
+                    "sys.stderr", new_callable=io.StringIO
+                ) as stderr:
+                    self.assertEqual(
+                        expected,
+                        workflow_control.main(
+                            [str(path), "route", "--review-profile", "strict"]
+                        ),
+                    )
+                if expected:
+                    self.assertEqual("", stdout.getvalue())
+                    self.assertIn("--with runtime", stderr.getvalue())
+                else:
+                    self.assertIn('"path": "runtime-run"', stdout.getvalue())
+
+    def test_init_run_checks_pack_before_runtime_side_effects(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo = Path(temp_dir)
+            path = repo / "tasks.md"
+            manifest = Path(temp_dir) / ".agentic-framework" / "manifest.json"
+            manifest.parent.mkdir()
+            manifest.write_text("{}", encoding="utf-8")
+            path.write_text(
+                tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+            )
+            args = [
+                str(path),
+                "init-run",
+                "--run-dir",
+                str(repo / "run"),
+                "--run-id",
+                "test",
+                "--profile",
+                "tooling",
+                "--harness",
+                "codex",
+                "--commit-sha",
+                "a" * 40,
+                "--base-commit-sha",
+                "a" * 40,
+                "--spec",
+                "proposal.md",
+                "--agents-file",
+                "AGENTS.md",
+                "--skill-file",
+                "SKILL.md",
+                "--harness-declaration",
+                "harness.json",
+                "--adapter-command",
+                "python",
+                "adapter.py",
+            ]
+            with mock.patch.object(
+                workflow_control.runtime_workflow, "initialize_run"
+            ) as init, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                self.assertEqual(2, workflow_control.main(args))
+            init.assert_not_called()
+            self.assertFalse((repo / "run").exists())
+            self.assertIn("manifest", stderr.getvalue())
+            with mock.patch.object(
+                workflow_control.framework_packs, "require_pack"
+            ), mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch.object(
+                workflow_control.runtime_workflow, "initialize_run"
+            ) as init, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                self.assertEqual(2, workflow_control.main(args))
+            init.assert_not_called()
             self.assertIn("SVN", stderr.getvalue())
 
     def test_detect_vcs_git_priority_svn_fallback_and_none(self) -> None:

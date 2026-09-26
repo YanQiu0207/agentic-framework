@@ -108,7 +108,7 @@ class CheckDeliveryTest(unittest.TestCase):
         )
         return repo
 
-    def _fast_path_inputs(
+    def _delivery_inputs(
         self,
         repo: Path,
         *,
@@ -120,7 +120,7 @@ class CheckDeliveryTest(unittest.TestCase):
         review_path = runtime / "review.json"
         verify_path = runtime / "verify.json"
         review_path.write_text(
-            json.dumps(review or PASSING_LIGHTWEIGHT_REPORT), encoding="utf-8"
+            json.dumps(review or PASSING_NATIVE_REVIEW_REPORT), encoding="utf-8"
         )
         verify_path.write_text(
             json.dumps(verify or PASSING_VERIFY_REPORT), encoding="utf-8"
@@ -135,7 +135,7 @@ class CheckDeliveryTest(unittest.TestCase):
         verify: dict | None = None,
         knowledge_impact: str = "none",
     ) -> tuple[list[str], Path]:
-        review, verify = self._fast_path_inputs(
+        review, verify = self._delivery_inputs(
             repo,
             review=(PASSING_NATIVE_REVIEW_REPORT if review is None else review),
             verify=verify,
@@ -287,11 +287,16 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertIn("必须同时提供", stderr.getvalue())
 
-    def test_main_fast_path_requires_knowledge_impact(self) -> None:
+    def test_main_light_native_requires_knowledge_impact(self) -> None:
         repo = self._clean_repo_with_ignore()
-        review, verify = self._fast_path_inputs(repo)
+        review, verify = self._delivery_inputs(repo)
         result = check_delivery.main(
             [
+                "--native-delivery",
+                "--native-delivery-verdict",
+                str(repo / ".agentic-framework/native-delivery/verdict.json"),
+                "--governance-profile",
+                "tooling",
                 "--repo",
                 str(repo),
                 "--review-report",
@@ -304,7 +309,7 @@ class CheckDeliveryTest(unittest.TestCase):
 
     def test_runtime_run_requires_knowledge_impact(self) -> None:
         repo = self._clean_repo_with_ignore()
-        review, _ = self._fast_path_inputs(repo, review=PASSING_RUN_REPORT)
+        review, _ = self._delivery_inputs(repo, review=PASSING_RUN_REPORT)
         tasks = repo / "tasks.md"
         spec = repo / "proposal.md"
         tasks.write_text(TERMINAL_TASKS, encoding="utf-8")
@@ -341,13 +346,20 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertEqual(1, result)
         self.assertIn("缺少 --knowledge-impact hit|none", output.getvalue())
 
-    def test_main_fast_path_accepts_lightweight_delivery(self) -> None:
+    def test_main_light_native_accepts_lightweight_delivery(self) -> None:
         repo = self._clean_repo_with_ignore()
-        review, verify = self._fast_path_inputs(repo)
+        review, verify = self._delivery_inputs(repo)
         stdout = StringIO()
         with redirect_stdout(stdout):
             result = check_delivery.main(
                 [
+                    "--native-delivery",
+                    "--native-delivery-verdict",
+                    str(
+                        repo / ".agentic-framework/native-delivery/verdict.json"
+                    ),
+                    "--governance-profile",
+                    "tooling",
                     "--repo",
                     str(repo),
                     "--review-report",
@@ -362,20 +374,29 @@ class CheckDeliveryTest(unittest.TestCase):
             )
         self.assertEqual(0, result)
         output = stdout.getvalue()
-        self.assertIn("fast-path-pass", output)
+        self.assertIn("native-delivery-pass", output)
         self.assertIn("知识影响：未命中；理由：局部改动", output)
         self.assertIn("unprovable_claims", output)
         self.assertIn("strict-independent-review", output)
 
-    def test_fast_path_rejects_run_scope_even_with_lightweight_profile(self) -> None:
+    def test_light_native_rejects_run_scope_even_with_lightweight_profile(
+        self,
+    ) -> None:
         repo = self._clean_repo_with_ignore()
-        review, verify = self._fast_path_inputs(
+        review, verify = self._delivery_inputs(
             repo,
             review=dict(PASSING_LIGHTWEIGHT_REPORT, scope="run"),
         )
         with redirect_stdout(StringIO()):
             result = check_delivery.main(
                 [
+                    "--native-delivery",
+                    "--native-delivery-verdict",
+                    str(
+                        repo / ".agentic-framework/native-delivery/verdict.json"
+                    ),
+                    "--governance-profile",
+                    "tooling",
                     "--repo",
                     str(repo),
                     "--review-report",
@@ -390,13 +411,22 @@ class CheckDeliveryTest(unittest.TestCase):
             )
         self.assertEqual(1, result)
 
-    def test_main_fast_path_rejects_standard_review_without_run_dir(self) -> None:
+    def test_main_light_native_rejects_standard_review_without_run_dir(
+        self,
+    ) -> None:
         repo = self._clean_repo_with_ignore()
-        review, verify = self._fast_path_inputs(repo, review=PASSING_RUN_REPORT)
+        review, verify = self._delivery_inputs(repo, review=PASSING_RUN_REPORT)
         stdout = StringIO()
         with redirect_stdout(stdout):
             result = check_delivery.main(
                 [
+                    "--native-delivery",
+                    "--native-delivery-verdict",
+                    str(
+                        repo / ".agentic-framework/native-delivery/verdict.json"
+                    ),
+                    "--governance-profile",
+                    "tooling",
                     "--repo",
                     str(repo),
                     "--review-report",
@@ -410,16 +440,23 @@ class CheckDeliveryTest(unittest.TestCase):
                 ]
             )
         self.assertEqual(1, result)
-        self.assertIn("lightweight", stdout.getvalue())
+        self.assertIn("scope 不是 integration", stdout.getvalue())
 
-    def test_main_fast_path_rejects_failed_verify(self) -> None:
+    def test_main_light_native_rejects_failed_verify(self) -> None:
         repo = self._clean_repo_with_ignore()
         failed = dict(PASSING_VERIFY_REPORT, verdict="FAIL", errors=2)
-        review, verify = self._fast_path_inputs(repo, verify=failed)
+        review, verify = self._delivery_inputs(repo, verify=failed)
         stdout = StringIO()
         with redirect_stdout(stdout):
             result = check_delivery.main(
                 [
+                    "--native-delivery",
+                    "--native-delivery-verdict",
+                    str(
+                        repo / ".agentic-framework/native-delivery/verdict.json"
+                    ),
+                    "--governance-profile",
+                    "tooling",
                     "--repo",
                     str(repo),
                     "--review-report",
@@ -435,12 +472,17 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertEqual(1, result)
         self.assertIn("机器验证 verdict 非 PASS", stdout.getvalue())
 
-    def test_main_fast_path_rejects_dirty_tree(self) -> None:
+    def test_main_light_native_rejects_dirty_tree(self) -> None:
         repo = self._clean_repo_with_ignore()
         (repo / "untracked.txt").write_text("dirty", encoding="utf-8")
-        review, verify = self._fast_path_inputs(repo)
+        review, verify = self._delivery_inputs(repo)
         result = check_delivery.main(
             [
+                "--native-delivery",
+                "--native-delivery-verdict",
+                str(repo / ".agentic-framework/native-delivery/verdict.json"),
+                "--governance-profile",
+                "tooling",
                 "--repo",
                 str(repo),
                 "--review-report",
@@ -656,7 +698,7 @@ class CheckDeliveryTest(unittest.TestCase):
 
     def test_runtime_run_reports_knowledge_impact(self) -> None:
         repo = self._clean_repo_with_ignore()
-        review, _ = self._fast_path_inputs(repo, review=PASSING_RUN_REPORT)
+        review, _ = self._delivery_inputs(repo, review=PASSING_RUN_REPORT)
         tasks = repo / "tasks.md"
         spec = repo / "proposal.md"
         tasks.write_text(TERMINAL_TASKS, encoding="utf-8")
@@ -702,7 +744,7 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertEqual(0, result)
         self.assertIn("Runtime Run 知识影响：未命中", output.getvalue())
 
-    def test_native_delivery_requires_tasks_and_spec(self) -> None:
+    def test_native_delivery_allows_omitting_tasks_and_spec(self) -> None:
         repo = self._clean_repo_with_ignore()
         args, verdict_path = self._native_delivery_args(repo)
         for option in ("--tasks", "--spec"):
@@ -710,10 +752,102 @@ class CheckDeliveryTest(unittest.TestCase):
             del args[index : index + 2]
         with redirect_stderr(StringIO()):
             result = check_delivery.main(args)
-        self.assertEqual(2, result)
-        self.assertFalse(verdict_path.exists())
+        self.assertEqual(0, result)
+        self.assertTrue(verdict_path.exists())
 
-    def test_main_standard_pair_remains_compatible(self) -> None:
+    def test_light_native_rejects_lightweight_review(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict = self._native_delivery_args(
+            repo, review=PASSING_LIGHTWEIGHT_REPORT
+        )
+        for option in ("--tasks", "--spec"):
+            index = args.index(option)
+            del args[index : index + 2]
+        with redirect_stdout(StringIO()) as output:
+            self.assertEqual(1, check_delivery.main(args))
+        self.assertIn("必须为 standard", output.getvalue())
+        self.assertFalse(verdict.exists())
+
+    def test_light_native_rejects_hit_without_change(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict = self._native_delivery_args(repo, knowledge_impact="hit")
+        for option in ("--tasks", "--spec"):
+            index = args.index(option)
+            del args[index : index + 2]
+        with redirect_stderr(StringIO()) as output:
+            self.assertEqual(2, check_delivery.main(args))
+        self.assertIn("创建 Change", output.getvalue())
+        self.assertFalse(verdict.exists())
+
+    def test_native_pair_must_be_symmetric(self) -> None:
+        for option in ("--tasks", "--spec"):
+            with self.subTest(option=option):
+                repo = self._clean_repo_with_ignore()
+                args, verdict = self._native_delivery_args(repo)
+                index = args.index(option)
+                del args[index : index + 2]
+                with redirect_stderr(StringIO()) as output:
+                    self.assertEqual(2, check_delivery.main(args))
+                self.assertIn("必须同时提供", output.getvalue())
+                self.assertFalse(verdict.exists())
+
+    def test_light_native_preserves_production_strict_floor(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict = self._native_delivery_args(repo)
+        for option in ("--tasks", "--spec"):
+            index = args.index(option)
+            del args[index : index + 2]
+        args[args.index("--governance-profile") + 1] = "production"
+        with redirect_stdout(StringIO()) as output:
+            self.assertEqual(1, check_delivery.main(args))
+        self.assertIn("必须为 strict", output.getvalue())
+        self.assertFalse(verdict.exists())
+
+    def test_runtime_rejects_missing_change(self) -> None:
+        with redirect_stderr(StringIO()) as output:
+            self.assertEqual(
+                2,
+                check_delivery.main(
+                    [
+                        "--run-dir",
+                        "missing-run",
+                        "--review-report",
+                        "review.json",
+                    ]
+                ),
+            )
+        self.assertIn("--run-dir 必须提供 --tasks 与 --spec", output.getvalue())
+
+    def test_implicit_fast_path_rejects_even_passing_artifacts(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, verify = self._delivery_inputs(
+            repo, review=PASSING_LIGHTWEIGHT_REPORT
+        )
+        with redirect_stderr(StringIO()) as output, redirect_stdout(
+            StringIO()
+        ) as stdout:
+            self.assertEqual(
+                2,
+                check_delivery.main(
+                    [
+                        "--repo",
+                        str(repo),
+                        "--review-report",
+                        str(review),
+                        "--verify-report",
+                        str(verify),
+                        "--knowledge-impact",
+                        "none",
+                        "--knowledge-impact-reason",
+                        "local-only",
+                    ]
+                ),
+            )
+        self.assertIn("已退役", output.getvalue())
+        self.assertIn("--native-delivery", output.getvalue())
+        self.assertNotIn("fast-path-pass", stdout.getvalue())
+
+    def test_implicit_standard_pair_requires_migration(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo = Path(temp_dir)
             subprocess.run(["git", "init", "-q", str(repo)], check=True)
@@ -753,7 +887,7 @@ class CheckDeliveryTest(unittest.TestCase):
                         str(report),
                     ]
                 )
-        self.assertEqual(1, result)
+        self.assertEqual(2, result)
 
 
 class CheckReviewReportTest(unittest.TestCase):
@@ -884,7 +1018,7 @@ class MainReviewReportTest(unittest.TestCase):
                 "hit",
             ]
         )
-        self.assertEqual(1, code)
+        self.assertEqual(2, code)
 
     def test_bad_report_fails_overall(self) -> None:
         repo = self._clean_repo()
@@ -903,7 +1037,7 @@ class MainReviewReportTest(unittest.TestCase):
                 "hit",
             ]
         )
-        self.assertEqual(1, code)
+        self.assertEqual(2, code)
 
 
 class ReviewProfileFloorCheckTest(unittest.TestCase):
