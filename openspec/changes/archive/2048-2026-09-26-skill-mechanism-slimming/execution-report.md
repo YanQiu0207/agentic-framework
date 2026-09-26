@@ -55,7 +55,22 @@ python skills/workflow-verification/scripts/verify.py --baseline .agentic-framew
 
 这属于未在本次修改的既有 Runtime 绑定局限。实际审查覆盖本次真实实现 Diff，测试在实际集成工作树运行；但 Run Envelope 的关联字段不能证明实际实现已进入完整证据图。不得改写冻结 Context、伪造 Diff，或把门禁脚本的结构化结果解释成本次实现的完整 Trust Gate 证明。
 
-交付门执行状态：待收尾记录；在绑定局限消除前，不声明本次实际实现的完整 Runtime 交付门通过。
+交付门已在干净提交 `b8b3b6a` 上诊断运行。首次运行因缺少机器可读的 Delta 同步表而失败；补充与实际已同步文档一致的映射后重跑，退出码为 0。原始 stdout 如下，仅记录脚本结果：
+
+```text
+PASS   Runtime Run 知识影响：命中
+PASS   知识同步交叉核对（Delta 反推）
+PASS   review_profile 满足 Profile 下限
+PASS   tasks.md 全部任务处于终态且附原因
+PASS   spec 已归档（Archived）
+PASS   工作区干净（代码与归档产物已提交）
+PASS   Review 报告 verdict=PASS 且 P0/P1=0
+PASS   Runtime Manifest、Journal、Harness 与 Trust Gate：PASS
+
+checks=8 | errors=0
+```
+
+**解释边界**：上面的结构化结果仍绑定规划 SHA `455e507`，实际实现审查版本是 `ae9010b`。因此不将该输出概括为本次实际实现的完整 Runtime／Trust Gate 通过，不据此核销完整实现证据图。原始日志保存在 `.agentic-framework/verify/2048-diagnostics/delivery-gate.txt`，首次失败日志单独保留。
 
 ## 用户文件与提交
 
