@@ -136,7 +136,7 @@ Status FooBar(const Request& req, Response* resp) {
 
 ### 第四步：写入 tasks.md
 
-将任务清单写入 `tasks.md`（与 spec.md 同目录）。**严格按以下模板生成，不要遗漏任何章节**：
+将任务清单写入 `tasks.md`（与 proposal.md 同目录）。**严格按以下模板生成，不要遗漏任何章节**：
 
 ```markdown
 # 实施任务清单
@@ -206,7 +206,7 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 ### 任务 2：[ ] [简短描述]
 - 状态：未开始
 - 文件：`path/to/file3.cc`（修改）
-- depends_on: [Task 1]
+- depends_on: Task 1
 - review_profile: lightweight
 - 文档映射：proposal.md / design.md / Delta 章节 X.Y.Z
 - 说明：...

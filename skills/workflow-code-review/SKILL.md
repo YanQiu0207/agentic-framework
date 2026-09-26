@@ -42,7 +42,7 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 ## 审核 Scope
 
 - `scope: task`：Production 的单个 Task。每个 Task 只能有一次首轮审核。
-- `scope: integration`：无 Run 的完整交付 diff。Tooling Native Delivery 固定使用 `standard`；Fast-Path 兼容别名保留 `lightweight`；Production 仍按其生命周期选择 `strict`。
+- `scope: integration`：无 Run 的完整交付 diff。Tooling Native Delivery 固定使用 `standard`；Production 仍按其生命周期选择 `strict`。
 - `scope: run`：Tooling 完整 Runtime Run 的完整 diff，固定使用 `strict`，必须绑定 Run Context。
 - `strict` 的 Tooling Review 必须升级到完整 Runtime Run；不得写成无 Run 的 `scope: integration` 报告。
 - 同一 Scope 的修复只能进入 re-review，不能重新启动首轮审核；不同 Task 和最终集成属于不同 Scope。
@@ -284,7 +284,6 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 | --- | --- | --- | --- |
 | Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile: "standard"`、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 或严格独立 Judge 声明。 |
 | 完整 Runtime Run | 独立 Judge 生成 `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
-| Fast-Path 兼容别名 | `comprehensive-reviewer` 生成独立 `review-report.json`，由编排方原样保存 | 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
 
 无 Run 的 Native Delivery 标准 Review 使用以下扁平 JSON；`check_delivery.py --native-delivery` 只接受这 6 个字段：
 

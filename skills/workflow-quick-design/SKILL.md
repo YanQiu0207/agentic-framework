@@ -137,7 +137,7 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 
 立即加载 `workflow-code-generation`。
 
-此时 proposal.md + tasks.md 均已存在，`workflow-code-generation` 将从步骤 4（加载编码规范）直接进入执行段，不会再次要求创建或审批任务。
+复用已批准的 proposal.md 和 tasks.md，但仍从步骤 1 路由，完成步骤 1.5 的 Verify 配置检查，再核对已有文档并进入步骤 4。范围未变时不重复审批；不得直接跳到编码。
 
 ---
 

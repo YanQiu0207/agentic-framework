@@ -1,6 +1,6 @@
 ---
 name: frontend-playwright-verification
-description: 前端效果最终验证门。前端/UI 改动后使用浏览器或 Playwright 验证页面身份、控制台、DOM、截图、交互、响应式和 ui-spec 保真度。基于 Anthropic webapp-testing 与 OpenAI frontend-testing-debugging 的中文化本地版本。
+description: 前端改动后的浏览器验证。检查页面、控制台、交互、响应式、截图及 UI 规格一致性。
 ---
 
 > 输出一行：`Using frontend-playwright-verification`

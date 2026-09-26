@@ -1,6 +1,6 @@
 ---
 name: bp-frontend-taste
-description: 前端视觉质量收尾质检。React/shadcn UI 实现后、浏览器验证前使用。基于 Anthropic frontend-design 与 OpenAI frontend-app-builder 的中文化本地规则，检查实现是否像一个成熟设计团队交付，而不是模板化 AI 页面。
+description: 前端视觉质量检查。React / shadcn UI 实现后、浏览器验证前使用。
 ---
 
 > 输出一行：`Using bp-frontend-taste`

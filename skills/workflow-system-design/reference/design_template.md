@@ -4,9 +4,7 @@
 **日期**: YYYY-MM-DD
 **状态**: Draft / In Review / Approved / Archived
 
-> **编号说明**：design.md 沿用旧单文件 spec 的全局章节号（4~9），与
-> proposal.md 的 1~5 章不重叠——跨文件引用章节号（如「文档映射」）时无歧义；
-> 「4.1 方案概览」等编号是历史延续，不是笔误。
+> **编号说明**：design.md 保留历史局部编号 4～9，可与 proposal.md 的编号重叠，不重新编号。跨文件引用必须带文件名，例如「design.md §4.1」。
 
 ---
 

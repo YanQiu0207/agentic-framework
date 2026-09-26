@@ -1,6 +1,6 @@
 ---
 name: std-react
-description: React / Next.js / TypeScript / shadcn/ui 前端编码规范。写 .tsx/.ts 前端文件、实现 UI、重构组件、接入 shadcn/ui 或检查 React 性能时使用。基于 OpenAI build-web-apps 中 react-best-practices 与 shadcn-best-practices 的中文化本地版本，并保留本框架实现接线。
+description: React / Next.js / TypeScript / shadcn/ui 编码规范。编写或评审前端 .tsx / .ts、实现组件、检查 React 性能时使用。
 ---
 
 > 输出一行：`Using std-react`
@@ -94,7 +94,7 @@ npx shadcn@latest docs button dialog
 
 ## 接线
 
-实现前必须读 `spec.md` 和 `ui-spec.md`。实现后加载：
+实现前读取活跃 Change 的 `proposal.md`、存在时的 `design.md` 与 `specs/` 下 Delta，以及必需的 `ui-spec.md`。旧 `spec.md` 只允许迁移读取，不作为新写入目标。缺 UI 规格时先回设计流程。实现后加载：
 
 1. `bp-frontend-taste`
 2. `frontend-playwright-verification`

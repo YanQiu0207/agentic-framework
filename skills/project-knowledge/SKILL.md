@@ -1,6 +1,6 @@
 ---
 name: project-knowledge
-description: Production 与 Tooling 共用的项目知识路由与归档规范。定义 openspec 项目知识的渐进读取、唯一建议写入位置、代码冲突报告、Change Delta 同步、公共知识晋升，以及交付前 intent 沉淀检查。当任务需要读取或更新项目知识、归档 Change、沉淀已验证故障、判断知识去向或识别跨项目候选时使用。
+description: 项目知识读取、更新和归档规范。处理 Change、长期知识、已验证故障或知识影响检查时使用。
 ---
 
 > 输出一行：`Using project-knowledge`
@@ -132,8 +132,8 @@ openspec/
 | 单次需求、设计、任务和 Delta | `openspec/changes/<ticket>-<change>/` |
 | 已完成历史 Change | `openspec/changes/archive/<ticket>-YYYY-MM-DD-<change>/` |
 | 已验证项目故障 | `openspec/issues/<issue>.md` |
-| 跨项目通用方法候选 | 当前 Change 的知识候选清单，或 Fast-Path 交付报告 |
-| 跨项目通用故障候选 | 当前 Change 的知识候选清单，或 Fast-Path 交付报告 |
+| 跨项目通用方法候选 | 当前 Change 的知识候选清单，或 轻量 Native Delivery 交付报告 |
+| 跨项目通用故障候选 | 当前 Change 的知识候选清单，或 轻量 Native Delivery 交付报告 |
 
 无法确定业务域、端或模块时，不得猜测目录；把候选留在当前 Change 或交付报告，列出待确认的归属。
 
@@ -203,29 +203,15 @@ Delta 使用 `ADDED`、`MODIFIED`、`REMOVED` 和 `RENAMED` 表达变化。临�
 
 不合并到长期 Specs 的内容：临时实现细节、一次性迁移步骤、被最终实现推翻的草案、未确认故障猜测和执行中间状态。
 
-## 8. 跨项目公共知识晋升
+## 8. 高级知识操作（按需）
 
-### 8.1 候选的存放边界
+仅在用户要求 SVN 初始化、外置知识、公共库接线或晋升时，检查 `knowledge-advanced` 能力包，再读取 [reference/knowledge-advanced.md](reference/knowledge-advanced.md)。项目内知识、冲突报告、已接线公共知识查询和正常归档不依赖该包。
 
-- Standard Change：候选写入当前 Change 的「跨项目知识候选」章节或知识同步任务。
-- Fast-Path：候选只写入交付报告。
-- 未确认候选不得写入公共库的 `domains/`、`issues/`、`sources/`、`changes/` 或任何临时目录。
-- 公共 `changes/` 只记录公共知识库自身治理，**禁止**保存项目知识候选。
-
-### 8.2 晋升步骤
-
-只有用户明确确认后，才执行：
-
-1. 去除项目名、内部路径、内部接口和业务数据。
-2. 提炼通用机制、适用范围与不适用范围。
-3. 检查公共库是否已有权威条目。
-4. 标注来源、证据等级和限制。
-5. 通用方法写公共 `domains/`；通用且已验证的故障写公共 `issues/`。
-6. 更新公共索引；公共条目不得反向链接项目私有正文。
+从已加载 Skill 的真实路径（解析链接后）向上定位同时包含 `scripts/install_agentic_framework.py` 和 `skills/workflow-code-generation/SKILL.md` 的受信根，运行 `python <trusted-framework-root>/scripts/install_agentic_framework.py --show-packs <project>`，只读取 JSON 的 `enabled` 数组。不得执行目标 manifest 的 `source`。找不到受信根、查询失败或缺包时停止高级操作，提示安装器 `--with knowledge-advanced`；不得自行推断旧安装或源码根的能力。
 
 ## 9. 交付前 intent 沉淀检查（强制）
 
-每次向用户宣布「完成」或「交付」前，无论是否创建 Change，都必须先扫描本次会话、Diff、测试和运行证据，生成知识 Delta 候选，再逐条完成下表。不得用一句「无需沉淀」代替逐项判断。
+每次向用户宣布「完成」或「交付」前，无论是否创建 Change，都必须先扫描本次会话、Diff、测试和运行证据，在内部逐项检查下表；输出只保留命中项，不要求逐行展示未命中项。
 
 | 信号 | 命中后的唯一建议动作 |
 | --- | --- |
@@ -234,27 +220,20 @@ Delta 使用 `ADDED`、`MODIFIED`、`REMOVED` 和 `RENAMED` 表达变化。临�
 | 引入性能、兼容或安全红线 | 写当前 Change；长期有效时同步到相关 `custom/constraints.md` 或端内 `engineering/` |
 | 查证故障根因并完成验证 | 写入 `openspec/issues/<issue>.md`；未验证猜测只留当前 Change |
 | 产生可跨项目复用的结论 | 只列入当前 Change 或交付报告；用户确认后再按第 8 节晋升 |
-| 普通功能、配置或 Bug 修复，且没有长期知识影响 | 明确写「未命中」，不新增知识文件 |
+| 普通功能、配置或 Bug 修复，且没有长期知识影响 | 不新增知识文件，简述无长期影响的具体理由 |
 
-逐项输出格式：
+输出规则：
 
-```markdown
-## 交付前 intent 沉淀检查
-
-- 不可逆或高影响架构决策：命中 → 已记录到 `<path>` / 未命中
-- 放弃重要方案：命中 → 已记录到 `<path>` / 未命中
-- 新增红线约束：命中 → 已记录到 `<path>` / 未命中
-- 已验证故障根因：命中 → 已记录到 `<path>` / 未命中
-- 跨项目知识候选：命中 → 已留在当前 Change 或交付报告，待用户确认 / 未命中
-- 普通变更：命中 → 无长期知识影响 / 未命中
-```
+- 无命中：只输出一句「无长期知识影响：<具体理由>」。内部检查不得省略；机器参数仍为 `--knowledge-impact none --knowledge-impact-reason "<具体理由>"`。
+- 有命中：只列命中信号、目标路径与同步状态。跨项目候选保留在当前 Change 或交付报告，标记待用户确认，不自动晋升。
+- 有长期影响但没有 Change：先创建 Change 并完成同步，再交付；不得用 `none` 绕过。
 
 若命中但当前无法完成沉淀，在当前 `tasks.md` 新建「知识同步」任务并保持未完成；不得归档或宣布全部完成。
 
 ## 10. 与工作流的关系
 
 - Production 与 Tooling 统一的 `workflow-*` 必须调用本 Skill 的同一读写路由。
-- Tooling Fast-Path 可以不创建 Change，但必须完成知识影响检查，并说明为什么没有长期知识影响。
+- 轻量 Native Delivery 可以不创建 Change，但必须完成知识影响检查，并说明为什么没有长期知识影响。
 - Requirements、Design、Code、Test、Review、Troubleshooting 和 Archive 阶段分别按第 3 节读取，不得把公共知识当项目事实。
 - Archive 必须执行第 7 节的同步门禁；只移动 Change、未完成知识同步的归档不合格。
 - 工作流执行策略由各 Profile 自己定义，本 Skill 不改变 Review、审批、DAG、Worktree 或恢复语义。

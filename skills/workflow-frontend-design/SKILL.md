@@ -1,6 +1,6 @@
 ---
 name: workflow-frontend-design
-description: 通用前端 UI 工作流入口。检测到新页面、复杂新组件、绿地 Web App、Dashboard、Landing Page、前端重设计或明显视觉改版时使用；复杂组件和小页面走轻量档，页面级 / Web App / 重设计走重型档；极轻 UI 调整或单文件小组件改动直接走 workflow-code-generation。基于 Anthropic frontend-design 与 OpenAI frontend-app-builder 的中文化本地版本：先做有观点的设计方向和完整概念，再沉淀 ui-spec.md，最后交给 workflow-code-generation 实现与浏览器验证。
+description: 前端 UI 设计入口。新页面、复杂组件、Web App 或明显视觉改版时使用，产出 ui-spec.md；极轻 UI 调整直接走 workflow-code-generation。
 ---
 
 > 输出一行：`Using workflow-frontend-design`

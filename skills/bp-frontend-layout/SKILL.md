@@ -1,6 +1,6 @@
 ---
 name: bp-frontend-layout
-description: 前端页面骨架规则。workflow-frontend-design 定方向后、实现前使用，用来确定页面类型、区域划分、主操作、section 节奏和响应式结构。吸收 frontend-design / frontend-app-builder 中关于完整页面、容器模型和 section rhythm 的规则。
+description: 前端页面骨架规则。在设计方向确定后、实现前，规划页面区域、主操作和响应式结构。
 ---
 
 > 输出一行：`Using bp-frontend-layout`

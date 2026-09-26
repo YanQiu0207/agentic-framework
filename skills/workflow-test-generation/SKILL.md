@@ -1,6 +1,6 @@
 ---
 name: workflow-test-generation
-description: 测试生成。基于活跃 Change 或被测代码，生成单元测试、集成测试、性能测试。当用户请求生成测试、TDD 模式触发；也由 workflow-code-generation 在每个 task 执行流程内嵌调用（owner/implementer 写测试，无人值守）。
+description: 基于活跃 Change 或代码生成测试。用户要求补测试、采用 TDD，或代码生成流程内嵌写测试时使用。
 ---
 
 > 输出一行：`Using workflow-test-generation`
@@ -91,7 +91,7 @@ description: 测试生成。基于活跃 Change 或被测代码，生成单元�
 
 ## Step 4: 逐个生成测试
 
-> 仅**完整流程**和**快速补测试**执行本步骤。
+> **完整流程**、**快速补测试**和**内嵌路径**执行本步骤；内嵌路径跳过独立用户确认与 Step 5，测试通过后交还编排方。
 
 ### 4.1 加载编码规范（🚨 强制前置）
 
