@@ -37,7 +37,7 @@ Task 3 → Task 4
 ### 任务 2：[ ] 统一交付路径与 Runtime 启用检查
 - 状态：未开始
 - 文件：`skills/workflow-code-generation/scripts/check_delivery.py`，`skills/workflow-code-generation/scripts/workflow_control.py`，`scripts/test_check_delivery.py`，`scripts/test_workflow_control.py`，`scripts/test_delivery_route_fixture_runner.py`，`scripts/delivery_route_fixture_runner.py`，`evaluation/fixtures/`
-- depends_on: [Task 1]
+- depends_on: Task 1
 - review_profile: strict
 - 文档映射：design.md 第 4.1～4.3 节
 - context_files:
@@ -74,7 +74,7 @@ Task 3 → Task 4
 ### 任务 4：[ ] 集成验证、独立审查与知识同步
 - 状态：未开始
 - 文件：`openspec/specs/backend/framework/`，`README.md`，`docs/tooling/`，当前 Change
-- depends_on: [Task 2, Task 3]
+- depends_on: Task 2, Task 3
 - review_profile: strict
 - 文档映射：proposal.md 第 3～4 节；design.md 第 6～7 节
 - context_files:
