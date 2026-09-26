@@ -5,6 +5,7 @@ are covered separately by their executable gate tests.
 """
 
 from pathlib import Path
+import json
 import re
 import sys
 
@@ -170,3 +171,76 @@ def test_existing_svn_is_detected_before_git_initialization() -> None:
     generation = read("skills/workflow-code-generation/SKILL.md")
     assert "普通 SVN Native Delivery 不额外要求高级初始化能力包" in generation
     assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation
+
+
+def test_native_review_templates_match_profile_specific_machine_gate(
+    tmp_path: Path,
+) -> None:
+    """Both documented flat examples must pass only their governance floor."""
+    import check_delivery
+
+    review = read("skills/workflow-code-review/SKILL.md")
+    examples = [
+        json.loads(block)
+        for block in re.findall(r"```json\n(.*?)```", review, re.S)
+    ]
+    native = {
+        item["review_profile"]: item
+        for item in examples
+        if item.get("scope") == "integration"
+    }
+    assert set(native) == {"standard", "strict"}
+    fields = {
+        "verdict",
+        "p0_count",
+        "p1_count",
+        "scope",
+        "review_profile",
+        "round",
+    }
+    for profile, artifact in native.items():
+        assert set(artifact) == fields
+        report = tmp_path / f"{profile}.json"
+        report.write_text(json.dumps(artifact), encoding="utf-8")
+        assert not check_delivery.check_native_delivery_review(report, profile)
+        wrong = "strict" if profile == "standard" else "standard"
+        assert check_delivery.check_native_delivery_review(report, wrong)
+
+
+def test_shared_native_instructions_respect_governance_not_risk() -> None:
+    """All shared handoffs agree on scope, producer and strict risk routing."""
+    generation = read("skills/workflow-code-generation/SKILL.md")
+    light = generation.split("## Native Delivery", 1)[1].split(
+        "## 标准流程", 1
+    )[0]
+    final = generation.split("4. **一次最终审核**", 1)[1].split(
+        "5. **交付前沉淀检查**", 1
+    )[0]
+    for section in (light, final):
+        for required in (
+            "Tooling 使用 `review_profile: standard`",
+            "Production 使用 `review_profile: strict`",
+            "scope: integration",
+            "扁平 6 字段",
+            "comprehensive-reviewer",
+            "独立 Judge",
+        ):
+            assert required in section
+    assert "Tooling 为 `standard`，Production 为 `strict`" in light
+    assert "不降低机器门下限" in light
+    assert "这不代表任务风险为 `strict`，不单独触发 Runtime" in generation
+    assert "两种 Profile 都仍须走 Runtime" in generation
+    assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation
+    review = read("skills/workflow-code-review/SKILL.md")
+    production = next(
+        line
+        for line in review.splitlines()
+        if line.startswith("| Production Native Delivery |")
+    )
+    assert "未参与实现的独立 Judge" in production
+    assert 'scope: "integration"' in production
+    assert 'review_profile: "strict"' in production
+    assert "不添加 Run 或独立性机器字段" in production
+    assert "`strict` 的 Tooling Review 必须升级到完整 Runtime Run" in review
+    assert "两种 Profile 都仍须按代码生成路由处理" in review
+    assert '不得输出 `scope: "run"` 或 `review_profile: "strict"`' not in review

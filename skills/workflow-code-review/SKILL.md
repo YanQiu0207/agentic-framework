@@ -25,7 +25,7 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 | `standard` | 默认档：普通功能、Bug 修复，或涉及多个模块之间的行为、契约、交互变化但风险可控 | `comprehensive-reviewer`（一趟覆盖工程规范、需求符合度、正确性与健壮性） |
 | `strict` | 高风险：生产关键路径、安全 / 权限 / 数据迁移 / 并发 / 分布式 / 性能敏感 / 公共 API / 大范围重构 | 全量 5 reviewer；有 finding 时调用 `review-critic` |
 
-调用方可显式传入 `review_profile: lightweight|standard|strict`。未传入时按范围和风险自行判定；无法判断时用 `standard`，命中高风险任一条件时用 `strict`。
+调用方可显式传入 `review_profile: lightweight|standard|strict`。未传入时按范围和风险自行判定；无法判断风险时用 `standard`，命中高风险任一条件时用 `strict`。最终 Native integration Review 仍须满足治理下限：Tooling 为 `standard`，Production 为 `strict`，不得因任务低风险而降低。
 
 ## Subagent 清单
 
@@ -42,9 +42,10 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 ## 审核 Scope
 
 - `scope: task`：Production 的单个 Task。每个 Task 只能有一次首轮审核。
-- `scope: integration`：无 Run 的完整交付 diff。Tooling Native Delivery 固定使用 `standard`；Production 仍按其生命周期选择 `strict`。
-- `scope: run`：Tooling 完整 Runtime Run 的完整 diff，固定使用 `strict`，必须绑定 Run Context。
+- `scope: integration`：无 Run 的完整交付 diff。Tooling Native Delivery 固定使用 `standard`；Production Native Delivery 固定使用 `strict`。
+- `scope: run`：完整 Runtime Run 的完整 diff，固定使用 `strict`，必须绑定 Run Context。
 - `strict` 的 Tooling Review 必须升级到完整 Runtime Run；不得写成无 Run 的 `scope: integration` 报告。
+- Production 的治理 `strict` 不等于任务风险 `strict`，可生成无 Run 的 integration 报告；实际任务风险为 `strict` 或命中其他 Runtime 升级条件时，两种 Profile 都仍须按代码生成路由处理，SVN 不支持时停止，不得借治理差异豁免。
 - 同一 Scope 的修复只能进入 re-review，不能重新启动首轮审核；不同 Task 和最终集成属于不同 Scope。
 
 ## 复审模式（re-review）
@@ -282,10 +283,13 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 | 交付路径 | JSON 位置 | 必填裁决字段 | Run Context 与可声明边界 |
 | --- | --- | --- | --- |
-| Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile: "standard"`、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 或严格独立 Judge 声明。 |
+| Tooling Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`，编排方原样保存 | 顶层 6 字段，`scope: "integration"`、`review_profile: "standard"` | 无 Run；不得提供 Runtime、Trust Gate 或独立 Judge 机器字段。 |
+| Production Native Delivery | 未参与实现的独立 Judge 生成独立 `review-report.json`，编排方原样保存 | 顶层 6 字段，`scope: "integration"`、`review_profile: "strict"` | 无 Run；独立性在审查过程和 Markdown 报告说明，不添加 Run 或独立性机器字段。 |
 | 完整 Runtime Run | 独立 Judge 生成 `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
 
-无 Run 的 Native Delivery 标准 Review 使用以下扁平 JSON；`check_delivery.py --native-delivery` 只接受这 6 个字段：
+两种 Native Delivery 均建议保存到 `.agentic-framework/review/review-integration.json` 并显式传给 `check_delivery.py --native-delivery`。该门按治理 Profile 校验，且只接受以下 6 个扁平字段，不加 Envelope 或 `judge_actor` 等字段。
+
+Tooling Native Delivery：
 
 ```json
 {
@@ -298,7 +302,20 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 }
 ```
 
-完整 Runtime Run 使用 Envelope，并从 `run-context.json` 复制 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`。缺少 Run Context 时，不得输出 `scope: "run"` 或 `review_profile: "strict"` 的可放行报告：
+Production Native Delivery（由独立 Judge 生成）：
+
+```json
+{
+    "verdict": "PASS",
+    "p0_count": 0,
+    "p1_count": 0,
+    "scope": "integration",
+    "review_profile": "strict",
+    "round": 0
+}
+```
+
+完整 Runtime Run 使用 Envelope，并从 `run-context.json` 复制 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`。缺少 Run Context 时，不得输出 `scope: "run"` 的可放行报告。无 Run 的 `strict` integration 仅用于上述 Production Native Delivery，不用于 Tooling：
 
 ```json
 {
