@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterable, Sequence
 
+import framework_packs
+
 CLIENT_DIRS = (".codex", ".claude")
 MANIFEST_PATH = Path(".agentic-framework/manifest.json")
 EXTENSIONS_DIR = Path(".agentic-framework/extensions")
@@ -78,12 +80,16 @@ PACK_SKILLS = {
     "project-init": {"project-init"},
     "open-code-review": {"open-code-review"},
     "telemetry": set(),
+    "runtime": set(),
+    "knowledge-advanced": set(),
 }
 PACK_COMMANDS = {
     "frontend": {"frontend-design.md"},
     "project-init": {"project-init.md"},
     "open-code-review": set(),
     "telemetry": set(),
+    "runtime": set(),
+    "knowledge-advanced": set(),
 }
 TOOLING_ONLY_PACKS = {"frontend"}
 IGNORED_PARTS = {"__pycache__", ".pytest_cache"}
@@ -169,12 +175,16 @@ MANAGED_PACK_SKILL_ROOTS = {
     "project-init": frozenset({"project-init"}),
     "open-code-review": frozenset({"open-code-review"}),
     "telemetry": frozenset(),
+    "runtime": frozenset(),
+    "knowledge-advanced": frozenset(),
 }
 MANAGED_PACK_COMMAND_FILES = {
     "frontend": frozenset({"frontend-design.md"}),
     "project-init": frozenset({"project-init.md"}),
     "open-code-review": frozenset(),
     "telemetry": frozenset(),
+    "runtime": frozenset(),
+    "knowledge-advanced": frozenset(),
 }
 
 
@@ -211,7 +221,21 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="append",
         default=[],
         choices=tuple(PACK_SKILLS),
-        help="Install an optional pack. Repeat for multiple packs.",
+        help="Add an optional pack; existing selections are inherited. Repeat for multiple packs.",
+    )
+    parser.add_argument(
+        "--without",
+        dest="without_packs",
+        action="append",
+        default=[],
+        choices=tuple(PACK_SKILLS),
+        help="Explicitly remove a previously selected pack.",
+    )
+    parser.add_argument(
+        "--show-packs",
+        type=Path,
+        metavar="PROJECT",
+        help="Read enabled packs without changing project state.",
     )
     parser.add_argument(
         "--source",
@@ -533,6 +557,9 @@ def _load_manifest(target: Path) -> dict | None:
     if not path.is_file():
         return None
     manifest = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(manifest, dict):
+        raise ValueError("Manifest must be an object")
+    framework_packs.manifest_packs(manifest)
     schema = manifest.get("schema_version")
     if schema not in {1, 2, MANIFEST_SCHEMA_VERSION}:
         raise ValueError("Unsupported manifest schema_version")
@@ -1142,16 +1169,30 @@ def install(
     dry_run: bool = False,
     switch_profile: bool = False,
     registry_path: Path | None = None,
+    without_packs: set[str] | None = None,
 ) -> None:
     """Install a profile using managed symbolic links and record it."""
     source = source.resolve()
     target = target.absolute()
     registry_path = (registry_path or DEFAULT_REGISTRY_PATH).absolute()
     old_manifest = _load_manifest(target)
+    removed = without_packs or set()
+    if (packs | removed) - set(PACK_SKILLS):
+        raise ValueError("Unknown optional pack")
+    if packs & removed:
+        raise ValueError(
+            "A pack cannot be selected with both --with and --without"
+        )
+    inherited = (
+        framework_packs.manifest_packs(old_manifest) if old_manifest else set()
+    )
+    packs = (inherited | packs) - removed
     selected_extension_sources = extension_sources
-    if not selected_extension_sources and old_manifest and old_manifest[
-        "schema_version"
-    ] == MANIFEST_SCHEMA_VERSION:
+    if (
+        not selected_extension_sources
+        and old_manifest
+        and old_manifest["schema_version"] == MANIFEST_SCHEMA_VERSION
+    ):
         selected_extension_sources = [
             Path(item["source"]) for item in old_manifest["extensions"]
         ]
@@ -1189,6 +1230,7 @@ def install(
     manifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "framework_version": FRAMEWORK_VERSION,
+        "pack_selection_version": framework_packs.PACK_SELECTION_VERSION,
         "source": str(source),
         "profile": profile,
         "packs": sorted(packs),
@@ -1400,11 +1442,32 @@ def refresh_all(
 
 def main(argv: Sequence[str]) -> int:
     args = parse_args(argv)
+    if args.show_packs:
+        if (
+            args.target_dir
+            or args.profile
+            or args.packs
+            or args.without_packs
+            or args.uninstall
+            or args.force
+            or args.dry_run
+            or args.switch_profile
+            or args.refresh_all
+            or args.extension
+            or args.validate_extensions
+        ):
+            raise ValueError(
+                "--show-packs cannot be combined with installation options"
+            )
+        json.dump(framework_packs.pack_status(args.show_packs), sys.stdout)
+        sys.stdout.write("\n")
+        return 0
     if args.validate_extensions:
         if (
             args.target_dir
             or args.profile
             or args.packs
+            or args.without_packs
             or args.uninstall
             or args.force
             or args.dry_run
@@ -1423,13 +1486,14 @@ def main(argv: Sequence[str]) -> int:
             args.target_dir
             or args.profile
             or args.packs
+            or args.without_packs
             or args.uninstall
             or args.switch_profile
             or args.extension
         ):
             raise ValueError(
                 "--refresh-all cannot be combined with target_dir, --profile, "
-                "--with, --uninstall, --switch-profile, or --extension"
+                "--with, --without, --uninstall, --switch-profile, or --extension"
             )
         refresh_all(
             args.source,
@@ -1441,9 +1505,15 @@ def main(argv: Sequence[str]) -> int:
     if args.target_dir is None:
         raise ValueError("target_dir is required unless --refresh-all is used")
     if args.uninstall:
-        if args.profile or args.packs or args.switch_profile or args.extension:
+        if (
+            args.profile
+            or args.packs
+            or args.without_packs
+            or args.switch_profile
+            or args.extension
+        ):
             raise ValueError(
-                "--uninstall cannot be combined with --profile, --with, "
+                "--uninstall cannot be combined with --profile, --with, --without, "
                 "--switch-profile, or --extension"
             )
         uninstall(
@@ -1466,6 +1536,7 @@ def main(argv: Sequence[str]) -> int:
         dry_run=args.dry_run,
         switch_profile=args.switch_profile,
         registry_path=args.registry,
+        without_packs=set(args.without_packs),
     )
     return 0
 

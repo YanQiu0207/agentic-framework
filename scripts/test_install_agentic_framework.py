@@ -1048,5 +1048,138 @@ class InstallTest(unittest.TestCase):
         self.assertIsNone(args.target_dir)
 
 
+class PackSelectionTest(unittest.TestCase):
+    """Exercise selection persistence independently of OS symlink privileges."""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.root = Path(self.temporary.name)
+        self.target = self.root / "project"
+        self.target.mkdir()
+        self.registry = self.root / "registry.json"
+        self.operations = mock.patch.object(
+            installer, "build_operations", return_value=[]
+        )
+        self.operations.start()
+        self.addCleanup(self.operations.stop)
+        self.addCleanup(self.temporary.cleanup)
+
+    def install(self, packs=None, **kwargs) -> dict:
+        installer.install(
+            REPO_ROOT,
+            self.target,
+            "tooling",
+            packs or set(),
+            registry_path=self.registry,
+            **kwargs,
+        )
+        return installer._load_manifest(self.target)
+
+    def test_new_core_then_add_inherit_and_explicit_remove(self) -> None:
+        manifest = self.install()
+        self.assertEqual([], manifest["packs"])
+        self.assertEqual(1, manifest["pack_selection_version"])
+        self.install({"runtime", "frontend"})
+        self.assertEqual(["frontend", "runtime"], self.install()["packs"])
+        self.assertEqual(
+            ["frontend", "open-code-review"],
+            self.install({"open-code-review"}, without_packs={"runtime"})[
+                "packs"
+            ],
+        )
+        self.assertEqual(
+            ["frontend", "open-code-review"], self.install()["packs"]
+        )
+        entry = installer._load_registry(self.registry)["installations"][0]
+        self.assertEqual(self.install()["packs"], entry["packs"])
+
+    def test_legacy_migrates_once_and_disabled_pack_stays_disabled_on_refresh(
+        self,
+    ) -> None:
+        manifest = self.install({"telemetry"})
+        del manifest["pack_selection_version"]
+        installer._write_manifest(self.target, manifest)
+        installer.refresh_all(REPO_ROOT, registry_path=self.registry)
+        manifest = installer._load_manifest(self.target)
+        self.assertEqual(
+            ["knowledge-advanced", "runtime", "telemetry"], manifest["packs"]
+        )
+        self.install(without_packs={"runtime", "knowledge-advanced"})
+        installer.refresh_all(REPO_ROOT, registry_path=self.registry)
+        self.assertEqual(
+            ["telemetry"], installer._load_manifest(self.target)["packs"]
+        )
+        self.assertEqual(
+            ["telemetry"],
+            installer._load_registry(self.registry)["installations"][0][
+                "packs"
+            ],
+        )
+
+    def test_conflicting_selection_fails_without_writes(self) -> None:
+        original = self.install()
+        with self.assertRaisesRegex(ValueError, "both"):
+            self.install({"runtime"}, without_packs={"runtime"})
+        self.assertEqual(original, installer._load_manifest(self.target))
+
+    def test_invalid_marker_fails_without_writes(self) -> None:
+        manifest = self.install()
+        manifest["pack_selection_version"] = 99
+        installer._write_manifest(self.target, manifest)
+        before = (self.target / installer.MANIFEST_PATH).read_bytes()
+        with self.assertRaises(ValueError):
+            self.install()
+        self.assertEqual(
+            before, (self.target / installer.MANIFEST_PATH).read_bytes()
+        )
+
+    def test_show_packs_is_read_only_and_rejects_mutating_options(self) -> None:
+        self.install({"runtime"})
+        before = (self.target / installer.MANIFEST_PATH).read_bytes()
+        output = io.StringIO()
+        with mock.patch("sys.stdout", output):
+            self.assertEqual(
+                0, installer.main(["--show-packs", str(self.target)])
+            )
+        self.assertEqual(["runtime"], json.loads(output.getvalue())["enabled"])
+        self.assertEqual(
+            before, (self.target / installer.MANIFEST_PATH).read_bytes()
+        )
+        with self.assertRaises(ValueError):
+            installer.main(
+                ["--show-packs", str(self.target), "--without", "runtime"]
+            )
+
+    def test_pack_flags_are_additive_and_explicit_removal_is_parsed(
+        self,
+    ) -> None:
+        args = installer.parse_args(
+            [
+                str(self.target),
+                "--profile",
+                "tooling",
+                "--with",
+                "runtime",
+                "--without",
+                "knowledge-advanced",
+            ]
+        )
+        self.assertEqual(["runtime"], args.packs)
+        self.assertEqual(["knowledge-advanced"], args.without_packs)
+
+    def test_pack_metadata_uses_existing_installation_selection(self) -> None:
+        self.assertEqual(
+            installer.PACK_SKILLS.keys(), installer.framework_packs.KNOWN_PACKS
+        )
+        core, _ = installer._selected_names("tooling", set())
+        for name in ("frontend", "open-code-review"):
+            selected, _ = installer._selected_names("tooling", {name})
+            self.assertGreater(len(selected), len(core))
+        selected, _ = installer._selected_names(
+            "tooling", {"runtime", "knowledge-advanced"}
+        )
+        self.assertEqual(core, selected)
+
+
 if __name__ == "__main__":
     unittest.main()
