@@ -8,13 +8,17 @@
 
 | 能力 | 当前入口 | 边界 |
 | --- | --- | --- |
-| 项目初始化 | `skills/project-init/SKILL.md` | 只补缺失骨架，不覆盖现有文件；项目知识存储与公共库接线分开确认 |
+| 项目初始化 | `skills/project-init/SKILL.md` | 默认 Git 与项目内知识；高级初始化须启用 `knowledge-advanced`；不覆盖现有文件 |
 | 读写与归档路由 | `skills/project-knowledge/SKILL.md` | 知识辅助理解，冲突显式报告，公共知识禁止自动写入 |
 | Legacy 迁移规划 | `scripts/migrate_project_knowledge.py` | 只生成逐文件映射和引用清单，不复制、不删除、不覆盖 |
 | 公共知识校验 | `scripts/validate_shared_knowledge.py` | 只读检查索引边界、元数据、私有链接和候选污染 |
 | Change 知识门 | `scripts/validate_change.py` | 检查项目索引、代码派生元数据、Delta、冲突和归档同步 |
 | 共享知识核对 | `scripts/knowledge_sync.py` | Delta 反推与知识同步表解析，Production 与 Tooling 共同消费（change 2040） |
 | 来源新鲜度 | `workflow-verification/scripts/verify.py` | 对 `meta.yaml` 来源漂移输出非阻塞告警 |
+
+项目内知识读取、冲突报告和归档属于 Core。SVN 初始化、外置正文、公共库接线及晋升需要 `knowledge-advanced`；普通 SVN 代码交付不受该初始化能力门限制。初始化先识别已有 Git／SVN 工作副本；发现 SVN 或状态未决时不得转而执行 `git init`。默认流程不主动询问外置存储或公共接线。
+
+内部仍逐项检查知识影响；无命中只输出具体理由，命中只列命中项、目标路径与同步状态。机器 `--knowledge-impact` 字段及 `none` 理由不变；无 Change 的轻量 Native Delivery 只允许 `none`。
 
 ## 数据流
 
@@ -28,6 +32,7 @@
 
 跨项目候选
     → 只留项目 Change 或交付报告
+    → 查询 knowledge-advanced，失败或缺包即停止
     → 用户确认
     → 泛化、脱敏和边界检查
     → 公共库 domains/ 或 issues/

@@ -134,7 +134,7 @@
 - **Then** 框架只能声明证据存在且上下文一致
 - **And** 不得把该结果表述为 Reviewer/Judge 语义判断必然正确
 
-#### Scenario：Native Delivery 与 Fast-Path 交付的有界裁决
+#### Scenario：Native Delivery 的有界裁决
 
 - **Given** 一次未命中 Runtime 升级条件的标准交付未走完整 Run（无 `--run-dir`）
 - **When** 交付门以 Native Delivery 模式校验
@@ -142,14 +142,28 @@
 - **And** 裁决必须为 `native-delivery-pass`，不得表述为 strict Trust Gate PASS
 - **And** 必须显式声明 `strict-independent-review` 与 `run-manifest-evidence-graph` 为不可证明
 
-- **Given** 一次局部低风险改动使用 Fast-Path 兼容别名（无 `--run-dir`）
-- **When** 交付门以 Fast-Path 模式校验
-- **Then** 必须校验 `lightweight` integration Review、机器验证报告、工作区干净与知识影响结论
-- **And** 裁决必须为 `fast-path-pass`，不得表述为 strict Trust Gate PASS
+#### Scenario：轻量 Native Delivery
+
+- **Given** 一次局部低风险改动没有 Change
+- **When** 交付门显式使用 `--native-delivery`
+- **Then** 仅 `--knowledge-impact none` 且附具体理由时允许同时省略 `--tasks` 与 `--spec`
+- **And** 仍校验 standard integration Review、完整独立 Verify 与工作区；只传一个路径或声明 `hit` 均失败关闭
+- **And** 旧 Fast-Path 隐式调用拒绝并提示迁移，不输出 `fast-path-pass`
+
+#### Scenario：Runtime 启用检查
 
 - **Given** 一次交付命中 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求
 - **When** 交付门校验该交付
-- **Then** 必须使用带 `--run-dir` 的完整 Runtime Run 与 `strict` Review
+- **Then** 必须先通过 `runtime` 能力检查，再使用带 `--run-dir` 的完整 Runtime Run 与 `strict` Review
+- **And** 缺包、查询失败或 SVN 工作副本均停止，不得降级为 Native Delivery
+- **And** 普通 SVN Native Delivery 不因此要求 `knowledge-advanced`
+
+#### Scenario：能力来源不可冒充
+
+- **Given** 路由或初始化查询项目能力
+- **When** 项目或祖先安装清单存在但非法
+- **Then** 查询失败关闭，不回退源码能力
+- **And** 不执行目标 Manifest 的 `source`；无清单豁免仅限当前执行模块所属的真实框架源码树，普通项目不得凭同名标记文件取得完整能力
 
 #### Scenario：Scoped Delivery 的预存残留不变
 

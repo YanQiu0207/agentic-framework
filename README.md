@@ -27,7 +27,7 @@ python scripts/install_agentic_framework.py E:/path/to/production-project --prof
 python scripts/install_agentic_framework.py E:/path/to/tooling-project --profile tooling
 ```
 
-Tooling 可显式增加 Pack：
+新安装默认启用 Core；Tooling 可显式增加 Pack：
 
 ```bash
 python scripts/install_agentic_framework.py E:/path/to/tooling-project \
@@ -39,15 +39,21 @@ python scripts/install_agentic_framework.py E:/path/to/tooling-project \
 | Pack | 用途 | 可用 Profile |
 | --- | --- | --- |
 | `frontend` | 前端设计、React 规范和浏览器验证 | 仅 Tooling |
-| `project-init` | 项目初始化、项目知识库和跨项目公共知识库接线 | Production、Tooling |
+| `project-init` | 已属于 Core；保留兼容选择器，不重复增加资产 | Production、Tooling |
+| `runtime` | 完整 Run、审计与跨宿主能力检查 | Production、Tooling |
+| `knowledge-advanced` | SVN 初始化、外置知识与公共知识接线／晋升 | Production、Tooling |
 | `open-code-review` | 接入外部 OCR 审查工具 | Production、Tooling |
 | `telemetry` | 会话成本和收敛情况分析 | Production、Tooling |
 
 > 两个 Profile 安装的 Skill 与 Command 集合完全相同；`--profile` 只影响运行时治理强度（Review 档位、批准门、归档证据）以及是否装入 `validate_change.py`（仅 Production）。`frontend` pack 仅 Tooling 可用。详见 [「双 Profile 路由」](#双-profile-路由)。
 
+新安装默认只启用 Core。`--with <pack>` 增量增加能力，普通重装继承既有选择；只有 `--without <pack>` 显式移除能力，同一包不能同时增加和移除。新 Manifest 写入 `pack_selection_version: 1`；缺少该字段的旧安装保留此前默认可用的 `runtime` 和 `knowledge-advanced`，迁移后明确关闭的能力不会被刷新重新启用。Manifest 与 Registry 同步记录最终选择。
+
+只读查询使用 `python <trusted-framework-root>/scripts/install_agentic_framework.py --show-packs <project>`，返回 `enabled`、`source` 和 `path`。受信根来自已加载 Skill 的真实路径，不得从目标 Manifest 的 `source` 执行代码。查询先检查项目及祖先的 Manifest；非法清单失败关闭。只有当前执行模块所属的真实框架源码树在没有安装清单时可使用完整能力，普通无安装项目不能靠同名文件冒充。能力包控制入口，不提供文件系统隔离。
+
 目标路径使用 `.` 时，表示把框架安装到当前目录；给其他项目安装时，应填写该项目的真实路径。
 
-安装器同时写入 `.codex/` 和 `.claude/`，并在目标项目的 `.agentic-framework/manifest.json` 记录 Profile、Packs、Overlay 描述符（名称、来源、清单哈希、Skill 与链接快照）和受管核心链接。每个 Overlay 的规则与链接状态单独写入 `.agentic-framework/extensions/<name>.json`，并与描述符交叉校验。用户级 Registry 位于 `~/.agentic-framework/installations.json`，记录框架仓库安装到了哪些项目及其 Overlay 来源选择。默认禁止两个生命周期入口混装；切换时必须显式传 `--switch-profile`。
+安装器同时写入 `.codex/` 和 `.claude/`，并在目标项目的 `.agentic-framework/manifest.json` 记录 Profile、Packs、Overlay 描述符（名称、来源、清单哈希、Skill 与链接快照）和受管核心链接。每个 Overlay 的规则与链接状态单独写入 `.agentic-framework/extensions/<name>.json`，并与描述符交叉校验。用户级 Registry 位于 `~/.agentic-framework/installations.json`，记录框架仓库安装到了哪些项目及其 Overlay 来源选择。同一项目只记录一个治理 Profile；切换时必须显式传 `--switch-profile`。
 
 Workflow 不直接读取 Overlay 状态文件或使用目标项目 Manifest 的 `source` 执行脚本：它从当前已加载的核心 workflow `SKILL.md` 真实路径（解析链接后）向上定位受信框架根，运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`，并只消费成功返回的 JSON 规则。该只读校验会核对 Manifest、状态和实际客户端链接，并拒绝 Manifest 来源与当前安装器不一致的项目；失败时不得加载 Overlay。
 
@@ -132,7 +138,7 @@ Tooling 默认走 Native Delivery；DAG、状态和恢复按任务依赖、并�
             → Trust Gate
 ```
 
-完整 Runtime Run 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。Native Delivery 只证明独立机器验证、标准集成 Review、知识影响和 Git 工作区检查；不证明 Trust Gate、Harness 能力、完整证据图或严格独立 Judge。Fast-Path 在兼容期保留 lightweight 有界裁决，不是完整 Runtime 的替代品。
+完整 Runtime Run 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用，并要求 `runtime` 能力包；缺包或查询失败时停止，不降低风险。SVN 不支持完整 Runtime，命中升级条件时停止并建议使用 Git 隔离工作区；普通 SVN Native Delivery 不要求高级初始化能力包。Native Delivery 只证明独立机器验证、标准集成 Review、知识影响和工作区检查；不证明 Trust Gate、Harness 能力、完整证据图或严格独立 Judge。Fast-Path 独立兼容交付已退役，轻量任务也使用 Native Delivery。只有声明 `--knowledge-impact none` 且提供具体理由时，才可同时省略 `--spec` 与 `--tasks`；有长期知识影响则先创建 Change。两者必须同时提供或同时省略，不能绕过 Review、Verify 和工作区检查。
 
 Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 消耗；机器验证、失败隔离和 intent 检查仍保留。
 

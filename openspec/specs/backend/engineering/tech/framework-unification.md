@@ -143,7 +143,7 @@ agentic-engineering-framework/
 │   ├── workflow-code-review/ # Shared Core
 │   ├── workflow-verification/ # Shared Core
 │   ├── workflow-*            # Production 与 Tooling 统一入口（change 2045）
-│   └── frontend / OCR        # Optional Packs；project-init 已进入 Core
+│   └── frontend / OCR / runtime / knowledge-advanced  # Optional Packs；project-init 已进入 Core
 ├── commands/                  # 由安装器按 Profile / Pack 白名单选择
 ├── scripts/
 │   ├── install_agentic_framework.py
@@ -197,7 +197,7 @@ Requirements Clarification
 - 所有 Task、Verification 和 Delivery 门禁完成后，再执行一次五维 `strict` 集成审核。
 - 首轮存在 P0/P1 才进入修复循环。
 - 修复后重跑受影响的构建、测试和 Delivery，再执行定向 re-review。
-- 定向 re-review 最多两轮，仍未通过则转人工。
+- 定向 re-review 最多 10 轮，仍未通过则转人工。
 - Archive 前必须完成知识影响检查；只将已验证且值得长期保留的 Delta 同步到 `openspec/specs/`，冲突未解决时不得静默合并。
 - 发布、回滚、灰度、数据迁移、安全、兼容性和容量检查按风险条件启用，不在首轮合并中建设完整发布平台。
 
@@ -255,18 +255,19 @@ Tasks 获批
 
 ### 6.3 强制规则
 
-- Native Delivery 是 Tooling 的默认交付路径。Fast-Path 只作为局部低风险调用的兼容别名，保留其 lightweight 有界裁决。
-- 完整 Runtime Run 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用；任务文件数和模型版本不是升级条件。
+- Native Delivery 是 Tooling 的默认交付路径。轻量任务也使用 standard integration Review 与完整独立 Verify，不再提供 Fast-Path 独立兼容交付。
+- 完整 Runtime Run 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用；任务文件数和模型版本不是升级条件。必须先启用 `runtime`；缺包或查询失败时停止，不降低风险。SVN 命中升级需求时停止并建议使用 Git 隔离工作区，普通 SVN Native Delivery 不额外要求高级初始化能力包。
 - `workflow_control.py` 的 DAG、waves、状态、锁、失败隔离和恢复可独立使用，不得因使用这些能力自动伪造或创建 Run Context。并行 worktree 写入本身是 Runtime 升级条件。
 - 风险触发的升级与批准（change 2039）：任务声明 `Escalation` 条件后可经 `event escalate` 进入「待批准」暂停，凭与 `Escalation` 一致的 `Approval: granted (<条件>)` 证据经 `event approval_granted` 恢复；`merge_success` 前按同一证据规则失败关闭，`per-task` 模式下每个任务都需批准。升级条件与批准模式词表逐项抄录 Production（`validate_change.py:102-113`），不新建第二套。「待批准」是执行期内部态：持久化映射为规范态 `需人工` 加 `control_stage: awaiting_approval`，读侧规范值恒为五个，`TASK_STATES` 与 `parse_state` 不含 `待批准`。未声明升级条件的执行路径零变化（零触发等价，波次／恢复／阻塞／可派发逐字节比对）。这是 §3.2 条件 3 的**部分**举证：审批规则可机器强制，其余强制规则仍未举证。
 - 每个任务可以执行测试和机器检查，但禁止启动 LLM Review；全部任务完成后只启动一次最终 Review。
 - Review Profile：
-  - 低风险兼容调用：`lightweight`。
   - Native Delivery：`standard` 集成 Review。
   - 完整 Runtime Run：`strict` Run 级 Review。
 - P0/P1 才触发修复；修复后只执行定向 re-review。
 - Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree、失败恢复和 Runtime 审计策略中。
-- Fast-Path、Native Delivery、Runtime Run 与 Scoped Delivery 的交付门都必须声明 `--knowledge-impact hit|none`；`none` 缺理由、参数缺失或非法值均失败关闭，不得按路径豁免。
+- Native Delivery、Runtime Run 与 Scoped Delivery 的交付门都必须声明 `--knowledge-impact hit|none`；`none` 缺理由、参数缺失或非法值均失败关闭，不得按路径豁免。
+- 轻量 Native Delivery 仅在 `--knowledge-impact none` 且附具体理由时可同时省略 `--tasks` 和 `--spec`；两参数只传一个、无 Change 却声明 `hit` 均失败。有 Change 时仍检查终态、归档和知识同步。
+- 内部逐项检查沉淀影响；无命中只报具体理由，命中只展开命中项、目标路径与同步状态，机器字段不变。
 - 声明 `hit` 时知识影响门执行反自证交叉核对（change 2040）：从 Change 的 `specs/` 反推应同步目标，与 tasks.md 的知识同步表比对，Delta 漏报、声明误报、路径不匹配、同步状态未完成、知识冲突节为空或占位均失败关闭；无 `specs/` 时退回同步目标存在性核对（证据强度较低，报告中体现）。解析由共享模块 `scripts/knowledge_sync.py` 承载，两轨共同消费。这是 §3.2 条件 3 的**部分**举证：知识影响规则可机器强制，其余强制规则仍未举证。
 - 速度优化不得通过删除 Verification、失败接管或 intent 检查实现；worktree 与 DAG 按执行需求保留，不是普通任务的强制前置。
 
@@ -392,11 +393,11 @@ scope: task | integration | run
 
 - 每个 Review Scope 只有一次 `initial` Review。
 - Production 普通 Task 使用 `standard`，高风险 Task 使用 `strict`，最终 `integration` 固定使用 `strict`。
-- Tooling 的新标准交付固定使用 Native Delivery 的 `standard` 集成 Review；Fast-Path 只保留为局部低风险 `lightweight` 兼容别名。
-- Tooling 命中 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求时，必须升级为完整 Runtime Run，并使用 `strict` Review。
+- Tooling 的新标准交付固定使用 Native Delivery 的 `standard` 集成 Review；轻量任务使用同一合同，不再输出 Fast-Path Verdict。
+- Tooling 命中 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求时，必须在启用 `runtime` 后升级为完整 Runtime Run，并使用 `strict` Review；能力缺失时停止。
 - 只有 P0/P1 触发修复。
 - re-review 只检查原 finding 和修复 diff，禁止重新全量扫描。
-- re-review 最多两轮，仍未通过则转人工。
+- re-review 最多 10 轮，仍未通过则转人工。
 
 实现基线：
 
@@ -429,7 +430,9 @@ AI 可以根据仓库事实生成或维护 Verify 配置，但必须：
 
 | Pack | 默认 Profile | 内容 |
 | --- | --- | --- |
-| `frontend` | Tooling | Frontend Design、Layout、Taste、React、Playwright |
+| `runtime` | 两个 Profile 均可选，新安装默认不启用 | 完整 Run、审计与跨宿主能力检查 |
+| `knowledge-advanced` | 两个 Profile 均可选，新安装默认不启用 | SVN 初始化、外置正文、公共库接线与晋升 |
+| `frontend` | Tooling，显式选装 | Frontend Design、Layout、Taste、React、Playwright |
 | `project-init` | 两个 Profile 的 Core；保留兼容 Pack 选择器 | 项目初始化；重复选择不增加资产 |
 | `open-code-review` | 可选 | 外部独立审查工具 |
 | `telemetry` | Tooling 推荐、Production 可选，均需显式安装 | transcript 后处理、成本和收敛分析 |
@@ -467,13 +470,15 @@ python scripts/install_agentic_framework.py . \
 - 第一版不提供 `--profile all`。
 - 同一目标项目默认禁止同时安装两个生命周期 Profile。
 - 安装器写入 Manifest，记录版本、来源、Profile、Packs，以及受管链接的路径、来源和类型。
+- 新安装默认 Core；`--with` 增量增加能力，重装继承旧选择，`--without` 显式移除。新清单写入 `pack_selection_version: 1`；缺该字段的旧安装继承此前默认的 Runtime 和高级知识能力，迁移后显式关闭的能力不会因刷新恢复。Manifest 与 Registry 保存一致的最终选择。
+- `--show-packs <project>` 只读返回 `enabled`、`source` 和 `path`。从已加载 Skill 的真实路径定位受信安装器，不执行目标 Manifest 的 `source`；非法清单失败关闭。只有执行模块所属的真实框架源码树在无安装清单时可使用完整能力。
 - 重装和升级先校验已有受管链接，再以事务方式重建安装器管理的链接；不覆盖未受管文件。
 - 卸载不得删除项目自有文件。
-- Production 安装结果不得出现 Tooling 生命周期入口。
-- Tooling 安装结果不得出现 OPSX 生命周期入口。
+- 两个 Profile 共用 `workflow-*` Skill 与 Command；治理规则保持区分。
+- 已退役 OPSX 入口不再安装；Production 单独安装 `validate_change.py`。
 - Core 文件只安装一份。
 - 禁止原地隐式切换 Profile；必须先卸载旧 Profile，或显式使用 `--switch-profile`。
-- Profile 切换只能删除 Manifest 中记录的旧 Profile 受管文件，并在完成后执行交叉污染检查。
+- Profile 切换只操作 Manifest 记录的受管资产；不适用的 Pack 须显式移除，链接完整性检查不能绕过。
 
 建议 Manifest：
 
@@ -604,7 +609,7 @@ task
 - Tooling 的 task 级 `quality_passed` 重新定义为「实现、测试和任务级机器检查通过」；LLM Review 不参与单任务状态转换。
 - 最终全局 Review 是 Run/Change 级门禁，不回写每个 task 的 `control_stage`。
 - Production 接入普通 Task 单综合审核、高风险 Task 五维审核和最终五维集成审核。
-- 统一 P0/P1 修复、定向 re-review 和两轮上限。
+- 统一 P0/P1 修复、定向 re-review 和 10 轮上限。
 - Archive 校验 Review、Verify 和实际目标路径证据。
 
 **验收**：Production 每个 Task 和最终集成 Scope 各只有一次 `initial` Review；Tooling 每个 Run 只有一次。Tooling 的状态迁移、合并、阻塞和恢复测试均使用新的 `quality_passed` 定义。
@@ -651,16 +656,16 @@ E:\work\my-ai-resource\agentic-framework
 
 ### 16.3 Tooling
 
-- Native Delivery 为默认路径；Fast-Path 仅保留 lightweight 兼容裁决。
+- Native Delivery 为默认路径；轻量任务与标准任务共用 standard integration Review 和独立 Verify。
 - 完整 Runtime Run 只在已定义的风险或执行条件命中时启用。
 - Quick、Native Delivery 和完整 Runtime Run 使用统一的 `openspec/changes/` Artifact；长期知识使用 `openspec/specs/`。
 - DAG 分波、失败隔离、worktree、锁和恢复可按执行需求启用。
 - task 级不启动 LLM Review；全部任务完成后只执行一次分级首轮 Review。
-- 高风险改动自动升为 `strict` 并进入完整 Runtime Run。
+- 高风险改动必须升为 `strict`；仅在 `runtime` 已启用且运行条件满足时进入完整 Run，否则停止。
 
 ### 16.4 安装
 
-- 两个 Profile 的安装结果相互隔离。
+- 两个 Profile 共用核心资产，通过 Manifest 与治理守卫区分行为。
 - Packs 可以独立选择。
 - 重装幂等。
 - 升级和卸载不损害项目自有文件。
@@ -678,7 +683,7 @@ E:\work\my-ai-resource\agentic-framework
 - Tooling 上游失败、下游阻塞链路。
 - Tooling 中断恢复和写锁超时。
 - 只执行一次首轮 Review 的 Trace 断言。
-- 定向 re-review 最多两轮。
+- 定向 re-review 最多 10 轮。
 - Profile 交叉安装拒绝。
 - Manifest 重装和卸载安全性。
 - Profile 显式切换及旧入口清理。

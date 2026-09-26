@@ -4,7 +4,15 @@
 
 当前两个 Profile 都安装 `project-init` 和 `project-knowledge`；Profile 只决定执行生命周期，不决定项目知识 Artifact 目录。
 
-`project-init` 必须在项目根 `.gitignore` 中补充 `.agentic-framework/`，统一排除 `verify/`、`locks/`、`metrics/` 和 `runs/` 等本地运行产物；OpenSpec、Schema、代码、测试、`verify.config.json` 和正式文档仍由 Git 管理。
+## 可选能力
+
+新安装默认只启用 Core。`--with <pack>` 增量增加能力，普通重装继承既有选择；只有 `--without <pack>` 显式移除能力，同一包不能同时增加和移除。新 Manifest 写入 `pack_selection_version: 1`；缺少该字段的旧安装保留此前默认可用的 `runtime` 和 `knowledge-advanced`，迁移后明确关闭的能力不会被刷新重新启用。Manifest 与 Registry 同步记录最终选择。
+
+只读查询使用 `python <trusted-framework-root>/scripts/install_agentic_framework.py --show-packs <project>`，返回 `enabled`、`source` 和 `path`。受信根来自已加载 Skill 的真实路径，不得从目标 Manifest 的 `source` 执行代码。查询先检查项目及祖先的 Manifest；非法清单失败关闭。只有当前执行模块所属的真实框架源码树在没有安装清单时可使用完整能力，普通无安装项目不能靠同名文件冒充。能力包控制入口，不提供文件系统隔离。
+
+`runtime` 与 `knowledge-advanced` 是入口能力标记；`frontend`、`open-code-review` 和 `telemetry` 沿用既有选装。`project-init` 属于 Core，其同名 Pack 仅保留兼容选择语义。共享查询由 `scripts/framework_packs.py` 的 `enabled_packs(repo)` 与 `require_pack(repo, pack)` 提供，缺包或非法安装抛出 `FrameworkPackError`。
+
+`project-init` 在 Git 模式下必须在项目根 `.gitignore` 中补充 `.agentic-framework/`，统一排除 `verify/`、`locks/`、`metrics/` 和 `runs/` 等本地运行产物；OpenSpec、Schema、代码、测试、`verify.config.json` 和正式文档仍由 Git 管理。
 
 外部私有规范通过 Overlay 接入。Overlay 源根目录必须提供 `agentic-extension.json`，清单使用 `schema_version: 1`，声明唯一名称、Skill 的安全相对路径及适用文件后缀。安装器仅接受包含 `SKILL.md` 的目录，拒绝路径穿越、重复 Skill、核心或 Overlay 同名 Skill。
 
@@ -22,8 +30,10 @@
 
 Manifest 的 `profile` 字段现被四个门禁脚本消费：`validate_change.py`、`check_delivery.py`、`lint_task_deps.py`（`workflow_control.py` 已接线参数，门层合并后消费）。读取由共享模块 `scripts/governance_profile.py` 承载：从被校验仓库根向上查找 `.agentic-framework/manifest.json`（祖先链上的安装会被继承），缺失或 `profile` 非法一律失败关闭，不静默回退默认值；`--governance-profile production|tooling` 显式覆盖优先。读取是惰性的——只在 `review_profile` 触及 Profile 下限时发生。框架实现仓库自身（本仓库）有 `.agentic-framework/` 运行目录但无 manifest，跑门禁经显式参数取得 Profile（见 `AGENTS.md`）。
 
+能力包读取与治理 Profile 读取相互独立：`--governance-profile` 只覆盖治理选择，不启用 `runtime` 或 `knowledge-advanced`。旧 v3 清单可在刷新时迁移能力选择；v1／v2 仍需先执行单项目升级。
+
 ## 白名单统一（change 2045）
 
-`opsx-*` 六个 Skill 与六个 Command 已退役归档（`openspec/changes/archive/opsx-retirement-2026-07-27/`）。Production 与 Tooling 现共用统一的 `workflow-*` 入口——Profile 差异仅由 manifest 的 `profile` 字段与治理守卫（`governance_guards.py`）承载，不再由独立 Skill 集合表达。`--switch-profile` 切换只改 manifest 字段，不增减已安装文件（两个 Profile 的文件集合已一致）。归档中的 `opsx-*` 引用不改动。
+`opsx-*` 六个 Skill 与六个 Command 已退役归档（`openspec/changes/archive/opsx-retirement-2026-07-27/`）。Production 与 Tooling 现共用统一的 `workflow-*` 入口——Profile 差异仅由 manifest 的 `profile` 字段与治理守卫（`governance_guards.py`）承载，不再由独立 Skill 集合表达。`--switch-profile` 显式切换治理 Profile；两个 Profile 共用 Skill 与 Command，Production 独有 `validate_change.py`，`frontend` Pack 仅支持 Tooling，切换时须显式移除不适用的包。归档中的 `opsx-*` 引用不改动。
 
 change 2046（2026-08-02）让代码追平上述文本：安装器内 `PRODUCTION_SKILLS`／`TOOLING_SKILLS` 等四组逐元素相同的常量已坍缩为单一 `DELIVERY_SKILLS`／`DELIVERY_COMMANDS`／`MANAGED_SKILL_ROOTS`／`MANAGED_COMMAND_FILES`；`_forbidden_entry_paths`／`_cross_pollution_errors` 这两处交叉污染检查已删除：装前那处因两 Profile 入口集合合并而恒为空（死逻辑）；装后那处在受管链接创建后检查、退化为恒抛 `FileExistsError` 的 always-fail 隐患（change 2045 后引入，被符号链接守门的测试在无 Developer Mode 的 Windows 上 skip 掩盖）。删除同时清理死逻辑与修复该隐患；「拒绝替换未受管目标」的前置防护由 `_preflight` 独立承载，不受影响。Profile 在安装内容层面已无差异，仅由 manifest 的 `profile` 字段、运行时治理守卫，以及两处有意保留的差异（`validate_change.py` 仅 Production、`frontend` pack 仅 Tooling）承载。

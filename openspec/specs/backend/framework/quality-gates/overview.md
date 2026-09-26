@@ -14,7 +14,9 @@
 
 这些层相互提供证据，但不能互相替代。
 
-Tooling 的 Fast-Path、Native Delivery、Runtime Run 与 Scoped Delivery 都必须声明 `--knowledge-impact hit|none`。`none` 必须附非空理由；缺失、空理由或非法值均失败关闭。Scoped Delivery 因必须同时使用 `--native-delivery` 而沿用同一检查，但输出以 Scoped Delivery 标识，避免将四条路径混淆。
+Tooling 的 Native Delivery、Runtime Run 与 Scoped Delivery 都必须声明 `--knowledge-impact hit|none`。`none` 必须附非空理由；缺失、空理由或非法值均失败关闭。Scoped Delivery 因必须同时使用 `--native-delivery` 而沿用同一检查，但输出以 Scoped Delivery 标识，避免混淆交付范围与 Runtime 证据。轻量 Native Delivery 仅在 `none` 且附具体理由时允许同时省略 `--tasks` 与 `--spec`；两参数必须成对，有知识影响但无 Change 时先停止并建立 Change。Fast-Path 隐式交付不再放行。
+
+Runtime 的路由与初始化必须先通过 `runtime` 能力检查；缺包或清单非法时停止。SVN 命中 Runtime 升级需求时同样停止，不能降级成 Native Delivery；普通 SVN Native Delivery 不因此要求 `knowledge-advanced`。
 
 ## Production 阶段门
 

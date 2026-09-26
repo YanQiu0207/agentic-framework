@@ -27,7 +27,7 @@ proposal.md / tasks.md 获批
             → Run 级 Review → check_delivery.py --run-dir → Trust Gate
 ```
 
-`waves`、`dispatchable`、状态迁移、阻塞和恢复不是完整 Runtime 专属能力：只有并行分支、非线性依赖图或中断恢复需要时才调用 `waves` / `dispatchable`。单 Task 或纯串行链直接以 `event start` 启动下一任务，依赖和 Verify 配置选择仍由该命令失败关闭。完整 Runtime 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时初始化 Run；无升级条件时直接 Native Delivery，不调用恒为 Native 的 `route`；控制器禁止为 Native Delivery 伪造 Run Context。SVN 工作副本不适用完整 Runtime：`route` 在裁决前探测仓库 VCS，检测到 SVN 时恒输出 `native-delivery` 并在 stderr 明示降级，升级原因保留在 `runtime_upgrade_reasons` 供下游核对；VCS 探测对 Git 优先、二进制缺失时降级探测下一后端、两者皆无时不干预 route 结果。
+`waves`、`dispatchable`、状态迁移、阻塞和恢复不是完整 Runtime 专属能力：只有并行分支、非线性依赖图或中断恢复需要时才调用 `waves` / `dispatchable`。单 Task 或纯串行链直接以 `event start` 启动下一任务，依赖和 Verify 配置选择仍由该命令失败关闭。完整 Runtime 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时初始化 Run；无升级条件时直接 Native Delivery，不调用恒为 Native 的 `route`；控制器禁止为 Native Delivery 伪造 Run Context。完整 Runtime 的 `route` 与 `init-run` 必须先通过 `runtime` 能力检查，缺包或查询失败时停止。SVN 工作副本不适用完整 Runtime：命中升级条件时失败关闭，不能降级为 Native Delivery；普通 SVN Native Delivery 不额外要求 `knowledge-advanced`。VCS 探测仍优先 Git。
 
 ## 状态与恢复
 
@@ -66,7 +66,7 @@ proposal.md / tasks.md 获批
 
 - `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。
 - Task 级不运行 LLM Review；全部任务合并后执行一次最终 Review。Native Delivery 消费 `standard` 集成 Review；完整 Runtime 的 Run 级 `strict` Review 由共享 `workflow-code-review` 绑定 Runtime Context。
-- `check_delivery.py --native-delivery` 校验终态 Tasks、已归档 Proposal、标准集成 Review、独立 Verify、知识影响和 Git 工作区，并输出有界 Verdict。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。交付报告只能逐字引用成功命令的原始 stdout；缺少归档、干净 Git 状态或有效 Artifact 时不得声明「交付门 PASS」。
+- `check_delivery.py --native-delivery` 校验标准集成 Review、独立 Verify、知识影响和工作区，并输出有界 Verdict。存在 Change 时，`--tasks` 与 `--spec` 必须成对传入，并检查任务终态和归档；轻量交付仅在 `--knowledge-impact none` 且提供具体理由时允许同时省略，两者只传一个或无 Change 却声明 `hit` 均失败。Fast-Path 隐式调用已退役。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。交付报告只能逐字引用成功命令的原始 stdout；有 Change 却缺少归档，或工作区检查、Artifact 校验未通过时不得声明「交付门 PASS」。
 - 结构化报告只能证明产物存在且字段满足合同，不能替代语义正确性判断。
 
 ## 主要验证证据

@@ -227,7 +227,7 @@ openspec/
 
 ## 6. 项目知识库存储方式
 
-`project-init` 需要把存储位置与公共知识库接线拆成两个独立问题。
+`project-init` 默认建议 Git 与项目内知识。仅在用户要求 SVN、外置正文或公共库接线，或发现已有 SVN 工作副本时，先查询 `knowledge-advanced`，成功启用后再分别确认高级存储与公共接线；默认流程不主动展开高级选项。
 
 ### 6.1 项目内存储
 
@@ -241,7 +241,7 @@ openspec/
 
 ### 6.2 外部私有目录加链接
 
-用户可以指定外部私有目录，然后将其映射为：
+启用 `knowledge-advanced` 后，用户可以指定外部私有目录，然后将其映射为：
 
 ```text
 <project>/openspec/
@@ -391,6 +391,8 @@ services:
 
 ## 11. 跨项目公共知识库
 
+公共库接线及晋升须先查询 `knowledge-advanced`；缺包或查询失败时停止，不自动写入或改用其他存储。已有项目入口的正常读取、知识冲突保护与归档仍属于 Core。能力查询使用受信框架安装器的 `--show-packs <project>`，只消费成功 JSON 的 `enabled`，不得执行目标 Manifest 的 `source`。
+
 公共库保持独立：
 
 ```text
@@ -452,7 +454,7 @@ openspec/
 | 知识读取与归档门禁 | 强制 | 强制 |
 | Task Review | 逐 Task 风险分档 | 当前路径全部任务完成后一次 |
 | DAG、Worktree 和失败恢复 | 按 Production 策略 | 中大型任务使用 Tooling 控制器 |
-| Machine Verification | 强制 | Standard 及以上强制 |
+| Machine Verification | 强制 | 轻量及标准交付均强制 |
 
 原「禁止中央 `openspec/specs/`」和「Archive 只移动 Change」的规则已由本方案替代。长期 Specs 是辅助知识，不是当前实现事实源；相关 Skill、脚本和迁移任务按 `tasks.md` 分阶段实施。
 
@@ -460,17 +462,15 @@ openspec/
 
 `project-init` 应执行：
 
-1. 选择版本管理模式。
-2. 选择项目 Profile：Production 或 Tooling。
-3. 选择项目知识库存储方式：项目内，或外部私有目录加链接。
-4. 确认外置正文的版本管理或备份方式。
-5. 创建统一最小 `openspec/` 骨架。
-6. 将项目知识入口和冲突规则写入 `AGENTS.md`。
-7. 单独询问是否接入跨项目公共知识库。
-8. 验证项目索引、目录链接和公共索引可读取。
-9. 仅提交本次创建或修改的项目文件。
+1. 先核实已有 Git／SVN 工作副本；发现 SVN 或状态未决时不得执行 `git init`。需要高级初始化时先查询 `knowledge-advanced`，缺包即停止。
+2. 确认版本管理与治理 Profile：Production 或 Tooling；默认建议 Git 与项目内知识。
+3. 只有用户请求高级模式时才确认外置存储或公共库接线；外置模式须明确版本管理、备份与链接恢复方式。
+4. 只创建缺失且获准创建的最小 `openspec/` 骨架，不覆盖已有内容。
+5. 将项目知识入口和冲突规则补入 `AGENTS.md`，不覆盖既有同名章节。
+6. 验证项目索引及实际启用的目录链接、公共索引可读取；失败时不得报告完整成功。
+7. 仅逐路径提交本次产物；纯 SVN 只加入版本控制计划，不自动 `svn commit`。
 
-`project-init` 需要从 Tooling-only Pack 调整为两种 Profile 均可安装的公共 Pack。
+`project-init` 已属于两个 Profile 的 Core；`--with project-init` 只保留兼容选择器，不重复增加资产。普通 SVN Native Delivery 不要求高级初始化能力包。
 
 ## 14. 工作流接线
 
@@ -499,8 +499,9 @@ Production 与 Tooling 共用统一入口（change 2045），以下为各阶段�
 - `workflow-requirements-clarification`、`workflow-system-design` 和 `workflow-quick-design` 改用 `openspec/changes/`。
 - `workflow-code-generation` 和 `workflow_control.py` 继续保留 DAG、Waves、Worktree、锁和恢复语义，但状态写入统一的 `tasks.md`。
 - `workflow-test-generation` 和 `workflow-verification` 使用相同的知识、Change 和 Spec Drift 路径。
-- Tooling 的 Fast-Path 可以不创建 Change，但必须说明为什么没有长期知识影响。
-- Fast-Path 交付门必须传入结构化的 `hit` 或 `none`；`none` 必须附理由。
+- Tooling 的轻量 Native Delivery 仅在 `--knowledge-impact none` 且提供具体理由时可不创建 Change，并同时省略 `--tasks` 与 `--spec`；两参数只传一个或无 Change 却声明 `hit` 均失败。
+- 存在 Change 时两参数必须成对提供，继续核对终态、归档和知识同步；Fast-Path 独立交付已退役。
+- 内部仍逐项检查沉淀影响；无命中只输出具体理由，命中只列命中项、目标路径和同步状态。机器 `hit`／`none` 与理由字段不变。
 
 ## 15. 机器验证
 
