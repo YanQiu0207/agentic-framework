@@ -131,7 +131,9 @@ P4                                         ↓
   - [x] 1.2：按 workflow-test-generation 补旧合同保护，运行回归并采基线。
 
 ### 任务 2：[ ] P1：建立独立 Native v2 报告合同与兼容分派
-- 状态：未开始
+- 状态：进行中
+- attempts：0
+- control_stage：running
 - 文件：`schemas/native/verify-report.schema.json`、`schemas/native/review-report.schema.json`、`schemas/native/native-delivery-verdict.schema.json`、`scripts/native_delivery.py`、`scripts/test_native_delivery.py`（新建），`scripts/runtime_schema.py`、`scripts/test_runtime_schema.py`（修改），本 Change `specs/backend/framework/quality-gates/overview.md`（新建）
 - depends_on: Task 1
 - review_profile: strict
@@ -154,7 +156,9 @@ P4                                         ↓
   - [ ] 2.2：按 workflow-test-generation 生成各版本与禁止字段反例，先建接口后迁移。
 
 ### 任务 3：[ ] P1：建立小型 VCS 接口和 Git 实现
-- 状态：未开始
+- 状态：进行中
+- attempts：0
+- control_stage：running
 - 文件：`scripts/vcs.py`、`scripts/test_vcs.py`（新建）
 - depends_on: Task 1
 - review_profile: strict
