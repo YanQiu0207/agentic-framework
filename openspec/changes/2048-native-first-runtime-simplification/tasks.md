@@ -130,10 +130,10 @@ P4                                         ↓
   - [x] 1.1：固定范围与既有合同，核对宿主、Git、SVN、pytest 工具可用性。
   - [x] 1.2：按 workflow-test-generation 补旧合同保护，运行回归并采基线。
 
-### 任务 2：[ ] P1：建立独立 Native v2 报告合同与兼容分派
-- 状态：进行中
+### 任务 2：[x] P1：建立独立 Native v2 报告合同与兼容分派
+- 状态：完成
 - attempts：0
-- control_stage：running
+- control_stage：completed
 - 文件：`schemas/native/verify-report.schema.json`、`schemas/native/review-report.schema.json`、`schemas/native/native-delivery-verdict.schema.json`、`scripts/native_delivery.py`、`scripts/test_native_delivery.py`（新建），`scripts/runtime_schema.py`、`scripts/test_runtime_schema.py`（修改），本 Change `specs/backend/framework/quality-gates/overview.md`（新建）
 - depends_on: Task 1
 - review_profile: strict
@@ -145,20 +145,20 @@ P4                                         ↓
   - `skills/workflow-code-generation/scripts/check_delivery.py:write_native_delivery_verdict` — 下游写出
   - `scripts/test_runtime_schema.py` — 兼容保护
 - verification:
-  - [ ] `python -m pytest scripts/test_native_delivery.py scripts/test_runtime_schema.py -q` 通过；缺字段、未知版本、非法状态、证据错配均拒绝。
-  - [ ] 测试证明合法 v1 仍可读，v1 不接受伪造独立性/subject 保证，Runtime v1 字段与摘要不变。
-  - [ ] `python -m compileall -q scripts` 退出 0；三个新 Schema 以合法与非法 fixtures 实际校验。
+  - [x] `python -m pytest scripts/test_native_delivery.py scripts/test_runtime_schema.py -q` 通过；缺字段、未知版本、非法状态、证据错配均拒绝。
+  - [x] 测试证明合法 v1 仍可读，v1 不接受伪造独立性/subject 保证，Runtime v1 字段与摘要不变。
+  - [x] `python -m compileall -q scripts` 退出 0；三个新 Schema 以合法与非法 fixtures 实际校验。
 - artifacts:
   - 三个 `schemas/native/` Schema 与 `scripts/native_delivery.py`
   - `scripts/test_native_delivery.py`、兼容测试、quality-gates Delta
 - 子任务：
-  - [ ] 2.1：冻结 v2 字段、状态、保证边界与版本分派，建立质量门 Delta。
-  - [ ] 2.2：按 workflow-test-generation 生成各版本与禁止字段反例，先建接口后迁移。
+  - [x] 2.1：冻结 v2 字段、状态、保证边界与版本分派，建立质量门 Delta。
+  - [x] 2.2：按 workflow-test-generation 生成各版本与禁止字段反例，先建接口后迁移。
 
-### 任务 3：[ ] P1：建立小型 VCS 接口和 Git 实现
-- 状态：进行中
+### 任务 3：[x] P1：建立小型 VCS 接口和 Git 实现
+- 状态：完成
 - attempts：0
-- control_stage：running
+- control_stage：completed
 - 文件：`scripts/vcs.py`、`scripts/test_vcs.py`（新建）
 - depends_on: Task 1
 - review_profile: strict
@@ -170,17 +170,19 @@ P4                                         ↓
   - `skills/workflow-code-generation/scripts/workflow_control.py` 的 VCS 查询 — 未来调用方
   - `skills/workflow-code-generation/scripts/check_delivery.py:check_git_clean` — 下游消费
 - verification:
-  - [ ] `python -m pytest scripts/test_vcs.py -q` 通过：真实 Git 根、Worktree、未跟踪、重命名、冲突、错误 commit、双 VCS 探测。
-  - [ ] subprocess spy 断言只读查询不执行 update/commit/revert，工具失败不是空变更。
-  - [ ] `python -m compileall -q scripts` 退出 0；已有消费者行为尚未切换。
+  - [x] `python -m pytest scripts/test_vcs.py -q` 通过：真实 Git 根、Worktree、未跟踪、重命名、冲突、错误 commit、双 VCS 探测。
+  - [x] subprocess spy 断言只读查询不执行 update/commit/revert，工具失败不是空变更。
+  - [x] `python -m compileall -q scripts` 退出 0；已有消费者行为尚未切换。
 - artifacts:
   - `scripts/vcs.py`、`scripts/test_vcs.py`
 - 子任务：
-  - [ ] 3.1：固定数据/错误合同和 GitAdapter，未支持能力失败关闭。
-  - [ ] 3.2：按 workflow-test-generation 建临时 Git 仓库测试公共接口。
+  - [x] 3.1：固定数据/错误合同和 GitAdapter，未支持能力失败关闭。
+  - [x] 3.2：按 workflow-test-generation 建临时 Git 仓库测试公共接口。
 
 ### 任务 4：[ ] P1：冻结公共内容标识与输入覆盖规则
-- 状态：未开始
+- 状态：进行中
+- attempts：0
+- control_stage：running
 - 文件：`scripts/native_subject.py`、`scripts/test_native_subject.py`（新建），`scripts/vcs.py`、`scripts/test_vcs.py`（修改）
 - depends_on: Task 2, Task 3
 - review_profile: strict
@@ -557,3 +559,10 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 ### P0 verification record
 
 - 2026-10-04: full Verify PASS; B-tests-pass exit=0, B-test-count-not-decrease=574 (baseline=574), graph lint PASS, spec drift PASS. Existing source freshness warnings are reserved for Task 15.
+
+
+### P1 contract and VCS checkpoints
+
+- Task 2: integrated `be5b9a3`; 57 targeted tests and 9 subtests passed; full Verify PASS (`2048-task2-final.json`, count 587, baseline 574). Runtime/v1 remains unchanged.
+- Task 3: integrated `74bcf46`; 27 real VCS tests passed; full Verify PASS (count 594, baseline 574). Windows TEMP normalized through Python Path.resolve(); no baseline/config changes.
+- Task 4 follows with fixed-base file union, conservative coverage and generated-output classification; Task 2/3 do not switch consumers or routing.
