@@ -554,7 +554,17 @@ class WorkflowControlTest(unittest.TestCase):
             self.assertEqual(0, workflow_control.main([str(path), "dispatchable"]))
             self.assertEqual(
                 0,
-                workflow_control.main([str(path), "event", "1", "start", "--write"]),
+                workflow_control.main(
+                    [
+                        "--governance-profile",
+                        "tooling",
+                        str(path),
+                        "event",
+                        "1",
+                        "start",
+                        "--write",
+                    ]
+                ),
             )
 
     def test_initialize_decision_requires_existing_verify_config(self) -> None:

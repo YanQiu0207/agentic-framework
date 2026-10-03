@@ -775,7 +775,14 @@ class InstallTest(unittest.TestCase):
                     registry_path=self.registry,
                 )
         self.assertTrue(managed.is_symlink())
-        self.assertEqual(str(missing_source.absolute()), os.readlink(managed))
+        link_target = os.readlink(managed)
+        # Windows readlink includes the extended-length prefix for local paths.
+        if os.name == "nt" and link_target.startswith("\\\\?\\"):
+            link_target = link_target[4:]
+        self.assertEqual(missing_source.resolve(), Path(link_target).resolve())
+        self.assertFalse(managed.exists())
+        missing_source.mkdir()
+        self.assertTrue(managed.is_dir())
 
     def test_uninstall_removes_links_not_source_or_project_files(self) -> None:
         target = self.root / "target"
@@ -825,7 +832,7 @@ class InstallTest(unittest.TestCase):
         )
         self.assertTrue(copied.is_symlink())
         upgraded = json.loads(manifest_path.read_text(encoding="utf-8"))
-        self.assertEqual(2, upgraded["schema_version"])
+        self.assertEqual(installer.MANIFEST_SCHEMA_VERSION, upgraded["schema_version"])
 
     def test_v1_manifest_can_be_uninstalled_without_source(self) -> None:
         target = self.root / "target"
