@@ -18,7 +18,7 @@ Claude 额外识别 `Skill` 工具调用与 `<command-name>` 命令注入。
 `## 总体结论` + `**轮次**` 字段 + 复审报告的「（新增）」标记）提取每份
 报告的结论、P0/P1/P2 数与轮次，输出会话内结论轨迹，并按流（主链与每个
 子 agent 各自成流）重建修复循环，产出 ADR 003 两个质量指标的计数：
-复审轮新增 P0/P1 比例、需人工率（复审第 2 轮仍 NEEDS_CHANGES 即需人工，
+复审轮新增 P0/P1 比例、需人工率（复审第 10 轮仍 NEEDS_CHANGES 即需人工，
 推导依赖 SKILL.md 固定的轮次上限；口径见 docs/tooling/11-session-telemetry.md）。
 2026-07 前的历史报告无轮次字段，轨迹中标「?」，不进入上述两个指标。
 
@@ -452,11 +452,15 @@ def new_bucket() -> dict:
     }
 
 
+# 与 skills/workflow-code-review/SKILL.md 的复审上限同步；首审为第 0 轮。
+MAX_REVIEW_RETRIES = 10
+
+
 def summarize_quality(reviews: list[dict]) -> dict:
     """按流重建修复循环，产出 ADR 003 质量指标的原始计数。
 
     循环 = 首审 NEEDS_CHANGES 开启（无首审的验证类修复复审链首个复审也
-    开启，见 SKILL.md 复审模式），复审 PASS 收敛 / 复审第 2 轮及以上仍
+    开启，见 SKILL.md 复审模式），复审 PASS 收敛 / 复审第 10 轮及以上仍
     NEEDS_CHANGES 需人工 / 到流结束（或下一首审）没等到终态则未收敛。
     无轮次字段的旧报告只计数，不进入循环重建。
     """
@@ -489,7 +493,7 @@ def summarize_quality(reviews: list[dict]) -> dict:
                     q["rereviews_with_new_p01"] += 1
                 if r["verdict"] == "PASS":
                     pending = False
-                elif rnd >= 2:
+                elif rnd >= MAX_REVIEW_RETRIES:
                     q["manual_loops"] += 1
                     pending = False
         if pending:

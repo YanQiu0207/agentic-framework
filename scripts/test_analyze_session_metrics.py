@@ -157,17 +157,42 @@ class SummarizeQualityTest(unittest.TestCase):
         self.assertEqual(0, q["manual_loops"])
         self.assertEqual(0, q["unresolved_loops"])
 
-    def test_manual_loop_at_round_two(self) -> None:
+    def test_manual_loop_at_round_ten(self) -> None:
         q = asm.summarize_quality(
             [
                 self.review(0, "NEEDS_CHANGES"),
                 self.review(1, "NEEDS_CHANGES", new_p1=1),
-                self.review(2, "NEEDS_CHANGES"),
+                self.review(10, "NEEDS_CHANGES"),
             ]
         )
         self.assertEqual(1, q["manual_loops"])
         self.assertEqual(2, q["rereviews"])
         self.assertEqual(1, q["rereviews_with_new_p01"])
+
+    def test_failed_rereviews_before_limit_remain_one_unresolved_loop(self) -> None:
+        for last_round in (2, 9):
+            with self.subTest(last_round=last_round):
+                q = asm.summarize_quality(
+                    [self.review(rnd, "NEEDS_CHANGES") for rnd in range(last_round + 1)]
+                )
+                self.assertEqual(1, q["loops"])
+                self.assertEqual(0, q["manual_loops"])
+                self.assertEqual(1, q["unresolved_loops"])
+
+    def test_full_chain_reaches_limit_without_splitting(self) -> None:
+        for verdict in ("PASS", "NEEDS_CHANGES"):
+            with self.subTest(verdict=verdict):
+                reviews = [self.review(rnd, "NEEDS_CHANGES") for rnd in range(10)]
+                reviews.extend(
+                    asm.extract_reviews(
+                        report("- **轮次**: 复审第 10 轮", verdict), 1.0
+                    )
+                )
+                q = asm.summarize_quality(reviews)
+                self.assertEqual(1, q["loops"])
+                self.assertEqual(int(verdict == "NEEDS_CHANGES"), q["manual_loops"])
+                self.assertEqual(0, q["unresolved_loops"])
+                self.assertEqual(10, q["rereviews"])
 
     def test_unresolved_loop_and_unrounded(self) -> None:
         q = asm.summarize_quality(
@@ -180,7 +205,7 @@ class SummarizeQualityTest(unittest.TestCase):
     def test_verification_chain_without_first_review_opens_loop(self) -> None:
         # 验证类修复复审链（无首审报告）：需人工计入分子时分母必须同步覆盖
         q = asm.summarize_quality(
-            [self.review(1, "NEEDS_CHANGES"), self.review(2, "NEEDS_CHANGES")]
+            [self.review(1, "NEEDS_CHANGES"), self.review(10, "NEEDS_CHANGES")]
         )
         self.assertEqual(1, q["loops"])
         self.assertEqual(1, q["manual_loops"])
@@ -193,7 +218,7 @@ class SummarizeQualityTest(unittest.TestCase):
                 self.review(0, "NEEDS_CHANGES"),
                 self.review(1, "PASS"),
                 self.review(1, "NEEDS_CHANGES"),
-                self.review(2, "NEEDS_CHANGES"),
+                self.review(10, "NEEDS_CHANGES"),
             ]
         )
         self.assertEqual(2, q["loops"])
