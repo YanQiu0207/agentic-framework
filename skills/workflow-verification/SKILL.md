@@ -1,13 +1,13 @@
 ---
 name: workflow-verification
-description: 研发后机器验证门。有 verify.config.json 时配置驱动跑 build / test / lint 等客观检查 + 改动前后基线对比、只追新增违规；内置 spec drift 检查：改了代码但相关 proposal.md / design.md / spec.md / ui-spec.md / tasks.md / Delta / 长期知识 / ADR 未更新时，必须提供无需更新原因。Task 合并前、Native Delivery 最终 Review 前和完整 Runtime Run 最终 Review 前执行。workflow-code-generation 实现后判定「是否真做完」，或用户要求跑验证时使用；用户显式要求「初始化 / 刷新 verify 配置」（/verify-config）时进入配置维护模式——这是常规写入路径；实现产生已试运行的新入口时可受限追加非基线检查。
+description: 机器验证。代码改动前采集基线，任务合并及最终 Review 前运行检查，或响应用户的验证请求。用户要求初始化、刷新验证配置（/verify-config）时进入配置维护模式。
 ---
 
 > 输出一行：`Using workflow-verification`
 
-# 研发后机器验证门
+# 机器验证
 
-把「完成」从 LLM 说了算变成机器绿灯。机器能验的不靠 LLM 背书。
+**运行项目检查，记录实际结果。** 有配置时比较改动前后的基线；无配置时执行内置检查，并说明验证范围。
 
 ## 两种模式
 
@@ -26,47 +26,20 @@ description: 研发后机器验证门。有 verify.config.json 时配置驱动�
 
 ## 内置 spec drift 检查
 
-`verify.py` 总会检查本次改动文件列表，VCS 由 `verify.py` 自动探测：
+`verify.py` 始终检查代码改动与规格的关联。相关规格正文须引用改动代码路径；确实无需更新时，传 `--spec-drift-reason "<具体原因>"` 后重跑。
 
-- Git 工作副本 → `git diff --name-only <base>` + `git ls-files --others`。
-- SVN 工作副本 → `svn status`（`A/M/D` 计为已纳入改动，`?` 计为未跟踪，`I` 跳过）。纯 SVN 模式按规则「只 `svn add`、不 `svn commit`」，一个 Change 期间无提交，工作副本本地改动即「本次改动」的全部，`--diff-base` 在 SVN 下不使用。
-- 两端都探测不到 → spec drift 判 error，提示不在 Git 仓库或 SVN 工作副本内。
-- **规格类文件判定**：活跃 Change 的 `proposal.md` / `design.md` / `spec.md` / `ui-spec.md` / `tasks.md` 与 `openspec/changes/` 下其余 `.md`（Delta 等）、长期 `openspec/specs|issues/` 下 `.md`、ADR 目录下 `.md`。
+- 规格包括 Change 的 proposal、design、tasks、Delta，长期 Specs、Issues 和 ADR。
+- Git 标准或委派流程在改动前记录 `base_sha`，后续显式传 `--diff-base <base_sha>`；已提交后的 clean 工作区也使用该基准。
+- SVN 直接检查工作副本，省略 `--diff-base`；两种版本控制都无法识别时返回 ERROR。
+- 最终报告引用 `.agentic-framework/verify/report.json` 中的 `spec_drift` 结果。
 
-- 改了代码文件，且无法证明相关活跃 Change（`proposal.md` / `design.md` / `ui-spec.md` / `tasks.md` / `specs/` 下 Delta）或长期 `openspec/specs/`、`openspec/issues/`、ADR 已按知识影响更新 → FAIL。
-- 相关性只做机械判定：规格类文件（含 ADR）正文出现改动代码路径；判不出相关时必须传 `--spec-drift-reason "<原因>"`。旧 `docs/design-docs/` 只作为迁移输入，不作为新改动的规格写入目标。
-- 标准 / 下放流程（Git 模式）必须在 Phase 0 记录 `base_sha`，后续验证显式传 `--diff-base <base_sha>`；禁止在已提交 / 已合并后的 clean 工作区裸用默认 `HEAD` 作为基准。SVN 模式无此要求，spec drift 直接读工作副本本地改动。
-- 知识源新鲜度：`meta.yaml` 的 `source_ref` 校验 `git:<sha>`（commit 存在且来源路径最后提交是其祖先）与 `svn:<rev>`（revision 存在且来源路径最后修订号 `<= ref rev`，需 SVN 1.9+ 的 `--show-item`）两种形式，其余前缀报「不可解析」。
-- 报告写入 `.agentic-framework/verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
-
-### 忽略指定路径（不卷入 spec drift）
-
-工作目录里常有不想提交的本地改动（公司 SVN 项目的本地调试文件、已跟踪文件的临时修改、未跟踪的本地脚本），会被 spec drift 误算入「本次改动」。`--ignore` 按指定路径把它们剔除出 code/spec 归类。
-
-- **三种指定渠道**（取并集，可叠加）：
-  - 命令行 `--ignore <glob>`（可重复）。
-  - `verify.config.json` 顶层 `ignore_paths: [glob, ...]`（项目级长期忽略）。
-  - 基线快照差集：`--save-baseline` 时自动记录当时的 changed files（S0），`verify` 时本次改动 = S1 − S0（动代码前已存在的本地改动自动排除）。旧基线缺 `changed_files_snapshot` 字段时 fail-closed，要求重采基线。
-- **glob 语义**：`fnmatchcase`（大小写敏感、跨 OS 一致），`*` / `**` 跨目录、`?` 单字符；目录模式（`dir/` 或 `dir`）覆盖其下全部文件。被忽略文件在 report 中按来源标注（`ignore_sources`：cli / config / baseline）。
-- **安全护栏**：`openspec/` 下的 `proposal.md` / `design.md` / `spec.md` / `ui-spec.md` / `tasks.md` / ADR 永不可忽略——忽略它们会让 spec drift 被静默绕过；命中忽略但仍属规格类的文件记入 report 的 `refused_ignores` 并照常归类。
-- **审计**：被忽略文件写入 report 的 `spec_drift.value.ignored_files`，供 Review 核查。
-- **硬约束**：`--ignore` 只作用于 spec drift 归类；build / test / lint 仍编译运行工作树全部文件，`M` 半成品仍需物理隔离（patch 往返 / 第二工作副本）。
-
-示例：
-
-```bash
-python <skill-dir>/scripts/verify.py \
-  --spec-drift-reason "仅修复脚本输出编码，不改变需求、任务拆解或架构决策"
-```
+遇到规格关联失败、忽略路径、来源版本问题或使用 SVN 时，读取 [规格关联与交付范围](reference/spec-drift-and-scope.md)。新 Change 写入 `openspec/changes/`，旧设计目录只作迁移输入。
 
 ## Scoped Delivery 残留快照（显式模式）
 
-默认交付仍要求工作区绝对干净。只有存量工作区存在与本次任务无关、且可保持不变的残留时，才可在采基线时显式传入重复的 `--delivery-scope <路径>`：
+Native Delivery 若需保留预存的无关改动，必须在改动前用 `--save-baseline --delivery-scope <路径>` 冻结交付范围并采集残留快照。采集前读取 [残留快照规则](reference/spec-drift-and-scope.md#scoped-delivery-残留快照显式模式)。
 
-- Verify 把冻结范围、Git／SVN 状态及残留内容指纹写入基线的 `workspace_residue_snapshot`。它与 `changed_files_snapshot` 完全独立；后者以及 `--ignore`／`ignore_paths` **仍只作用于 spec drift**。框架自身的 `.agentic-framework/` 本地运行产物不作为 SVN 残留，以避免基线和 Verdict 反向污染 S1。
-- S0 残留与冻结的任务写入路径或生成目录重叠、状态不可解析、路径无法读取或树摘要失败时，采基线失败关闭且不覆盖既有基线。应切换干净 worktree 或工作副本，不得扩大 ignore 绕过。
-- Git 交付必须提供等于当前 `HEAD` 的交付 commit；SVN 交付必须提供已提交 revision。`check_delivery.py --scoped-delivery` 仅在提交 Diff 均落入冻结范围且 S1 与 S0 完全一致时通过。
-- 成功只能表述为「本次交付范围干净，预存残留未变化」，不得表述为「Git 工作区干净」。完整 Runtime Run 不使用此模式，仍应使用干净 worktree。
+`--ignore` 只影响规格漂移归类；独立的残留快照用于检查交付范围和预存内容。完整 Runtime Run 仍使用干净工作区。
 
 ## 配置驱动
 
@@ -95,34 +68,20 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 
 ## 配置维护模式（用户触发）
 
-用户显式要求「初始化 / 刷新 verify 配置」或运行 `/verify-config` 时进入。这是 `verify.config.json` 的**常规写入路径**；代码任务冻结既有检查，只有下方「实现产生新入口」的受限例外可以追加新检查。
+用户要求初始化、刷新配置或运行 `/verify-config` 时，先读取 [配置写入规则](reference/config-write-policy.md) 和 [配置维护步骤](reference/config-maintenance.md)，再执行：
 
-流程：检查仓库证据 → 生成或刷新 → 校验结构 → 试运行 → 弱化类变更经用户确认 → 写入并纳入版本控制。
+检查仓库证据 → 生成或刷新 → 校验结构 → 试运行 → 确认弱化类变更 → 写入版本控制。
 
-### 实现产生新入口的受限例外
+实现期间冻结既有检查、`ignore_paths` 和基线。本次实现产生新检查入口时，追加前先读取 [配置写入规则](reference/config-write-policy.md)，确认入口已独立试运行，并使用唯一 `name`、非空 `_note` 和显式 `baseline_aware: false`。追加后使用原基线验证。
 
-若已在改动前采集基线，且实现本身产生新的、安全且可在当前工作区试运行的构建、测试或 Lint 入口，允许在实现期**仅追加**一个或多个新检查，条件必须同时满足：
-
-- 现有 `verify.config.json` 和改动前基线均存在；缺配置或用户已选择跳过时，不得借此创建配置。
-- 新入口来自本次实现的仓库证据；命令在写入前已独立试运行成功，且不访问真实外部资源、不需要凭证、不修改外部状态。
-- 追加的检查使用唯一 `name`，显式设为 `baseline_aware: false`，并提供非空 `_note` 说明新入口及试运行证据；Verify 在执行前校验这两项。
-- 不得修改或删除既有检查、`ignore_paths`，不得重采基线，也不得把任何既有检查改为非基线模式。
-
-追加后仍须带原基线运行 Verify。新检查按绝对模式再次执行；新增检查若不是显式 `baseline_aware: false`，或缺少非空 `_note`，Verify 会在执行前报 ERROR，不属于本例外。`ignore_paths` 同样被冻结；旧基线缺少其快照时，必须先在配置维护模式重建基线。
-
-- 生成只依据仓库证据（CI、项目清单、构建入口、测试与 Lint 配置、`AGENTS.md` / Spec / ADR），无证据不更新，无变化保持字节级不变。
-- 至少包含一项试运行成功的编译（构建）或测试检查；仓库没有可安全执行的入口 → 返回 ERROR，不生成占位命令。
-- 弱化类变更（删检查、降 `threshold`、关 `baseline_aware`、扩大测试排除）必须展示「旧值、新值、证据、理由」并经用户确认。
-- 涉及真实 API / 生产资源 / 凭证的检查用项目已有 marker、分组排除，并在 `_note` 说明。
-
-**证据清单、生成与刷新规则、试运行步骤、输出模板见 [reference/config-maintenance.md](reference/config-maintenance.md)，按其执行。** 审外部 PR / 不可信分支时不进入本模式（生成的命令会被试运行，见信任边界）。
+涉及外部 PR 或不可信分支时，先按信任边界确认配置，不自动进入维护模式。
 
 ## 执行规则
 
 1. 改动所在 worktree 在实现和测试完成后运行，不等待 LLM Review。
 2. 全过（exit 0）→ 允许 merge。
-3. **exit 1**（代码问题：编译错 / 测试挂 / 新增违规）→ 回实现改代码重跑，有限轮次仍 FAIL → 标 `需人工` + 附输出。**不停其他并行 task**。
-4. **exit 2**（门禁自身坏了：工具缺失 / 正则非法 / 基线损坏）→ 改代码没用，直接标 `需人工` 排查配置 / 环境。
+3. **exit 1**（检查失败：编译、测试或新增违规）→ 回实现改代码重跑，有限轮次仍 FAIL → 标 `需人工` + 附输出。**不停其他并行 task**。
+4. **exit 2**（验证工具出错：工具缺失、正则非法或基线损坏）→ 标 `需人工`，排查配置或环境。
 5. 无 config → 只跑内置门禁，汇报「未做项目自定义机器验证」，并提示可运行 `/verify-config` 初始化。
 6. `spec_drift` FAIL → 更新对应 Change（`proposal.md` / `design.md` / Delta / `tasks.md`，正文引用改动代码路径）、长期 Specs、Issues 或 ADR，或补 `--spec-drift-reason` 后重跑。
 
@@ -145,7 +104,7 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 | 只追新增 | 基线下历史违规不阻塞，本次不得新增 |
 | 文档同步 | 改代码但不改规格 / 任务 / ADR 时，必须写明无需更新原因 |
 | 无侵入 | 无 config 时仅运行内置门禁，不跑项目自定义命令 |
-| 不偷改 | 不得为过门删测试 / 放宽配置 |
+| 配置保护 | 不得为过门删测试 / 放宽配置 |
 | 写入受限 | 既有检查和 `ignore_paths` 在实现期冻结；只有已试运行、带非空 `_note` 的新入口可追加显式 `baseline_aware: false` 检查，验证失败后不得重采基线 |
 
 ## 信任边界

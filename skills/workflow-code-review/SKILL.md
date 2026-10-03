@@ -1,21 +1,22 @@
 ---
 name: workflow-code-review
-description: 代码评审。按风险档位协调 reviewer subagent 进行并行多维度审查：小需求可轻量审，高风险才全量 5 维 + critic。可由用户直接触发，也可由主 agent 加载后作为 Judge 执行。
+description: 代码审查。用户要求审查变更或开发流程进入 Review 时调用；按风险选择综合审查或五维审查，完成定向复审并输出报告。
 ---
 
 > 输出一行：`Using workflow-code-review`
 
-# Multi-Agent Code Review
+# 代码审查
 
-你负责编排 Review、去重分诊和输出报告。`lightweight` / `standard` 由 `comprehensive-reviewer` 自证并生成 Artifact；只有 `strict` 由 Judge 完成最终裁决。Judge 不是 reviewer，不产出 finding。
+**Reviewer 负责发现问题，编排方负责组织审查。** 综合 Reviewer 完成轻量和标准档结论；严格档由独立 Judge 依据审查证据裁决，Judge 不代替 Reviewer 产出问题。
 
-当 `review_profile: strict` 时，Judge 必须与本次改动的 owner / implementer 不是同一执行主体。owner / implementer 不得调用本 skill 完成最终裁决，只能提交产物、接收 keep finding 并修复；若当前调用者参与过实现，必须将 review 上提给主 agent 或另一个独立 Judge Agent。
+## 报告职责
 
-## Review Artifact 的生成边界
+| 档位 | 结论与报告生成方 |
+| --- | --- |
+| `lightweight` / `standard` | `comprehensive-reviewer`，无需另设 Judge |
+| `strict` | 未参与实现的独立 Judge，依据 Reviewer 和 Critic 的证据裁决 |
 
-- Review Artifact 必须由审查流程生成，**不得由被审方（owner / implementer）手写、补写或改写 verdict、P0/P1 数量与轮次**。编排方只能原样持久化审查方已经给出的完整 Artifact，不能据对话自行拼装 JSON。
-- `lightweight` / `standard`：`comprehensive-reviewer` 是 Artifact 生成方，可对其审查结果自证；此档不要求独立 Judge。
-- `strict`：未参与实现的独立 Judge 是最终 Artifact 生成方，必须基于 reviewer 和 critic 证据裁决；实现者不得代写或替换该 Artifact。
+参与实现的调用者须把严格档裁决交给未参与实现的主 Agent 或其他独立 Judge。实现者提交产物并修复保留的问题；编排方和实现者只能原样保存审查方生成的完整 JSON，不得手写、补写或改写结论、P0/P1 数量和轮次。
 
 ## Review 档位
 
@@ -49,16 +50,16 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 ## 复审模式（re-review）
 
-修复-复审循环的第二轮及以后**必须**用本模式，不得重跑全量首轮。调用方传入 `rereview: true`、上一轮报告（裁决明细 + 正式问题）和修复 diff。
+首审后的修复使用复审模式。调用方传入 `rereview: true`、上一轮报告（裁决明细和正式问题）及修复 diff。
 
-与首轮的差异：
+1. **确定范围**：检查上一轮保留的问题是否修复，以及修复 diff 是否引入新问题。新 finding 仅限修复 diff，不重新扫描其外的代码。
+2. **选择 Reviewer**：只派原问题所属维度的 Reviewer，每维度一个。复审新增 P0/P1 时才调用 `review-critic`。
+3. **处理验证类修复**：若修复来自机器或前端验证、没有上一轮保留的问题，则按当前档位选择 Reviewer，只检查修复 diff。
+4. **输出增量报告**：使用第 7 步的固定格式。原问题逐条写明“已修复 / 未修复 / 部分修复”及依据；正式问题仅保留未解决项和修复引入的新问题。
 
-- **核验范围只有两件事**：上一轮 keep 的每条 finding 是否已修复；修复 diff 本身是否引入新问题。**禁止对修复 diff 之外的代码提出新 finding**——全量扫描是首轮的责任，不靠复审轮补漏。
-- **派发收窄**：只派上一轮 keep finding 所属维度的 reviewer（每维度一个）；`review-critic` 不参与复审，除非复审轮新增 P0 / P1 finding。
-- **无上一轮 keep finding 的修复**（机器验证 / 前端验证等非 review finding 触发的代码修复）：只执行第二件事——核验修复 diff 是否引入新问题；reviewer 按当前 `review_profile` 的组合派发，审查范围仍限修复 diff。
-- **输出增量报告**：沿用第 7 步固定模板，轮次写「复审第 N 轮」（N = 上一轮轮次 + 1，首审记第 0 轮；无上一轮报告的验证类修复复审从第 1 轮起）。裁决明细中每条原 finding 标「已修复 / 未修复 / 部分修复」+ 依据；正式问题区只列未修复 / 部分修复的原 finding 与修复引入的新 finding（沿用 `F-{seq}` 续号），新 finding 标题加「（新增）」，如 `#### P1-2（新增）: ...`；总体结论仍为 PASS / NEEDS_CHANGES。
+首审记第 0 轮，复审轮次在上一轮基础上加 1；没有上一轮报告的验证类修复从第 1 轮起。新问题沿用 `F-{seq}` 续号，标题加“（新增）”，如 `#### P1-2（新增）: ...`。
 
-### 循环语义（调用方必须遵守）
+### 复审结束条件
 
 - 仅总体结论为 `NEEDS_CHANGES`（存在 keep 的 P0 / P1）触发「修复 → 复审」循环；**P2 与 follow-up note 不触发循环**，原样记入报告交用户决定。
 - 修复-复审最多 10 轮；第 10 轮复审仍 `NEEDS_CHANGES` → 调用方标「需人工」终止，禁止继续循环。
@@ -88,130 +89,23 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 **跳过 / 追加列表**：调用方可在请求中通过 `skip_reviewers: [name1, name2]` 跳过某些 reviewer，或通过 `extra_reviewers: [name1]` 给当前档位追加 reviewer。未指定时按 `review_profile` 调用。
 
-每个 reviewer 的 prompt 按以下模板构建：
+派发前读取 [Reviewer 提示模板](reference/reviewer-prompts.md#reviewer-提示模板)，提供范围、上下文、严重度定义和报告要求。
 
-```
-审查以下代码变更，在你的维度内产出候选 finding。
+### 4. 汇总审查意见
 
-[Review Scope]
-- 审查文件：{files_under_review}
-- 上下文文件：{context_files 或 None}
-- Spec：{spec_path 或 N/A}
-- Tasks：{tasks_path 或 N/A}
-- 当前 Task：{task_id 或 N/A}
-- 适用 skill：{skill_list}
-- 变更摘要：{scope_summary}
+收齐本档位所有结果后，合并同根因、同位置或同调用链的问题，保留最高严重度，并分配全局编号 `F-{seq}`。
 
-[Severity]
-- P0：应阻止合入（功能错误、数据错误、崩溃、严重并发错误、与 spec 关键偏离）
-- P1：应该修复但不一定阻塞（特定条件触发、影响可控但风险明确）
-- P2：改进建议（不影响正确性/稳定性/性能基线）
+全部 Reviewer 均无正式问题时，直接进入第 7 步输出 PASS 报告。否则按 [Reviewer 意见汇总模板](reference/reviewer-prompts.md#reviewer-意见汇总) 立即向用户展示实际调用的各维度意见。
 
-只报你的维度内的问题。其他维度的线索可以用一行 handoff note 提示。
+### 5. 对抗性验证
 
-当 `review_profile` 为 `lightweight` 或 `standard` 时，`comprehensive-reviewer` 还必须在回复末尾输出本轮完整、可直接保存的 6 字段 JSON Artifact（`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round`）。编排方只能字节级原样保存该 JSON，不得手写、补全或改写字段。
-```
+`strict` 首审有 finding 时调用 `review-critic`；复审仅在新增 P0/P1 时调用。`lightweight` / `standard` 首审不调用 Critic；若 Judge 判断问题达到严格档风险，升级为 `strict` 后重审。
 
-### 4. 去重归类 & 输出 Reviewer 意见汇总
-
-收齐结果后：
-- 合并同根因 / 同位置 / 同调用链的 finding，保留最高 severity
-- 归类整理所有 finding，为每条分配全局唯一编号 `F-{seq}`
-
-**零 finding 快速路径**：若所有 reviewer 均无正式 finding，直接跳到第 7 步输出 PASS 报告。
-
-完成去重后，**立即向用户输出 Reviewer 意见汇总**（让用户看到各维度的原始审查视角）：
-
-```markdown
----
-
-## 📋 Reviewer 意见汇总
-
-> 只列本档位实际调用的 reviewer 分节。`lightweight` / `standard` 档仅 `comprehensive-reviewer` 一节，显式追加 reviewer 时再增加对应分节。
-
-### 综合审查 (comprehensive-reviewer，lightweight / standard 档)
-
-- **F-1** [P1 · 需求符合度]
-  - **位置**: `file:line`
-  - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
-- 💡 **Handoff notes**: [发现的超出轻量档的高风险线索 + 是否建议升档，无则省略此行]
-
-### 性能审查 (performance-reviewer)
-
-- **F-1** [P1]
-  - **位置**: `file:line`
-  - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
-- **F-2** [P2]
-  - **位置**: `file:line`
-  - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
-- 💡 **Handoff notes**: [该 reviewer 发现但属于其他维度的线索，无则省略此行]
-
-### 健壮性审查 (robustness-reviewer)
-
-- **F-3** [P0]
-  - **位置**: `file:line`
-  - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
-- 💡 **Handoff notes**: ...
-
-### 工程规范审查 (standards-reviewer)
-
-（同上格式，无 finding 则显示"✅ 无发现"）
-
-### 契约与信任链审查 (magical-prompt-reviewer，如本档位调用)
-
-（同上格式）
-
-### 需求/设计符合度审查 (spec-compliance-reviewer)
-
-（同上格式）
-
----
-```
-
-### 5. 按档位调用 critic & 输出 Critic 意见
-
-仅在 `strict` 档有 finding 时调用 `review-critic` subagent。`lightweight` / `standard` 不调用 critic；若 Judge 判断 finding 影响面已命中严格档条件，升级为 `strict` 后重审。需要调用 critic 时，**必须等待 critic subagent 返回后才能进入 Step 6**——禁止主 agent 自己做对抗性验证：
-
-```
-[Issue 列表]
-（逐条列出 F-{seq}、claim、evidence、location、severity、assumptions）
-
-[Review 上下文]
-- 相关文件：{files}
-- Spec：{spec_path 或 N/A}
-- Tasks：{tasks_path 或 N/A}
-- 当前 Task：{task_id 或 N/A}
-```
-
-收到 critic 结果后，**立即向用户输出 Critic 意见**：
-
-```markdown
----
-
-## 🔍 Critic 对抗性验证
-
-- **F-1** ✅ 成立
-  - **问题**: [reviewer 发现的问题简述]
-  - **理由**: [为什么同意 reviewer，补充验证证据]
-- **F-2** ❌ 驳回
-  - **问题**: [reviewer 发现的问题简述]
-  - **理由**: [反证摘要：为什么不成立]
-- **F-3** ⚠️ 降级
-  - **问题**: [reviewer 发现的问题简述]
-  - **理由**: [部分成立但严重度应降低的理由]
-
----
-```
-
-> Critic 结论类型：✅ 成立（同意 reviewer）、❌ 驳回（提供反证）、⚠️ 降级（部分成立但建议降低 severity）。
+调用前读取 [Critic 提示与结果模板](reference/reviewer-prompts.md#critic-提示与结果)。等待结果后立即展示成立、驳回或降级意见，再进入裁决。
 
 ### 6. 最终裁决
 
-`lightweight` / `standard` 由 `comprehensive-reviewer` 对其审查结果自证并生成最终 Artifact；`strict` 的独立 Judge 必须亲自调研后裁决，不能简单采信 reviewer 或 critic 的结论。严格档对每条 issue：
+`lightweight` / `standard` 由 `comprehensive-reviewer` 确认审查结论并生成最终报告；`strict` 的独立 Judge 必须亲自调研后裁决，不能简单采信 reviewer 或 critic 的结论。严格档对每条 issue：
 
 1. **独立调研**：阅读相关代码上下文（调用方、被调用方、数据流）、spec 设计意图、相关注释和 git history，形成自己对该问题的理解
 2. **交叉验证**：将 reviewer 提出的证据、critic 的反证与自己调研的结果三方对比
@@ -220,7 +114,7 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
    - **drop**：经调研确认 critic 反证成立或证据不足，丢弃
    - **follow-up note**：不够正式 finding 但值得提醒，进入报告 Follow-up Notes 区（不分级）
 
-> ⚠️ 裁决理由必须引用具体的代码位置、spec 条目或上下文事实，禁止使用"证据充分""证据不足"等空泛表述。
+裁决理由须引用具体代码位置、规格条目或上下文事实，说明问题为何成立或不成立。
 
 通过门槛：
 - 存在 keep 的 P0/P1 → `NEEDS_CHANGES`
@@ -229,111 +123,10 @@ description: 代码评审。按风险档位协调 reviewer subagent 进行并行
 
 ### 7. 输出最终报告
 
-按以下模板输出（整个系统唯一固定格式）。该模板同时是遥测质量账的解析接口（见 [11-session-telemetry.md](../../docs/tooling/11-session-telemetry.md)），「轮次」字段与复审报告的「（新增）」标记是指标数据源，不得省略：
+生成报告前读取 [审查报告格式](reference/report-format.md)，按同一次裁决同时产出 Markdown 和 JSON。保留标题、轮次、「（新增）」标记及机器字段，并核对两份报告的结论、P0/P1 数量和轮次一致。
 
-```markdown
-# Code Review 报告
+- `lightweight` / `standard`：由 `comprehensive-reviewer` 生成最终报告。
+- `strict`：由未参与实现的独立 Judge 生成最终报告。
+- 编排方与实现者只能原样保存完整 JSON。
 
-## 审查范围
-- **Spec**: [路径 或 N/A]
-- **Tasks**: [路径 或 N/A]
-- **Feature**: [feature 标识 或 N/A]
-- **Task**: [ID/名称 或 N/A]
-- **Review Profile**: lightweight / standard / strict
-- **轮次**: 首审 / 复审第 N 轮
-- **审查文件**: [文件列表]
-
-## 总体结论: PASS / NEEDS_CHANGES
-
-## 裁决明细
-
-> 对每条候选 finding 的最终处置和理由，完整展示审查过程的透明度。
-
-- **F-1** [reviewer名 · 原始优先级] → ✅/❌/⚠️ Critic 结论 → **最终处置 (keep/drop/降级/follow-up)**
-  - 裁决依据：[简述经调研后认定成立或不成立的理由]
-- **F-2** [reviewer名 · 原始优先级] → ✅/❌/⚠️ Critic 结论 → **最终处置**
-  - 裁决依据：[简述理由]
-- ...
-
-## 正式问题
-
-### P0（必须修复）
-
-#### P0-1: [问题标题]
-- **维度**: [来源维度]
-- **位置**: `file:line`
-- **问题**: [描述]
-- **证据**: [关键证据]
-- **建议**: [修复方式]
-
-### P1（应该修复）
-...
-
-### P2（建议改进）
-...
-
-## Follow-up Notes
-- [少量不够进入正式 finding 但值得提醒的事项]
-```
-
-#### 机器可读产物
-
-输出 Markdown 报告的**同一步**，Artifact 生成方额外产出一份机器可读 JSON；两者必须来自同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。`lightweight` / `standard` 的生成方是 `comprehensive-reviewer`，`strict` 的生成方是独立 Judge；owner / implementer 只能原样持久化，不得手写。产物合同由交付路径决定，不能为了放行伪造 Run 字段：
-
-| 交付路径 | JSON 位置 | 必填裁决字段 | Run Context 与可声明边界 |
-| --- | --- | --- | --- |
-| Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile: "standard"`、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 或严格独立 Judge 声明。 |
-| 完整 Runtime Run | 独立 Judge 生成 `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
-| Fast-Path 兼容别名 | `comprehensive-reviewer` 生成独立 `review-report.json`，由编排方原样保存 | 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
-
-无 Run 的 Native Delivery 标准 Review 使用以下扁平 JSON；`check_delivery.py --native-delivery` 只接受这 6 个字段：
-
-```json
-{
-    "verdict": "PASS",
-    "p0_count": 0,
-    "p1_count": 0,
-    "scope": "integration",
-    "review_profile": "standard",
-    "round": 0
-}
-```
-
-完整 Runtime Run 使用 Envelope，并从 `run-context.json` 复制 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`。缺少 Run Context 时，不得输出 `scope: "run"` 或 `review_profile: "strict"` 的可放行报告：
-
-```json
-{
-    "schema_version": 1,
-    "artifact_type": "review-report",
-    "artifact_id": "review-run",
-    "run_id": "<run-id>",
-    "task_id": null,
-    "attempt": null,
-    "profile": "tooling",
-    "harness": "codex",
-    "producer": "workflow-code-review",
-    "commit_sha": "<40-hex>",
-    "config_digest": "sha256:<64-hex>",
-    "created_at": "<RFC3339>",
-    "payload": {
-        "verdict": "PASS",
-        "p0_count": 0,
-        "p1_count": 0,
-        "scope": "run",
-        "review_profile": "strict",
-        "round": 0,
-        "implementer_actor": "<implementer-agent-id>",
-        "judge_actor": "<judge-agent-id>",
-        "independence_basis": "process-separated-agent"
-    }
-}
-```
-
-| 字段 | 取值 | 来源 |
-| --- | --- | --- |
-| `verdict` | `PASS` / `NEEDS_CHANGES` | 与「总体结论」字段完全一致 |
-| `p0_count` | 整数 | 「正式问题」区 P0 的数量（不含 P2、不含 Follow-up Notes） |
-| `p1_count` | 整数 | 「正式问题」区 P1 的数量（不含 P2、不含 Follow-up Notes） |
-| `scope` | `task` / `integration` / `run` | 与「审核 Scope」定义一致 |
-| `review_profile` | `lightweight` / `standard` / `strict` | 与调用方传入的档位一致 |
-| `round` | 整数 | 与「轮次」字段一致：首审为 0，复审第 N 轮记 N |
+报告格式包含 Native Delivery、Fast-Path 和完整 Runtime Run 的示例及字段来源；按本次路径选择，Run 报告必须绑定实际 Run Context。
