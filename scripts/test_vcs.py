@@ -270,3 +270,45 @@ def test_query_timeout_is_classified(repository, monkeypatch):
 def test_invalid_scope_rejected(repository, scope):
     with pytest.raises(vcs.VcsError, match="invalid_scope"):
         vcs.verify_delivery(repository, "HEAD", "HEAD", scope)
+
+
+def test_subject_base_files_and_query_time_exclusions(repository, monkeypatch):
+    base = head(repository)
+    target = repository / ".agentic-framework/tools/input.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("tracked input", encoding="utf-8")
+    command(repository, "git", "add", "-f", str(target))
+    command(repository, "git", "commit", "-m", "tracked tool")
+    (target.parent / "ignored.py").write_text("generated", encoding="utf-8")
+    calls = []
+    original = vcs._run
+
+    def spy(root, args, data=None):
+        calls.append(args)
+        return original(root, args, data)
+
+    monkeypatch.setattr(vcs, "_run", spy)
+    facts = vcs.capture_subject(
+        repository,
+        base,
+        excluded_prefixes=[".agentic-framework/tools"],
+        excluded_directory_names=["__pycache__"],
+    )
+    assert "原始 file.txt" in {item["path"] for item in facts["base_files"]}
+    assert ".agentic-framework/tools/input.py" in {
+        item["path"] for item in facts["files"]
+    }
+    assert ".agentic-framework/tools/ignored.py" not in {
+        item["path"] for item in facts["files"]
+    }
+    query = next(args for args in calls if "--others" in args)
+    assert ":(glob,exclude).agentic-framework/tools/**" in query
+    assert "--exclude-standard" not in query
+
+
+@pytest.mark.parametrize(
+    "prefix", ["../outside", "wild*", "magic[x]", "/absolute"]
+)
+def test_subject_exclusion_rejects_nonliteral_paths(repository, prefix):
+    with pytest.raises(vcs.VcsError, match="invalid_scope"):
+        vcs.capture_subject(repository, "HEAD", excluded_prefixes=[prefix])

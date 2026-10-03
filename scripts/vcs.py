@@ -294,29 +294,95 @@ def collect_changes(
     return changes
 
 
-def capture_subject(
-    path: Path, base: str, backend: Optional[str] = None
-) -> dict[str, Any]:
-    """Capture VCS identity/base/file facts; the caller computes one shared hash.
+def _base_files(root: Path, base: str) -> list[dict[str, Any]]:
+    entries = []
+    for record in _records(_git(root, "ls-tree", "-rz", "--full-tree", base)):
+        try:
+            metadata, path = record.split(b"\t", 1)
+            mode, kind, oid = metadata.split(b" ")
+            if mode not in (b"100644", b"100755", b"120000", b"160000"):
+                raise ValueError
+            if kind not in (b"blob", b"commit") or not path:
+                raise ValueError
+            if not re.fullmatch(rb"[0-9a-f]{40}|[0-9a-f]{64}", oid):
+                raise ValueError
+            entries.append(
+                {
+                    "path": _text(path),
+                    "mode": _text(mode),
+                    "object_id": _text(oid),
+                    "kind": _text(kind),
+                }
+            )
+        except ValueError:
+            raise VcsError("parse_error", "git_base_tree") from None
+    return entries
 
-    Files include ignored/untracked paths to avoid hiding build inputs behind
-    gitignore. No file-content digest is invented at this layer. Git attributes
-    and index modes are facts for the public subject algorithm to consume.
+
+def capture_subject(
+    path: Path,
+    base: str,
+    backend: Optional[str] = None,
+    *,
+    excluded_prefixes: Sequence[str] = (),
+    excluded_directory_names: Sequence[str] = (),
+    additional_paths: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Capture fixed VCS facts without choosing the subject digest algorithm.
+
+    Args:
+        path: Directory inside a working copy.
+        base: Fixed commit, resolved before collecting files.
+        backend: Explicit backend for dual-VCS workspaces.
+        excluded_prefixes: Trusted generated directories excluded at query time
+            from untracked enumeration only. Tracked/base files always survive.
+        excluded_directory_names: Trusted cache directory names, no wildcards.
+        additional_paths: Explicit inputs needing attributes despite exclusions.
+
+    Returns:
+        Repository identity, resolved base, current files, base_files and effective
+        attributes. Ignored untracked inputs survive unless explicitly classified.
+
+    Raises:
+        VcsError: Invalid filters, unsupported backends or failed queries.
     """
+    prefixes = _scope(excluded_prefixes) if excluded_prefixes else []
+    if any(any(char in item for char in "*?[]()") for item in prefixes):
+        raise VcsError("invalid_scope", "subject_exclusions")
+    if any(
+        not re.fullmatch(r"[a-zA-Z0-9_.-]+", name) or name in (".", "..")
+        for name in excluded_directory_names
+    ):
+        raise VcsError("invalid_scope", "subject_exclusions")
     facts = inspect_workspace(path, backend)
     root = _unsupported(facts, "capture_subject")
     facts["base"] = _commit(root, base)
     files = _index(root)
+    base_files = _base_files(root, facts["base"])
     tracked = {item["path"] for item in files}
-    others = _records(_git(root, "ls-files", "--others", "-z"))
+    pathspecs = ["."]
+    for prefix in prefixes:
+        pathspecs.extend(
+            [f":(literal,exclude){prefix}", f":(glob,exclude){prefix}/**"]
+        )
+    pathspecs.extend(
+        f":(glob,exclude)**/{name}/**" for name in excluded_directory_names
+    )
+    # Filter inside Git so an installed tool environment or Worktree forest is
+    # never traversed and materialized before Python can discard it.
+    others = _records(
+        _run(root, ["git", "ls-files", "--others", "-z", "--", *pathspecs])
+    )
     files.extend(
         {"path": _text(item), "mode": None, "object_id": None, "stage": 0}
         for item in others
         if _text(item) not in tracked
     )
+    all_paths = {item["path"] for item in files + base_files}
+    all_paths.update(_scope(additional_paths) if additional_paths else [])
     attribute_input = b"".join(
         item.encode("utf-8", "surrogateescape") + b"\0"
-        for item in sorted({item["path"] for item in files})
+        for item in sorted(all_paths)
     )
     attributes = (
         _records(
@@ -326,7 +392,7 @@ def capture_subject(
                 attribute_input,
             )
         )
-        if files
+        if all_paths
         else []
     )
     if len(attributes) % 3:
@@ -334,11 +400,18 @@ def capture_subject(
     properties: dict[str, dict[str, str]] = {}
     for offset in range(0, len(attributes), 3):
         file_path, key, value = map(_text, attributes[offset : offset + 3])
+        if file_path not in all_paths or not key:
+            raise VcsError("parse_error", "git_attributes")
         properties.setdefault(file_path, {})[key] = value
     facts["files"] = files
+    facts["base_files"] = base_files
     facts["properties"] = properties
     facts["coverage"] = "tracked_and_untracked_including_ignored"
-    if any(item["mode"] == "160000" for item in files):
+    facts["untracked_exclusions"] = {
+        "prefixes": sorted(set(prefixes)),
+        "directory_names": sorted(set(excluded_directory_names)),
+    }
+    if any(item["mode"] == "160000" for item in files + base_files):
         facts["limitations"].append(
             "submodule_inputs_require_explicit_coverage"
         )
@@ -356,6 +429,7 @@ def _scope(paths: Optional[Sequence[str]]) -> list[str]:
         if (
             not value
             or item.is_absolute()
+            or item.root
             or ".." in item.parts
             or value.startswith("-")
             or item.as_posix() == "."
