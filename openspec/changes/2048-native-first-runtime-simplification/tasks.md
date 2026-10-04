@@ -205,8 +205,10 @@ P4                                         ↓
   - [x] 4.1：冻结算法与边界，不建设依赖自动推导或新的状态存储。
   - [x] 4.2：按 workflow-test-generation 测输入覆盖、变化与取证稳定性。
 
-### 任务 5：[ ] P1：Verify 生成 v2 并校验输入前后一致
-- 状态：未开始
+### 任务 5：[x] P1：Verify 生成 v2 并校验输入前后一致
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-verification/scripts/verify.py`、`skills/workflow-verification/scripts/test_verify.py`、`skills/workflow-code-generation/scripts/workflow_control.py`、`scripts/test_workflow_control.py`（修改）
 - depends_on: Task 4
 - review_profile: strict
@@ -218,15 +220,15 @@ P4                                         ↓
   - `skills/workflow-code-generation/scripts/workflow_control.py:_validate_verify_report` — 状态消费者
   - `scripts/runtime_workflow.py` — 历史 Runtime 输出保护
 - verification:
-  - [ ] `python -m pytest skills/workflow-verification/scripts/test_verify.py scripts/test_workflow_control.py scripts/test_native_delivery.py -q` 通过。
-  - [ ] 测试证明检查期间编辑不能 PASS；缺 subject、未知版本、嵌套独立性字段拒绝；合法 v1 历史读取不升级为新证据。
-  - [ ] spy 断言 Native 不调用 initialize_run、能力探测或 Journal 写入；已有基线指纹/配置守卫保持。
-  - [ ] `python -m compileall -q scripts skills/workflow-verification/scripts skills/workflow-code-generation/scripts` 退出 0。
+  - [x] `python -m pytest skills/workflow-verification/scripts/test_verify.py scripts/test_workflow_control.py scripts/test_native_delivery.py -q` 通过。
+  - [x] 测试证明检查期间编辑不能 PASS；缺 subject、未知版本、嵌套独立性字段拒绝；合法 v1 历史读取不升级为新证据。
+  - [x] spy 断言 Native 不调用 initialize_run、能力探测或 Journal 写入；已有基线指纹/配置守卫保持。
+  - [x] `python -m compileall -q scripts skills/workflow-verification/scripts skills/workflow-code-generation/scripts` 退出 0。
 - artifacts:
   - v2 Verify 输出与控制器消费实现、对应测试
 - 子任务：
-  - [ ] 5.1：迁移 standalone 生成与消费，保留 Runtime 分支及路径保护。
-  - [ ] 5.2：按 workflow-test-generation 测输入竞态、报告污染和新旧版本。
+  - [x] 5.1：迁移 standalone 生成与消费，保留 Runtime 分支及路径保护。
+  - [x] 5.2：按 workflow-test-generation 测输入竞态、报告污染和新旧版本。
 
 ### 任务 6：[ ] P1：Native strict Review 与当前内容交付门
 - 状态：未开始
@@ -566,4 +568,4 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 - Task 2: integrated `be5b9a3`; 57 targeted tests and 9 subtests passed; full Verify PASS (`2048-task2-final.json`, count 587, baseline 574). Runtime/v1 remains unchanged.
 - Task 3: integrated `74bcf46`; 27 real VCS tests passed; full Verify PASS (count 594, baseline 574). Windows TEMP normalized through Python Path.resolve(); no baseline/config changes.
 - Task 4: implemented on `change/2048-subject` (`3e4321b`) and integrated by fast-forward plus an integration fix; 61 targeted tests pass (`scripts/test_native_subject.py`, `scripts/test_vcs.py`); full Verify PASS (`2048-task4-final.json`, count 638, baseline 574). Integration fix: a Windows symlink whose external target is missing was mislabeled `missing_symlink_target` because `Path.resolve()` substitutes the link itself for nonexistent final targets; classification now resolves the target's parent directory so the first hop stays classifiable, matching POSIX semantics, and the test creates its external target explicitly instead of relying on pytest leftovers. Environment note: this session's shell exports 8.3 short-form `TEMP` (`ADMINI~1`); the recorded P0 environment uses long-form `TEMP`, which five unrelated tests (lock path, plan gate, knowledge e2e) depend on — full Verify runs with `TEMP` normalized to long form and the 3.12 venv (`.agentic-framework/tools/venv`) on PATH. No baseline/config changes.
-- Task 5 follows: standalone Verify emits v2 `schema_version`/`subject_id` with before/after input checks; controller consumes legal versions only.
+- Task 5: implemented on `change/2048-verify` (`b35319f`) and integrated by fast-forward (merged tree identical to the verified commit); targeted set 191 tests + 14 subtests pass; full Verify PASS under the new v2 flow itself (count 639, baseline 574) — the run doubles as live proof that before/after subject captures stay stable across the whole scripts suite (`__pycache__`/`.pytest_cache`/report writes excluded by the Task 4 classification). Standalone reports with no capturable subject (non-VCS workspace) fail closed without writing; mid-run input edits and incomplete coverage append an error result so PASS is impossible. `quality_passed` dispatches on `schema_version`, validates via `native_delivery` (recursive forbidden-field rejection), and rejects v1 reports as new completion evidence; the Runtime envelope branch is untouched. Same-commit fix: `_extract_executable` POSIX tokenizing stripped backslashes from unquoted absolute Windows paths and marked real tools missing — now quote-aware on Windows. `check_delivery.check_native_delivery_verify` still whitelists the v1 flat shape; migrating that gate to versioned dispatch is Task 6 scope. No baseline/config changes.
