@@ -255,8 +255,10 @@ P4                                         ↓
   - [x] 6.1：迁移档位/版本/独立性与内容交叉检查，保留旧保证边界。
   - [x] 6.2：按 workflow-test-generation 覆盖字段豁免反例、陈旧报告和 Profile 下限。
 
-### 任务 7：[ ] P2：显式 Runtime 路由与兼容评测
-- 状态：未开始
+### 任务 7：[x] P2：显式 Runtime 路由与兼容评测
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-code-generation/scripts/workflow_control.py`、`scripts/delivery_route_fixture_runner.py`、`evaluation/delivery-route-fixtures.json`、`scripts/downgrade_equivalence.py`、`scripts/test_workflow_control.py`、`scripts/test_delivery_route_fixture_runner.py`、`scripts/test_downgrade_equivalence.py`（修改），本 Change `specs/backend/framework/workflow-control/overview.md`、`specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md`、`specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md`（新建）
 - depends_on: Task 6
 - review_profile: strict
@@ -268,19 +270,21 @@ P4                                         ↓
   - `scripts/downgrade_equivalence.py:compare` — 治理等价比较
   - `scripts/runtime_workflow.py:load_context` — 已有模式证据
 - verification:
-  - [ ] `python -m pytest scripts/test_workflow_control.py scripts/test_delivery_route_fixture_runner.py scripts/test_downgrade_equivalence.py -q` 通过；fixture runner 实际运行 PASS。
-  - [ ] 三档 × 并行/恢复 × 显式模式 × VCS 的矩阵覆盖；默认 Native，显式 Git Runtime 保留，SVN Runtime/策略冲突拒绝。
-  - [ ] 旧 flag 优先级、未知 capability 与已有 Run 恢复有测试；保留旧返回字段的兼容语义，不删 Runtime 保护样本。
-  - [ ] `python -m compileall -q scripts skills/workflow-code-generation/scripts` 退出 0。
+  - [x] `python -m pytest scripts/test_workflow_control.py scripts/test_delivery_route_fixture_runner.py scripts/test_downgrade_equivalence.py -q` 通过；fixture runner 实际运行 PASS。
+  - [x] 三档 × 并行/恢复 × 显式模式 × VCS 的矩阵覆盖；默认 Native，显式 Git Runtime 保留，SVN Runtime/策略冲突拒绝。
+  - [x] 旧 flag 优先级、未知 capability 与已有 Run 恢复有测试；保留旧返回字段的兼容语义，不删 Runtime 保护样本。
+  - [x] `python -m compileall -q scripts skills/workflow-code-generation/scripts` 退出 0。
 - artifacts:
   - 路由实现、fixture 与兼容测试
   - workflow-control、Runtime spec/trust-model Delta
 - 子任务：
-  - [ ] 7.1：固定未指定/显式/硬要求优先级及旧返回字段迁移说明。
-  - [ ] 7.2：按 workflow-test-generation 实现路由矩阵、fixture 和降级等价回归。
+  - [x] 7.1：固定未指定/显式/硬要求优先级及旧返回字段迁移说明。
+  - [x] 7.2：按 workflow-test-generation 实现路由矩阵、fixture 和降级等价回归。
 
-### 任务 8：[ ] P2：Native 恢复、失败隔离与本地集成语义
-- 状态：未开始
+### 任务 8：[x] P2：Native 恢复、失败隔离与本地集成语义
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-code-generation/scripts/workflow_control.py`、`scripts/test_workflow_control.py`（修改）
 - depends_on: Task 7
 - review_profile: strict
@@ -292,14 +296,14 @@ P4                                         ↓
   - `scripts/native_subject.py`、`scripts/vcs.py` — 当前内容与事实
   - `scripts/runtime_workflow.py` — 既有 Run 不迁移
 - verification:
-  - [ ] `python -m pytest scripts/test_workflow_control.py scripts/test_task_ast.py scripts/test_task_ast_equivalence.py -q` 通过。
-  - [ ] 模拟失败/阻塞/合并冲突/恢复/外部编辑，状态与事实一致；Native 不初始化 Runtime，已有 Run 不换路径。
-  - [ ] 重跑只读核验无重复 commit/update；单任务可直接执行但依赖和批准仍拦截；`python -m compileall -q scripts skills/workflow-code-generation/scripts` 退出 0。
+  - [x] `python -m pytest scripts/test_workflow_control.py scripts/test_task_ast.py scripts/test_task_ast_equivalence.py -q` 通过。
+  - [x] 模拟失败/阻塞/合并冲突/恢复/外部编辑，状态与事实一致；Native 不初始化 Runtime，已有 Run 不换路径。
+  - [x] 重跑只读核验无重复 commit/update；单任务可直接执行但依赖和批准仍拦截；`python -m compileall -q scripts skills/workflow-code-generation/scripts` 退出 0。
 - artifacts:
   - 恢复与本地集成语义实现、对应测试
 - 子任务：
-  - [ ] 8.1：更新事实核对和模式恢复，保持唯一状态源。
-  - [ ] 8.2：按 workflow-test-generation 测中断、未知结果、重复执行与失败传播。
+  - [x] 8.1：更新事实核对和模式恢复，保持唯一状态源。
+  - [x] 8.2：按 workflow-test-generation 测中断、未知结果、重复执行与失败传播。
 
 ### 任务 9：[ ] P2：核心 Skill 与报告规则同步简化
 - 状态：未开始
@@ -572,3 +576,5 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 - Task 4: implemented on `change/2048-subject` (`3e4321b`) and integrated by fast-forward plus an integration fix; 61 targeted tests pass (`scripts/test_native_subject.py`, `scripts/test_vcs.py`); full Verify PASS (`2048-task4-final.json`, count 638, baseline 574). Integration fix: a Windows symlink whose external target is missing was mislabeled `missing_symlink_target` because `Path.resolve()` substitutes the link itself for nonexistent final targets; classification now resolves the target's parent directory so the first hop stays classifiable, matching POSIX semantics, and the test creates its external target explicitly instead of relying on pytest leftovers. Environment note: this session's shell exports 8.3 short-form `TEMP` (`ADMINI~1`); the recorded P0 environment uses long-form `TEMP`, which five unrelated tests (lock path, plan gate, knowledge e2e) depend on — full Verify runs with `TEMP` normalized to long form and the 3.12 venv (`.agentic-framework/tools/venv`) on PATH. No baseline/config changes.
 - Task 5: implemented on `change/2048-verify` (`b35319f`) and integrated by fast-forward (merged tree identical to the verified commit); targeted set 191 tests + 14 subtests pass; full Verify PASS under the new v2 flow itself (count 639, baseline 574) — the run doubles as live proof that before/after subject captures stay stable across the whole scripts suite (`__pycache__`/`.pytest_cache`/report writes excluded by the Task 4 classification). Standalone reports with no capturable subject (non-VCS workspace) fail closed without writing; mid-run input edits and incomplete coverage append an error result so PASS is impossible. `quality_passed` dispatches on `schema_version`, validates via `native_delivery` (recursive forbidden-field rejection), and rejects v1 reports as new completion evidence; the Runtime envelope branch is untouched. Same-commit fix: `_extract_executable` POSIX tokenizing stripped backslashes from unquoted absolute Windows paths and marked real tools missing — now quote-aware on Windows. `check_delivery.check_native_delivery_verify` still whitelists the v1 flat shape; migrating that gate to versioned dispatch is Task 6 scope. No baseline/config changes.
 - Task 6: implemented on `change/2048-delivery` (`a1557b8`) and integrated by fast-forward (merged tree identical to the verified commit); targeted set 241 tests + 98 subtests pass; full Verify PASS (count 651, baseline 574). The gate consumes v2 review/verify only (v1 rejected as new evidence with directed messages), recomputes the current subject with `--subject-base` (default HEAD) and cross-checks Review/Verify/current before writing a verdict; pre-delivery edits and wrong bases are rejected. Profile dispatch keeps the production strict floor and requires strict when tasks declare strict; independence fields are enforced per profile by the Native contract. Non-scoped deliveries build the v2 verdict via `native_delivery.build_verdict` (git_clean + 40-hex commit_sha; CLI `hit` maps to `updated` and requires a non-empty reason); Scoped Delivery intentionally keeps the existing v1 verdict until Task 12 unifies delivery states — the v2 schema cannot express a scoped claim without asserting a false `git_clean=true`. `validate_change._validate_review_report` dispatches flat reports by version (v2 → native validator, unknown → fail closed, v1/envelope readers unchanged). `native_delivery.py`, `test_native_delivery.py`, `test_runtime_schema.py`, `test_profile_contracts.py` needed no changes; their regressions ran green unchanged. No baseline/config changes.
+- Task 7: implemented on `change/2048-routing` (`dce7032`) and integrated by fast-forward; targeted set 114 tests + 24 subtests pass, fixture runner 19/19 PASS, full Verify PASS (count 655, baseline 574). `select_execution_route` keys on `execution_mode` (default native): strict/parallel/recovery never auto-upgrade; explicit runtime, `audit_required`, and cross-host remain the only Runtime requirements and fail closed on explicit-native conflicts, SVN, or unknown VCS (the old silent SVN downgrade is removed — route now exits 2 with a directed error). Legacy parallel/recovery flags are accepted as execution needs with a stderr explanation; old return fields keep their shape. Fixtures moved to schema 2 with `execution_mode`/`vcs` inputs and `expected.error` assertions for the seven rejection cases. `downgrade_equivalence.py` needed no change (governance-downgrade comparison untouched); existing-Run mode preservation stays covered by the unchanged Runtime regression suite, with Native recovery facts landing in Task 8. Spec deltas created for workflow-control, runtime spec, and trust-model. No baseline/config changes.
+- Task 8: implemented on `change/2048-recovery` (`7147483`) and integrated by fast-forward; targeted set 121 tests + 24 subtests pass; full Verify PASS (count 660, baseline 574). `merge_success` on the Native path prints the local-integration semantics (not an SVN remote commit; formal delivery is gate-verified against an exact revision); `recover` prints its read-only contract and the SVN serial-write discipline; the inspect action now names the evidence to verify (artifacts/verify reports/integration content, not conversational claims). New tests: repeat-run spy asserting no external write commands (only read-only probes), no `initialize_run` during recovery, notes on stderr, evidence wording. Existing failure/blocking/approval/dependency propagation stayed green unchanged; existing-Run tasks keep the Runtime path per the unchanged regression suite. No baseline/config changes.
