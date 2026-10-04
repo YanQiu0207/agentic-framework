@@ -25,6 +25,7 @@ _FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
 if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
 import governance_profile
+import native_delivery
 import runtime_workflow
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
@@ -254,13 +255,28 @@ def _validate_verify_result(result: object, label: str) -> None:
 
 
 def _validate_verify_report(report: object) -> None:
-    """Reject a parsed workflow-verification report whose verdict isn't PASS.
+    """Reject a standalone verify report that is not a passing v2 contract.
 
-    Pure validation only: `report` must already be a parsed dict, so this
-    can be unit-tested without touching the filesystem.
+    The completion gate consumes versioned, subject-bound Native evidence
+    (change 2048). Legacy v1 reports stay readable through their historical
+    readers only and never upgrade into new completion evidence. Pure
+    validation: `report` must already be a parsed dict.
     """
     if not isinstance(report, dict):
         raise ValueError("verify 报告顶层结构必须是 JSON 对象")
+    version = report.get("schema_version")
+    if version != 2:
+        raise ValueError(
+            "verify 报告必须是 schema_version 2 的 Native 报告，实际为 "
+            f"{version!r}；旧 v1 报告只按旧合同展示历史，不能作为新完成证据"
+        )
+    subject_id = report.get("subject_id")
+    if not isinstance(subject_id, str):
+        raise ValueError(f"verify 报告 subject_id 必须为字符串：{subject_id!r}")
+    try:
+        native_delivery.validate_verify_report(report)
+    except native_delivery.NativeDeliveryError as error:
+        raise ValueError(f"verify 报告未通过 Native v2 合同：{error}") from error
     if report.get("verdict") != "PASS":
         raise ValueError("verify 报告 verdict 不是 PASS：" f"{report.get('verdict')!r}")
     for field in ("errors", "violations"):

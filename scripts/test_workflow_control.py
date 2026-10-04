@@ -44,6 +44,23 @@ def passing_verify_result() -> dict[str, object]:
     }
 
 
+def standalone_verify_report(**overrides) -> dict[str, object]:
+    """Return a minimum Native v2 standalone verify report (change 2048)."""
+    report: dict[str, object] = {
+        "schema_version": 2,
+        "subject_id": "sha256:" + "3" * 64,
+        "verdict": "PASS",
+        "errors": 0,
+        "violations": 0,
+        "total": 1,
+        "results": [passing_verify_result()],
+        "spec_drift": passing_verify_result(),
+        "warnings": [],
+    }
+    report.update(overrides)
+    return report
+
+
 def runtime_verify_fixture(root: Path) -> tuple[Path, Path]:
     """Create the minimum initialized Run needed by the task quality gate."""
     run_dir = root / ".agentic-framework" / "runs" / "run-1"
@@ -139,41 +156,56 @@ class WorkflowControlTest(unittest.TestCase):
         )
         self.assertEqual("完成", merged.state)
 
-    def test_validate_verify_report_requires_pass_verdict(self) -> None:
-        workflow_control._validate_verify_report(
-            {
-                "verdict": "PASS",
-                "errors": 0,
-                "violations": 0,
-                "total": 1,
-                "results": [passing_verify_result()],
-                "spec_drift": passing_verify_result(),
-            }
-        )
-        with self.assertRaisesRegex(ValueError, "PASS"):
-            workflow_control._validate_verify_report({"verdict": "NEEDS_CHANGES"})
-        with self.assertRaisesRegex(ValueError, "PASS"):
-            workflow_control._validate_verify_report({})
-        with self.assertRaisesRegex(ValueError, "JSON 对象"):
-            workflow_control._validate_verify_report([])
-        with self.assertRaisesRegex(ValueError, "errors"):
-            workflow_control._validate_verify_report(
-                {"verdict": "PASS", "errors": 1, "violations": 0}
-            )
-        with self.assertRaisesRegex(ValueError, "violations"):
-            workflow_control._validate_verify_report(
-                {"verdict": "PASS", "errors": 0, "violations": 1}
-            )
-        with self.assertRaisesRegex(ValueError, "缺少必填字段"):
+    def test_validate_verify_report_requires_passing_v2_contract(self) -> None:
+        workflow_control._validate_verify_report(standalone_verify_report())
+        # 旧 v1 形状（无 schema_version）不再是合法完成证据。
+        with self.assertRaisesRegex(ValueError, "schema_version 2"):
             workflow_control._validate_verify_report(
                 {
                     "verdict": "PASS",
                     "errors": 0,
                     "violations": 0,
                     "total": 1,
-                    "results": [{"status": "pass"}],
+                    "results": [passing_verify_result()],
                     "spec_drift": passing_verify_result(),
                 }
+            )
+        with self.assertRaisesRegex(ValueError, "schema_version 2"):
+            workflow_control._validate_verify_report(
+                standalone_verify_report(schema_version=1)
+            )
+        with self.assertRaisesRegex(ValueError, "schema_version 2"):
+            workflow_control._validate_verify_report({"verdict": "NEEDS_CHANGES"})
+        with self.assertRaisesRegex(ValueError, "JSON 对象"):
+            workflow_control._validate_verify_report([])
+        # 缺 subject → 显式拒绝；subject 格式非法 → Native v2 合同拒绝。
+        with self.assertRaisesRegex(ValueError, "subject_id"):
+            report = standalone_verify_report()
+            del report["subject_id"]
+            workflow_control._validate_verify_report(report)
+        with self.assertRaisesRegex(ValueError, "Native v2 合同"):
+            workflow_control._validate_verify_report(
+                standalone_verify_report(subject_id="not-a-digest")
+            )
+        # 嵌套声明 Runtime/独立性字段 → 递归禁止集拒绝（spec_drift 须等于
+        # results[0]，故两侧同步污染，确保命中的是禁止集而非一致性检查）。
+        with self.assertRaisesRegex(ValueError, "Native v2 合同"):
+            polluted = {
+                **passing_verify_result(),
+                "value": {"trust_gate": {"status": "pass"}},
+            }
+            workflow_control._validate_verify_report(
+                standalone_verify_report(results=[polluted], spec_drift=polluted)
+            )
+        with self.assertRaisesRegex(ValueError, "PASS"):
+            failing = {**passing_verify_result(), "status": "fail"}
+            workflow_control._validate_verify_report(
+                standalone_verify_report(
+                    verdict="FAIL",
+                    violations=1,
+                    results=[failing],
+                    spec_drift=failing,
+                )
             )
 
     def test_select_execution_route_defaults_to_native_delivery(self) -> None:
@@ -382,6 +414,42 @@ class WorkflowControlTest(unittest.TestCase):
             path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
             report_path = root / "verify-report.json"
             report_path.write_text(
+                json.dumps(standalone_verify_report()), encoding="utf-8"
+            )
+
+            with mock.patch.object(
+                workflow_control, "runtime_workflow"
+            ) as runtime_spy:
+                result = workflow_control.main(
+                    [
+                        str(path),
+                        "event",
+                        "1",
+                        "quality_passed",
+                        "--write",
+                        "--verify-report",
+                        str(report_path),
+                    ]
+                )
+
+            self.assertEqual(0, result)
+            self.assertIn(
+                "- control_stage：quality_passed", path.read_text(encoding="utf-8")
+            )
+            self.assertFalse((root / ".agentic-framework" / "runs").exists())
+            # Native 完成门不得触发 Run 初始化、能力探测或 Journal 写入。
+            runtime_spy.initialize_run.assert_not_called()
+            runtime_spy.record_quality_passed.assert_not_called()
+
+    def test_native_quality_passed_rejects_legacy_v1_report_as_new_evidence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            original = tasks_text({1: "进行中"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+            report_path = Path(temp_dir) / "verify-report.json"
+            report_path.write_text(
                 json.dumps(
                     {
                         "verdict": "PASS",
@@ -394,7 +462,6 @@ class WorkflowControlTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-
             result = workflow_control.main(
                 [
                     str(path),
@@ -406,12 +473,8 @@ class WorkflowControlTest(unittest.TestCase):
                     str(report_path),
                 ]
             )
-
-            self.assertEqual(0, result)
-            self.assertIn(
-                "- control_stage：quality_passed", path.read_text(encoding="utf-8")
-            )
-            self.assertFalse((root / ".agentic-framework" / "runs").exists())
+            self.assertEqual(2, result)
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
 
     def test_quality_passed_with_pass_verdict_writes_state_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

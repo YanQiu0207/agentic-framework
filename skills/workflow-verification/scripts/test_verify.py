@@ -1,4 +1,4 @@
-"""Regression tests for spec drift evaluation."""
+"""Regression tests for spec drift evaluation and standalone v2 binding."""
 
 import contextlib
 import io
@@ -9,11 +9,20 @@ import signal
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 import verify
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from native_delivery import validate_verify_report as validate_native_report
+from scripts.test_vcs import head, repository
 
 
 def _python_command(source: str) -> str:
@@ -21,6 +30,33 @@ def _python_command(source: str) -> str:
     if os.name == "nt":
         return subprocess.list2cmdline(arguments)
     return shlex.join(arguments)
+
+
+_STABLE_CAPTURE = {
+    "subject_id": "sha256:" + "1" * 64,
+    "complete": True,
+    "limitations": [],
+}
+_STABLE_COMPARISON = {
+    "unchanged": True,
+    "complete": True,
+    "verified": True,
+    "limitations": [],
+}
+
+
+def _stable_subject_patches():
+    """Bypass real VCS capture for tests targeting unrelated guard logic."""
+    return (
+        mock.patch.object(
+            verify, "_capture_verify_subject", return_value=dict(_STABLE_CAPTURE)
+        ),
+        mock.patch.object(
+            verify,
+            "compare_native_subjects",
+            return_value=dict(_STABLE_COMPARISON),
+        ),
+    )
 
 
 def _force_kill_process_group(pid: int) -> None:
@@ -615,13 +651,14 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                 encoding="utf-8",
             )
             config = {"checks": [], "ignore_paths": ["cfg/*.py"]}
+            subject_patch, comparison_patch = _stable_subject_patches()
             with mock.patch.object(
                 verify,
                 "evaluate_spec_drift",
                 return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
             ) as spy, mock.patch.object(
                 verify, "evaluate_check"
-            ), mock.patch("builtins.print"):
+            ), subject_patch, comparison_patch, mock.patch("builtins.print"):
                 verify.cmd_verify(
                     config,
                     baseline,
@@ -785,16 +822,21 @@ class ConfigSnapshotTest(unittest.TestCase):
                 encoding="utf-8",
             )
             report = Path(temp_dir) / "report.json"
+            subject_patch, comparison_patch = _stable_subject_patches()
             with mock.patch.object(
                 verify,
                 "evaluate_spec_drift",
                 return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
-            ), mock.patch.object(verify, "knowledge_source_warnings", return_value=[]):
+            ), mock.patch.object(
+                verify, "knowledge_source_warnings", return_value=[]
+            ), subject_patch, comparison_patch:
                 rc = verify.cmd_verify(config_v2, baseline, report, "HEAD", "")
 
             payload = json.loads(report.read_text(encoding="utf-8"))
 
         self.assertEqual(0, rc)
+        self.assertEqual(2, payload["schema_version"])
+        self.assertTrue(payload["subject_id"].startswith("sha256:"))
         self.assertEqual("PASS", payload["verdict"])
         self.assertEqual("new-test-entry", payload["results"][1]["name"])
         self.assertEqual("pass", payload["results"][1]["status"])
@@ -1002,6 +1044,10 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
     def test_cmd_verify_keeps_source_warning_non_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo = self._repo(temp_dir)
+            # v2 standalone 主体必须覆盖 Verify 配置；先入库再制造过期警告。
+            (repo / "verify.config.json").write_text(
+                '{"checks": []}', encoding="utf-8"
+            )
             source = repo / "scripts" / "tool.py"
             source.parent.mkdir()
             source.write_text("print('v1')\n", encoding="utf-8")
@@ -1032,6 +1078,8 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
             payload = __import__("json").loads(report.read_text(encoding="utf-8"))
 
         self.assertEqual(0, result)
+        self.assertEqual(2, payload["schema_version"])
+        self.assertRegex(payload["subject_id"], r"^sha256:[0-9a-f]{64}$")
         self.assertEqual("PASS", payload["verdict"])
         self.assertEqual(1, len(payload["warnings"]))
 
@@ -1359,3 +1407,140 @@ class ScopedBaselineTest(unittest.TestCase):
             content = baseline.read_text(encoding="utf-8")
         self.assertEqual(2, result)
         self.assertEqual('{"preserve": true}', content)
+
+
+class _RuntimeSentinel(types.ModuleType):
+    """Fail loudly if the standalone flow touches runtime_workflow."""
+
+    def __getattr__(self, name: str) -> object:
+        raise AssertionError(
+            "standalone verify must not touch runtime_workflow." + name
+        )
+
+
+def _run_in_repo(repo: Path, argv: list[str]) -> tuple[int, Path]:
+    report = repo / ".agentic-framework" / "verify" / "report.json"
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(repo)
+        with mock.patch("builtins.print"):
+            code = verify.main(argv + ["--report", str(report)])
+    finally:
+        os.chdir(old_cwd)
+    return code, report
+
+
+def _minimal_config() -> str:
+    """One passing exit_code check; config files must declare at least one."""
+    return json.dumps(
+        {
+            "checks": [
+                {
+                    "name": "ok-check",
+                    "type": "exit_code",
+                    "command": _python_command("print('ok')"),
+                }
+            ]
+        }
+    )
+
+
+def test_standalone_verify_binds_v2_subject(repository):
+    (repository / "verify.config.json").write_text(
+        _minimal_config(), encoding="utf-8"
+    )
+    base = head(repository)
+    code, report = _run_in_repo(repository, ["--diff-base", base])
+    assert code == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
+    assert payload["subject_id"].startswith("sha256:")
+    assert payload["verdict"] == "PASS"
+    validate_native_report(payload)
+
+
+def test_standalone_verify_rejects_input_edits_during_checks(repository):
+    (repository / "verify.config.json").write_text(
+        json.dumps(
+            {
+                "checks": [
+                    {
+                        "name": "mutating-check",
+                        "type": "exit_code",
+                        "command": _python_command(
+                            "open('原始 file.txt', 'a', encoding='utf-8')"
+                            ".write('mid-run edit')"
+                        ),
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    base = head(repository)
+    code, report = _run_in_repo(repository, ["--diff-base", base])
+    assert code == 2
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "ERROR"
+    assert payload["results"][-1]["name"] == "native-subject"
+    assert payload["results"][-1]["status"] == "error"
+    assert "发生变化" in payload["results"][-1]["detail"]
+    # 报告仍绑定检查前的内容主体，且整体满足 v2 合同（ERROR 可校验）。
+    assert payload["subject_id"].startswith("sha256:")
+    validate_native_report(payload)
+
+
+def test_standalone_verify_without_config_is_not_complete(repository):
+    # 无 Verify 配置的仓库不能产生完整已验证声明（Task 4 冻结分类）。
+    base = head(repository)
+    code, report = _run_in_repo(repository, ["--diff-base", base])
+    assert code == 2
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "ERROR"
+    subject_result = payload["results"][-1]
+    assert subject_result["name"] == "native-subject"
+    assert "覆盖不完整" in subject_result["detail"]
+    assert any("verify_config" in item for item in subject_result["detail"].split(";"))
+
+
+def test_standalone_without_vcs_writes_no_report(tmp_path):
+    report = tmp_path / "report.json"
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        with mock.patch("builtins.print"):
+            code = verify.main(["--report", str(report)])
+    finally:
+        os.chdir(old_cwd)
+    assert code == 2
+    assert not report.exists()
+
+
+def test_standalone_verify_never_touches_runtime_workflow(repository):
+    (repository / "verify.config.json").write_text(
+        _minimal_config(), encoding="utf-8"
+    )
+    base = head(repository)
+    sentinel = _RuntimeSentinel("runtime_workflow")
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(repository)
+        with mock.patch.dict(sys.modules, {"runtime_workflow": sentinel}):
+            with mock.patch("builtins.print"):
+                code = verify.main(["--diff-base", base])
+    finally:
+        os.chdir(old_cwd)
+    assert code == 0
+    assert not (repository / ".agentic-framework" / "runs").exists()
+
+
+def test_extract_executable_keeps_windows_absolute_paths():
+    # POSIX 切词会吃掉反斜杠，使真实工具被误判缺失（虚假 error）。
+    unquoted = r"E:\work\venv\Scripts\python.exe -c \"print(1)\""
+    assert verify._extract_executable(unquoted) == r"E:\work\venv\Scripts\python.exe"
+    quoted = r'"C:\Program Files\Python39\python.exe" -c "print(1)"'
+    assert verify._extract_executable(quoted) == (
+        r"C:\Program Files\Python39\python.exe"
+    )
+    assert verify._extract_executable("grep -rHo pattern x") == "grep"

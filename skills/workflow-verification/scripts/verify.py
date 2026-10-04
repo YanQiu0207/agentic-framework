@@ -17,6 +17,10 @@
     # 不带基线：所有检查按绝对标准判定
     python verify.py
 
+standalone 报告为 Native v2（顶层 schema_version=2 与 subject_id）：检查前后
+核对同一内容主体，检查期间输入变化或覆盖不完整时结果无效。Runtime Envelope
+（--run-dir）沿用 v1 合同不变。
+
 退出码：
     0 = 全部通过 / 采集基线成功
     1 = 存在（新增）违规或 spec drift
@@ -44,6 +48,12 @@ from typing import Any, Sequence
 _FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
 if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+from native_delivery import NativeDeliveryError
+from native_delivery import validate_verify_report as validate_native_verify_report
+from native_subject import SubjectError
+from native_subject import capture_subject as capture_native_subject
+from native_subject import compare_subjects as compare_native_subjects
+from vcs import VcsError
 from workspace_residue import (
     WorkspaceResidueError,
     capture_workspace_residue,
@@ -906,6 +916,14 @@ def _config_snapshot(config: dict) -> list[dict]:
 
 def _extract_executable(command: str) -> str:
     """提取 shell 命令的第一个 token（通常为可执行文件名或路径）。解析失败时回退到按空格分割。"""
+    if os.name == "nt":
+        # POSIX 切词会把未加引号的 Windows 绝对路径中的反斜杠当作转义吃掉，
+        # 使真实存在的工具被误判缺失；按引号感知提取首 token，保留反斜杠。
+        stripped = command.lstrip()
+        if stripped.startswith('"'):
+            end = stripped.find('"', 1)
+            return stripped[1:end] if end > 0 else stripped[1:]
+        return stripped.split(None, 1)[0] if stripped else ""
     try:
         tokens = shlex.split(command)
     except ValueError:
@@ -1318,6 +1336,48 @@ def resolve_verify_read_path(path: Path, repo_root: Path) -> Path:
     return selected
 
 
+def _capture_verify_subject(
+    base: str, config_path: Path | None
+) -> dict[str, Any]:
+    """Capture the Native subject bound to a standalone v2 report."""
+    return capture_native_subject(Path.cwd(), base, config_path=config_path)
+
+
+def _subject_consistency_result(
+    subject: dict[str, Any],
+    base: str,
+    config_path: Path | None,
+) -> CheckResult | None:
+    """Re-capture after checks; changed or incomplete inputs are invalid.
+
+    Returns None when the subject is unchanged and completely covered —
+    the only state in which the standalone run may claim PASS.
+    """
+    try:
+        subject_after = _capture_verify_subject(base, config_path)
+    except (SubjectError, VcsError) as error:
+        return CheckResult(
+            "native-subject",
+            "native-subject",
+            "error",
+            f"检查后内容主体无法取得（{error}），本次结果不能作为验证证据",
+        )
+    comparison = compare_native_subjects(subject, subject_after)
+    if not comparison["complete"]:
+        detail = "内容主体覆盖不完整，不能产生完整已验证声明："
+        detail += "; ".join(comparison["limitations"][:5])
+        return CheckResult("native-subject", "native-subject", "error", detail)
+    if not comparison["unchanged"]:
+        return CheckResult(
+            "native-subject",
+            "native-subject",
+            "error",
+            "检查期间输入发生变化，本次结果无效："
+            f"{subject['subject_id']} → {subject_after['subject_id']}",
+        )
+    return None
+
+
 def cmd_verify(
     config: dict,
     baseline_path: Path | None,
@@ -1328,8 +1388,14 @@ def cmd_verify(
     task_id: str | None = None,
     attempt: int | None = None,
     cli_ignore_patterns: Sequence[str] = (),
+    config_path: Path | None = None,
 ) -> int:
-    """跑全部检查，对 baseline_aware 项做基线对比，产出报告。"""
+    """跑全部检查，对 baseline_aware 项做基线对比，产出报告。
+
+    standalone（无 runtime_context）产出 Native v2 报告：检查前捕获内容
+    主体，检查后核对同一输入，改动中或覆盖不完整的结果无效。Runtime
+    Envelope 沿用既有 v1 分支，不为 Native 初始化 Run。
+    """
     # 显式传了 --baseline 但文件不存在 → fail-closed，不能静默降级为无基线模式
     if baseline_path is not None and not baseline_path.exists():
         print(f"[verify] 指定了 --baseline 但文件不存在：{baseline_path}，需先运行 --save-baseline 采集基线。", file=sys.stderr)
@@ -1445,6 +1511,21 @@ def cmd_verify(
             )
             return 2
 
+    # v2 standalone 报告必须绑定当前内容主体；无法取得主体（非受支持
+    # VCS 工作区、基准无效、双 VCS 歧义）时不产出报告，不降级为无主体 v1。
+    subject: dict[str, Any] | None = None
+    if runtime_context is None:
+        try:
+            subject = _capture_verify_subject(diff_base, config_path)
+        except (SubjectError, VcsError) as error:
+            print(
+                "[verify] 无法取得 Native v2 内容主体（"
+                f"{getattr(error, 'code', None) or type(error).__name__}: {error}），"
+                "standalone 报告拒绝无主体写出。",
+                file=sys.stderr,
+            )
+            return 2
+
     config_paths = config.get("ignore_paths", [])
     results: list[CheckResult] = [
         evaluate_spec_drift(
@@ -1503,6 +1584,13 @@ def cmd_verify(
                     "属于配置漂移，需重新运行 --save-baseline 更新基线（或恢复 baseline_aware）",
                 ))
 
+    # 检查后核对同一内容主体：不完整或变化都以独立检查项落进报告，
+    # 使 verdict 变为 ERROR；不给改动中的运行留下任何 PASS 解释空间。
+    if subject is not None:
+        consistency = _subject_consistency_result(subject, diff_base, config_path)
+        if consistency is not None:
+            results.append(consistency)
+
     errors = [r for r in results if r.status == "error"]
     violations = [r for r in results if r.status == "fail"]
     # 退出码语义：0 = 全部通过；1 = 有新增违规（可修复）；2 = 门禁本身出错（工具/配置问题）
@@ -1546,6 +1634,21 @@ def cmd_verify(
             .replace("+00:00", "Z"),
             "payload": payload,
         }
+    else:
+        # v2 standalone：主体绑定检查前的内容；写前先过 Native 合同自校验。
+        report = {
+            "schema_version": 2,
+            "subject_id": subject["subject_id"],
+            **payload,
+        }
+        try:
+            validate_native_verify_report(report)
+        except NativeDeliveryError as error:
+            print(
+                f"[verify] standalone v2 报告未通过 Native 合同校验，拒绝写出：{error}",
+                file=sys.stderr,
+            )
+            return 2
     try:
         _atomic_write_json(report_path, report)
     except OSError as exc:
@@ -1673,6 +1776,7 @@ def main(argv: list[str] | None = None) -> int:
         args.task_id,
         args.attempt,
         args.ignore,
+        config_path=Path(args.config),
     )
 
 
