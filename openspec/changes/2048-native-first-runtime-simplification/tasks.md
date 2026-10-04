@@ -329,7 +329,9 @@ P4                                         ↓
   - [x] 9.1：依现有语言风格更新默认流程、进阶读指针和示例。
   - [x] 9.2：运行引用/触发/档位校验，确认 P1/P2 同批发布可完整使用。
 ### 任务 10：[ ] P3：SVN Adapter、工作副本限制与内容表示
-- 状态：未开始
+- 状态：进行中
+- attempts：0
+- control_stage：running
 - 文件：`scripts/vcs.py`、`scripts/test_vcs.py`、`scripts/native_subject.py`、`scripts/test_native_subject.py`（修改）
 - depends_on: Task 9
 - review_profile: strict
