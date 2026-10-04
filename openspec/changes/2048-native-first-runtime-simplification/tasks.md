@@ -230,8 +230,10 @@ P4                                         ↓
   - [x] 5.1：迁移 standalone 生成与消费，保留 Runtime 分支及路径保护。
   - [x] 5.2：按 workflow-test-generation 测输入竞态、报告污染和新旧版本。
 
-### 任务 6：[ ] P1：Native strict Review 与当前内容交付门
-- 状态：未开始
+### 任务 6：[x] P1：Native strict Review 与当前内容交付门
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-code-generation/scripts/check_delivery.py`、`scripts/native_delivery.py`、`scripts/runtime_schema.py`、`scripts/validate_change.py`、`scripts/test_check_delivery.py`、`scripts/test_native_delivery.py`、`scripts/test_runtime_schema.py`、`scripts/test_profile_contracts.py`、`scripts/tests/test_validate_change.py`（修改）
 - depends_on: Task 5
 - review_profile: strict
@@ -243,15 +245,15 @@ P4                                         ↓
   - `scripts/governance_profile.py:review_profile_floor`、`skills/workflow-code-generation/scripts/governance_guards.py` — 守卫
   - `scripts/native_subject.py`、`scripts/native_delivery.py` — 新证据
 - verification:
-  - [ ] `python -m pytest scripts/test_check_delivery.py scripts/test_native_delivery.py scripts/test_runtime_schema.py scripts/test_profile_contracts.py scripts/tests/test_validate_change.py -q` 通过。
-  - [ ] strict 同 actor、缺分离依据、实现者代写声明、P0/P1 非零、三方 subject 错配/交付前编辑均拒绝；合法 strict v2 通过。
-  - [ ] v1/Verify 同名与嵌套字段仍拒绝；Production lightweight 被拒绝；缺批准/逐任务报告仍阻断。
-  - [ ] 产物路径越界/链接保护与 Runtime Trust 门回归通过；`python -m compileall -q scripts skills/workflow-code-generation/scripts` 退出 0。
+  - [x] `python -m pytest scripts/test_check_delivery.py scripts/test_native_delivery.py scripts/test_runtime_schema.py scripts/test_profile_contracts.py scripts/tests/test_validate_change.py -q` 通过。
+  - [x] strict 同 actor、缺分离依据、实现者代写声明、P0/P1 非零、三方 subject 错配/交付前编辑均拒绝；合法 strict v2 通过。
+  - [x] v1/Verify 同名与嵌套字段仍拒绝；Production lightweight 被拒绝；缺批准/逐任务报告仍阻断。
+  - [x] 产物路径越界/链接保护与 Runtime Trust 门回归通过；`python -m compileall -q scripts skills/workflow-code-generation/scripts` 退出 0。
 - artifacts:
   - Native/Production 报告消费与交付实现、测试、v2 Git Verdict fixture
 - 子任务：
-  - [ ] 6.1：迁移档位/版本/独立性与内容交叉检查，保留旧保证边界。
-  - [ ] 6.2：按 workflow-test-generation 覆盖字段豁免反例、陈旧报告和 Profile 下限。
+  - [x] 6.1：迁移档位/版本/独立性与内容交叉检查，保留旧保证边界。
+  - [x] 6.2：按 workflow-test-generation 覆盖字段豁免反例、陈旧报告和 Profile 下限。
 
 ### 任务 7：[ ] P2：显式 Runtime 路由与兼容评测
 - 状态：未开始
@@ -569,3 +571,4 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 - Task 3: integrated `74bcf46`; 27 real VCS tests passed; full Verify PASS (count 594, baseline 574). Windows TEMP normalized through Python Path.resolve(); no baseline/config changes.
 - Task 4: implemented on `change/2048-subject` (`3e4321b`) and integrated by fast-forward plus an integration fix; 61 targeted tests pass (`scripts/test_native_subject.py`, `scripts/test_vcs.py`); full Verify PASS (`2048-task4-final.json`, count 638, baseline 574). Integration fix: a Windows symlink whose external target is missing was mislabeled `missing_symlink_target` because `Path.resolve()` substitutes the link itself for nonexistent final targets; classification now resolves the target's parent directory so the first hop stays classifiable, matching POSIX semantics, and the test creates its external target explicitly instead of relying on pytest leftovers. Environment note: this session's shell exports 8.3 short-form `TEMP` (`ADMINI~1`); the recorded P0 environment uses long-form `TEMP`, which five unrelated tests (lock path, plan gate, knowledge e2e) depend on — full Verify runs with `TEMP` normalized to long form and the 3.12 venv (`.agentic-framework/tools/venv`) on PATH. No baseline/config changes.
 - Task 5: implemented on `change/2048-verify` (`b35319f`) and integrated by fast-forward (merged tree identical to the verified commit); targeted set 191 tests + 14 subtests pass; full Verify PASS under the new v2 flow itself (count 639, baseline 574) — the run doubles as live proof that before/after subject captures stay stable across the whole scripts suite (`__pycache__`/`.pytest_cache`/report writes excluded by the Task 4 classification). Standalone reports with no capturable subject (non-VCS workspace) fail closed without writing; mid-run input edits and incomplete coverage append an error result so PASS is impossible. `quality_passed` dispatches on `schema_version`, validates via `native_delivery` (recursive forbidden-field rejection), and rejects v1 reports as new completion evidence; the Runtime envelope branch is untouched. Same-commit fix: `_extract_executable` POSIX tokenizing stripped backslashes from unquoted absolute Windows paths and marked real tools missing — now quote-aware on Windows. `check_delivery.check_native_delivery_verify` still whitelists the v1 flat shape; migrating that gate to versioned dispatch is Task 6 scope. No baseline/config changes.
+- Task 6: implemented on `change/2048-delivery` (`a1557b8`) and integrated by fast-forward (merged tree identical to the verified commit); targeted set 241 tests + 98 subtests pass; full Verify PASS (count 651, baseline 574). The gate consumes v2 review/verify only (v1 rejected as new evidence with directed messages), recomputes the current subject with `--subject-base` (default HEAD) and cross-checks Review/Verify/current before writing a verdict; pre-delivery edits and wrong bases are rejected. Profile dispatch keeps the production strict floor and requires strict when tasks declare strict; independence fields are enforced per profile by the Native contract. Non-scoped deliveries build the v2 verdict via `native_delivery.build_verdict` (git_clean + 40-hex commit_sha; CLI `hit` maps to `updated` and requires a non-empty reason); Scoped Delivery intentionally keeps the existing v1 verdict until Task 12 unifies delivery states — the v2 schema cannot express a scoped claim without asserting a false `git_clean=true`. `validate_change._validate_review_report` dispatches flat reports by version (v2 → native validator, unknown → fail closed, v1/envelope readers unchanged). `native_delivery.py`, `test_native_delivery.py`, `test_runtime_schema.py`, `test_profile_contracts.py` needed no changes; their regressions ran green unchanged. No baseline/config changes.
