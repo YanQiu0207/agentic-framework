@@ -132,26 +132,51 @@ class ExecutionRoute:
 def select_execution_route(
     review_profile: str,
     *,
+    execution_mode: str | None = None,
     parallel_worktree_write: bool = False,
     long_task_recovery: bool = False,
     cross_host_capability_verification: bool = False,
     audit_required: bool = False,
+    vcs: str | None = None,
 ) -> ExecutionRoute:
-    """Select Native Delivery unless a documented Runtime condition applies."""
+    """Select the execution path from an explicit mode plus hard requirements.
+
+    未指定 execution_mode 时默认 Native：strict 风险、并行 Worktree 写入与
+    普通恢复不再自动升级 Runtime（change 2048）。显式 runtime、项目硬性
+    审计要求（audit_required）与跨宿主验证要求是明确的 Runtime 需求；它们
+    与显式 native 冲突、或当前 VCS/能力不支持时失败关闭，不静默降级。
+    旧 parallel_worktree_write/long_task_recovery 只表示执行需求，由调用
+    方解释隔离与恢复语义，不影响路径选择。
+    """
     if review_profile not in {"lightweight", "standard", "strict"}:
         raise ValueError(f"非法 review_profile: {review_profile!r}")
-    conditions = (
-        (review_profile == "strict", "strict-risk"),
-        (parallel_worktree_write, "parallel-worktree-write"),
-        (long_task_recovery, "long-task-recovery"),
-        (cross_host_capability_verification, "cross-host-capability-verification"),
-        (audit_required, "audit-required"),
-    )
-    reasons = tuple(name for applies, name in conditions if applies)
-    return ExecutionRoute(
-        "runtime-run" if reasons else "native-delivery",
-        reasons,
-    )
+    if execution_mode is not None and execution_mode not in {"native", "runtime"}:
+        raise ValueError(
+            f"非法 execution_mode: {execution_mode!r}，必须为 native 或 runtime"
+        )
+    requirements: list[str] = []
+    if audit_required:
+        requirements.append("audit-required")
+    if cross_host_capability_verification:
+        requirements.append("cross-host-capability-verification")
+    if execution_mode == "runtime":
+        requirements.insert(0, "explicit-execution-mode")
+    if execution_mode == "native" and requirements:
+        raise ValueError(
+            "execution_mode=native 与明确 Runtime 需求冲突（"
+            + "、".join(requirements)
+            + "）；须先变更其来源约束再路由，不能在此静默放宽"
+        )
+    if requirements:
+        if vcs not in {"git"}:
+            raise ValueError(
+                "明确 Runtime 需求（"
+                + "、".join(requirements)
+                + f"）在当前 VCS（{vcs!r}）下不受支持：完整 Runtime 仅支持 Git；"
+                "由用户决定改用不带这些要求的 Native，或更换环境"
+            )
+        return ExecutionRoute("runtime-run", tuple(requirements))
+    return ExecutionRoute("native-delivery", ())
 
 
 def _states(tasks: dict[int, dict]) -> dict[int, str]:
@@ -1075,6 +1100,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         choices=("lightweight", "standard", "strict"),
         required=True,
     )
+    route_parser.add_argument(
+        "--execution-mode",
+        choices=("native", "runtime"),
+        help="显式执行模式；未指定时默认 native（change 2048）",
+    )
     route_parser.add_argument("--parallel-worktree-write", action="store_true")
     route_parser.add_argument("--long-task-recovery", action="store_true")
     route_parser.add_argument(
@@ -1259,28 +1289,35 @@ def main(argv: list[str]) -> int:
                 _require_verify_config_decision(args.tasks_md, text)
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
+                detected_vcs = _detect_vcs(_repository_root(args.tasks_md))
                 selected = select_execution_route(
                     args.review_profile,
+                    execution_mode=args.execution_mode,
                     parallel_worktree_write=args.parallel_worktree_write,
                     long_task_recovery=args.long_task_recovery,
                     cross_host_capability_verification=(
                         args.cross_host_capability_verification
                     ),
                     audit_required=args.audit_required,
+                    vcs=detected_vcs,
                 )
-                # SVN 工作副本不支持完整 Runtime Run（Runtime 只认 Git commit）；
-                # 强制降级并在 stderr 明示，升级原因保留供下游核对。
-                if (
-                    selected.path == "runtime-run"
-                    and _detect_vcs(_repository_root(args.tasks_md)) == "svn"
+                # 旧并行/恢复 flags 保留为执行需求输入：不再自动升级 Runtime，
+                # 由编排方按需使用 Worktree 隔离与恢复规划。
+                if selected.path == "native-delivery" and (
+                    args.parallel_worktree_write or args.long_task_recovery
                 ):
+                    legacy = []
+                    if args.parallel_worktree_write:
+                        legacy.append("--parallel-worktree-write")
+                    if args.long_task_recovery:
+                        legacy.append("--long-task-recovery")
                     print(
-                        "[workflow-control] 检测到 SVN 工作副本：完整 Runtime Run 仅支持 Git，"
-                        "route 强制降级为 native-delivery。",
+                        "[workflow-control] "
+                        + "、".join(legacy)
+                        + " 按执行需求记录（Worktree 隔离/恢复规划），"
+                        "不再自动升级 Runtime；需要完整执行证据时显式传"
+                        " --execution-mode runtime。",
                         file=sys.stderr,
-                    )
-                    selected = ExecutionRoute(
-                        "native-delivery", selected.runtime_upgrade_reasons
                     )
                 output = asdict(selected)
             elif args.command == "event":

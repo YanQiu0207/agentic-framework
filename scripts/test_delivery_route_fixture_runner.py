@@ -16,7 +16,7 @@ import delivery_route_fixture_runner
 class DeliveryRouteFixtureRunnerTest(unittest.TestCase):
     """Assert fixture validation and production route integration."""
 
-    def test_repository_fixtures_cover_native_and_every_runtime_upgrade(self) -> None:
+    def test_repository_fixtures_cover_route_matrix_and_rejections(self) -> None:
         fixtures_path = (
             Path(__file__).resolve().parents[1]
             / "evaluation"
@@ -26,9 +26,41 @@ class DeliveryRouteFixtureRunnerTest(unittest.TestCase):
             delivery_route_fixture_runner.load_fixtures(fixtures_path)
         )
         self.assertEqual("PASS", summary["verdict"])
-        self.assertEqual(8, summary["total"])
-        paths = {item["actual"]["path"] for item in summary["results"]}
+        self.assertEqual(19, summary["total"])
+        paths = {
+            item["actual"]["path"]
+            for item in summary["results"]
+            if "path" in item["actual"]
+        }
         self.assertEqual({"native-delivery", "runtime-run"}, paths)
+        # 冲突与不支持场景必须以显式错误断言存在，不静默降级。
+        errors = {
+            item["id"]
+            for item in summary["results"]
+            if "error" in item["actual"]
+        }
+        self.assertEqual(
+            {
+                "runtime-explicit-on-svn-rejected",
+                "runtime-audit-on-svn-rejected",
+                "runtime-on-unknown-vcs-rejected",
+                "runtime-on-unknown-vcs-without-explicit-vcs-rejected",
+                "conflict-native-with-audit-required",
+                "conflict-native-with-cross-host",
+                "invalid-execution-mode-rejected",
+            },
+            errors,
+        )
+        self.assertEqual(7, len(errors))
+        # strict / 并行 / 恢复在无 Runtime 需求时保持 Native。
+        native_ids = {
+            item["id"]
+            for item in summary["results"]
+            if item["actual"].get("path") == "native-delivery"
+        }
+        self.assertIn("native-strict-risk-no-longer-upgrades", native_ids)
+        self.assertIn("native-parallel-worktree-need", native_ids)
+        self.assertIn("native-long-task-recovery-need", native_ids)
 
     def test_mismatched_expected_route_fails_without_hiding_actual_value(self) -> None:
         result = delivery_route_fixture_runner.evaluate_fixture(
@@ -78,11 +110,50 @@ class DeliveryRouteFixtureRunnerTest(unittest.TestCase):
     def test_load_rejects_invalid_document(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "fixtures.json"
-            path.write_text(json.dumps({"schema_version": 2}), encoding="utf-8")
+            path.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
             with self.assertRaisesRegex(
                 delivery_route_fixture_runner.DeliveryRouteFixtureError, "schema_version"
             ):
                 delivery_route_fixture_runner.load_fixtures(path)
+
+    def test_expected_error_fixture_matches_and_mismatch_fails(self) -> None:
+        matched = delivery_route_fixture_runner.evaluate_fixture(
+            {
+                "id": "svn-runtime",
+                "input": {
+                    "review_profile": "standard",
+                    "execution_mode": "runtime",
+                    "vcs": "svn",
+                },
+                "expected": {"error": "仅支持 Git"},
+            }
+        )
+        self.assertEqual("PASS", matched["verdict"])
+        mismatched = delivery_route_fixture_runner.evaluate_fixture(
+            {
+                "id": "svn-runtime-wrong-message",
+                "input": {
+                    "review_profile": "standard",
+                    "execution_mode": "runtime",
+                    "vcs": "svn",
+                },
+                "expected": {"error": "别的错误"},
+            }
+        )
+        self.assertEqual("FAIL", mismatched["verdict"])
+        no_error = delivery_route_fixture_runner.evaluate_fixture(
+            {
+                "id": "expected-error-not-raised",
+                "input": {
+                    "review_profile": "standard",
+                    "execution_mode": "runtime",
+                    "vcs": "git",
+                },
+                "expected": {"error": "仅支持 Git"},
+            }
+        )
+        self.assertEqual("FAIL", no_error["verdict"])
+        self.assertEqual("runtime-run", no_error["actual"]["path"])
 
     def test_main_writes_new_result_and_refuses_to_replace_it(self) -> None:
         source = (

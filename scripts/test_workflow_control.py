@@ -214,37 +214,85 @@ class WorkflowControlTest(unittest.TestCase):
             workflow_control.select_execution_route("standard"),
         )
 
-    def test_select_execution_route_upgrades_for_every_runtime_condition(self) -> None:
-        conditions = (
-            ("strict", {}, "strict-risk"),
-            ("standard", {"parallel_worktree_write": True}, "parallel-worktree-write"),
-            ("standard", {"long_task_recovery": True}, "long-task-recovery"),
+    def test_select_execution_route_keeps_risk_and_needs_native(self) -> None:
+        # change 2048：strict 风险、并行 Worktree 与普通恢复不再自动升级。
+        for profile, kwargs in (
+            ("strict", {}),
+            ("standard", {"parallel_worktree_write": True}),
+            ("standard", {"long_task_recovery": True}),
             (
-                "standard",
-                {"cross_host_capability_verification": True},
-                "cross-host-capability-verification",
+                "strict",
+                {"parallel_worktree_write": True, "long_task_recovery": True},
             ),
-            ("standard", {"audit_required": True}, "audit-required"),
+        ):
+            with self.subTest(profile=profile, kwargs=kwargs):
+                self.assertEqual(
+                    workflow_control.ExecutionRoute("native-delivery", ()),
+                    workflow_control.select_execution_route(profile, **kwargs),
+                )
+
+    def test_select_execution_route_honors_explicit_runtime_requirements(self) -> None:
+        cases = (
+            ({"execution_mode": "runtime"}, ("explicit-execution-mode",)),
+            ({"audit_required": True}, ("audit-required",)),
+            (
+                {"cross_host_capability_verification": True},
+                ("cross-host-capability-verification",),
+            ),
+            (
+                {
+                    "execution_mode": "runtime",
+                    "parallel_worktree_write": True,
+                },
+                ("explicit-execution-mode",),
+            ),
+            (
+                {"audit_required": True, "cross_host_capability_verification": True},
+                ("audit-required", "cross-host-capability-verification"),
+            ),
         )
-        for profile, kwargs, expected_reason in conditions:
-            with self.subTest(expected_reason=expected_reason):
-                route = workflow_control.select_execution_route(profile, **kwargs)
+        for kwargs, expected_reasons in cases:
+            with self.subTest(kwargs=kwargs):
+                route = workflow_control.select_execution_route(
+                    "standard", vcs="git", **kwargs
+                )
                 self.assertEqual("runtime-run", route.path)
-                self.assertIn(expected_reason, route.runtime_upgrade_reasons)
+                self.assertEqual(expected_reasons, route.runtime_upgrade_reasons)
+
+    def test_select_execution_route_fails_closed_on_conflicts(self) -> None:
+        cases = (
+            {"execution_mode": "native", "audit_required": True},
+            {"execution_mode": "native", "cross_host_capability_verification": True},
+            {"execution_mode": "runtime", "vcs": "svn"},
+            {"audit_required": True, "vcs": "svn"},
+            {"cross_host_capability_verification": True, "vcs": "svn"},
+            {"execution_mode": "runtime", "vcs": None},
+            {"execution_mode": "runtime", "vcs": "unknown-vcs"},
+            {"execution_mode": "serverless"},
+        )
+        for kwargs in cases:
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(
+                ValueError, "execution_mode|Runtime"
+            ):
+                workflow_control.select_execution_route("standard", **kwargs)
 
     def test_route_command_reports_native_and_runtime_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
-            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="git"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
                 self.assertEqual(
                     0,
                     workflow_control.main(
-                        [str(path), "route", "--review-profile", "standard"]
+                        [str(path), "route", "--review-profile", "strict"]
                     ),
                 )
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
-            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="git"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
                 self.assertEqual(
                     0,
                     workflow_control.main(
@@ -258,13 +306,14 @@ class WorkflowControlTest(unittest.TestCase):
                     ),
                 )
             self.assertIn('"path": "runtime-run"', stdout.getvalue())
+            self.assertIn('"audit-required"', stdout.getvalue())
 
-    def test_route_command_forces_native_delivery_on_svn(self) -> None:
+    def test_route_command_explains_legacy_need_flags_without_upgrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
             with mock.patch.object(
-                workflow_control, "_detect_vcs", return_value="svn"
+                workflow_control, "_detect_vcs", return_value="git"
             ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout, mock.patch(
                 "sys.stderr", new_callable=io.StringIO
             ) as stderr:
@@ -276,13 +325,45 @@ class WorkflowControlTest(unittest.TestCase):
                             "route",
                             "--review-profile",
                             "standard",
-                            "--audit-required",
+                            "--parallel-worktree-write",
+                            "--long-task-recovery",
                         ]
                     ),
                 )
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
-            self.assertIn('"audit-required"', stdout.getvalue())
-            self.assertIn("SVN", stderr.getvalue())
+            self.assertIn("不再自动升级 Runtime", stderr.getvalue())
+
+    def test_route_command_rejects_runtime_on_svn_without_downgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(
+                    2,
+                    workflow_control.main(
+                        [
+                            str(path),
+                            "route",
+                            "--review-profile",
+                            "standard",
+                            "--audit-required",
+                        ]
+                    ),
+                )
+            self.assertIn("仅支持 Git", stderr.getvalue())
+            # 未指定 Runtime 需求时 SVN 正常走 Native。
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [str(path), "route", "--review-profile", "standard"]
+                    ),
+                )
+            self.assertIn('"path": "native-delivery"', stdout.getvalue())
 
     def test_detect_vcs_git_priority_svn_fallback_and_none(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
