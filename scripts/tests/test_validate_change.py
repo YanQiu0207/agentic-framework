@@ -2101,5 +2101,145 @@ class DeliveryEvidenceTest(unittest.TestCase):
             self.assertNotIn(token, source)
 
 
+class NativeV2ReviewDispatchTest(unittest.TestCase):
+    """change 2048：Review Report 的 v1/v2 版本分派。"""
+
+    def _report(self, repo: Path, payload: str) -> str:
+        report = repo / "review-report.json"
+        report.write_text(payload, encoding="utf-8")
+        return "review-report.json"
+
+    def test_v2_standard_and_strict_reports_are_accepted(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            subject = "sha256:" + "3" * 64
+            base = {
+                "schema_version": 2,
+                "subject_id": subject,
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            relative = self._report(repo, json.dumps(base))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(relative, repo, "integration"),
+            )
+            strict = dict(
+                base,
+                review_profile="strict",
+                implementer_actor="codex-1",
+                judge_actor="reviewer-1",
+                independence_basis="judge not the implementer",
+            )
+            relative = self._report(repo, json.dumps(strict))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(relative, repo, "integration"),
+            )
+
+    def test_v2_contract_violations_are_reported(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            subject = "sha256:" + "3" * 64
+            base = {
+                "schema_version": 2,
+                "subject_id": subject,
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            cases = {
+                "strict_missing_independence": dict(
+                    base, review_profile="strict"
+                ),
+                "standard_claims_independence": dict(
+                    base, judge_actor="external"
+                ),
+                "missing_subject": {
+                    key: value
+                    for key, value in base.items()
+                    if key != "subject_id"
+                },
+            }
+            for name, payload in cases.items():
+                with self.subTest(case=name):
+                    relative = self._report(repo, json.dumps(payload))
+                    errors = validate_change._validate_review_report(
+                        relative, repo, "integration"
+                    )
+                    self.assertTrue(errors)
+                    self.assertIn("Native v2 合同", " ".join(errors))
+
+    def test_unknown_version_fails_closed_and_v1_legacy_stays_readable(
+        self,
+    ) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            unknown = {
+                "schema_version": 3,
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            relative = self._report(repo, json.dumps(unknown))
+            errors = validate_change._validate_review_report(
+                relative, repo, "integration"
+            )
+            self.assertIn("schema_version 非法", " ".join(errors))
+
+            legacy = {
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            relative = self._report(repo, json.dumps(legacy))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(
+                    relative, repo, "integration"
+                ),
+            )
+
+            envelope = {
+                "schema_version": 1,
+                "artifact_type": "review-report",
+                "artifact_id": "review-1-1",
+                "run_id": "run-1",
+                "task_id": "1",
+                "attempt": 1,
+                "profile": "tooling",
+                "harness": "codex",
+                "producer": "workflow-code-review",
+                "commit_sha": "1" * 40,
+                "config_digest": "sha256:" + "2" * 64,
+                "created_at": "2026-07-19T12:00:00Z",
+                "payload": dict(legacy, scope="run"),
+            }
+            relative = self._report(repo, json.dumps(envelope))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(relative, repo, "run"),
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

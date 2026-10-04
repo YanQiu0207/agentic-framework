@@ -12,6 +12,9 @@ Fast-Path 兼容别名（无 spec / tasks）还必须传 lightweight integration
 独立 Verify 报告与结构化知识影响结论；`none` 必须附理由。
 Native Delivery 使用标准 integration Review 与独立 Verify；只有完整 Runtime Run 使用
 scope=run、strict Review 与 Run-bound Artifact。
+Native 证据为 v2 合同（顶层 schema_version=2 与 subject_id）：交付门重算当前
+内容主体并交叉核对 Review/Verify/当前三方一致（`--subject-base` 须与 Verify 的
+--diff-base 一致）；旧 v1 报告只按旧合同展示历史，不能作为新交付证据。
 非 0 退出即禁止宣布交付；输出应原样贴进交付报告。
 """
 
@@ -32,8 +35,11 @@ import lint_task_deps
 _FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
 if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
+import native_delivery
+import native_subject
 import runtime_workflow
 import runtime_schema
+import vcs
 import workspace_residue
 import knowledge_sync
 import governance_profile
@@ -141,78 +147,44 @@ def check_review_report(
     return errors
 
 
-def check_fast_path_review(path: Path) -> list[str]:
-    """Legacy Fast-Path is a Native Delivery alias with lightweight review."""
-    found = check_review_report(
-        path,
-        run_dir=None,
-        expected_scope="integration",
-        expected_profile="lightweight",
-    )
-    if found:
-        return found
-    report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    unexpected = sorted(set(report) - NATIVE_DELIVERY_REVIEW_FIELDS)
-    if unexpected:
-        return ["Fast-Path Review 包含无 Run 合同外字段：" + ", ".join(unexpected)]
-    return []
-
-
-NATIVE_DELIVERY_REVIEW_FIELDS = {
-    "verdict",
-    "p0_count",
-    "p1_count",
-    "scope",
-    "review_profile",
-    "round",
-}
-NATIVE_DELIVERY_VERIFY_FIELDS = {
-    "verdict",
-    "total",
-    "errors",
-    "violations",
-    "spec_drift",
-    "warnings",
-    "results",
-}
-
-
-def check_native_delivery_review(
-    path: Path, expected_profile: str = "standard"
-) -> list[str]:
-    """Require an unbound integration review at the expected profile.
-
-    `standard` 是 Native Delivery 的合同档位；production 下由 change 2043
-    的集成守卫提升为 `strict`（五维集成审核）。
-    """
-    found = check_review_report(
-        path,
-        expected_scope="integration",
-        expected_profile=expected_profile,
-    )
-    if found:
-        return found
+def _load_native_report(path: Path, label: str) -> tuple[dict | None, list[str]]:
+    """Parse one Native v2 report file with directed errors."""
+    if not path.is_file():
+        return None, [f"找不到{label}报告 {path}"]
     try:
         report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        return [f"Native Delivery Review 报告解析失败：{error}"]
-    unexpected = sorted(set(report) - NATIVE_DELIVERY_REVIEW_FIELDS)
-    if unexpected:
+        return None, [f"{label}报告解析失败：{error}"]
+    if not isinstance(report, dict):
+        return None, [f"{label}报告顶层结构必须是 JSON 对象"]
+    return report, []
+
+
+def check_fast_path_review(path: Path) -> list[str]:
+    """Legacy Fast-Path is a Native Delivery alias with lightweight review.
+
+    新证据为 v2 合同（含内容主体绑定）；旧六字段报告只按旧合同展示
+    历史，不能作为新的交付证据。
+    """
+    report, errors = _load_native_report(path, "Fast-Path Review")
+    if report is None:
+        return errors
+    if report.get("schema_version") != 2:
         return [
-            "Native Delivery Review 包含无 Run 合同外字段："
-            + ", ".join(unexpected)
+            "Fast-Path Review 必须为 schema_version 2 的 Native 报告，实际为 "
+            f"{report.get('schema_version')!r}；旧六字段报告不能作为新交付证据"
         ]
+    try:
+        native_delivery.validate_review_report(report, "lightweight")
+    except native_delivery.NativeDeliveryError as error:
+        return [f"Fast-Path Review 未通过 Native v2 合同：{error}"]
+    if report.get("scope") != "integration":
+        return [f"Fast-Path Review scope 必须为 integration：{report.get('scope')!r}"]
+    if report.get("verdict") != "PASS":
+        return [f"Fast-Path Review verdict 不是 PASS：{report.get('verdict')!r}"]
     return []
 
 
-NATIVE_DELIVERY_VERIFY_RESULT_FIELDS = {
-    "name",
-    "type",
-    "status",
-    "detail",
-    "value",
-    "new_items",
-}
 NATIVE_DELIVERY_FORBIDDEN_CLAIM_FIELDS = {
     "run_id",
     "harness",
@@ -241,82 +213,86 @@ def _find_native_forbidden_claim_fields(value: object) -> list[str]:
     return sorted(found)
 
 
-def _check_native_verify_result(value: object, label: str) -> list[str]:
-    """Validate the flat check-result shape emitted by workflow-verification."""
-    if not isinstance(value, dict):
-        return [f"Native Delivery Verify {label} 必须为对象"]
-    missing = sorted(NATIVE_DELIVERY_VERIFY_RESULT_FIELDS - set(value))
-    if missing:
+def check_native_delivery_review(
+    path: Path, expected_profile: str = "standard"
+) -> list[str]:
+    """Require a subject-bound v2 integration review at the expected profile.
+
+    v2 strict 顶层三项独立性字段（implementer_actor / judge_actor /
+    independence_basis）由 Native 合同按档位强制；standard / lightweight
+    携带独立性字段即拒绝。旧六字段报告只按旧合同展示历史，不能作为新
+    交付证据。
+    """
+    report, errors = _load_native_report(path, "Native Delivery Review")
+    if report is None:
+        return errors
+    if report.get("schema_version") != 2:
         return [
-            f"Native Delivery Verify {label} 缺少必填字段："
-            + ", ".join(missing)
+            "Native Delivery Review 必须为 schema_version 2 的 Native 报告，"
+            f"实际为 {report.get('schema_version')!r}；"
+            "旧六字段报告不能作为新交付证据"
         ]
-    unexpected = sorted(set(value) - NATIVE_DELIVERY_VERIFY_RESULT_FIELDS)
-    if unexpected:
-        return [
-            f"Native Delivery Verify {label} 包含合同外字段："
-            + ", ".join(unexpected)
-        ]
-    forbidden = _find_native_forbidden_claim_fields(value)
-    if forbidden:
-        return [
-            f"Native Delivery Verify {label} 包含 Runtime、Trust 或严格独立性字段："
-            + ", ".join(forbidden)
-        ]
-    for field in ("name", "type", "detail"):
-        if not isinstance(value[field], str):
-            return [f"Native Delivery Verify {label}.{field} 必须为字符串"]
-    if not isinstance(value["new_items"], list) or any(
-        not isinstance(item, str) for item in value["new_items"]
-    ):
-        return [f"Native Delivery Verify {label}.new_items 必须为字符串数组"]
-    return []
+    errors = []
+    try:
+        native_delivery.validate_review_report(report, expected_profile)
+    except native_delivery.NativeDeliveryError as error:
+        errors.append(f"Native Delivery Review 未通过 Native v2 合同：{error}")
+    if report.get("scope") != "integration":
+        errors.append(
+            "Native Delivery Review scope 必须为 integration："
+            f"{report.get('scope')!r}"
+        )
+    if report.get("verdict") != "PASS":
+        errors.append(
+            f"Native Delivery Review verdict 不是 PASS：{report.get('verdict')!r}"
+        )
+    for field in ("p0_count", "p1_count"):
+        count = report.get(field)
+        if not isinstance(count, int) or isinstance(count, bool) or count != 0:
+            errors.append(
+                f"Native Delivery Review {field} 必须为整数 0：{count!r}"
+            )
+    return errors
 
 
 def check_native_delivery_verify(path: Path) -> list[str]:
-    """Require a flat verify report without Runtime or Trust declarations."""
-    found = check_verify_report(path)
-    if found:
-        return found
-    try:
-        report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        return [f"Native Delivery Verify 报告解析失败：{error}"]
-    unexpected = sorted(set(report) - NATIVE_DELIVERY_VERIFY_FIELDS)
-    if unexpected:
-        return [
-            "Native Delivery Verify 包含无 Run 合同外字段："
-            + ", ".join(unexpected)
-        ]
+    """Require a subject-bound Native v2 verify report.
 
-    errors: list[str] = []
-    results = report.get("results")
-    total = report.get("total")
-    if not isinstance(total, int) or isinstance(total, bool) or total <= 0:
-        errors.append("Native Delivery Verify total 必须为正整数")
-    if not isinstance(results, list) or not results:
-        errors.append("Native Delivery Verify results 必须为非空数组")
-    else:
-        if total != len(results):
-            errors.append("Native Delivery Verify total 必须等于 results 数量")
-        for index, result in enumerate(results):
-            errors.extend(_check_native_verify_result(result, f"results[{index}]"))
-            if isinstance(result, dict) and result.get("status") != "pass":
-                errors.append(
-                    f"Native Delivery Verify results[{index}].status 必须为 pass"
-                )
-    spec_drift = report.get("spec_drift")
-    if spec_drift is None:
-        errors.append("Native Delivery Verify spec_drift 必须为完整的 pass CheckResult")
-    else:
-        errors.extend(_check_native_verify_result(spec_drift, "spec_drift"))
-        if isinstance(spec_drift, dict) and spec_drift.get("status") != "pass":
-            errors.append("Native Delivery Verify spec_drift.status 必须为 pass")
-    warnings = report.get("warnings")
-    if not isinstance(warnings, list) or any(
-        not isinstance(warning, str) for warning in warnings
-    ):
-        errors.append("Native Delivery Verify warnings 必须为字符串数组")
+    v2 合同校验结构、汇总一致性、spec_drift==results[0] 与递归独立性
+    禁止集；本门额外要求 verdict=PASS 且所有结果 pass。旧 v1 扁平报告
+    无内容绑定，不能作为新交付证据。
+    """
+    report, errors = _load_native_report(path, "Native Delivery Verify")
+    if report is None:
+        return errors
+    if report.get("schema_version") != 2:
+        return [
+            "Native Delivery Verify 必须为 schema_version 2 的 Native 报告，"
+            f"实际为 {report.get('schema_version')!r}；"
+            "旧 v1 报告无内容绑定，请重跑 workflow-verification 取得新证据"
+        ]
+    try:
+        native_delivery.validate_verify_report(report)
+    except native_delivery.NativeDeliveryError as error:
+        return [f"Native Delivery Verify 未通过 Native v2 合同：{error}"]
+    errors = []
+    if report.get("verdict") != "PASS":
+        errors.append(
+            f"Native Delivery Verify verdict 非 PASS：{report.get('verdict')!r}"
+        )
+    for index, result in enumerate(report["results"]):
+        if result.get("status") != "pass":
+            errors.append(
+                f"Native Delivery Verify results[{index}].status 必须为 pass"
+            )
+    if report["spec_drift"].get("status") != "pass":
+        errors.append("Native Delivery Verify spec_drift.status 必须为 pass")
+    forbidden = _find_native_forbidden_claim_fields(report)
+    if forbidden:
+        errors.append(
+            "Native Delivery Verify 包含 Runtime、Trust 或严格独立性字段："
+            + ", ".join(forbidden)
+        )
     return errors
 
 def _is_relative_to(path: Path, parent: Path) -> bool:
@@ -376,26 +352,6 @@ def check_native_delivery_verdict_path(
     if result.returncode == 1:
         return ["--native-delivery-verdict 必须被 Git 忽略"]
     return [f"git check-ignore 执行失败：{result.stderr.strip()}"]
-
-
-def check_verify_report(path: Path) -> list[str]:
-    """Unbound delivery paths require a PASS machine verification report."""
-    if not path.is_file():
-        return [f"找不到机器验证报告 {path}（先跑 workflow-verification）"]
-    try:
-        report = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        return [f"机器验证报告解析失败：{error}"]
-    if not isinstance(report, dict):
-        return ["机器验证报告顶层结构必须是 JSON 对象"]
-    errors: list[str] = []
-    if report.get("verdict") != "PASS":
-        errors.append(f"机器验证 verdict 非 PASS：{report.get('verdict')!r}")
-    for field in ("errors", "violations"):
-        value = report.get(field)
-        if not isinstance(value, int) or isinstance(value, bool) or value != 0:
-            errors.append(f"机器验证 {field} 必须为整数 0：{value!r}")
-    return errors
 
 
 def check_scoped_delivery(
@@ -479,6 +435,34 @@ def check_review_profile_floor(
         f"任务 {lightweight_ids[0]} 的 review_profile 为 lightweight，"
         f"低于 {profile} 下限 {governance_profile.review_profile_floor(profile)}"
     ]
+
+
+def _declared_review_profiles(tasks_path: Path) -> set[str]:
+    """Collect the review_profile values declared by the tasks."""
+    tasks = lint_task_deps.parse_tasks(
+        tasks_path.read_text(encoding="utf-8", errors="replace")
+    )
+    return {
+        value
+        for _tid, info in tasks.items()
+        for _name, value, _offset in info["review_profile_fields"]
+    }
+
+
+def _current_subject(repo: Path, base: str) -> tuple[dict | None, list[str]]:
+    """Recompute the current Native subject for delivery-time binding."""
+    try:
+        subject = native_subject.capture_subject(repo, base)
+    except (native_subject.SubjectError, vcs.VcsError) as error:
+        return None, [
+            "无法重算当前内容主体（"
+            f"{getattr(error, 'code', None) or type(error).__name__}: {error}），"
+            "Native Delivery 需要可绑定的内容标识"
+        ]
+    if not subject["complete"]:
+        shown = "; ".join(subject["limitations"][:5])
+        return None, [f"当前内容主体覆盖不完整：{shown}"]
+    return subject, []
 
 
 def check_knowledge_impact(impact: str | None, reason: str) -> list[str]:
@@ -636,6 +620,11 @@ def main(argv: list[str]) -> int:
         "--governance-profile",
         choices=("production", "tooling"),
         help="显式指定治理 Profile（覆盖 manifest 读取）",
+    )
+    parser.add_argument(
+        "--subject-base",
+        default="HEAD",
+        help="重算当前内容主体的固定基准；须与 Verify 运行时的 --diff-base 一致",
     )
     args = parser.parse_args(argv)
 
@@ -811,8 +800,13 @@ def main(argv: list[str]) -> int:
         except governance_profile.GovernanceProfileError as error:
             delivery_profile = None
             errors.append(f"无法取得治理 Profile：{error}")
+        # Production 下限 strict；Tooling 默认 standard，但任务自身声明
+        # strict 时按实际风险档位要求 strict（独立 Judge 证据随之强制）。
+        declared_profiles = _declared_review_profiles(args.tasks)
         expected_integration_profile = (
-            "strict" if delivery_profile == "production" else "standard"
+            "strict"
+            if delivery_profile == "production" or "strict" in declared_profiles
+            else "standard"
         )
         found = check_native_delivery_review(
             args.review_report, expected_integration_profile
@@ -831,6 +825,44 @@ def main(argv: list[str]) -> int:
             if verify_errors
             else "PASS   Native Delivery 机器验证报告 verdict=PASS"
         )
+        # 三方内容一致性（change 2048）：交付门重算当前 subject，与两份
+        # v2 报告交叉核对；交付前编辑或检查基准不同都会被拒绝。
+        checks += 1
+        native_subject_capture: dict | None = None
+        native_verify_report: dict | None = None
+        native_review_report: dict | None = None
+        if not found and not verify_errors:
+            native_subject_capture, subject_errors = _current_subject(
+                args.repo, args.subject_base
+            )
+            if subject_errors:
+                errors.extend(subject_errors)
+                print("ERROR  " + "；".join(subject_errors))
+            else:
+                native_verify_report, _ = _load_native_report(
+                    args.verify_report, "Native Delivery Verify"
+                )
+                native_review_report, _ = _load_native_report(
+                    args.review_report, "Native Delivery Review"
+                )
+                subject_mismatches = []
+                for label, report in (
+                    ("Verify", native_verify_report),
+                    ("Review", native_review_report),
+                ):
+                    if report["subject_id"] != native_subject_capture["subject_id"]:
+                        subject_mismatches.append(
+                            f"{label} 报告与当前内容不一致"
+                            f"（报告 {report['subject_id'][:19]}…，"
+                            f"当前 {native_subject_capture['subject_id'][:19]}…）；"
+                            "交付前内容变化或检查基准不同，"
+                            "请对当前内容重跑受影响的 Verify/Review"
+                        )
+                if subject_mismatches:
+                    errors.extend(subject_mismatches)
+                    print("ERROR  " + "；".join(subject_mismatches))
+                else:
+                    print("PASS   Review/Verify/当前内容三方 subject 一致")
     else:
         found = check_fast_path_review(args.review_report)
         errors.extend(found)
@@ -892,43 +924,102 @@ def main(argv: list[str]) -> int:
             errors.append(str(error))
             print(f"ERROR  Runtime 证据链：{error}")
     elif not errors and args.native_delivery:
-        try:
-            verdict = runtime_schema.build_native_delivery_verdict(
-                str(args.review_report.resolve()),
-                str(args.verify_report.resolve()),
-                args.knowledge_impact,
-                args.knowledge_impact_reason.strip(),
-                args.scoped_delivery,
-            )
-            write_native_delivery_verdict(args.native_delivery_verdict, verdict)
-            if args.scoped_delivery:
+        if args.scoped_delivery:
+            # Scoped Delivery 维持既有 v1 Verdict：范围声明与预存残留证据
+            # 在冻结基线中；v2 统一交付状态由后续 SVN 交付任务处理。
+            try:
+                verdict = runtime_schema.build_native_delivery_verdict(
+                    str(args.review_report.resolve()),
+                    str(args.verify_report.resolve()),
+                    args.knowledge_impact,
+                    args.knowledge_impact_reason.strip(),
+                    True,
+                )
+                write_native_delivery_verdict(args.native_delivery_verdict, verdict)
                 post_write_errors = check_scoped_delivery(
                     args.repo,
                     args.workspace_residue_baseline,
                     args.delivery_commit,
                     args.delivery_revision,
                 )
-            else:
+                if post_write_errors:
+                    checks += 1
+                    errors.extend(post_write_errors)
+                    print("ERROR  " + "；".join(post_write_errors))
+                else:
+                    checks += 1
+                    print("PASS   Native Delivery 裁决：scoped-delivery-pass")
+                    print(
+                        "       verified_claims: "
+                        + ", ".join(verdict["verified_claims"])
+                    )
+                    print(
+                        "       unprovable_claims: "
+                        + ", ".join(verdict["unprovable_claims"])
+                    )
+            except (OSError, runtime_schema.RuntimeSchemaError) as error:
+                checks += 1
+                errors.append(f"Native Delivery Verdict 写入失败：{error}")
+                print(f"ERROR  Native Delivery Verdict 写入失败：{error}")
+        else:
+            try:
+                reason = args.knowledge_impact_reason.strip()
+                if args.knowledge_impact == "hit" and not reason:
+                    raise native_delivery.NativeDeliveryError(
+                        "--knowledge-impact hit 生成 v2 Verdict 需要非空"
+                        " --knowledge-impact-reason（说明更新了哪条知识）"
+                    )
+                head_result = subprocess.run(
+                    ["git", "-C", str(args.repo), "rev-parse", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                if head_result.returncode != 0:
+                    raise native_delivery.NativeDeliveryError(
+                        f"无法读取交付提交 HEAD：{head_result.stderr.strip()}"
+                    )
+                verdict = native_delivery.build_verdict(
+                    native_verify_report,
+                    native_review_report,
+                    subject_id=native_subject_capture["subject_id"],
+                    vcs="git",
+                    delivery_evidence={
+                        "git_clean": True,
+                        "commit_sha": head_result.stdout.strip(),
+                    },
+                    verify_report_path=str(args.verify_report.resolve()),
+                    review_report_path=str(args.review_report.resolve()),
+                    knowledge_impact=(
+                        "updated" if args.knowledge_impact == "hit" else "none"
+                    ),
+                    knowledge_impact_reason=reason,
+                )
+                write_native_delivery_verdict(args.native_delivery_verdict, verdict)
                 post_write_errors = check_git_clean(args.repo)
-            if post_write_errors:
+                if post_write_errors:
+                    checks += 1
+                    errors.extend(post_write_errors)
+                    print("ERROR  " + "；".join(post_write_errors))
+                else:
+                    checks += 1
+                    print(f"PASS   Native Delivery 裁决：{verdict['verdict']}")
+                    print(
+                        "       verified_claims: "
+                        + ", ".join(verdict["verified_claims"])
+                    )
+                    print(
+                        "       unprovable_claims: "
+                        + ", ".join(verdict["unprovable_claims"])
+                    )
+            except (
+                OSError,
+                native_delivery.NativeDeliveryError,
+            ) as error:
                 checks += 1
-                errors.extend(post_write_errors)
-                print("ERROR  " + "；".join(post_write_errors))
-            else:
-                checks += 1
-                print("PASS   Native Delivery 裁决：native-delivery-pass")
-                print(
-                    "       verified_claims: "
-                    + ", ".join(verdict["verified_claims"])
-                )
-                print(
-                    "       unprovable_claims: "
-                    + ", ".join(verdict["unprovable_claims"])
-                )
-        except (OSError, runtime_schema.RuntimeSchemaError) as error:
-            checks += 1
-            errors.append(f"Native Delivery Verdict 写入失败：{error}")
-            print(f"ERROR  Native Delivery Verdict 写入失败：{error}")
+                errors.append(f"Native Delivery Verdict 写入失败：{error}")
+                print(f"ERROR  Native Delivery Verdict 写入失败：{error}")
     elif not errors:
         checks += 1
         print("PASS   Fast-Path 兼容别名交付裁决：fast-path-pass")

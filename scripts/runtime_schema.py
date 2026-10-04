@@ -105,7 +105,13 @@ def build_native_delivery_verdict(
     knowledge_impact_reason: str,
     scoped_delivery: bool = False,
 ) -> dict[str, Any]:
-    """Build the bounded verdict for a Native Delivery without a Runtime Run."""
+    """Build the bounded verdict for a Native Delivery without a Runtime Run.
+
+    Legacy v1 entry: emits the subject-free flat verdict consumed by the
+    Scoped Delivery path. New subject-bound deliveries build the versioned
+    v2 verdict through ``native_delivery.build_verdict``; this v1 entry and
+    its Runtime validators keep their original contracts (change 2048).
+    """
     evidence = {
         "review_report": review_report,
         "verify_report": verify_report,

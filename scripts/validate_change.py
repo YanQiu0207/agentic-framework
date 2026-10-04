@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import knowledge_sync
+import native_delivery
 import task_ast
 import workspace_residue
 import governance_profile
@@ -301,6 +302,23 @@ def _validate_review_report(
             )
         label = "Review Report（扁平格式）"
         fields = data
+
+    # 版本分派（change 2048）：v2 扁平报告按 Native 合同校验（档位独立性
+    # 字段、subject 绑定与递归禁止集）；未知版本失败关闭。v1 六字段与
+    # Runtime Envelope 继续按旧读路径评估，不推断独立 Judge 或内容绑定证据。
+    if payload is None and isinstance(data.get("schema_version"), int):
+        version = data["schema_version"]
+        if version != 2:
+            errors.append(
+                f"{label}的 schema_version 非法，当前为 {version!r}，"
+                "扁平报告仅支持 2（Native v2）。"
+            )
+        else:
+            label = "Review Report（Native v2）"
+            try:
+                native_delivery.validate_review_report(data)
+            except native_delivery.NativeDeliveryError as error:
+                errors.append(f"{label}未通过 Native v2 合同：{error}。")
 
     verdict = fields.get("verdict")
     if verdict != "PASS":
