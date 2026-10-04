@@ -2,10 +2,12 @@
 
 > 由 proposal.md / design.md / review-notes.md 生成
 > 任务总数：17
-> 状态：执行中；隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
+> 状态：任务 1–10 完成；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
 > 核心原则：先建合同与公共接口，再迁移消费者和路由，最后补齐 SVN、回归与交付；P1/P2 同批发布。
 
 用户已通过“开始处理”授权执行本清单。设计的文档复审 PASS 不等于代码 Review PASS。执行期间冻结既有 Verify 配置和基线；规则随对应任务的实现与验证同步更新。
+
+用户后续要求 codex-1 完成当前 Task 10 后，将剩余 Task 11–17 全部交给 reviewer-1 实施。原范围、依赖、验证与最终独立 strict Review 要求不变；整体目标尚未完成。
 
 ## 依赖关系总览
 
@@ -328,10 +330,10 @@ P4                                         ↓
 - 子任务：
   - [x] 9.1：依现有语言风格更新默认流程、进阶读指针和示例。
   - [x] 9.2：运行引用/触发/档位校验，确认 P1/P2 同批发布可完整使用。
-### 任务 10：[ ] P3：SVN Adapter、工作副本限制与内容表示
-- 状态：进行中
+### 任务 10：[x] P3：SVN Adapter、工作副本限制与内容表示
+- 状态：完成
 - attempts：0
-- control_stage：running
+- control_stage：completed
 - 文件：`scripts/vcs.py`、`scripts/test_vcs.py`、`scripts/native_subject.py`、`scripts/test_native_subject.py`（修改）
 - depends_on: Task 9
 - review_profile: strict
@@ -343,14 +345,14 @@ P4                                         ↓
   - `skills/workflow-verification/scripts/verify.py:_svn_status_changes` — 未来消费者
   - `scripts/test_workspace_residue.py` — 已有 SVN 测试经验
 - verification:
-  - [ ] `python -m pytest scripts/test_vcs.py scripts/test_native_subject.py -q` 通过；本地 svnadmin 仓库真实运行，不以缺工具 skip 完成。
-  - [ ] 两 WC 测正常/混合版本/冲突/属性/二进制/空目录/重命名删除、EOL/keywords；异常 UUID/URL/网络/解析返回具体错误。
-  - [ ] switched/sparse/externals 检出被明确限制；spy 断言查询无 SVN 写入；`python -m compileall -q scripts` 退出 0。
+  - [x] `python -m pytest scripts/test_vcs.py scripts/test_native_subject.py -q` 通过；本地 svnadmin 仓库真实运行，不以缺工具 skip 完成。
+  - [x] 两 WC 测正常/混合版本/冲突/属性/二进制/空目录/重命名删除、EOL/keywords；异常 UUID/URL/网络/解析返回具体错误。
+  - [x] switched/sparse/externals 检出被明确限制；spy 断言查询无 SVN 写入；`python -m compileall -q scripts` 退出 0。
 - artifacts:
   - SvnAdapter、内容表示与真实 fixtures/tests
 - 子任务：
-  - [ ] 10.1：实现身份、节点状态、支持范围和表示转换。
-  - [ ] 10.2：按 workflow-test-generation 测真实 SVN 正常与限制场景。
+  - [x] 10.1：实现身份、节点状态、支持范围和表示转换。
+  - [x] 10.2：按 workflow-test-generation 测真实 SVN 正常与限制场景。
 
 ### 任务 11：[ ] P3：SVN Verify、状态与预存残留整合
 - 状态：未开始
@@ -583,3 +585,6 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 - Task 7: implemented on `change/2048-routing` (`dce7032`) and integrated by fast-forward; targeted set 114 tests + 24 subtests pass, fixture runner 19/19 PASS, full Verify PASS (count 655, baseline 574). `select_execution_route` keys on `execution_mode` (default native): strict/parallel/recovery never auto-upgrade; explicit runtime, `audit_required`, and cross-host remain the only Runtime requirements and fail closed on explicit-native conflicts, SVN, or unknown VCS (the old silent SVN downgrade is removed — route now exits 2 with a directed error). Legacy parallel/recovery flags are accepted as execution needs with a stderr explanation; old return fields keep their shape. Fixtures moved to schema 2 with `execution_mode`/`vcs` inputs and `expected.error` assertions for the seven rejection cases. `downgrade_equivalence.py` needed no change (governance-downgrade comparison untouched); existing-Run mode preservation stays covered by the unchanged Runtime regression suite, with Native recovery facts landing in Task 8. Spec deltas created for workflow-control, runtime spec, and trust-model. No baseline/config changes.
 - Task 8: implemented on `change/2048-recovery` (`7147483`) and integrated by fast-forward; targeted set 121 tests + 24 subtests pass; full Verify PASS (count 660, baseline 574). `merge_success` on the Native path prints the local-integration semantics (not an SVN remote commit; formal delivery is gate-verified against an exact revision); `recover` prints its read-only contract and the SVN serial-write discipline; the inspect action now names the evidence to verify (artifacts/verify reports/integration content, not conversational claims). New tests: repeat-run spy asserting no external write commands (only read-only probes), no `initialize_run` during recovery, notes on stderr, evidence wording. Existing failure/blocking/approval/dependency propagation stayed green unchanged; existing-Run tasks keep the Runtime path per the unchanged regression suite. No baseline/config changes.
 - Task 9: implemented on `change/2048-skills` (`51267b5`) and integrated by fast-forward; 16 profile-contract tests + graph lint pass (0 errors/0 warnings), full Verify PASS (count 666, baseline 574). Core skills/references now state the explicit-routing contract (Runtime only via --execution-mode runtime / hard audit / cross-host; strict = Native strict Review with an independent Judge; serial tasks run directly without sub-agents/waves/probing; recovery is read-only and fact-based), review report-format pins the v2 flat contract with strict independence fields and history-only v1, verification skill documents subject-bound v2 reports and the gate's --subject-base three-way check. Re-review cap wording aligned to ten rounds while the delegated guide keeps the task-level attempts budget as a separate count. Trigger cases gained behavior rows (R-1..R-7, V-1..V-6, S-1..S-6); `NativeFirstRoutingContractTest` pins the new wording and forbids the retired phrases (grep-verified: 必定升级/恢复本身是 Runtime/最多两轮 no longer appear under skills/). No baseline/config changes. P1+P2 batch is now complete on the integration branch.
+
+- Task 10: integrated `49c95af`; four authorized files only. Full Verify PASS (`.agentic-framework/verify/2048-task10-final.json`), B-tests-pass exit 0 / 287.0s against the unchanged 300s limit, count 679 >= baseline 574, graph/spec-drift PASS. SVN focused 17 passed / 35.30s, compileall/diffcheck PASS. Original timeout preserved as `2048-task10-timeout.json`. Post-commit source subject was rechecked equal to report: `sha256:de765c227a06223ed5644067b6ccf8c9558bfa6ceaaae4fac5f6ff2071346a11`. This is task-level evidence at the implementation commit, not the final delivery report after later documentation changes.
+- User-directed handoff: reviewer-1 owns remaining Tasks 11-17; codex-1 stops implementing them after Task 10. Handoff document: `E:/work/agentic-framework/.agentic-framework/verify/2048-handoff-to-reviewer-1.md`. No final code Review or delivery gate has been claimed.
