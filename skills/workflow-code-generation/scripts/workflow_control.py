@@ -755,7 +755,12 @@ def _recovery_action_for(
     if state == "进行中" and task_id in merged_task_ids:
         return RecoveryAction(task_id, "complete", "任务分支已合并")
     if state == "进行中":
-        return RecoveryAction(task_id, "inspect", "任务未合并，检查产物和质量门")
+        return RecoveryAction(
+            task_id,
+            "inspect",
+            "任务未合并，需核对：以实际产物、验证报告与集成内容为准，"
+            "不依赖对话中的完成声明；无副作用的验证可重跑",
+        )
     if state == "阻塞" and deps_complete:
         return RecoveryAction(task_id, "unblock", "全部上游已完成")
     if state == "未开始" and deps_complete:
@@ -1277,6 +1282,14 @@ def main(argv: list[str]) -> int:
                             attempt,
                         )
                     _write_decisions(args.tasks_md, text, [decision])
+                    if args.event == "merge_success" and args.run_dir is None:
+                        # change 2048：本地集成语义——正式交付由交付门另行核验。
+                        print(
+                            "[workflow-control] merge_success 仅表示任务结果已纳入"
+                            "本地集成内容，不等于 SVN 远程提交；正式交付由交付门按"
+                            "确切 revision 核验。",
+                            file=sys.stderr,
+                        )
                 else:
                     decisions = propagate_blocked(tasks)
                     output = [asdict(decision) for decision in decisions]
@@ -1339,6 +1352,18 @@ def main(argv: list[str]) -> int:
                 output = [asdict(decision) for decision in decisions]
             elif args.command == "recover":
                 _require_verify_config_decision(args.tasks_md, text)
+                detected_vcs = _detect_vcs(_repository_root(args.tasks_md))
+                print(
+                    "[workflow-control] recover 只读：核对 tasks 与调用方提供的集成"
+                    "事实，不创建 Run、不补历史、不执行 update/commit。",
+                    file=sys.stderr,
+                )
+                if detected_vcs == "svn":
+                    print(
+                        "[workflow-control] SVN 工作副本按串行写入恢复：计划中的"
+                        "更新/提交只由明确的工作流步骤执行，恢复不代执行。",
+                        file=sys.stderr,
+                    )
                 output = [
                     asdict(action) for action in plan_recovery(tasks, set(args.merged))
                 ]

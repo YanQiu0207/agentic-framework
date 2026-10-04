@@ -1562,3 +1562,111 @@ class WritePathUnificationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NativeRecoverySemanticsTest(unittest.TestCase):
+    """change 2048 Task 8：本地集成语义与只读恢复。"""
+
+    def _tasks_with_config(self, temp_dir: str) -> Path:
+        path = Path(temp_dir) / "tasks.md"
+        path.write_text(tasks_text({1: "进行中", 2: "未开始"}, {1: [], 2: [1]}), encoding="utf-8")
+        (Path(temp_dir) / "verify.config.json").write_text("{}", encoding="utf-8")
+        return path
+
+    def test_merge_success_documented_as_local_integration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = self._tasks_with_config(temp_dir)
+            report = root / "verify-report.json"
+            report.write_text(json.dumps(standalone_verify_report()), encoding="utf-8")
+            self.assertEqual(
+                0,
+                workflow_control.main(
+                    [str(path), "event", "1", "quality_passed", "--write",
+                     "--verify-report", str(report)]
+                ),
+            )
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [
+                            "--governance-profile",
+                            "tooling",
+                            str(path),
+                            "event",
+                            "1",
+                            "merge_success",
+                            "--write",
+                        ]
+                    ),
+                )
+            self.assertIn("本地集成", stderr.getvalue())
+            self.assertIn("不等于 SVN 远程提交", stderr.getvalue())
+
+    def test_recover_is_read_only_and_repeatable_without_external_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            original = path.read_text(encoding="utf-8")
+            commands: list[list[str]] = []
+            real_run = subprocess.run
+
+            def spy_run(args, *call_args, **kwargs):
+                if isinstance(args, (list, tuple)) and args:
+                    commands.append(list(args))
+                kwargs.setdefault("capture_output", True)
+                return real_run(args, *call_args, **kwargs)
+
+            outputs = []
+            with mock.patch.object(
+                workflow_control.subprocess, "run", side_effect=spy_run
+            ):
+                for _ in range(2):
+                    with mock.patch(
+                        "sys.stdout", new_callable=io.StringIO
+                    ) as stdout, mock.patch(
+                        "sys.stderr", new_callable=io.StringIO
+                    ):
+                        self.assertEqual(0, workflow_control.main([str(path), "recover"]))
+                    outputs.append(stdout.getvalue())
+            self.assertEqual(outputs[0], outputs[1])
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+            # 只读核验：允许探测/查询命令，不允许任何写命令。
+            forbidden = {"commit", "update", "push", "revert", "merge", "checkout", "reset"}
+            for command in commands:
+                self.assertFalse(
+                    forbidden.intersection(command),
+                    f"recover 触发了外部写入命令：{command}",
+                )
+
+    def test_recover_reports_serial_write_limit_on_svn(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr, mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ):
+                self.assertEqual(0, workflow_control.main([str(path), "recover"]))
+            self.assertIn("串行写入", stderr.getvalue())
+            self.assertIn("只读", stderr.getvalue())
+
+    def test_recover_never_initializes_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            with mock.patch.object(
+                workflow_control, "runtime_workflow"
+            ) as runtime_spy, mock.patch("sys.stderr", new_callable=io.StringIO), mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ):
+                self.assertEqual(0, workflow_control.main([str(path), "recover"]))
+            runtime_spy.initialize_run.assert_not_called()
+
+    def test_inspect_action_names_evidence_to_verify(self) -> None:
+        text = tasks_text({1: "进行中"}, {1: []})
+        actions = workflow_control.plan_recovery(
+            lint_task_deps.parse_tasks(text), set()
+        )
+        self.assertEqual("inspect", actions[0].action)
+        self.assertIn("需核对", actions[0].reason)
+        self.assertIn("不依赖对话中的完成声明", actions[0].reason)
