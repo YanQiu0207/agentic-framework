@@ -353,11 +353,20 @@ def test_symlink_content_and_external_limitations(repository):
     assert not missing["complete"]
     assert before["subject_id"] != missing["subject_id"]
     link.unlink()
-    link.symlink_to(repository.parent / "external.txt")
+    external = write(repository.parent, "external.txt", "outside")
+    link.symlink_to(external)
     outside = capture(repository, base)
     assert not outside["complete"]
     assert any(
         item.startswith("external_symlink:") for item in outside["limitations"]
+    )
+    # A missing external target must stay external: Windows resolves a link
+    # to a nonexistent final target back to the link itself.
+    external.unlink()
+    dangling = capture(repository, base)
+    assert not dangling["complete"]
+    assert any(
+        item.startswith("external_symlink:") for item in dangling["limitations"]
     )
 
 

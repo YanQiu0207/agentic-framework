@@ -205,6 +205,27 @@ def _signature(info: os.stat_result) -> tuple[int, int, int, int]:
     return info.st_mode, info.st_size, info.st_mtime_ns, info.st_ino
 
 
+def _symlink_external(path: Path, target: str, resolved: Path, root: Path) -> bool:
+    # The link must count as external even when its target is missing: Windows
+    # cannot resolve a link to a nonexistent final target and would substitute
+    # the link path itself, hiding the escape. Resolving the target's parent
+    # directory keeps the first hop classifiable without that dependency.
+    hop = Path(target)
+    if not hop.is_absolute():
+        hop = path.parent / hop
+    try:
+        candidates = [hop.parent.resolve() / hop.name]
+    except OSError:
+        candidates = []
+    candidates.append(resolved)
+    for candidate in candidates:
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            return True
+    return False
+
+
 def _entry(
     root: Path,
     value: str,
@@ -227,15 +248,12 @@ def _entry(
         except OSError:
             raise SubjectError("symlink_read_failed") from None
         entry.update(type="symlink", target=target)
-        try:
-            resolved.relative_to(root)
-        except ValueError:
+        if _symlink_external(path, target, resolved, root):
             limitations.add("external_symlink:" + value)
-        else:
-            if not resolved.exists():
-                limitations.add("missing_symlink_target:" + value)
-            elif _classify(resolved.relative_to(root).as_posix()) != "input":
-                limitations.add("excluded_symlink_target:" + value)
+        elif not resolved.exists():
+            limitations.add("missing_symlink_target:" + value)
+        elif _classify(resolved.relative_to(root).as_posix()) != "input":
+            limitations.add("excluded_symlink_target:" + value)
     elif getattr(info, "st_file_attributes", 0) & 0x400:
         entry["type"] = "reparse-point"
         limitations.add("unsupported_reparse_point:" + value)
