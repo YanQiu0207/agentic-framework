@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from scripts import native_subject, vcs
-from scripts.test_vcs import command, head, repository
+from scripts.test_vcs import command, head, repository, svn_pair
 
 
 def capture(root, base=None, **kwargs):
@@ -444,4 +444,139 @@ def test_nested_repository_inputs_are_not_claimed_complete(repository):
     assert any(
         item.startswith("unexpanded_directory_inputs:")
         for item in result["limitations"]
+    )
+
+
+def test_svn_eol_keyword_wc_and_revision_equivalence(svn_pair):
+    first, _, repo = svn_pair
+    styles = ("native", "LF", "CRLF", "CR")
+    for style in styles:
+        name = "translated-" + style + ".txt"
+        (first / name).write_bytes(
+            b"$Id$\r\nline\r\n$Unknown: ordinary text $\r\n"
+        )
+        command(first, "svn", "add", name)
+        command(first, "svn", "propset", "svn:eol-style", style, name)
+        command(first, "svn", "propset", "svn:keywords", "Id", name)
+    command(first, "svn", "commit", "-m", "translation")
+    command(first, "svn", "update")
+    result = capture(first, "svn:r2", backend="svn")
+    assert result["complete"], result["limitations"]
+    all_properties = vcs.capture_subject(first, "2")["properties"]
+    for style in styles:
+        name = "translated-" + style + ".txt"
+        properties = all_properties[name]
+        remote = command(
+            first,
+            "svn",
+            "cat",
+            "--ignore-keywords",
+            "-r",
+            "2",
+            repo.as_uri() + "/" + name + "@2",
+        )
+        limits = set()
+        wc = native_subject.normalize_svn_content(
+            (first / name).read_bytes(), properties, limits
+        )
+        assert wc == native_subject.normalize_svn_content(
+            remote, properties, limits
+        ), style
+        assert not limits and b"$Unknown: ordinary text $" in wc, style
+    assert vcs.verify_delivery(first, "2", "1")["verified"]
+
+
+def test_svn_files_empty_directory_root_properties_and_ignored_inputs(svn_pair):
+    first, _, _ = svn_pair
+    before = capture(first, "1", backend="svn")
+    assert before["complete"]
+    entries = {item["path"]: item for item in before["entries"]}
+    assert entries["."]["type"] == entries["empty"]["type"] == "directory"
+    assert entries["binary.dat"]["type"] == "file"
+    command(first, "svn", "propset", "svn:ignore", "input.bin", ".")
+    (first / "input.bin").write_bytes(b"ignored build input")
+    changed = capture(first, "1", backend="svn")
+    assert changed["complete"] and changed["subject_id"] != before["subject_id"]
+    assert "input.bin" in {item["path"] for item in changed["entries"]}
+    report = first / ".agentic-framework" / "verify" / "report.json"
+    report.parent.mkdir(parents=True)
+    report.write_text("report self reference", encoding="utf-8")
+    assert (
+        capture(first, "1", backend="svn")["subject_id"]
+        == changed["subject_id"]
+    )
+    command(first, "svn", "delete", "source.txt")
+    assert (
+        capture(first, "1", backend="svn")["subject_id"]
+        != changed["subject_id"]
+    )
+
+
+def test_svn_binary_property_has_no_plain_value_collision(svn_pair, tmp_path):
+    first, _, _ = svn_pair
+    raw = tmp_path / "property.bin"
+    raw.write_bytes(b"\x00a")
+    command(
+        first,
+        "svn",
+        "propset",
+        "project:binary",
+        "--file",
+        str(raw),
+        "source.txt",
+    )
+    binary = capture(first, "1", backend="svn")
+    assert not binary["complete"]
+    assert "svn_binary_properties_unsupported" in binary["limitations"]
+    command(
+        first, "svn", "propset", "project:binary", "base64:AGE=", "source.txt"
+    )
+    plain = capture(first, "1", backend="svn")
+    assert plain["complete"] and plain["subject_id"] != binary["subject_id"]
+
+
+@pytest.mark.parametrize(
+    "keywords,content,limitation",
+    [
+        ("Custom=%a", b"$Custom$\n", "svn_custom_keywords_unsupported"),
+        (
+            "Id",
+            b"$Id::                     $\n",
+            "svn_fixed_width_keywords_unsupported",
+        ),
+    ],
+)
+def test_svn_uncertain_keyword_representation_is_incomplete(
+    svn_pair, keywords, content, limitation
+):
+    first, _, _ = svn_pair
+    (first / "source.txt").write_bytes(content)
+    command(first, "svn", "propset", "svn:keywords", keywords, "source.txt")
+    result = capture(first, "1", backend="svn")
+    assert not result["complete"] and limitation in result["limitations"]
+
+
+def test_svn_special_and_nested_repository_are_incomplete(svn_pair):
+    first, _, _ = svn_pair
+    special = first.parent / "special-property.txt"
+    special.write_bytes(b"*")
+    command(
+        first,
+        "svn",
+        "propset",
+        "svn:special",
+        "--file",
+        str(special),
+        "source.txt",
+        "--force",
+    )
+    result = capture(first, "1", backend="svn")
+    assert not result["complete"]
+    assert "svn_special_representation_unsupported" in result["limitations"]
+    nested = first / "nested"
+    nested.mkdir()
+    command(nested, "git", "init")
+    assert (
+        "svn_nested_repository_inputs"
+        in capture(first, "1", backend="svn")["limitations"]
     )

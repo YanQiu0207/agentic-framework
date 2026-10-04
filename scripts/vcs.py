@@ -1,18 +1,24 @@
 """Read-only VCS facts for Native validation; no subject hash is computed here.
 
 Public results are JSON-compatible dictionaries. ``base`` is a resolved immutable
-commit, never a moving ref. Repository identity uses Git's common directory so
-linked Worktrees share identity. Query failures raise VcsError, never empty facts.
+Git commit or SVN ``svn:r<N>``, never a moving ref. Git identity uses its common
+directory; SVN identity is repository UUID plus project relative URL. SVN nodes
+retain their WC base revision, independently from their last-changed revision.
+Queries are read-only, bounded to 30 seconds, with no hidden retries or updates.
+Query failures raise VcsError, never empty facts.
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import os
 import re
 import subprocess
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Optional, Sequence
+from urllib.parse import quote, unquote
 
 
 class VcsError(Exception):
@@ -49,6 +55,12 @@ def _run(
         raise VcsError("query_timeout", args[0]) from None
     except OSError:
         raise VcsError("query_failed", args[0]) from None
+    if result.returncode and args[0] == "svn":
+        codes = set(re.findall(rb"E([0-9]{6})", result.stderr))
+        if codes.intersection({b"170013", b"175002", b"000111", b"730061"}):
+            raise VcsError("network_error", "svn:" + args[1])
+        if codes.intersection({b"160006", b"160013", b"195012", b"200009"}):
+            raise VcsError("invalid_revision", "svn:" + args[1])
     if result.returncode:
         raise VcsError("query_failed", args[0] + ":" + args[1])
     return result.stdout
@@ -102,31 +114,365 @@ def _commit(root: Path, value: str) -> str:
     return commit
 
 
-def _svn_info(root: Path) -> dict[str, Any]:
+def _xml(root: Path, *args: str) -> ET.Element:
     try:
-        entry = ET.fromstring(_run(root, ["svn", "info", "--xml"])).find(
-            "entry"
+        return ET.fromstring(_run(root, ["svn", *args, "--non-interactive"]))
+    except ET.ParseError:
+        raise VcsError("parse_error", "svn_xml") from None
+
+
+def _svn_revision(value: str) -> int:
+    match = re.fullmatch(r"(?:svn:r)?([0-9]+)", str(value))
+    if not match:
+        raise VcsError("invalid_revision", "svn_revision")
+    return int(match.group(1))
+
+
+def _svn_path(root: Path, value: str) -> str:
+    path = Path(value)
+    if not path.is_absolute():
+        path = root / path
+    try:
+        return path.relative_to(root).as_posix()
+    except ValueError:
+        raise VcsError("parse_error", "svn_path") from None
+
+
+def _svn_status(root: Path) -> list[dict[str, Any]]:
+    records = []
+    tree = _xml(
+        root,
+        "status",
+        "--xml",
+        "--verbose",
+        "--no-ignore",
+        "--ignore-externals",
+        ".",
+    )
+    for entry in tree.findall(".//entry"):
+        status = entry.find("wc-status")
+        if status is None or not entry.get("path"):
+            raise VcsError("parse_error", "svn_status")
+        item, props = status.get("item"), status.get("props")
+        if item not in {
+            "normal",
+            "none",
+            "added",
+            "missing",
+            "deleted",
+            "replaced",
+            "modified",
+            "merged",
+            "conflicted",
+            "obstructed",
+            "ignored",
+            "unversioned",
+            "external",
+            "incomplete",
+        }:
+            raise VcsError("parse_error", "svn_status")
+        revision = status.get("revision")
+        records.append(
+            {
+                "path": _svn_path(root, entry.attrib["path"]),
+                "status": item,
+                "property_status": props,
+                "revision": (
+                    int(revision) if revision and revision.isdigit() else None
+                ),
+                "conflict": item == "conflicted"
+                or props == "conflicted"
+                or status.get("tree-conflicted") == "true",
+                "switched": status.get("switched") == "true",
+                "moved_from": status.get("moved-from"),
+                "moved_to": status.get("moved-to"),
+            }
         )
-        if entry is None:
-            raise ValueError
-        wc_root = entry.findtext("wc-info/wcroot-abspath")
-        uuid = entry.findtext("repository/uuid")
-        relative_url = entry.findtext("relative-url")
-        if not wc_root or not uuid or not relative_url:
-            raise ValueError
-        return {
-            "backend": "svn",
-            "root": str(Path(wc_root).resolve()),
-            "repository_identity": {"uuid": uuid, "relative_url": relative_url},
-            "base": entry.attrib["revision"],
-            "conflicts": [],
-            "capabilities": ["inspect_workspace"],
-            "limitations": ["svn_full_inspection_unsupported"],
-            "mixed_revisions": None,
-            "externals": None,
+    return records
+
+
+def _svn_properties(
+    root: Path, target: str, revision: Optional[int] = None
+) -> dict[str, dict[str, Any]]:
+    args = ["proplist", "--xml", "--verbose", "--depth", "infinity"]
+    if revision is not None:
+        args += ["--revision", str(revision)]
+    args.append(target)
+    tree = _xml(root, *args)
+    properties = {}
+    for node in tree.findall("target"):
+        location = node.get("path", "")
+        if revision is None:
+            path = _svn_path(root, location)
+        else:
+            prefix = unquote(target.rsplit("@", 1)[0]).rstrip("/")
+            location = unquote(location).rstrip("/")
+            if location != prefix and not location.startswith(prefix + "/"):
+                raise VcsError("parse_error", "svn_properties")
+            path = location[len(prefix) :].lstrip("/") or "."
+        values = {}
+        for prop in node.findall("property"):
+            key = prop.get("name")
+            if not key:
+                raise VcsError("parse_error", "svn_properties")
+            value = prop.text or ""
+            if prop.get("encoding") == "base64":
+                try:
+                    value = {
+                        "encoding": "base64",
+                        "value": base64.b64encode(
+                            base64.b64decode(
+                                re.sub(r"[ \t\r\n]", "", value), validate=True
+                            )
+                        ).decode("ascii"),
+                    }
+                except ValueError:
+                    raise VcsError("parse_error", "svn_properties") from None
+            elif prop.get("encoding") is not None:
+                raise VcsError("parse_error", "svn_properties")
+            values[key] = value
+        properties[path] = values
+    return properties
+
+
+def _svn_info(root: Path) -> dict[str, Any]:
+    tree = _xml(root, "info", "--xml", ".")
+    entry = tree.find("entry")
+    if entry is None:
+        raise VcsError("parse_error", "svn_info")
+    wc_root = entry.findtext("wc-info/wcroot-abspath")
+    uuid = entry.findtext("repository/uuid")
+    relative_url = entry.findtext("relative-url")
+    url = entry.findtext("url")
+    if (
+        not wc_root
+        or not uuid
+        or not re.fullmatch(
+            r"[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}", uuid
+        )
+        or not relative_url
+        or not relative_url.startswith("^/")
+        or not url
+    ):
+        raise VcsError("parse_error", "svn_identity")
+    query_root = root
+    root = Path(wc_root).resolve()
+    # The project is the WC root, including its own URL even when called below it.
+    if query_root.resolve() != root:
+        return _svn_info(root)
+    nodes = []
+    statuses = _svn_status(root)
+    properties = _svn_properties(root, ".")
+    limits = set()
+    for node in _xml(root, "info", "--xml", "--depth", "infinity", ".").findall(
+        "entry"
+    ):
+        try:
+            path = _svn_path(root, node.attrib["path"])
+            kind = node.attrib["kind"]
+            if kind not in ("file", "dir"):
+                raise ValueError
+            raw_revision = node.get("revision")
+            revision = (
+                int(raw_revision)
+                if raw_revision and raw_revision.isdigit()
+                else None
+            )
+            schedule = node.findtext("wc-info/schedule")
+            if revision is None and schedule != "add":
+                raise ValueError
+            if schedule == "add":
+                revision = None
+            depth = node.findtext("wc-info/depth")
+            node_url = node.findtext("url")
+            node_uuid = node.findtext("repository/uuid")
+            if not node_url or node_uuid != uuid:
+                limits.add("svn_node_repository_mismatch")
+            expected = unquote(url).rstrip("/") + (
+                "/" + path if path != "." else ""
+            )
+            switched = not node_url or unquote(node_url).rstrip("/") != expected
+            if switched:
+                limits.add("svn_switched_subtree")
+            if kind == "dir" and depth != "infinity":
+                limits.add("svn_sparse_working_copy")
+            nodes.append(
+                {
+                    "path": path,
+                    "kind": kind,
+                    "revision": revision,
+                    "url": node_url,
+                    "depth": depth,
+                    "schedule": schedule,
+                    "switched": switched,
+                }
+            )
+        except (KeyError, ValueError):
+            raise VcsError("parse_error", "svn_nodes") from None
+    revisions = {
+        node["revision"] for node in nodes if node["revision"] is not None
+    }
+    if len(revisions) > 1:
+        limits.add("svn_mixed_revisions")
+    externals = any(
+        "svn:externals" in values for values in properties.values()
+    ) or any(item["status"] == "external" for item in statuses)
+    if externals:
+        limits.add("svn_externals_unsupported")
+    for item in statuses:
+        if item["status"] in ("obstructed", "incomplete", "missing"):
+            limits.add("svn_incomplete_nodes")
+    return {
+        "backend": "svn",
+        "root": str(root),
+        "repository_identity": {
+            "uuid": uuid.lower(),
+            "relative_url": relative_url,
+        },
+        "url": url,
+        "repository_root": entry.findtext("repository/root"),
+        "base": "svn:r" + str(_svn_revision(entry.attrib["revision"])),
+        "nodes": nodes,
+        "statuses": statuses,
+        "properties": properties,
+        "conflicts": sorted(
+            item["path"] for item in statuses if item["conflict"]
+        ),
+        "capabilities": [
+            "inspect_workspace",
+            "capture_subject",
+            "collect_changes",
+            "verify_delivery",
+        ],
+        "limitations": sorted(limits),
+        "mixed_revisions": len(revisions) > 1,
+        "switched": "svn_switched_subtree" in limits,
+        "sparse": "svn_sparse_working_copy" in limits,
+        "externals": externals,
+    }
+
+
+def _svn_tree(
+    root: Path, facts: dict[str, Any], revision: int
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    target = facts["url"] + "@" + str(revision)
+    remote = _xml(
+        root, "info", "--xml", "--revision", str(revision), target
+    ).find("entry")
+    if (
+        remote is None
+        or remote.findtext("repository/uuid")
+        != facts["repository_identity"]["uuid"]
+        or remote.findtext("relative-url")
+        != facts["repository_identity"]["relative_url"]
+    ):
+        raise VcsError("repository_mismatch", "svn_revision")
+    entries = [{"path": ".", "kind": "dir", "mode": "dir"}]
+    tree = _xml(
+        root,
+        "list",
+        "--xml",
+        "--recursive",
+        "--revision",
+        str(revision),
+        target,
+    )
+    for node in tree.findall(".//entry"):
+        name, kind = node.findtext("name"), node.get("kind")
+        if (
+            not name
+            or kind not in ("file", "dir")
+            or Path(name).is_absolute()
+            or ".." in Path(name).parts
+        ):
+            raise VcsError("parse_error", "svn_tree")
+        entries.append({"path": name.rstrip("/"), "kind": kind, "mode": kind})
+    return entries, _svn_properties(root, target, revision)
+
+
+def _svn_capture(
+    facts: dict[str, Any],
+    base: str,
+    prefixes: Sequence[str],
+    directory_names: Sequence[str],
+) -> dict[str, Any]:
+    root = Path(facts["root"])
+    revision = _svn_revision(base)
+    base_files, base_properties = _svn_tree(root, facts, revision)
+    facts["base"] = "svn:r" + str(revision)
+    if any(
+        node["revision"] != revision
+        for node in facts["nodes"]
+        if node["revision"] is not None
+    ):
+        facts["limitations"] = sorted(
+            set(facts["limitations"] + ["svn_node_base_mismatch"])
+        )
+    versioned = {
+        node["path"]: {
+            "path": node["path"],
+            "mode": node["kind"],
+            "kind": node["kind"],
+            "revision": node["revision"],
+            "stage": 0,
         }
-    except (ET.ParseError, ValueError, KeyError):
-        raise VcsError("parse_error", "svn_info") from None
+        for node in facts["nodes"]
+    }
+
+    # XML status folds unversioned trees; expand them without following links,
+    # excluding only the trusted generated policy and VCS administrative trees.
+    def excluded(path: str) -> bool:
+        return any(
+            path == prefix or path.startswith(prefix + "/")
+            for prefix in prefixes
+        ) or any(part in directory_names for part in Path(path).parts)
+
+    def walk_error(error):
+        raise VcsError("query_failed", "svn_filesystem") from error
+
+    for directory, names, files in os.walk(
+        root, followlinks=False, onerror=walk_error
+    ):
+        if Path(directory) != root and any(
+            (Path(directory) / name).exists() for name in (".git", ".svn")
+        ):
+            facts["limitations"].append("svn_nested_repository_inputs")
+        relative = Path(directory).relative_to(root).as_posix()
+        names[:] = [
+            name
+            for name in names
+            if name not in (".svn", ".git")
+            and not excluded(
+                (Path(directory) / name).relative_to(root).as_posix()
+            )
+        ]
+        if relative != "." and relative not in versioned:
+            versioned[relative] = {
+                "path": relative,
+                "mode": None,
+                "kind": "dir",
+                "stage": 0,
+            }
+        for name in files + [
+            name for name in names if (Path(directory) / name).is_symlink()
+        ]:
+            path = (Path(directory) / name).relative_to(root).as_posix()
+            if not excluded(path) and path not in versioned:
+                versioned[path] = {
+                    "path": path,
+                    "mode": None,
+                    "kind": "file",
+                    "stage": 0,
+                }
+    if versioned.get(".agentic-framework", {}).get("mode") is None and not any(
+        path.startswith(".agentic-framework/") for path in versioned
+    ):
+        versioned.pop(".agentic-framework", None)
+    facts["files"] = list(versioned.values())
+    facts["base_files"] = base_files
+    facts["base_properties"] = base_properties
+    facts["coverage"] = "tracked_and_untracked_including_ignored"
+    return facts
 
 
 def inspect_workspace(
@@ -278,7 +624,10 @@ def collect_changes(
     Renames retain both paths; status U and index conflicts are never hidden.
     Git behavioral properties are captured separately by capture_subject.
     """
-    root = _unsupported(inspect_workspace(path, backend), "collect_changes")
+    facts = inspect_workspace(path, backend)
+    if facts["backend"] == "svn":
+        return _svn_changes(facts, base)
+    root = Path(facts["root"])
     changes = _diff(root, _commit(root, base))
     changes.extend(
         {
@@ -355,7 +704,9 @@ def capture_subject(
     ):
         raise VcsError("invalid_scope", "subject_exclusions")
     facts = inspect_workspace(path, backend)
-    root = _unsupported(facts, "capture_subject")
+    if facts["backend"] == "svn":
+        return _svn_capture(facts, base, prefixes, excluded_directory_names)
+    root = Path(facts["root"])
     facts["base"] = _commit(root, base)
     files = _index(root)
     base_files = _base_files(root, facts["base"])
@@ -452,10 +803,12 @@ def verify_delivery(
     """Verify exact Git HEAD, ancestry, changed scope and working content.
 
     Raises VcsError for mismatches. A successful result proves these VCS facts,
-    not test/review success. SVN revision verification is explicitly unsupported.
+    not test/review success. SVN uses exact revision bytes and properties.
     """
     facts = inspect_workspace(path, backend)
-    root = _unsupported(facts, "verify_delivery")
+    if facts["backend"] == "svn":
+        return _svn_verify(facts, commit, base, scope, repository_identity)
+    root = Path(facts["root"])
     target, fixed_base = _commit(root, commit), _commit(root, base)
     paths = _scope(scope)
     if (
@@ -508,4 +861,213 @@ def verify_delivery(
         "scope": paths,
         "verified": True,
         "changes": committed,
+    }
+
+
+def _svn_changes(facts: dict[str, Any], base: str) -> list[dict[str, Any]]:
+    root = Path(facts["root"])
+    revision = _svn_revision(base)
+    _, base_properties = _svn_tree(root, facts, revision)
+    tree = _xml(
+        root, "diff", "--summarize", "--xml", "--revision", str(revision), "."
+    )
+    changes = []
+    by_path = {item["path"]: item for item in facts["statuses"]}
+    for node in tree.findall(".//path"):
+        path = _svn_path(root, node.text or "")
+        item, props = node.get("item"), node.get("props")
+        if item not in {"added", "deleted", "modified", "none"}:
+            raise VcsError("parse_error", "svn_diff")
+        if props == "modified" and facts["properties"].get(
+            path, {}
+        ) == base_properties.get(path, {}):
+            props = "none"
+        if item == "none" and props == "none":
+            continue
+        status = by_path.get(path, {})
+        old_path = status.get("moved_from")
+        changes.append(
+            {
+                "path": path,
+                "status": (
+                    "R"
+                    if old_path
+                    else {
+                        "added": "A",
+                        "deleted": "D",
+                        "modified": "M",
+                        "none": "M",
+                    }[item]
+                ),
+                "old_path": _svn_path(root, old_path) if old_path else None,
+                "property_changes": ["modified"] if props == "modified" else [],
+            }
+        )
+    present = {item["path"] for item in changes}
+    for item in facts["statuses"]:
+        if (
+            item["status"]
+            in ("unversioned", "ignored", "conflicted", "obstructed", "missing")
+            and item["path"] not in present
+        ):
+            changes.append(
+                {
+                    "path": item["path"],
+                    "status": (
+                        "U"
+                        if item["conflict"]
+                        else (
+                            "?"
+                            if item["status"] in ("unversioned", "ignored")
+                            else "!"
+                        )
+                    ),
+                    "old_path": None,
+                    "property_changes": (
+                        ["conflicted"]
+                        if item["property_status"] == "conflicted"
+                        else []
+                    ),
+                }
+            )
+    return changes
+
+
+def _svn_verify(
+    facts: dict[str, Any],
+    revision_value: str,
+    base: str,
+    scope: Optional[Sequence[str]],
+    identity: Optional[dict[str, str]],
+) -> dict[str, Any]:
+    """Read exact revision facts and compare their canonical bytes/properties.
+
+    This is a VCS content check, never a Verify/Review or authorization claim.
+    No checkout/export/update/commit is hidden inside the adapter.
+    """
+    try:
+        from . import native_subject
+    except ImportError:
+        import native_subject
+    revision, first = _svn_revision(revision_value), _svn_revision(base)
+    if revision == 0 or revision < first:
+        raise VcsError("invalid_revision", "svn_revision_range")
+    if identity is not None and identity != facts["repository_identity"]:
+        raise VcsError("repository_mismatch", "svn_delivery")
+    if facts["conflicts"]:
+        raise VcsError("conflicts", "svn_delivery")
+    if facts["limitations"]:
+        raise VcsError("coverage_incomplete", "svn_delivery")
+    if any(node["revision"] != revision for node in facts["nodes"]):
+        raise VcsError("revision_mismatch", "svn_delivery")
+    root = Path(facts["root"])
+    paths = _scope(scope)
+    target = facts["url"] + "@" + str(revision)
+    logs = (
+        _xml(
+            root,
+            "log",
+            "--xml",
+            "--verbose",
+            "--revision",
+            f"{first + 1}:{revision}",
+            target,
+        )
+        if first < revision
+        else ET.Element("log")
+    )
+    relative_prefix = unquote(
+        facts["repository_identity"]["relative_url"][1:]
+    ).rstrip("/")
+    changed = set()
+    for node in logs.findall(".//path"):
+        remote_path = node.text or ""
+        if (
+            relative_prefix
+            and remote_path != relative_prefix
+            and not remote_path.startswith(relative_prefix + "/")
+        ):
+            continue
+        local = remote_path[len(relative_prefix) :].lstrip("/") or "."
+        changed.add(local)
+        copied = node.get("copyfrom-path")
+        if copied and (
+            not relative_prefix or copied.startswith(relative_prefix + "/")
+        ):
+            changed.add(copied[len(relative_prefix) :].lstrip("/"))
+    if paths and any(
+        not any(item == p or item.startswith(p + "/") for p in paths)
+        for item in changed
+    ):
+        raise VcsError("scope_mismatch", "svn_delivery")
+    remote_files, properties = _svn_tree(root, facts, revision)
+    capture = native_subject.capture_subject(
+        root, "svn:r" + str(revision), backend="svn"
+    )
+    if not capture["complete"]:
+        raise VcsError("coverage_incomplete", "svn_delivery")
+    current = {
+        entry["path"]: entry
+        for entry in capture["entries"]
+        if entry["type"] != "missing"
+    }
+    expected = {}
+    for item in remote_files:
+        path = item["path"]
+        if path != "." and native_subject._classify(path) in ("vcs", "report"):
+            raise VcsError("coverage_incomplete", "svn_delivery")
+        if item["kind"] == "dir":
+            expected[path] = {
+                "path": path,
+                "type": "directory",
+                "properties": properties.get(path, {}),
+            }
+        else:
+            url = (
+                facts["url"].rstrip("/")
+                + "/"
+                + quote(path, safe="/")
+                + "@"
+                + str(revision)
+            )
+            content = _run(
+                root,
+                [
+                    "svn",
+                    "cat",
+                    "--ignore-keywords",
+                    "--revision",
+                    str(revision),
+                    url,
+                    "--non-interactive",
+                ],
+            )
+            limits: set[str] = set()
+            content = native_subject.normalize_svn_content(
+                content, properties.get(path, {}), limits
+            )
+            if limits:
+                raise VcsError("coverage_incomplete", "svn_delivery")
+            if native_subject._is_tasks(path):
+                content = native_subject._task_bytes(content)
+
+            expected[path] = {
+                "path": path,
+                "type": "file",
+                "properties": properties.get(path, {}),
+                "executable": "svn:executable" in properties.get(path, {}),
+                "content_sha256": hashlib.sha256(content).hexdigest(),
+            }
+    # Default absent Verify config is an input sentinel, not repository content.
+    if current != expected:
+        raise VcsError("content_mismatch", "svn_delivery")
+    return {
+        "backend": "svn",
+        "repository_identity": facts["repository_identity"],
+        "revision": revision,
+        "base": "svn:r" + str(first),
+        "scope": paths,
+        "verified": True,
+        "changes": sorted(changed),
+        "subject_id": capture["subject_id"],
     }

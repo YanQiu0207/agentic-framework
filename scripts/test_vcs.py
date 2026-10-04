@@ -9,8 +9,12 @@ from scripts import vcs
 
 
 def command(root, *args):
+    if args[0] == "svn":
+        args = (*args, "--non-interactive")
+        if args[1] == "commit":
+            args = (*args, "--force-log")
     return subprocess.run(
-        args, cwd=root, capture_output=True, check=True
+        args, cwd=root, capture_output=True, check=True, timeout=30
     ).stdout
 
 
@@ -174,15 +178,14 @@ def svn_workspace(tmp_path):
     return workspace
 
 
-def test_pure_svn_and_unsupported(svn_workspace):
+def test_pure_svn_empty_repository(svn_workspace):
     facts = vcs.inspect_workspace(svn_workspace)
     assert facts["backend"] == "svn"
     assert facts["repository_identity"]["uuid"]
-    assert facts["limitations"]
-    with pytest.raises(vcs.VcsError, match="unsupported"):
-        vcs.capture_subject(svn_workspace, "0")
-    with pytest.raises(vcs.VcsError, match="unsupported"):
-        vcs.verify_delivery(svn_workspace, "0", "0")
+    assert facts["limitations"] == []
+    capture = vcs.capture_subject(svn_workspace, "0")
+    assert capture["base"] == "svn:r0"
+    assert capture["base_files"][0]["path"] == "."
 
 
 def test_dual_backend_requires_choice(svn_workspace):
@@ -312,3 +315,187 @@ def test_subject_base_files_and_query_time_exclusions(repository, monkeypatch):
 def test_subject_exclusion_rejects_nonliteral_paths(repository, prefix):
     with pytest.raises(vcs.VcsError, match="invalid_scope"):
         vcs.capture_subject(repository, "HEAD", excluded_prefixes=[prefix])
+
+
+@pytest.fixture
+def svn_pair(tmp_path):
+    repo = tmp_path / "server"
+    command(tmp_path, "svnadmin", "create", str(repo))
+    first, second = tmp_path / "first wc", tmp_path / "second wc"
+    command(tmp_path, "svn", "checkout", repo.as_uri(), str(first))
+    (first / "source.txt").write_text("base\n", encoding="utf-8")
+    (first / "empty").mkdir()
+    (first / "binary.dat").write_bytes(b"\x00\xff\r\n")
+    command(first, "svn", "add", "source.txt", "empty", "binary.dat")
+    command(
+        first,
+        "svn",
+        "propset",
+        "svn:mime-type",
+        "application/octet-stream",
+        "binary.dat",
+    )
+    command(first, "svn", "commit", "-m", "base")
+    command(first, "svn", "update")
+    command(tmp_path, "svn", "checkout", repo.as_uri(), str(second))
+    return first, second, repo
+
+
+def test_svn_nodes_changes_properties_and_move(svn_pair):
+    first, _, _ = svn_pair
+    facts = vcs.inspect_workspace(first)
+    assert facts["base"] == "svn:r1" and not facts["limitations"]
+    assert all(item["revision"] == 1 for item in facts["nodes"])
+    command(first, "svn", "propset", "project:flag", "yes", "empty")
+    command(first, "svn", "move", "source.txt", "new.txt")
+    (first / "untracked.py").write_text("input", encoding="utf-8")
+    changes = vcs.collect_changes(first, "svn:r1")
+    assert any(
+        item["path"] == "empty" and item["property_changes"] for item in changes
+    )
+    assert any(
+        item["path"] == "new.txt" and item["old_path"] == "source.txt"
+        for item in changes
+    )
+    assert any(
+        item["path"] == "untracked.py" and item["status"] == "?"
+        for item in changes
+    )
+    capture = vcs.capture_subject(first, "1")
+    assert any(
+        item["path"] == "empty" and item["kind"] == "dir"
+        for item in capture["base_files"]
+    )
+
+
+def test_svn_mixed_revision_and_upstream_update(svn_pair):
+    first, second, _ = svn_pair
+    (second / "source.txt").write_text("upstream\n", encoding="utf-8")
+    command(second, "svn", "commit", "-m", "upstream")
+    assert vcs.inspect_workspace(second)["mixed_revisions"]
+    assert not vcs.collect_changes(first, "1")
+    command(first, "svn", "update")
+    assert vcs.inspect_workspace(first)["base"] == "svn:r2"
+    assert any(
+        item["path"] == "source.txt" for item in vcs.collect_changes(first, "1")
+    )
+    assert (
+        "svn_node_base_mismatch"
+        in vcs.capture_subject(first, "1")["limitations"]
+    )
+
+
+def test_svn_conflicts_and_readonly_queries(svn_pair, monkeypatch):
+    first, second, _ = svn_pair
+    (second / "source.txt").write_text("remote\n", encoding="utf-8")
+    command(second, "svn", "commit", "-m", "remote")
+    (first / "source.txt").write_text("local\n", encoding="utf-8")
+    command(first, "svn", "update")
+    calls = []
+    original = vcs._run
+
+    def spy(root, args, data=None):
+        calls.append(args)
+        return original(root, args, data)
+
+    monkeypatch.setattr(vcs, "_run", spy)
+    assert vcs.inspect_workspace(first)["conflicts"] == ["source.txt"]
+    vcs.capture_subject(first, "2")
+    assert all(
+        not {"update", "commit", "revert", "checkout", "export"}.intersection(
+            args[1:]
+        )
+        for args in calls
+    )
+    with pytest.raises(vcs.VcsError, match="conflicts"):
+        vcs.verify_delivery(first, "2", "1")
+
+
+def test_svn_sparse_switched_and_externals(svn_pair, tmp_path):
+    first, _, repo = svn_pair
+    sparse = tmp_path / "sparse"
+    command(
+        tmp_path,
+        "svn",
+        "checkout",
+        "--depth",
+        "empty",
+        repo.as_uri(),
+        str(sparse),
+    )
+    assert vcs.inspect_workspace(sparse)["sparse"]
+    command(first, "svn", "copy", "empty", "other")
+    command(first, "svn", "commit", "-m", "other")
+    command(first, "svn", "update")
+    command(
+        first,
+        "svn",
+        "switch",
+        "--ignore-ancestry",
+        repo.as_uri() + "/other",
+        "empty",
+    )
+    assert vcs.inspect_workspace(first)["switched"]
+    command(first, "svn", "propset", "svn:externals", "^/other external", ".")
+    assert vcs.inspect_workspace(first)["externals"]
+
+
+def test_svn_revision_delivery_actual_bytes_identity_and_scope(svn_pair):
+    first, _, _ = svn_pair
+    identity = vcs.inspect_workspace(first)["repository_identity"]
+    result = vcs.verify_delivery(first, "1", "0", repository_identity=identity)
+    assert result["verified"] and result["revision"] == 1
+    with pytest.raises(vcs.VcsError, match="repository_mismatch"):
+        vcs.verify_delivery(
+            first,
+            "1",
+            "0",
+            repository_identity={"uuid": "wrong", "relative_url": "^/"},
+        )
+    with pytest.raises(vcs.VcsError, match="scope_mismatch"):
+        vcs.verify_delivery(first, "1", "0", scope=["source.txt"])
+    (first / "source.txt").write_text("changed\n", encoding="utf-8")
+    with pytest.raises(vcs.VcsError, match="content_mismatch"):
+        vcs.verify_delivery(first, "1", "0")
+
+
+def test_svn_invalid_revision_network_and_xml_fail_closed(
+    svn_pair, monkeypatch
+):
+    first, _, _ = svn_pair
+    for revision in ("HEAD", "-1", "bad"):
+        with pytest.raises(vcs.VcsError, match="invalid_revision"):
+            vcs.capture_subject(first, revision)
+    with pytest.raises(vcs.VcsError, match="invalid_revision"):
+        vcs.capture_subject(first, "999")
+    monkeypatch.setattr(vcs, "_run", lambda *args, **kwargs: b"broken XML")
+    with pytest.raises(vcs.VcsError, match="parse_error"):
+        vcs.inspect_workspace(first)
+
+
+def test_svn_network_error_is_structured_without_credentials(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        vcs.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args, 1, b"", b"svn: E170013 credential-secret"
+        ),
+    )
+    with pytest.raises(vcs.VcsError, match="network_error") as error:
+        vcs._run(tmp_path, ["svn", "info", "https://unavailable.invalid/path"])
+    assert "credential-secret" not in str(error.value)
+
+
+def test_svn_unicode_at_path_and_repository_unavailable(svn_pair):
+    first, _, repo = svn_pair
+    name = "\u7a7a \u683c@.txt"
+    (first / name).write_text("unicode input", encoding="utf-8")
+    command(first, "svn", "add", ".", "--force")
+    command(first, "svn", "commit", "-m", "unicode")
+    command(first, "svn", "update")
+    assert vcs.verify_delivery(first, "2", "1")["verified"]
+    repo.rename(repo.with_name("unavailable"))
+    with pytest.raises(vcs.VcsError, match="network_error"):
+        vcs.capture_subject(first, "2")

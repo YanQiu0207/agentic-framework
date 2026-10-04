@@ -205,7 +205,9 @@ def _signature(info: os.stat_result) -> tuple[int, int, int, int]:
     return info.st_mode, info.st_size, info.st_mtime_ns, info.st_ino
 
 
-def _symlink_external(path: Path, target: str, resolved: Path, root: Path) -> bool:
+def _symlink_external(
+    path: Path, target: str, resolved: Path, root: Path
+) -> bool:
     # The link must count as external even when its target is missing: Windows
     # cannot resolve a link to a nonexistent final target and would substitute
     # the link path itself, hiding the escape. Resolving the target's parent
@@ -229,11 +231,16 @@ def _symlink_external(path: Path, target: str, resolved: Path, root: Path) -> bo
 def _entry(
     root: Path,
     value: str,
-    properties: dict[str, str],
+    properties: dict[str, Any],
     index_mode: Optional[str],
     limitations: set[str],
+    backend: str = "git",
 ) -> dict[str, Any]:
     path = root / value
+    if backend == "svn" and any(
+        not isinstance(item, str) for item in properties.values()
+    ):
+        limitations.add("svn_binary_properties_unsupported")
     try:
         info = path.lstat()
     except FileNotFoundError:
@@ -265,13 +272,19 @@ def _entry(
             raise SubjectError("input_read_failed") from None
         if _signature(info) != _signature(after):
             raise SubjectError("inputs_changed_during_capture")
+        if backend == "svn":
+            content = normalize_svn_content(content, properties, limitations)
         if _is_tasks(value):
             content = _task_bytes(content)
         # Windows does not represent Git executable bits in filesystem modes.
         executable = (
-            (index_mode == "100755")
-            if os.name == "nt"
-            else bool(info.st_mode & 0o111)
+            ("svn:executable" in properties)
+            if backend == "svn"
+            else (
+                (index_mode == "100755")
+                if os.name == "nt"
+                else bool(info.st_mode & 0o111)
+            )
         )
         entry.update(
             type="file",
@@ -369,14 +382,25 @@ def capture_subject(
         pass
     if config_relative:
         explicit.add(config_relative)
-    facts = vcs.capture_subject(
-        path,
-        base,
-        backend,
-        excluded_prefixes=REPORT_PREFIXES + GENERATED_PREFIXES,
-        excluded_directory_names=CACHE_DIRECTORY_NAMES + VCS_DIRECTORY_NAMES,
-        additional_paths=sorted(explicit),
-    )
+    if workspace["backend"] == "svn":
+        # Root/properties/nodes were queried above. Reuse this capture's facts;
+        # querying the entire WC twice adds latency and no atomicity guarantee.
+        facts = vcs._svn_capture(
+            workspace,
+            base,
+            REPORT_PREFIXES + GENERATED_PREFIXES,
+            CACHE_DIRECTORY_NAMES + VCS_DIRECTORY_NAMES,
+        )
+    else:
+        facts = vcs.capture_subject(
+            path,
+            base,
+            backend,
+            excluded_prefixes=REPORT_PREFIXES + GENERATED_PREFIXES,
+            excluded_directory_names=CACHE_DIRECTORY_NAMES
+            + VCS_DIRECTORY_NAMES,
+            additional_paths=sorted(explicit),
+        )
     limitations = set(facts["limitations"])
     if facts["conflicts"]:
         limitations.add("unresolved_vcs_conflicts")
@@ -405,6 +429,20 @@ def capture_subject(
     )
     entries = []
     for value in sorted(paths):
+        if value == "." and facts["backend"] == "svn":
+            if any(
+                not isinstance(item, str)
+                for item in facts["properties"].get(".", {}).values()
+            ):
+                limitations.add("svn_binary_properties_unsupported")
+            entries.append(
+                {
+                    "path": ".",
+                    "type": "directory",
+                    "properties": facts["properties"].get(".", {}),
+                }
+            )
+            continue
         _path(value)
         classification = _classify(value)
         if classification in ("vcs", "report"):
@@ -429,8 +467,15 @@ def capture_subject(
             facts["properties"].get(value, {}),
             modes.get(value),
             limitations,
+            facts["backend"],
         )
-        if entry["type"] == "directory" and value not in explicit:
+        if facts["backend"] == "svn" and "svn:special" in entry["properties"]:
+            limitations.add("svn_special_representation_unsupported")
+        if (
+            entry["type"] == "directory"
+            and value not in explicit
+            and facts["backend"] == "git"
+        ):
             limitations.add("unexpanded_directory_inputs:" + value)
         if (
             entry["type"] == "missing"
@@ -548,3 +593,70 @@ def require_same_subject(before: dict[str, Any], after: dict[str, Any]) -> None:
         raise SubjectError("subject_coverage_incomplete")
     if not comparison["unchanged"]:
         raise SubjectError("subject_changed")
+
+
+def normalize_svn_content(
+    content: bytes, properties: dict[str, Any], limitations: set[str]
+) -> bytes:
+    """Canonicalize WC/revision-cat representations without guessing Unicode.
+
+    Native EOL is LF; fixed CR/CRLF/LF retain their declared form. Standard
+    expanded keywords contract; custom and fixed-width keywords fail closed.
+    Binary MIME types are never translated. Special links require later support.
+    """
+    if any(not isinstance(value, str) for value in properties.values()):
+        limitations.add("svn_binary_properties_unsupported")
+        properties = {
+            key: value
+            for key, value in properties.items()
+            if isinstance(value, str)
+        }
+    if "svn:special" in properties:
+        limitations.add("svn_special_representation_unsupported")
+        return content
+    eol = properties.get("svn:eol-style")
+    keywords = properties.get("svn:keywords", "")
+    mime = properties.get("svn:mime-type", "")
+    if mime and not mime.startswith("text/"):
+        if eol or keywords:
+            limitations.add("svn_binary_translation_unsupported")
+        return content
+    if eol:
+        if eol not in ("native", "LF", "CRLF", "CR"):
+            limitations.add("svn_eol_style_unsupported")
+            return content
+        endings = re.findall(rb"\r\n|\r|\n", content)
+        if len(set(endings)) > 1:
+            limitations.add("svn_inconsistent_eol")
+        normalized = content.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        content = normalized.replace(
+            b"\n",
+            {"native": b"\n", "LF": b"\n", "CRLF": b"\r\n", "CR": b"\r"}[eol],
+        )
+    groups = (
+        ("Date", "LastChangedDate"),
+        ("Revision", "Rev", "LastChangedRevision"),
+        ("Author", "LastChangedBy"),
+        ("URL", "HeadURL"),
+        ("Id",),
+        ("Header",),
+    )
+    aliases = {name: group for group in groups for name in group}
+    active = set()
+    for name in keywords.split():
+        if name not in aliases:
+            limitations.add("svn_custom_keywords_unsupported")
+            continue
+        active.update(aliases[name])
+    for name in sorted(active):
+        key = re.escape(name.encode("ascii"))
+        if re.search(rb"\$" + key + rb"::[^$\r\n]*\$", content):
+            limitations.add("svn_fixed_width_keywords_unsupported")
+        # Standard expansion requires the delimiters SVN itself produces, and
+        # never consumes a dollar or line break from ordinary text.
+        content = re.sub(
+            rb"\$" + key + rb": [^$\r\n]* \$",
+            b"$" + name.encode("ascii") + b"$",
+            content,
+        )
+    return content
