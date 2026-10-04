@@ -149,5 +149,78 @@ class ProfileContractTest(unittest.TestCase):
         self.assertNotIn("docs/design-docs/", text)
 
 
+class NativeFirstRoutingContractTest(unittest.TestCase):
+    """change 2048 Task 9：显式路由与 v2 证据的活跃文案合同。"""
+
+    def test_generation_skill_states_explicit_runtime_only(self) -> None:
+        text = (ROOT / "skills/workflow-code-generation/SKILL.md").read_text(encoding="utf-8")
+        for required in (
+            "--execution-mode runtime",
+            "不自动升级",
+            "独立 Judge",
+            "最多十轮",
+        ):
+            self.assertIn(required, text)
+        self.assertNotIn("Runtime 升级条件：** `strict` 风险、并行 worktree 写入、长任务恢复", text)
+
+    def test_delegated_guide_drops_strict_upgrade_and_two_round_rules(self) -> None:
+        path = ROOT / "skills/workflow-code-generation/reference/delegated-execution-guide.md"
+        text = path.read_text(encoding="utf-8")
+        self.assertNotIn("必定升级", text)
+        self.assertNotIn("最多两轮", text)
+        self.assertNotIn("恢复本身是 Runtime 升级条件", text)
+        self.assertNotIn("执行恢复前，路由命令必须传 `--long-task-recovery`", text)
+        for required in (
+            "--execution-mode runtime",
+            "最多十轮",
+            "恢复按事实进行，本身不是 Runtime 启用条件",
+            "implementer_actor",
+        ):
+            self.assertIn(required, text)
+        # 任务自身机器修复预算（两轮 attempts）与复审十轮是两个计数，保留区别表述。
+        self.assertIn("attempts 预算", text)
+
+    def test_review_report_format_pins_v2_contract(self) -> None:
+        text = (
+            ROOT / "skills/workflow-code-review/reference/report-format.md"
+        ).read_text(encoding="utf-8")
+        for required in (
+            "schema_version: 2",
+            "subject_id",
+            "independence_basis",
+            "只按旧合同展示历史",
+        ):
+            self.assertIn(required, text)
+        self.assertNotIn("只接受这 6 个字段", text)
+
+    def test_review_skill_allows_strict_native_scope(self) -> None:
+        text = (ROOT / "skills/workflow-code-review/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("不因此要求 Run", text)
+        self.assertIn("不构成降级", text)
+        self.assertNotIn("必须升级到完整 Runtime Run", text)
+
+    def test_verification_skill_pins_v2_subject_binding(self) -> None:
+        text = (ROOT / "skills/workflow-verification/SKILL.md").read_text(encoding="utf-8")
+        for required in (
+            "schema_version: 2",
+            "subject_id",
+            "检查前后核对同一内容主体",
+            "--subject-base",
+            "不能作为新完成证据",
+        ):
+            self.assertIn(required, text)
+
+    def test_trigger_cases_cover_new_behavior_rows(self) -> None:
+        for relative, marker in (
+            ("skills/workflow-code-generation/evaluation/trigger-cases.md", "R-1"),
+            ("skills/workflow-code-review/evaluation/trigger-cases.md", "V-1"),
+            ("skills/workflow-verification/evaluation/trigger-cases.md", "S-1"),
+        ):
+            with self.subTest(file=relative):
+                text = (ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn("## behavior", text)
+                self.assertIn(marker, text)
+
+
 if __name__ == "__main__":
     unittest.main()

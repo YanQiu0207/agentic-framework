@@ -17,7 +17,8 @@ description: 代码修改的统一入口；新增功能、修复、优化或重�
 | --- | --- | --- |
 | **轻量**（请求即计划的局部低风险修改） | **Native Delivery**：当前宿主直接执行；Fast-Path 仅作兼容别名 | 免 spec / tasks |
 | **中等**（已明确目标与验收标准，需拆分或委派） | **Native Delivery**：下放 Agent 执行，按需使用 DAG | spec + tasks 批准 |
-| **strict** 或命中 Runtime 升级条件 | **完整 Runtime Run**：下放 Agent 执行并初始化 Run | spec + tasks 批准 |
+| **strict** 风险（仍为 Native，strict Review + 独立 Judge） | **Native Delivery**：三档审查独立执行，不因风险自动建 Run | spec + tasks 批准 |
+| **显式选择 Runtime**（`--execution-mode runtime`、硬性审计要求或跨宿主验证） | **完整 Runtime Run**：下放 Agent 执行并初始化 Run | spec + tasks 批准 |
 
 ## 步骤 1：评估范围与执行路径
 
@@ -39,9 +40,9 @@ description: 代码修改的统一入口；新增功能、修复、优化或重�
 
 轻量兼容路径使用 `lightweight` Review。Quick Design 若发现安全、权限、数据迁移、并发、分布式、性能关键路径、公共 API 或大范围重构，升级到完整需求与系统设计。
 
-**Runtime 升级条件：** `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求。仅在命中这些条件时使用完整 Runtime Run，文件数量和模型版本不作为升级依据。
+**Runtime 启用条件（change 2048）：** 只有显式 `--execution-mode runtime`、项目硬性审计要求（`--audit-required`，来源由编排方说明）或跨宿主验证（`--cross-host-capability-verification`）才使用完整 Runtime Run。`strict` 风险走 Native strict Review（独立 Judge），并行 Worktree 写入与长任务恢复按需使用隔离和恢复规划，均不自动升级；文件数量和模型版本不作为升级依据。硬性要求与显式 native 冲突、或 Runtime 在当前 VCS 下不受支持时，路由明确报错，不静默降级。
 
-风险无法判断时使用 `standard`；执行条件是否命中尚不明确时，先澄清。SVN 工作副本的 `route` 始终返回 `native-delivery`，原因保留在 `runtime_upgrade_reasons`，不创建 Run Context。
+风险无法判断时使用 `standard`；「需要审计」但未说明证据要求时，先确定所需证据，不自动等同于完整 Runtime。SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被拒绝并说明原因，默认任务直接 Native，不创建 Run Context。
 
 ## 步骤 1.5：确认 Verify 配置
 
@@ -128,11 +129,11 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 任务计划获批后，主会话负责编排，由 Agent 完成实现、测试和任务级机器验证。派发前读取 [执行准备](reference/execution-setup.md) 和 [下放执行指南](reference/delegated-execution-guide.md)。
 
-- 默认 Native Delivery；仅命中步骤 1 的升级条件时检查 Runtime 路由。
-- 单任务或串行依赖按任务顺序执行；并行分支、非线性依赖或恢复场景使用控制器的 `waves` / `dispatchable`。
+- 默认 Native Delivery；仅显式 Runtime 需求（execution-mode/audit/cross-host）才路由 `runtime-run`，`strict`、并行与恢复不再自动升级。
+- 单任务或串行依赖按任务顺序直接执行，不要求子 Agent、波次计算或宿主探测；并行分支、非线性依赖或恢复场景按需使用控制器的 `waves` / `dispatchable`。
 - 每项产物通过测试和机器检查后才合并。失败或冲突标为 `需人工`，依赖它的任务标为 `阻塞`，其他独立任务继续。
 - owner / implementer 禁止在 task 内启动 LLM Review；全部可合并任务完成后进行一次最终审核。
-- 完整 Runtime Run 在派发前完成 `init-run` 和必需能力检查；Native Delivery 使用独立验证报告。
+- 完整 Runtime Run 在派发前完成 `init-run` 和必需能力检查；Native Delivery 使用带内容主体的独立 v2 验证报告，不初始化 Run。
 
 ### 步骤 6：验证与交付
 
@@ -140,7 +141,7 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 1. 汇总实现、测试、失败与合并结果。
 2. 对合并结果运行机器验证；涉及 UI 时再做视觉和浏览器验证。
-3. 对全部变更做一次最终审核。Native Delivery 使用 `standard integration`，完整 Runtime Run 使用 `strict run` 和独立 Judge。修复后重验并定向复审，禁止启动第二次全量首审。
+3. 对全部变更做一次最终审核。Native Delivery 按任务实际档位出 v2 集成 Review（`standard`；任务声明 `strict` 时为 `strict` 并要求独立 Judge 与三项独立性声明）；完整 Runtime Run 使用 `strict run`。修复后重验并定向复审，最多十轮，禁止启动第二次全量首审。
 4. 完成交付前沉淀检查、知识同步和任务状态一致性检查，再归档 Change。
 5. 提交本次代码与归档产物，按路径运行交付门。失败则回到对应步骤处理。
 6. 使用固定格式报告结果，列出待用户处理的 `需人工` / `阻塞` 项。

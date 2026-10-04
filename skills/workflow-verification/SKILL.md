@@ -18,11 +18,13 @@ description: 机器验证。代码改动前采集基线，任务合并及最终 
 
 | 交付路径 | Verify 产物 | 交付用途 | 禁止事项 |
 | --- | --- | --- | --- |
-| Native Delivery | 独立 `.agentic-framework/verify/report.json`，不传 `--run-dir` | `check_delivery.py --native-delivery` 消费 PASS 的独立 Verify 与标准 integration Review。 | 不得伪造 `run_id`、Harness、Trust Gate 或 Run Artifact。 |
+| Native Delivery | 独立 `.agentic-framework/verify/report.json`，不传 `--run-dir` | `check_delivery.py --native-delivery` 消费 PASS 的 v2 独立 Verify 与 integration Review。 | 不得伪造 `run_id`、Harness、Trust Gate 或 Run Artifact。 |
 | 完整 Runtime Run | 传 `--run-dir <run-dir>` 生成 Run-bound Verify Artifact。 | 完整 Runtime 的 Manifest、Journal、Capability 与 Trust Gate 证据链。 | 不得以独立报告替代 Run-bound Artifact。 |
-| Fast-Path 兼容别名 | 与 Native Delivery 相同的独立 Verify 报告。 | 只服务尚未迁移的低风险调用；不构成独立默认路径。 | 不得声明 Runtime 证据。 |
+| Fast-Path 兼容别名 | 与 Native Delivery 相同的独立 v2 Verify 报告。 | 只服务尚未迁移的低风险调用；不构成独立默认路径。 | 不得声明 Runtime 证据。 |
 
-独立 Verify 只证明已执行的机器检查及其结果。`scope: run` 或 `strict` Review 的交付，必须走完整 Runtime Run；Verify 本身不能把无 Run 任务升级为 Trust Gate PASS。
+独立 Verify 是 Native v2 报告（change 2048）：顶层 `schema_version: 2` 与 `subject_id`，检查前后核对同一内容主体，检查期间输入变化或覆盖不完整时结果无效（不产生 PASS）。旧 v1 报告只按旧合同展示历史，不能作为新完成证据；交付门会用 `--subject-base` 重算当前内容并交叉核对 Review/Verify/当前三方一致。
+
+独立 Verify 只证明已执行的机器检查及其结果。`scope: run` Review 的交付必须走完整 Runtime Run（显式启用）；strict Review 在 Native 与 Runtime 均可交付，Verify 本身不能把无 Run 任务升级为 Trust Gate PASS。
 
 ## 内置 spec drift 检查
 

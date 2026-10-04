@@ -54,3 +54,15 @@
 - 触发准确率（should-trigger 命中）：> 90%。
 - 误触发率（should-not-trigger 命中）：< 5%。
 - 边界样本：以「询问澄清 / 正确路由」为正确，不计入误触发。
+
+## behavior（行为用例，change 2048；逐条演练路由与执行形态）
+
+| ID | 场景 | 预期行为 | 理由 |
+| --- | --- | --- | --- |
+| R-1 | 任务声明 `strict`，用户未要求 Runtime | Native Delivery + strict Review（独立 Judge），不初始化 Run、不探测能力 | strict 只决定审查强度，不自动升级 |
+| R-2 | 用户显式要求完整执行审计证据（Git 仓库） | `route --execution-mode runtime` → `runtime-run`，Phase 0 `init-run` | Runtime 仅经显式选择启用 |
+| R-3 | 用户要求审计但说明不清 | 先澄清需要什么证据，不自动等同完整 Runtime | 「需要审计」≠ 自动 Runtime |
+| R-4 | SVN 工作副本 + 显式 Runtime 需求 | 路由非零退出并说明仅支持 Git；由用户决定去掉要求或换环境 | 不静默降级、不创建 Git |
+| R-5 | 并行分支 + 长任务恢复，无 Runtime 需求 | Worktree 隔离 + 串行集成 + recover 只读恢复，全程 Native | 执行需求不升级路径 |
+| R-6 | 中断后恢复 | `recover --merged <ids>` 只读核对事实，未证明的步骤标「需核对」；已有首轮 Review 只续 re-review | 恢复不建 Run、不补历史 |
+| R-7 | 单任务或纯串行链 | 直接 `event start` 顺序执行，不派子 Agent、不算波次、不探测宿主 | 串行直接执行 |
