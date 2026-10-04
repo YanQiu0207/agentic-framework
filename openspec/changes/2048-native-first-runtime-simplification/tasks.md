@@ -179,10 +179,10 @@ P4                                         ↓
   - [x] 3.1：固定数据/错误合同和 GitAdapter，未支持能力失败关闭。
   - [x] 3.2：按 workflow-test-generation 建临时 Git 仓库测试公共接口。
 
-### 任务 4：[ ] P1：冻结公共内容标识与输入覆盖规则
-- 状态：进行中
+### 任务 4：[x] P1：冻结公共内容标识与输入覆盖规则
+- 状态：完成
 - attempts：0
-- control_stage：running
+- control_stage：completed
 - 文件：`scripts/native_subject.py`、`scripts/test_native_subject.py`（新建），`scripts/vcs.py`、`scripts/test_vcs.py`（修改）
 - depends_on: Task 2, Task 3
 - review_profile: strict
@@ -194,16 +194,16 @@ P4                                         ↓
   - `skills/workflow-verification/scripts/verify.py:_config_snapshot` — 配置消费
   - `scripts/native_delivery.py` — v2 subject 合同
 - verification:
-  - [ ] `python -m pytest scripts/test_native_subject.py scripts/test_vcs.py -q` 通过。
-  - [ ] 用 fixtures 证明代码/配置/未跟踪构建输入/路径/文件类型/行为属性变化导致 ID 改变，报告输出与纯 VCS 元数据不造成自引用。
-  - [ ] 测试前后输入改变、排除项包含构建输入、外部输入不明均不能产生完整已验证声明；算法排序与同基准结果可重复。
-  - [ ] `python -m compileall -q scripts` 退出 0。
+  - [x] `python -m pytest scripts/test_native_subject.py scripts/test_vcs.py -q` 通过。
+  - [x] 用 fixtures 证明代码/配置/未跟踪构建输入/路径/文件类型/行为属性变化导致 ID 改变，报告输出与纯 VCS 元数据不造成自引用。
+  - [x] 测试前后输入改变、排除项包含构建输入、外部输入不明均不能产生完整已验证声明；算法排序与同基准结果可重复。
+  - [x] `python -m compileall -q scripts` 退出 0。
 - artifacts:
   - 公共内容标识实现与测试
   - 本 Change 的算法、基准和分类实施记录
 - 子任务：
-  - [ ] 4.1：冻结算法与边界，不建设依赖自动推导或新的状态存储。
-  - [ ] 4.2：按 workflow-test-generation 测输入覆盖、变化与取证稳定性。
+  - [x] 4.1：冻结算法与边界，不建设依赖自动推导或新的状态存储。
+  - [x] 4.2：按 workflow-test-generation 测输入覆盖、变化与取证稳定性。
 
 ### 任务 5：[ ] P1：Verify 生成 v2 并校验输入前后一致
 - 状态：未开始
@@ -565,4 +565,5 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 
 - Task 2: integrated `be5b9a3`; 57 targeted tests and 9 subtests passed; full Verify PASS (`2048-task2-final.json`, count 587, baseline 574). Runtime/v1 remains unchanged.
 - Task 3: integrated `74bcf46`; 27 real VCS tests passed; full Verify PASS (count 594, baseline 574). Windows TEMP normalized through Python Path.resolve(); no baseline/config changes.
-- Task 4 follows with fixed-base file union, conservative coverage and generated-output classification; Task 2/3 do not switch consumers or routing.
+- Task 4: implemented on `change/2048-subject` (`3e4321b`) and integrated by fast-forward plus an integration fix; 61 targeted tests pass (`scripts/test_native_subject.py`, `scripts/test_vcs.py`); full Verify PASS (`2048-task4-final.json`, count 638, baseline 574). Integration fix: a Windows symlink whose external target is missing was mislabeled `missing_symlink_target` because `Path.resolve()` substitutes the link itself for nonexistent final targets; classification now resolves the target's parent directory so the first hop stays classifiable, matching POSIX semantics, and the test creates its external target explicitly instead of relying on pytest leftovers. Environment note: this session's shell exports 8.3 short-form `TEMP` (`ADMINI~1`); the recorded P0 environment uses long-form `TEMP`, which five unrelated tests (lock path, plan gate, knowledge e2e) depend on — full Verify runs with `TEMP` normalized to long form and the 3.12 venv (`.agentic-framework/tools/venv`) on PATH. No baseline/config changes.
+- Task 5 follows: standalone Verify emits v2 `schema_version`/`subject_id` with before/after input checks; controller consumes legal versions only.
