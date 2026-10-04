@@ -305,8 +305,10 @@ P4                                         ↓
   - [x] 8.1：更新事实核对和模式恢复，保持唯一状态源。
   - [x] 8.2：按 workflow-test-generation 测中断、未知结果、重复执行与失败传播。
 
-### 任务 9：[ ] P2：核心 Skill 与报告规则同步简化
-- 状态：未开始
+### 任务 9：[x] P2：核心 Skill 与报告规则同步简化
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-code-generation/SKILL.md`、`skills/workflow-code-generation/reference/execution-setup.md`、`skills/workflow-code-generation/reference/delivery-guide.md`、`skills/workflow-code-generation/reference/delegated-execution-guide.md`、`skills/workflow-code-generation/reference/task_planning_guide.md`，`skills/workflow-code-review/SKILL.md`、`skills/workflow-code-review/reference/report-format.md`、`skills/workflow-code-review/reference/reviewer-prompts.md`，`skills/workflow-verification/SKILL.md`、`skills/workflow-verification/reference/spec-drift-and-scope.md`（修改，各 reference 归属前述 Skill）；`skills/workflow-code-generation/evaluation/trigger-cases.md`、`skills/workflow-code-review/evaluation/trigger-cases.md`、`skills/workflow-verification/evaluation/trigger-cases.md`、`scripts/test_profile_contracts.py`（修改）
 - depends_on: Task 8
 - review_profile: strict
@@ -318,14 +320,14 @@ P4                                         ↓
   - `scripts/test_profile_contracts.py` — 机器文案合同
   - `scripts/lint_skill_graph.py` — 引用图消费者
 - verification:
-  - [ ] `python -m pytest scripts/test_profile_contracts.py scripts/test_lint_skill_graph.py -q` 通过；`python scripts/lint_skill_graph.py` 无错误。
-  - [ ] 逐条运行更新后的触发场景，串行 Native 无子 Agent/波次/探测必需步骤；strict 仍独立裁决。
-  - [ ] 用定位检查确认活跃规则不再含“strict 必定升级”、恢复必 init-run、最终复审最多两轮，保留任务自身机器修复次数与历史说明的区别。
+  - [x] `python -m pytest scripts/test_profile_contracts.py scripts/test_lint_skill_graph.py -q` 通过；`python scripts/lint_skill_graph.py` 无错误。
+  - [x] 逐条运行更新后的触发场景，串行 Native 无子 Agent/波次/探测必需步骤；strict 仍独立裁决。
+  - [x] 用定位检查确认活跃规则不再含“strict 必定升级”、恢复必 init-run、最终复审最多两轮，保留任务自身机器修复次数与历史说明的区别。
 - artifacts:
   - 核心 Skill/reference、触发场景与 Profile 文案测试
 - 子任务：
-  - [ ] 9.1：依现有语言风格更新默认流程、进阶读指针和示例。
-  - [ ] 9.2：运行引用/触发/档位校验，确认 P1/P2 同批发布可完整使用。
+  - [x] 9.1：依现有语言风格更新默认流程、进阶读指针和示例。
+  - [x] 9.2：运行引用/触发/档位校验，确认 P1/P2 同批发布可完整使用。
 ### 任务 10：[ ] P3：SVN Adapter、工作副本限制与内容表示
 - 状态：未开始
 - 文件：`scripts/vcs.py`、`scripts/test_vcs.py`、`scripts/native_subject.py`、`scripts/test_native_subject.py`（修改）
@@ -578,3 +580,4 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 - Task 6: implemented on `change/2048-delivery` (`a1557b8`) and integrated by fast-forward (merged tree identical to the verified commit); targeted set 241 tests + 98 subtests pass; full Verify PASS (count 651, baseline 574). The gate consumes v2 review/verify only (v1 rejected as new evidence with directed messages), recomputes the current subject with `--subject-base` (default HEAD) and cross-checks Review/Verify/current before writing a verdict; pre-delivery edits and wrong bases are rejected. Profile dispatch keeps the production strict floor and requires strict when tasks declare strict; independence fields are enforced per profile by the Native contract. Non-scoped deliveries build the v2 verdict via `native_delivery.build_verdict` (git_clean + 40-hex commit_sha; CLI `hit` maps to `updated` and requires a non-empty reason); Scoped Delivery intentionally keeps the existing v1 verdict until Task 12 unifies delivery states — the v2 schema cannot express a scoped claim without asserting a false `git_clean=true`. `validate_change._validate_review_report` dispatches flat reports by version (v2 → native validator, unknown → fail closed, v1/envelope readers unchanged). `native_delivery.py`, `test_native_delivery.py`, `test_runtime_schema.py`, `test_profile_contracts.py` needed no changes; their regressions ran green unchanged. No baseline/config changes.
 - Task 7: implemented on `change/2048-routing` (`dce7032`) and integrated by fast-forward; targeted set 114 tests + 24 subtests pass, fixture runner 19/19 PASS, full Verify PASS (count 655, baseline 574). `select_execution_route` keys on `execution_mode` (default native): strict/parallel/recovery never auto-upgrade; explicit runtime, `audit_required`, and cross-host remain the only Runtime requirements and fail closed on explicit-native conflicts, SVN, or unknown VCS (the old silent SVN downgrade is removed — route now exits 2 with a directed error). Legacy parallel/recovery flags are accepted as execution needs with a stderr explanation; old return fields keep their shape. Fixtures moved to schema 2 with `execution_mode`/`vcs` inputs and `expected.error` assertions for the seven rejection cases. `downgrade_equivalence.py` needed no change (governance-downgrade comparison untouched); existing-Run mode preservation stays covered by the unchanged Runtime regression suite, with Native recovery facts landing in Task 8. Spec deltas created for workflow-control, runtime spec, and trust-model. No baseline/config changes.
 - Task 8: implemented on `change/2048-recovery` (`7147483`) and integrated by fast-forward; targeted set 121 tests + 24 subtests pass; full Verify PASS (count 660, baseline 574). `merge_success` on the Native path prints the local-integration semantics (not an SVN remote commit; formal delivery is gate-verified against an exact revision); `recover` prints its read-only contract and the SVN serial-write discipline; the inspect action now names the evidence to verify (artifacts/verify reports/integration content, not conversational claims). New tests: repeat-run spy asserting no external write commands (only read-only probes), no `initialize_run` during recovery, notes on stderr, evidence wording. Existing failure/blocking/approval/dependency propagation stayed green unchanged; existing-Run tasks keep the Runtime path per the unchanged regression suite. No baseline/config changes.
+- Task 9: implemented on `change/2048-skills` (`51267b5`) and integrated by fast-forward; 16 profile-contract tests + graph lint pass (0 errors/0 warnings), full Verify PASS (count 666, baseline 574). Core skills/references now state the explicit-routing contract (Runtime only via --execution-mode runtime / hard audit / cross-host; strict = Native strict Review with an independent Judge; serial tasks run directly without sub-agents/waves/probing; recovery is read-only and fact-based), review report-format pins the v2 flat contract with strict independence fields and history-only v1, verification skill documents subject-bound v2 reports and the gate's --subject-base three-way check. Re-review cap wording aligned to ten rounds while the delegated guide keeps the task-level attempts budget as a separate count. Trigger cases gained behavior rows (R-1..R-7, V-1..V-6, S-1..S-6); `NativeFirstRoutingContractTest` pins the new wording and forbids the retired phrases (grep-verified: 必定升级/恢复本身是 Runtime/最多两轮 no longer appear under skills/). No baseline/config changes. P1+P2 batch is now complete on the integration branch.
