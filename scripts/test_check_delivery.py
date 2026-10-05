@@ -773,62 +773,6 @@ class CheckDeliveryTest(unittest.TestCase):
 
         return patch.object(check_delivery.vcs, "_run", side_effect=spy), calls
 
-    def test_native_delivery_svn_pending_commit_verdict(self) -> None:
-        repo = self._svn_repo()
-        (repo / "code.py").write_text("print('pending')\n", encoding="utf-8")
-        args, verdict = self._svn_native_args(repo)
-        output = StringIO()
-        spy, calls = self._no_write_spy()
-        with spy, redirect_stdout(output):
-            code = check_delivery.main(args)
-        self.assertEqual(0, code)
-        payload = json.loads(verdict.read_text(encoding="utf-8"))
-        self.assertEqual("svn-pending-commit", payload["verdict"])
-        self.assertNotIn("git_clean", payload["evidence"])
-        self.assertTrue(payload["evidence"]["repository_uuid"])
-        self.assertTrue(
-            payload["evidence"]["repository_relative_url"].startswith("^/")
-        )
-        self.assertIn("待提交状态（预期本地改动，不适用 Git clean）", output.getvalue())
-        self.assertIn("待 SVN 提交：这不是正式交付 PASS", output.getvalue())
-        for command in calls:
-            if command[0] == "svn":
-                self.assertFalse(
-                    {"commit", "update", "revert", "switch"}.intersection(command[:2]),
-                    f"交付门执行了写命令：{command}",
-                )
-
-    def test_native_delivery_svn_revision_verified_binds_exact_revision(self) -> None:
-        repo = self._svn_repo()
-        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
-        baseline = self._svn_scope_baseline(repo, ["code.py"])
-        (repo / "code.py").write_text("print('verified')\n", encoding="utf-8")
-        _svn(repo, "commit", "--force-log", "-m", "deliver")
-        _svn(repo, "update")
-        revision = _svn_head_revision(repo)
-        args, verdict = self._svn_native_args(
-            repo, scoped=True, revision=revision, baseline=baseline
-        )
-        output = StringIO()
-        spy, calls = self._no_write_spy()
-        with spy, redirect_stdout(output):
-            code = check_delivery.main(args)
-        self.assertEqual(0, code)
-        payload = json.loads(verdict.read_text(encoding="utf-8"))
-        self.assertEqual("svn-revision-verified", payload["verdict"])
-        self.assertEqual(int(revision), payload["evidence"]["revision"])
-        self.assertEqual(
-            payload["subject_id"], payload["evidence"]["revision_subject_id"]
-        )
-        self.assertIn(f"正式交付 revision：r{revision}", output.getvalue())
-        self.assertIn("本次交付范围干净，预存残留未变化", output.getvalue())
-        for command in calls:
-            if command[0] == "svn":
-                self.assertFalse(
-                    {"commit", "update", "revert", "switch"}.intersection(command[:2]),
-                    f"交付门执行了写命令：{command}",
-                )
-
     def test_native_delivery_svn_revision_rejects_stale_subject(self) -> None:
         """提交改变主体基准后，提交前报告不能再用于确切 revision。
 
@@ -847,43 +791,6 @@ class CheckDeliveryTest(unittest.TestCase):
             subject["subject_id"],
             "提交后主体未变化：提交前报告会被错误采信",
         )
-
-    def test_native_delivery_svn_revision_race_requires_reverification(self) -> None:
-        """他人不同文件提交被接纳后，按当前组合重新取证才可正式交付。"""
-        server = self._shared_svn_server()
-        temp_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(temp_dir.cleanup)
-        repo = Path(temp_dir.name) / "wc"
-        other = Path(temp_dir.name) / "wc2"
-        for target in (repo, other):
-            subprocess.run(
-                ["svn", "checkout", "--non-interactive", server.as_uri(), str(target)],
-                check=True, capture_output=True, timeout=30,
-            )
-        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
-        baseline = self._svn_scope_baseline(repo, ["code.py"])
-        (other / "other.txt").write_text("teammate\n", encoding="utf-8")
-        _svn(other, "add", "other.txt")
-        _svn(other, "commit", "--force-log", "-m", "teammate")
-        (repo / "code.py").write_text("print('race')\n", encoding="utf-8")
-        _svn(repo, "commit", "--force-log", "-m", "deliver")
-        _svn(repo, "update")
-        revision = _svn_head_revision(repo)
-        self.assertGreaterEqual(int(revision), 3)
-        # 按当前组合取证（revision 内容含 teammate 的 other.txt——文本无冲突
-        # 不代表验证过该组合，主体必须覆盖 teammate 文件）后才可正式交付；
-        # 旧主体拒收机制由 stale 测试覆盖。
-        refreshed, verdict_path = self._svn_native_args(
-            repo, scoped=True, revision=revision, baseline=baseline,
-        )
-        output = StringIO()
-        with redirect_stdout(output):
-            code = check_delivery.main(refreshed)
-        self.assertEqual(0, code)
-        payload = json.loads(verdict_path.read_text(encoding="utf-8"))
-        self.assertEqual("svn-revision-verified", payload["verdict"])
-        self.assertEqual(int(revision), payload["evidence"]["revision"])
-        self.assertIn(f"正式交付 revision：r{revision}", output.getvalue())
 
     def test_native_delivery_svn_revision_rejects_post_commit_local_edit(self) -> None:
         """提交后又本地编辑：残留 S0/S1 通道直接拦截（门内定向断言）。

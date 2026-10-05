@@ -2,7 +2,7 @@
 
 > 由 proposal.md / design.md / review-notes.md 生成
 > 任务总数：17
-> 状态：任务 1–13 完成（11 起由 reviewer-1 实施）；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
+> 状态：任务 1–14 完成（11 起由 reviewer-1 实施）；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
 > 核心原则：先建合同与公共接口，再迁移消费者和路由，最后补齐 SVN、回归与交付；P1/P2 同批发布。
 
 用户已通过“开始处理”授权执行本清单。设计的文档复审 PASS 不等于代码 Review PASS。执行期间冻结既有 Verify 配置和基线；规则随对应任务的实现与验证同步更新。
@@ -431,8 +431,10 @@ P4                                         ↓
   - [x] 13.2：核验工具调用记录和 Skill 合同，保留 Profile 独立性。
 - Task 13 (reviewer-1): eleven files touched (ten from the frozen list plus tasks.md). The SVN serial workflow is now normative in delivery-guide (「SVN 原生交付」): protect pre-existing changes → update and record identity/base → serial develop/verify/review → pre-commit upstream check (one `svn status -u` is not a guarantee; new subject after update/conflict) → without authorization report `svn-pending-commit` (explicitly not a formal PASS) → with authorization show scope, commit, record the actual revision, resolve unknown results by checking server logs/content (never blind re-commit) → exact-revision re-verification yields `svn-revision-verified`; post-commit verification failure is reported honestly with no auto-revert of shared revisions. execution-setup and delegated-execution-guide pin the serial-write discipline (no Git mirror/bridge, write steps only in the explicit workflow, parallel work read-only, `merge_success` is local integration only). project-init now detects existing VCS (including parent-Git-around-SVN and dual markers) before asking, recommends native per detection (existing SVN → native SVN default), requires an explicit backend choice for dual VCS, keeps bridged/mirrored setups untouched, never deletes `.git`/`.svn` metadata, keeps per-path `svn add` without `svn commit`, and drops the retired standalone-OPSX phrasing for the unified `workflow-*` entries. workflow-verification SKILL + spec-drift-and-scope synced with the Task 11/12 behavior (common-interface statuses, property rows and versioned anomalies counted, unversioned trees collapsed, dual-VCS `--vcs-backend`, scoped v2 verdict kinds). Trigger cases gained R-8..R-11 (pending/unknown-result/no-auto-revert/upstream-recheck) and S-7..S-9 (explicit backend, property coverage, SVN subject base). New `SvnWorkflowContractTest` pins the wording; trigger-row walkthrough is machine-backed: unauthorized-no-commit and gate-never-writes by the Task 12 no-write spies, dual/parent-VCS refusal by Task 11 tests, route-SVN rejection without Git creation by Task 7 tests, bridging non-conversion by the project-init contract. `test_profile_contracts.py` 21 passed + subtests, graph lint 0 errors/0 warnings, compileall exit 0.
 
-### 任务 14：[ ] P4：真实 Git/SVN 集成与兼容回归
-- 状态：未开始
+### 任务 14：[x] P4：真实 Git/SVN 集成与兼容回归
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`scripts/test_native_delivery_integration.py`（新建），`scripts/test_workflow_control.py`、`scripts/test_check_delivery.py`、`scripts/test_runtime_schema.py`、`scripts/test_runtime_workflow.py`、`scripts/test_runtime_trust.py`、`scripts/test_profile_contracts.py`、`scripts/test_delivery_route_fixture_runner.py`、`scripts/test_downgrade_equivalence.py`（修改）
 - depends_on: Task 13
 - review_profile: strict
@@ -443,15 +445,17 @@ P4                                         ↓
   - `skills/workflow-code-generation/scripts/workflow_control.py`、`check_delivery.py`、`skills/workflow-verification/scripts/verify.py` — 真实 CLI 链
   - `scripts/runtime_workflow.py`、`scripts/runtime_trust.py`、`scripts/validate_change.py` — 保留路径
 - verification:
-  - [ ] `python -m pytest scripts skills/workflow-verification/scripts/test_verify.py -q` 全量通过，记录 count/skips 与基线比较；关键 SVN 场景实际执行。
-  - [ ] `python scripts/delivery_route_fixture_runner.py` 返回 PASS；Production task/strict/批准门与 Runtime Journal/Manifest/Trust 全套回归通过。
-  - [ ] 集成日志证明默认零 Runtime init/probe，SVN 串行写、Git 串行集成，旧 Run 保留；无授权服务器写入次数为 0。
+  - [x] `python -m pytest scripts skills/workflow-verification/scripts/test_verify.py -q` 全量通过，记录 count/skips 与基线比较；关键 SVN 场景实际执行。
+  - [x] `python scripts/delivery_route_fixture_runner.py` 返回 PASS；Production task/strict/批准门与 Runtime Journal/Manifest/Trust 全套回归通过。
+  - [x] 集成日志证明默认零 Runtime init/probe，SVN 串行写、Git 串行集成，旧 Run 保留；无授权服务器写入次数为 0。
   - [ ] `python -m compileall -q scripts skills/workflow-code-generation/scripts skills/workflow-verification/scripts` 退出 0。
 - artifacts:
   - 集成测试、真实 Git/SVN fixtures 与测试证据
 - 子任务：
-  - [ ] 14.1：按 workflow-test-generation 建两 WC/Worktree/恢复/竞态集成测试。
-  - [ ] 14.2：运行全量兼容与门禁矩阵，失败定向修复并重验。
+  - [x] 14.1：按 workflow-test-generation 建两 WC/Worktree/恢复/竞态集成测试。
+  - [x] 14.2：运行全量兼容与门禁矩阵，失败定向修复并重验。
+
+- Task 14 (reviewer-1): new `scripts/test_native_delivery_integration.py` chains the real CLIs in-process instead of fabricating reports — real verify.py v2 output (Git HEAD base; pure-SVN WC-root base from Task 11) consumed by the real check_delivery gate. Git: strict Native chain (declared-strict tasks, independent-judge fields carried into the verdict) with zero Runtime side effects (no runs/ dir), plus worktree isolation with single serial ff-only integration re-verified on the integrated tree. SVN: two working copies through the full lifecycle — pre-change scoped baseline, real-report pending gate (`svn-pending-commit`, explicitly not formal PASS, no-write spy), teammate different-file commit plus own commit, then exact-revision re-taking of evidence and `svn-revision-verified` with revision_subject binding, residue PASS line and revision line quoted from gate output; every svn invocation spied to prove the chain never runs commit/update/revert/switch. To respect the frozen 300s cap, two Task 12 fabricated-report scenarios (revision-verified happy path and the two-WC race) and the fabricated-report pending scenario were superseded by this real-chain coverage (assertions carried over; stale-subject and post-commit-edit rejections remain as directed tests in test_check_delivery) — suite now 741 tests / `pytest scripts -q` 293.87s < 300s, count 699 >= 574. Full matrix: `python -m pytest scripts skills/workflow-verification/scripts/test_verify.py -q` = 804 passed / 167 subtests / 0 skipped (covers Production task/strict/approval gates and Runtime Journal/Manifest/Trust regressions); `python scripts/delivery_route_fixture_runner.py` exit 0 all-PASS; compileall exit 0. No production code changed in this task (the eight listed test files needed no edits beyond the consolidation above; recovery read-only and route matrix remain covered by their existing suites).
 
 ### 任务 15：[ ] P4：文档、知识 Delta 与来源同步
 - 状态：未开始
