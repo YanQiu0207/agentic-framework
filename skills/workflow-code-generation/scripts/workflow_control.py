@@ -11,7 +11,6 @@ import math
 import os
 import re
 import stat
-import subprocess
 import sys
 import tempfile
 import time
@@ -27,6 +26,7 @@ if str(_FRAMEWORK_SCRIPTS) not in sys.path:
 import governance_profile
 import native_delivery
 import runtime_workflow
+import vcs
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _TASK_DOCUMENT_NAME = "tasks.md"
@@ -992,38 +992,25 @@ def _repository_root(path: Path) -> Path:
     return resolved.parent
 
 
-def _detect_vcs(directory: Path) -> str | None:
-    """Detect the version control backend of a directory: 'git' / 'svn' / None.
+def _detect_vcs(directory: Path, backend: str | None = None) -> str | None:
+    """经公共 VCS 接口探测目录的后端：'git' / 'svn' / None。
 
-    Git 优先于 SVN（git-svn 混合工作副本的 diff 语义以 Git 为准）；二进制缺失
-    （纯 SVN 环境未装 git）不抛异常，降级探测下一后端。两者都探测不到时返回
-    None——临时目录等非仓库场景不干预 route 结果。
+    双 VCS 工作副本不再隐式 Git 优先（change 2048 Task 11）：未显式指定
+    backend 时抛 ValueError，由 CLI 以非零退出拒绝。非仓库目录与工具缺失按
+    旧行为返回 None——临时目录等场景不干预 route 结果；其余查询失败显式报错。
     """
     cwd = directory.resolve(strict=False)
     try:
-        git_code = subprocess.run(
-            ["git", "-C", str(cwd), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-        ).returncode
-    except (OSError, FileNotFoundError):
-        git_code = 1
-    if git_code == 0:
-        return "git"
-    try:
-        svn_code = subprocess.run(
-            ["svn", "info"],
-            cwd=str(cwd),
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-        ).returncode
-    except (OSError, FileNotFoundError):
-        svn_code = 1
-    if svn_code == 0:
-        return "svn"
-    return None
+        facts = vcs.inspect_workspace(cwd, backend)
+    except vcs.VcsError as error:
+        if error.code in ("not_working_copy", "tool_missing", "invalid_path"):
+            return None
+        raise ValueError(
+            "无法判定版本控制后端"
+            f"（{error.code}: {error.operation}）；"
+            "双 VCS 工作副本需用 --vcs-backend git|svn 显式选择"
+        ) from error
+    return facts["backend"]
 
 
 def _task_lock_path(path: Path) -> Path:
@@ -1095,6 +1082,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         choices=("production", "tooling"),
         help="显式指定治理 Profile（覆盖 manifest 读取；change 2041 接入，"
         "门层合并后消费）",
+    )
+    parser.add_argument(
+        "--vcs-backend",
+        choices=("git", "svn"),
+        help="显式选择版本控制后端；Git 与 SVN 并存时必须指定，"
+        "否则 route/recover 拒绝隐式 Git 优先（change 2048）",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("waves", help="输出稳定拓扑波次")
@@ -1302,7 +1295,9 @@ def main(argv: list[str]) -> int:
                 _require_verify_config_decision(args.tasks_md, text)
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
-                detected_vcs = _detect_vcs(_repository_root(args.tasks_md))
+                detected_vcs = _detect_vcs(
+                    _repository_root(args.tasks_md), args.vcs_backend
+                )
                 selected = select_execution_route(
                     args.review_profile,
                     execution_mode=args.execution_mode,
@@ -1352,7 +1347,9 @@ def main(argv: list[str]) -> int:
                 output = [asdict(decision) for decision in decisions]
             elif args.command == "recover":
                 _require_verify_config_decision(args.tasks_md, text)
-                detected_vcs = _detect_vcs(_repository_root(args.tasks_md))
+                detected_vcs = _detect_vcs(
+                    _repository_root(args.tasks_md), args.vcs_backend
+                )
                 print(
                     "[workflow-control] recover 只读：核对 tasks 与调用方提供的集成"
                     "事实，不创建 Run、不补历史、不执行 update/commit。",

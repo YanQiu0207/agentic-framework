@@ -365,51 +365,101 @@ class WorkflowControlTest(unittest.TestCase):
                 )
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
 
-    def test_detect_vcs_git_priority_svn_fallback_and_none(self) -> None:
+    def test_detect_vcs_routes_through_common_interface(self) -> None:
+        """公共接口探测：单一后端直返；双 VCS 未显式选择时拒绝而非 Git 优先。"""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
 
-            def run_side_effect(args, **kwargs):
-                result = mock.Mock()
-                result.returncode = 0 if args[0] == "git" else 1
-                return result
-
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=run_side_effect
+                workflow_control.vcs,
+                "inspect_workspace",
+                return_value={"backend": "git"},
             ):
                 self.assertEqual("git", workflow_control._detect_vcs(directory))
 
-            def svn_only(args, **kwargs):
-                result = mock.Mock()
-                result.returncode = 1 if args[0] == "git" else 0
-                return result
+            with mock.patch.object(
+                workflow_control.vcs,
+                "inspect_workspace",
+                return_value={"backend": "svn"},
+            ) as inspect_spy:
+                self.assertEqual(
+                    "svn", workflow_control._detect_vcs(directory, "svn")
+                )
+            inspect_spy.assert_called_once_with(
+                directory.resolve(strict=False), "svn"
+            )
+
+            # 非仓库 / 工具缺失按旧行为返回 None，不干预 route 结果。
+            for code in ("not_working_copy", "tool_missing", "invalid_path"):
+                with mock.patch.object(
+                    workflow_control.vcs,
+                    "inspect_workspace",
+                    side_effect=workflow_control.vcs.VcsError(
+                        code, "inspect_workspace"
+                    ),
+                ):
+                    self.assertIsNone(workflow_control._detect_vcs(directory))
 
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=svn_only
+                workflow_control.vcs,
+                "inspect_workspace",
+                side_effect=workflow_control.vcs.VcsError(
+                    "ambiguous_backend", "inspect_workspace"
+                ),
             ):
-                self.assertEqual("svn", workflow_control._detect_vcs(directory))
-
-            def neither(args, **kwargs):
-                result = mock.Mock()
-                result.returncode = 1
-                return result
+                with self.assertRaisesRegex(ValueError, "--vcs-backend"):
+                    workflow_control._detect_vcs(directory)
 
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=neither
+                workflow_control.vcs,
+                "inspect_workspace",
+                side_effect=workflow_control.vcs.VcsError(
+                    "query_timeout", "svn:status"
+                ),
             ):
-                self.assertIsNone(workflow_control._detect_vcs(directory))
+                with self.assertRaisesRegex(ValueError, "query_timeout"):
+                    workflow_control._detect_vcs(directory)
 
-            def git_missing(args, **kwargs):
-                if args[0] == "git":
-                    raise FileNotFoundError
-                result = mock.Mock()
-                result.returncode = 0
-                return result
-
+    def test_route_command_rejects_dual_vcs_without_explicit_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=git_missing
-            ):
-                self.assertEqual("svn", workflow_control._detect_vcs(directory))
+                workflow_control,
+                "_detect_vcs",
+                side_effect=ValueError(
+                    "无法判定版本控制后端（ambiguous_backend: inspect_workspace）；"
+                    "双 VCS 工作副本需用 --vcs-backend git|svn 显式选择"
+                ),
+            ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(
+                    2,
+                    workflow_control.main(
+                        [str(path), "route", "--review-profile", "standard"]
+                    ),
+                )
+            self.assertIn("ambiguous_backend", stderr.getvalue())
+            # 显式后端解除歧义后正常路由到 Native。
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ) as detect_spy, mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as stdout:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [
+                            "--vcs-backend",
+                            "svn",
+                            str(path),
+                            "route",
+                            "--review-profile",
+                            "standard",
+                        ]
+                    ),
+                )
+            detect_spy.assert_called_once_with(mock.ANY, "svn")
+            self.assertIn('"path": "native-delivery"', stdout.getvalue())
 
     def test_quality_passed_without_verify_report_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1618,9 +1668,7 @@ class NativeRecoverySemanticsTest(unittest.TestCase):
                 return real_run(args, *call_args, **kwargs)
 
             outputs = []
-            with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=spy_run
-            ):
+            with mock.patch("subprocess.run", side_effect=spy_run):
                 for _ in range(2):
                     with mock.patch(
                         "sys.stdout", new_callable=io.StringIO
@@ -1650,6 +1698,22 @@ class NativeRecoverySemanticsTest(unittest.TestCase):
                 self.assertEqual(0, workflow_control.main([str(path), "recover"]))
             self.assertIn("串行写入", stderr.getvalue())
             self.assertIn("只读", stderr.getvalue())
+
+    def test_recover_command_threads_explicit_vcs_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ) as detect_spy, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ), mock.patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        ["--vcs-backend", "svn", str(path), "recover"]
+                    ),
+                )
+            detect_spy.assert_called_once_with(mock.ANY, "svn")
 
     def test_recover_never_initializes_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

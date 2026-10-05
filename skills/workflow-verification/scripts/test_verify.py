@@ -22,7 +22,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from native_delivery import validate_verify_report as validate_native_report
-from scripts.test_vcs import head, repository
+from scripts.test_vcs import command, head, repository, svn_pair
 
 
 def _python_command(source: str) -> str:
@@ -381,7 +381,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
             with mock.patch.object(
                 verify,
                 "_changed_files",
-                return_value=([], ["src/tool.py", "docs/tasks.md"], None),
+                return_value=("git", [], ["src/tool.py", "docs/tasks.md"], None),
             ):
                 old_cwd = Path.cwd()
                 try:
@@ -398,7 +398,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         with mock.patch.object(
             verify,
             "_changed_files",
-            return_value=([], ["src/tool.py", "other/spec.md"], None),
+            return_value=("git", [], ["src/tool.py", "other/spec.md"], None),
         ):
             result = verify.evaluate_spec_drift("HEAD", "")
         self.assertEqual("fail", result.status)
@@ -446,6 +446,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                 verify,
                 "_changed_files",
                 return_value=(
+                    "git",
                     [
                         "src/tool.py",
                         "openspec/changes/add-tool/proposal.md",
@@ -483,6 +484,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                 verify,
                 "_changed_files",
                 return_value=(
+                    "git",
                     ["src/tool.py", "openspec/changes/add-tool/tasks.md"],
                     [],
                     None,
@@ -509,6 +511,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                 verify,
                 "_changed_files",
                 return_value=(
+                    "git",
                     ["src/tool.py", "openspec/specs/backend/tool/overview.md"],
                     [],
                     None,
@@ -533,7 +536,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         with mock.patch.object(
             verify,
             "_changed_files",
-            return_value=(["src/tool.py"], [], None),
+            return_value=("git", ["src/tool.py"], [], None),
         ):
             result = verify.evaluate_spec_drift(
                 "HEAD", "只调整日志文字，不改变 Change 或长期知识"
@@ -558,7 +561,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         with mock.patch.object(
             verify,
             "_changed_files",
-            return_value=(["local/a.py", "local/b.py"], [], None),
+            return_value=("git", ["local/a.py", "local/b.py"], [], None),
         ):
             result = verify.evaluate_spec_drift(
                 "HEAD",
@@ -577,7 +580,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         with mock.patch.object(
             verify,
             "_changed_files",
-            return_value=(["local/debug.py"], [], None),
+            return_value=("git", ["local/debug.py"], [], None),
         ):
             result = verify.evaluate_spec_drift("HEAD", "", ["local/"])
         self.assertEqual("pass", result.status)
@@ -588,7 +591,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         with mock.patch.object(
             verify,
             "_changed_files",
-            return_value=(["openspec/changes/x/tasks.md"], [], None),
+            return_value=("git", ["openspec/changes/x/tasks.md"], [], None),
         ):
             result = verify.evaluate_spec_drift(
                 "HEAD", "", ["openspec/changes/x/tasks.md"]
@@ -625,7 +628,7 @@ class EvaluateSpecDriftTest(unittest.TestCase):
         with mock.patch.object(
             verify,
             "_changed_files",
-            return_value=(["docs/v1.0[draft].md"], [], None),
+            return_value=("git", ["docs/v1.0[draft].md"], [], None),
         ):
             result = verify.evaluate_spec_drift(
                 "HEAD", "", [], [], ["docs/v1.0[draft].md"]
@@ -714,7 +717,7 @@ class ConfigSnapshotTest(unittest.TestCase):
             baseline = Path(temp_dir) / "baseline.json"
             config = {"checks": [], "ignore_paths": ["generated/**"]}
             with mock.patch.object(
-                verify, "_changed_files", return_value=([], [], None)
+                verify, "_changed_files", return_value=("git", [], [], None)
             ), mock.patch("builtins.print"):
                 rc = verify.cmd_save_baseline(config, baseline)
 
@@ -1186,79 +1189,183 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
         self.assertIsNone(value["attempt"])
 
 
+def _svn_facts(statuses: list[dict]) -> dict:
+    """公共接口 SVN facts 的最小可用形状（只填 _changed_files 消费的字段）。"""
+    return {
+        "backend": "svn",
+        "root": ".",
+        "statuses": statuses,
+    }
+
+
 class SvnSupportTest(unittest.TestCase):
     """SVN spec-drift file list and source_ref freshness."""
 
     def test_svn_status_splits_tracked_and_untracked(self) -> None:
-        lines = [
-            "M       src/tool.py",
-            "A       src/new.py",
-            "?       untracked.txt",
-            "I       ignored.log",
+        statuses = [
+            {"path": "src/tool.py", "status": "modified", "property_status": "none"},
+            {"path": "src/new.py", "status": "added", "property_status": None},
+            {
+                "path": "untracked.txt",
+                "status": "unversioned",
+                "property_status": None,
+            },
+            {"path": "ignored.log", "status": "ignored", "property_status": None},
         ]
-
-        def svn_lines(args: list[str]) -> tuple[int, list[str], str]:
-            return 0, lines, ""
-
-        with mock.patch.object(verify, "_svn_lines", side_effect=svn_lines):
-            tracked, untracked, err = verify._svn_status_changes()
-
-        self.assertIsNone(err)
+        tracked, untracked = verify._svn_status_changes_from_facts(statuses)
         self.assertEqual(["src/new.py", "src/tool.py"], tracked)
         self.assertEqual(["untracked.txt"], untracked)
 
     def test_svn_status_preserves_paths_with_spaces(self) -> None:
-        """Regression for P1-1：含空格路径不得被分词截断。"""
-        lines = [
-            "M       src/my module/tool.py",
-            "?       untracked dir/note.md",
+        """Regression for P1-1：含空格路径不得被切分（XML 路径天然完整）。"""
+        statuses = [
+            {
+                "path": "src/my module/tool.py",
+                "status": "modified",
+                "property_status": "none",
+            },
+            {
+                "path": "untracked dir/note.md",
+                "status": "unversioned",
+                "property_status": None,
+            },
         ]
-
-        def svn_lines(args: list[str]) -> tuple[int, list[str], str]:
-            return 0, lines, ""
-
-        with mock.patch.object(verify, "_svn_lines", side_effect=svn_lines):
-            tracked, untracked, err = verify._svn_status_changes()
-
-        self.assertIsNone(err)
+        tracked, untracked = verify._svn_status_changes_from_facts(statuses)
         self.assertEqual(["src/my module/tool.py"], tracked)
         self.assertEqual(["untracked dir/note.md"], untracked)
 
-    def test_svn_status_skips_noise_and_property_rows(self) -> None:
-        """externals 提示行 / X / ! / ~ / 属性行不计入 tracked（白名单）。
+    def test_svn_status_counts_property_rows_and_versioned_anomalies(self) -> None:
+        """Task 11：纯属性行计入 tracked；external/normal 跳过；异常节点计入。
 
-        在 subprocess.run 层打桩，让真实 `_svn_lines`（含前导空白保留逻辑）参与执行，
-        防止属性行 ` M file` 被 strip 成 `M file` 后误计入 tracked（NF-1 回归）。
+        旧文本解析跳过 ` M` 属性行——属性也是项目输入，公共接口迁移后必须覆盖。
+        missing/obstructed/incomplete 是版本化节点的异常状态，计入 tracked 以便
+        spec drift 可见；ignored/external/normal/none 仍不计入改动。
         """
-        stdout = (
-            "M       src/real.py\n"
-            "Performing status on external at 'vendor':\n"
-            "X       vendor\n"
-            "!       src/missing.py\n"
-            "~       src/obstructed.py\n"
-            " M      src/prop-only.py\n"
-            "I       ignored.log\n"
+        statuses = [
+            {"path": "src/real.py", "status": "modified", "property_status": "none"},
+            {"path": "vendor", "status": "external", "property_status": None},
+            {"path": "src/normal.py", "status": "normal", "property_status": "none"},
+            {
+                "path": "src/prop-only.py",
+                "status": "normal",
+                "property_status": "modified",
+            },
+            {
+                "path": "src/prop-conflict.py",
+                "status": "normal",
+                "property_status": "conflicted",
+            },
+            {"path": "src/missing.py", "status": "missing", "property_status": None},
+            {"path": "ignored.log", "status": "ignored", "property_status": None},
+        ]
+        tracked, untracked = verify._svn_status_changes_from_facts(statuses)
+        self.assertEqual(
+            [
+                "src/missing.py",
+                "src/prop-conflict.py",
+                "src/prop-only.py",
+                "src/real.py",
+            ],
+            tracked,
         )
-        completed = subprocess.CompletedProcess(
-            args=["svn", "status"], returncode=0, stdout=stdout, stderr=""
-        )
-        with mock.patch.object(verify.subprocess, "run", return_value=completed):
-            tracked, untracked, err = verify._svn_status_changes()
-
-        self.assertIsNone(err)
-        self.assertEqual(["src/real.py"], tracked)
         self.assertEqual([], untracked)
 
     def test_changed_files_dispatches_to_svn_when_svn_working_copy(self) -> None:
-        with mock.patch.object(verify, "_detect_vcs", return_value="svn"), mock.patch.object(
+        with mock.patch.object(
             verify,
-            "_svn_status_changes",
-            return_value=(["src/a.py"], ["b.txt"], None),
+            "inspect_workspace",
+            return_value=_svn_facts(
+                [
+                    {
+                        "path": "src/a.py",
+                        "status": "modified",
+                        "property_status": "none",
+                    },
+                    {
+                        "path": "b.txt",
+                        "status": "unversioned",
+                        "property_status": None,
+                    },
+                ]
+            ),
         ):
-            tracked, untracked, err = verify._changed_files("HEAD")
+            backend, tracked, untracked, err = verify._changed_files("HEAD")
         self.assertIsNone(err)
+        self.assertEqual("svn", backend)
         self.assertEqual(["src/a.py"], tracked)
         self.assertEqual(["b.txt"], untracked)
+
+    def test_changed_files_reports_tool_and_query_errors_not_empty(self) -> None:
+        """工具错误不算无改动：分类错误必须成为 error，不得静默空列表。"""
+        for code, operation in (
+            ("tool_missing", "svn"),
+            ("query_timeout", "svn:status"),
+        ):
+            with self.subTest(code=code):
+                with mock.patch.object(
+                    verify,
+                    "inspect_workspace",
+                    side_effect=verify.VcsError(code, operation),
+                ):
+                    backend, tracked, untracked, err = verify._changed_files("HEAD")
+                self.assertIsNone(backend)
+                self.assertEqual([], tracked)
+                self.assertEqual([], untracked)
+                self.assertIn(code, err)
+
+    def test_changed_files_rejects_dual_vcs_without_explicit_backend(self) -> None:
+        calls = {}
+
+        def inspect(path, backend=None):
+            calls["backend"] = backend
+            if backend is None:
+                raise verify.VcsError("ambiguous_backend", "inspect_workspace")
+            return _svn_facts([])
+
+        with mock.patch.object(verify, "inspect_workspace", side_effect=inspect):
+            _, _, _, err = verify._changed_files("HEAD")
+        self.assertIn("--vcs-backend", err)
+        with mock.patch.object(verify, "inspect_workspace", side_effect=inspect):
+            backend, tracked, untracked, err = verify._changed_files("HEAD", "svn")
+        self.assertIsNone(err)
+        self.assertEqual("svn", backend)
+        self.assertEqual("svn", calls["backend"])
+
+    def test_changed_files_git_keeps_rename_old_path(self) -> None:
+        with mock.patch.object(
+            verify,
+            "inspect_workspace",
+            return_value={"backend": "git", "root": "."},
+        ), mock.patch.object(
+            verify,
+            "collect_changes",
+            return_value=[
+                {
+                    "path": "renamed.py",
+                    "status": "R100",
+                    "old_path": "old.py",
+                    "property_changes": [],
+                },
+                {
+                    "path": "new.py",
+                    "status": "A",
+                    "old_path": None,
+                    "property_changes": [],
+                },
+                {
+                    "path": "untracked.txt",
+                    "status": "?",
+                    "old_path": None,
+                    "property_changes": [],
+                },
+            ],
+        ) as collect:
+            backend, tracked, untracked, err = verify._changed_files("00355a9")
+        collect.assert_called_once_with(Path.cwd(), "00355a9", "git")
+        self.assertIsNone(err)
+        self.assertEqual("git", backend)
+        self.assertEqual(["new.py", "old.py", "renamed.py"], tracked)
+        self.assertEqual(["untracked.txt"], untracked)
 
     def test_svn_source_ref_fresh_has_no_warning(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1378,7 +1485,7 @@ class ScopedBaselineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             baseline = Path(temp_dir) / "baseline.json"
             with mock.patch.object(
-                verify, "_changed_files", return_value=([], [], None)
+                verify, "_changed_files", return_value=("git", [], [], None)
             ), mock.patch.object(
                 verify, "capture_workspace_residue", return_value=snapshot
             ):
@@ -1395,7 +1502,7 @@ class ScopedBaselineTest(unittest.TestCase):
             baseline = Path(temp_dir) / "baseline.json"
             baseline.write_text('{"preserve": true}', encoding="utf-8")
             with mock.patch.object(
-                verify, "_changed_files", return_value=([], [], None)
+                verify, "_changed_files", return_value=("git", [], [], None)
             ), mock.patch.object(
                 verify,
                 "capture_workspace_residue",
@@ -1533,6 +1640,96 @@ def test_standalone_verify_never_touches_runtime_workflow(repository):
         os.chdir(old_cwd)
     assert code == 0
     assert not (repository / ".agentic-framework" / "runs").exists()
+
+
+def _svn_change_referencing(first: Path, *code_paths: str) -> None:
+    """活跃 Change 的 tasks.md，正文引用改动的代码路径以通过 spec drift。
+
+    未版本化目录在 svn status 中折叠为单个 `?` 条目，tasks.md 不可见；先
+    `svn add` 使节点逐项进入状态（只 add 不 commit，符合纯 SVN 规则）。
+    """
+    tasks = first / "openspec" / "changes" / "1-svn" / "tasks.md"
+    tasks.parent.mkdir(parents=True)
+    body = "- 文件：" + "、".join(f"`{item}`" for item in code_paths) + "\n"
+    tasks.write_text(body, encoding="utf-8")
+    command(first, "svn", "add", "openspec")
+
+
+def test_standalone_verify_binds_svn_subject_and_covers_properties(svn_pair):
+    """纯 SVN 产出可绑定的 v2 Verify：属性改动计入改动并进入内容主体。"""
+    first, _, _ = svn_pair
+    (first / "verify.config.json").write_text(_minimal_config(), encoding="utf-8")
+    (first / "tool.py").write_text("print('v1')\n", encoding="utf-8")
+    command(first, "svn", "add", "tool.py")
+    command(first, "svn", "propset", "project:flag", "yes", "tool.py")
+    _svn_change_referencing(first, "tool.py")
+    code, report = _run_in_repo(first, [])
+    assert code == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 2
+    assert payload["subject_id"].startswith("sha256:")
+    assert payload["verdict"] == "PASS"
+    spec_drift = payload["spec_drift"]["value"]
+    # 属性改动（property_status=modified）计入 tracked，不再像旧文本解析那样跳过。
+    assert "tool.py" in spec_drift["code_files"]
+    assert spec_drift["diff_base"] is None
+    validate_native_report(payload)
+
+
+def test_standalone_verify_svn_requires_backend_when_git_added(svn_pair):
+    """双 VCS 不再隐式 Git 优先：无显式后端拒绝，指定后端可核验。"""
+    first, _, _ = svn_pair
+    (first / "verify.config.json").write_text(_minimal_config(), encoding="utf-8")
+    _svn_change_referencing(first, "source.txt")
+    command(first, "git", "init")
+    code, report = _run_in_repo(first, [])
+    assert code == 2
+    assert not report.exists()
+    code, report = _run_in_repo(first, ["--vcs-backend", "svn"])
+    assert code == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "PASS"
+    assert payload["spec_drift"]["value"]["diff_base"] is None
+
+
+def test_standalone_verify_svn_mixed_revision_is_not_complete(svn_pair):
+    """混合版本工作副本不能产生完整已验证声明（每节点基准不可互相替代）。"""
+    first, second, _ = svn_pair
+    (first / "verify.config.json").write_text(_minimal_config(), encoding="utf-8")
+    (second / "source.txt").write_text("upstream\n", encoding="utf-8")
+    command(second, "svn", "commit", "-m", "upstream")
+    command(first, "svn", "update", "source.txt")
+    code, report = _run_in_repo(first, [])
+    assert code == 2
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "ERROR"
+    subject_result = payload["results"][-1]
+    assert subject_result["name"] == "native-subject"
+    assert subject_result["status"] == "error"
+    assert "覆盖不完整" in subject_result["detail"]
+
+
+def test_save_baseline_svn_snapshots_property_and_local_changes(svn_pair):
+    """SVN 基线 S0 记录本地改动（含属性行）；不清理、不提交。"""
+    first, _, _ = svn_pair
+    (first / "verify.config.json").write_text(_minimal_config(), encoding="utf-8")
+    command(first, "svn", "propset", "project:flag", "yes", "empty")
+    (first / "untracked.py").write_text("local\n", encoding="utf-8")
+    baseline = first / ".agentic-framework" / "verify" / "baseline.json"
+    old_cwd = Path.cwd()
+    try:
+        os.chdir(first)
+        with mock.patch("builtins.print"):
+            code = verify.main(["--save-baseline", str(baseline)])
+    finally:
+        os.chdir(old_cwd)
+    assert code == 0
+    payload = json.loads(baseline.read_text(encoding="utf-8"))
+    snapshot = payload["changed_files_snapshot"]
+    assert "empty" in snapshot
+    assert "untracked.py" in snapshot
+    # 预存改动保持原样：没有 revert，也没有 svn add/commit。
+    assert (first / "untracked.py").exists()
 
 
 def test_extract_executable_keeps_windows_absolute_paths():

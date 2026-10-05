@@ -2,7 +2,7 @@
 
 > 由 proposal.md / design.md / review-notes.md 生成
 > 任务总数：17
-> 状态：任务 1–10 完成；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
+> 状态：任务 1–11 完成（11 起由 reviewer-1 实施）；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
 > 核心原则：先建合同与公共接口，再迁移消费者和路由，最后补齐 SVN、回归与交付；P1/P2 同批发布。
 
 用户已通过“开始处理”授权执行本清单。设计的文档复审 PASS 不等于代码 Review PASS。执行期间冻结既有 Verify 配置和基线；规则随对应任务的实现与验证同步更新。
@@ -354,8 +354,10 @@ P4                                         ↓
   - [x] 10.1：实现身份、节点状态、支持范围和表示转换。
   - [x] 10.2：按 workflow-test-generation 测真实 SVN 正常与限制场景。
 
-### 任务 11：[ ] P3：SVN Verify、状态与预存残留整合
-- 状态：未开始
+### 任务 11：[x] P3：SVN Verify、状态与预存残留整合
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-verification/scripts/verify.py`、`skills/workflow-verification/scripts/test_verify.py`、`scripts/workspace_residue.py`、`scripts/test_workspace_residue.py`、`skills/workflow-code-generation/scripts/workflow_control.py`、`scripts/test_workflow_control.py`、`scripts/validate_change.py`、`scripts/tests/test_validate_change.py`（修改）
 - depends_on: Task 10
 - review_profile: strict
@@ -367,15 +369,15 @@ P4                                         ↓
   - `skills/workflow-code-generation/scripts/workflow_control.py` 的 VCS 检测 — 调用方
   - `scripts/validate_change.py:validate_change` — Production 消费者
 - verification:
-  - [ ] `python -m pytest skills/workflow-verification/scripts/test_verify.py scripts/test_workspace_residue.py scripts/test_workflow_control.py scripts/tests/test_validate_change.py -q` 通过。
-  - [ ] 真实纯 SVN 跑基线/Verify/Spec Drift，报告 subject 绑定完整；双 VCS 无显式后端拒绝，指定后端可核验。
-  - [ ] 预存修改/未跟踪文件与属性变化被检测、未清理；旧 Git 与旧残留快照合法读取回归通过。
-  - [ ] `python -m compileall -q scripts skills/workflow-verification/scripts skills/workflow-code-generation/scripts` 退出 0。
+  - [x] `python -m pytest skills/workflow-verification/scripts/test_verify.py scripts/test_workspace_residue.py scripts/test_workflow_control.py scripts/tests/test_validate_change.py -q` 通过。
+  - [x] 真实纯 SVN 跑基线/Verify/Spec Drift，报告 subject 绑定完整；双 VCS 无显式后端拒绝，指定后端可核验。
+  - [x] 预存修改/未跟踪文件与属性变化被检测、未清理；旧 Git 与旧残留快照合法读取回归通过。
+  - [x] `python -m compileall -q scripts skills/workflow-verification/scripts skills/workflow-code-generation/scripts` 退出 0。
 - artifacts:
   - 公共 VCS 查询迁移、SVN Verify/残留及 Production 回归测试
 - 子任务：
-  - [ ] 11.1：迁移查询而不改变无关 Runtime Git 操作。
-  - [ ] 11.2：按 workflow-test-generation 覆盖残留保护、工具错误、报告变化与双 VCS。
+  - [x] 11.1：迁移查询而不改变无关 Runtime Git 操作。
+  - [x] 11.2：按 workflow-test-generation 覆盖残留保护、工具错误、报告变化与双 VCS。
 
 ### 任务 12：[ ] P3：SVN 待提交与确切 revision 交付门
 - 状态：未开始
@@ -588,3 +590,4 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 
 - Task 10: integrated `49c95af`; four authorized files only. Full Verify PASS (`.agentic-framework/verify/2048-task10-final.json`), B-tests-pass exit 0 / 287.0s against the unchanged 300s limit, count 679 >= baseline 574, graph/spec-drift PASS. SVN focused 17 passed / 35.30s, compileall/diffcheck PASS. Original timeout preserved as `2048-task10-timeout.json`. Post-commit source subject was rechecked equal to report: `sha256:de765c227a06223ed5644067b6ccf8c9558bfa6ceaaae4fac5f6ff2071346a11`. This is task-level evidence at the implementation commit, not the final delivery report after later documentation changes.
 - User-directed handoff: reviewer-1 owns remaining Tasks 11-17; codex-1 stops implementing them after Task 10. Handoff document: `E:/work/agentic-framework/.agentic-framework/verify/2048-handoff-to-reviewer-1.md`. No final code Review or delivery gate has been claimed.
+- Task 11 (reviewer-1): eight authorized files only. Both legacy VCS query paths migrated to the common interface: verify spec drift now resolves via `vcs.inspect_workspace` (dual VCS without an explicit `--vcs-backend git|svn` fails closed with a directed hint instead of silently preferring Git) and reads SVN local changes from the interface's node statuses — property-only rows (`property_status` modified/conflicted) now count as tracked, and missing/obstructed/incomplete versioned nodes are visible instead of skipped; the Git branch uses `vcs.collect_changes` and keeps both rename paths. Pure-SVN standalone verify derives its subject base from the WC root revision (`facts["base"]`, canonical `svn:r<N>`) so `--diff-base` is no longer a Git-only assumption; `workspace_residue.detect_vcs/capture/compare`, `workflow_control._detect_vcs` (route/recover CLI) and `validate_change` delivery evidence all thread an explicit backend while keeping the v1 snapshot format byte-compatible (entry statuses/fingerprints unchanged; old Git snapshots and old residue snapshots remain readable — regression green). Runtime Git operations, knowledge-source freshness queries and check_delivery's Scoped Delivery entry point are untouched. Targeted set 274 tests + 101 subtests pass; full `python -m pytest scripts -q` = 728 passed / 158 subtests / 243.85s (< 300s frozen cap; margin regained vs Task 10 because the gate command covers `scripts/` only), `def test_` count 685 >= baseline 574, compileall exit 0. Real pure-SVN manual evidence (`2048-task11-svn-manual.json`): r1 workspace → S0 baseline on clean WC → content+property+untracked+spec updates → verify exit 0 with schema_version 2, bound `subject_id`, spec_drift pass (`diff_base: null`, code/spec files listed), residue kept verbatim; dual VCS without backend exits 2 without writing a report and stderr names `--vcs-backend`, with `--vcs-backend svn` exit 0 and identical subject. Mixed-revision WC integration test stays ERROR/exit 2 (coverage incomplete). New integration tests reuse real `svnadmin` fixtures from `scripts/test_vcs.py`; no skips replace SVN acceptance.

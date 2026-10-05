@@ -2060,6 +2060,77 @@ class DeliveryEvidenceTest(unittest.TestCase):
         baseline, commit = self._deliver(repo)
         self.assertEqual([], self._run(repo, baseline, commit))
 
+    def test_dual_vcs_requires_explicit_backend(self) -> None:
+        """双 VCS 交付证据不再隐式 Git 优先；显式后端可核验（change 2048）。"""
+        repo = self._git_repo()
+        (repo / ".svn").mkdir()
+        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
+        snapshot = workspace_residue.capture_workspace_residue(
+            repo, "HEAD", ["code.py"], backend="git"
+        )
+        baseline = repo / ".agentic-framework" / "verify" / "baseline.json"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text(
+            json.dumps({"workspace_residue_snapshot": snapshot}), encoding="utf-8"
+        )
+        (repo / "code.py").write_text("print('v2')\n", encoding="utf-8")
+        commit = self._commit(repo, "scope", ["code.py"])
+        findings = self._run(repo, baseline, commit)
+        self.assertEqual(["OPSX058"], [f.rule_id for f in findings])
+        self.assertIn(
+            "--vcs-backend", findings[0].message + findings[0].hint
+        )
+        resolved = validate_change._validate_delivery_evidence(
+            repo,
+            repo / "openspec" / "changes" / "2099-evidence",
+            baseline,
+            commit,
+            None,
+            "git",
+        )
+        self.assertEqual([], resolved)
+
+    def test_svn_working_copy_delivery_accepts_revision(self) -> None:
+        """Production 交付门在纯 SVN 工作副本按确切 revision 工作。"""
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+
+        def svn(*args: str, cwd: Path = root) -> None:
+            subprocess.run(
+                ["svn", *args, "--non-interactive"],
+                cwd=str(cwd), check=True, capture_output=True, timeout=30,
+            )
+
+        subprocess.run(
+            ["svnadmin", "create", str(root / "server")],
+            check=True, capture_output=True, timeout=30,
+        )
+        repo = root / "wc"
+        svn("checkout", (root / "server").as_uri(), str(repo))
+        change = repo / "openspec" / "changes" / "2099-evidence"
+        change.mkdir(parents=True)
+        (change / "tasks.md").write_text(self.TASKS, encoding="utf-8")
+        (repo / "code.py").write_text("print('v1')\n", encoding="utf-8")
+        svn("add", "openspec", "code.py", cwd=repo)
+        svn("commit", "-m", "base", "--force-log", cwd=repo)
+        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
+        snapshot = workspace_residue.capture_workspace_residue(
+            repo, "", ["code.py"], backend="svn"
+        )
+        baseline = repo / ".agentic-framework" / "verify" / "baseline.json"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text(
+            json.dumps({"workspace_residue_snapshot": snapshot}), encoding="utf-8"
+        )
+        (repo / "code.py").write_text("print('v2')\n", encoding="utf-8")
+        svn("commit", "-m", "scope", "--force-log", cwd=repo)
+        revision = "2"
+        findings = validate_change._validate_delivery_evidence(
+            repo, change, baseline, None, revision, "svn"
+        )
+        self.assertEqual([], findings)
+
     def test_cross_track_same_baseline_both_pass(self) -> None:
         """同一份基线文件，Production 与 Tooling 都能成功校验（跨轨互认）。"""
         repo = self._git_repo()

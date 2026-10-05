@@ -54,6 +54,8 @@ from native_subject import SubjectError
 from native_subject import capture_subject as capture_native_subject
 from native_subject import compare_subjects as compare_native_subjects
 from vcs import VcsError
+from vcs import collect_changes
+from vcs import inspect_workspace
 from workspace_residue import (
     WorkspaceResidueError,
     capture_workspace_residue,
@@ -80,10 +82,22 @@ _HEARTBEAT_SECONDS = 5.0
 _PROCESS_CLEANUP_TIMEOUT_SECONDS = 5.0
 _OUTPUT_SUMMARY_LINES = 3
 _OUTPUT_SUMMARY_CHARS = 600
-# svn status 输出格式：前 7 列状态字段，第 8 列起为路径
-_SVN_STATUS_FIELD_WIDTH = 7
-# 计入 tracked-changed 的 svn status 首列状态码：新增/删除/修改/替换/冲突
-_SVN_TRACKED_CODES = {"A", "D", "M", "R", "C"}
+# 计入 tracked-changed 的公共接口 SVN 节点 item 状态：本地版本化改动或异常节点。
+# 属性改动（property_status modified/conflicted）另行计入，见
+# _svn_status_changes_from_facts。
+_SVN_TRACKED_ITEMS = frozenset(
+    {
+        "added",
+        "deleted",
+        "replaced",
+        "modified",
+        "merged",
+        "conflicted",
+        "missing",
+        "obstructed",
+        "incomplete",
+    }
+)
 _CODE_SUFFIXES = {
     ".c",
     ".cc",
@@ -330,123 +344,80 @@ def _nonempty_lines(text: str) -> list[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-def _git_lines(args: list[str]) -> tuple[int, list[str], str]:
-    """Run git and return non-empty stdout lines."""
-    proc = subprocess.run(
-        ["git", *args],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return proc.returncode, _nonempty_lines(proc.stdout), proc.stderr.strip()
-
-
-def _svn_lines(args: list[str]) -> tuple[int, list[str], str]:
-    """Run svn and return non-empty stdout lines，保留每行前导空白。
-
-    svn status 的首列状态码位置有意义：内容改动行首列为 `A/D/M/...`，属性改动行
-    首列为空格（形如 ` M file`）。若 lstrip 会把属性行变成 `M file` 被误判为内容改动，
-    故只过滤空行、不 strip 前导。带超时防 `svn info -r <rev>` 触网永久阻塞；
-    超时 fail-closed 返回 exit=1 + 空输出，交由调用方走告警路径。
-    """
-    try:
-        proc = subprocess.run(
-            ["svn", *args],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=_DEFAULT_TIMEOUT,
+def _vcs_failure_message(error: VcsError) -> str:
+    """把公共 VCS 接口的分类失败翻译为面向使用方的定向提示。"""
+    if error.code == "not_working_copy":
+        return "当前目录不在 Git 仓库或 SVN 工作副本内，无法判定改动文件"
+    if error.code == "ambiguous_backend":
+        return (
+            "检测到 Git 与 SVN 并存，拒绝隐式选择后端；"
+            "请用 --vcs-backend git|svn 显式指定"
         )
-    except subprocess.TimeoutExpired:
-        return 1, [], f"svn {' '.join(args)} 超时（>{_DEFAULT_TIMEOUT}s）"
-    lines = [ln for ln in proc.stdout.splitlines() if ln.strip()]
-    return proc.returncode, lines, proc.stderr.strip()
+    if error.code == "tool_missing":
+        return f"版本控制工具不可用（{error.code}: {error.operation}）"
+    return f"VCS 查询失败（{error.code}: {error.operation}）"
 
 
-def _detect_vcs(cwd: Path) -> str | None:
-    """探测当前目录的版本控制后端：'git' / 'svn' / None。
-
-    Git 优先于 SVN：Git + SVN 模式下工作副本同时受两者管理，diff 语义以 Git 为准。
-    二进制缺失（如纯 SVN 环境未装 git）不抛异常，降级探测下一后端。
-    """
-    try:
-        git_code = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-        ).returncode
-    except (OSError, FileNotFoundError):
-        git_code = 1
-    if git_code == 0:
-        return "git"
-    try:
-        svn_code = subprocess.run(
-            ["svn", "info"],
-            cwd=str(cwd),
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-        ).returncode
-    except (OSError, FileNotFoundError):
-        svn_code = 1
-    if svn_code == 0:
-        return "svn"
-    return None
-
-
-def _svn_status_changes() -> tuple[list[str], list[str], str | None]:
-    """从 `svn status` 取本地改动文件。
+def _svn_status_changes_from_facts(
+    statuses: Sequence[dict[str, Any]],
+) -> tuple[list[str], list[str]]:
+    """从公共接口的 SVN 节点状态取本地改动文件。
 
     纯 SVN 模式按规则「只 svn add、不 svn commit」，一个 Change 期间不产生提交，
-    工作副本的本地改动即「本次改动」的全部。`--diff-base` 在 SVN 下不使用。
+    工作副本的本地改动即「本次改动」的全部，`--diff-base` 在 SVN 下不使用。
 
-    用白名单而非黑名单识别状态码，避免 externals 提示行（首列 'P'）、external item
-    （'X'）、missing（'!'）、obstructed（'~'）等噪声被计入 tracked：
+    - item 为 added/deleted/replaced/modified/merged/conflicted/missing/
+      obstructed/incomplete → tracked-changed（版本化改动或异常节点）。
+    - 属性列 modified/conflicted → tracked-changed：属性也是项目输入，
+      Task 11 起计入，不再跳过纯属性行。
+    - unversioned → untracked；ignored/external/normal/none 跳过。
 
-    - 首列 `A/D/M/R/C` → tracked-changed（版本化改动）。
-    - 首列 `?` → untracked。
-    - 其余（含 `I`、`X`、`!`、`~`、` ` 属性行等）跳过。
-
-    路径取状态字段后的整段（strip 后），不做分词——SVN 不对含空格路径转义，
-    分词会截断路径（见 P1-1）。
+    路径由公共接口的 XML 解析直接给出，天然保留空格，无需文本列宽切分。
     """
-    code, lines, err = _svn_lines(["status"])
-    if code != 0:
-        return [], [], err or f"svn status failed with exit={code}"
     tracked: list[str] = []
     untracked: list[str] = []
-    for raw in lines:
-        if len(raw) < _SVN_STATUS_FIELD_WIDTH:
-            continue
-        status_code = raw[0]
-        if status_code == "?":
-            path = raw[_SVN_STATUS_FIELD_WIDTH:].strip()
-            if path:
-                untracked.append(path)
-        elif status_code in _SVN_TRACKED_CODES:
-            path = raw[_SVN_STATUS_FIELD_WIDTH:].strip()
-            if path:
-                tracked.append(path)
-    return sorted(set(tracked)), sorted(set(untracked)), None
+    for item in statuses:
+        status = item["status"]
+        if status == "unversioned":
+            untracked.append(item["path"])
+        elif status in _SVN_TRACKED_ITEMS or item.get("property_status") in (
+            "modified",
+            "conflicted",
+        ):
+            tracked.append(item["path"])
+    return sorted(set(tracked)), sorted(set(untracked))
 
 
-def _changed_files(diff_base: str) -> tuple[list[str], list[str], str | None]:
-    """Return tracked and untracked changed files relative to diff_base."""
-    vcs = _detect_vcs(Path.cwd())
-    if vcs == "svn":
-        return _svn_status_changes()
-    if vcs != "git":
-        return [], [], "当前目录不在 Git 仓库或 SVN 工作副本内，无法判定改动文件"
-    code, tracked, err = _git_lines(["diff", "--name-only", diff_base, "--"])
-    if code != 0:
-        return [], [], err or f"git diff failed with exit={code}"
-    code, untracked, err = _git_lines(
-        ["ls-files", "--others", "--exclude-standard"]
-    )
-    if code != 0:
-        return [], [], err or f"git ls-files failed with exit={code}"
-    return sorted(set(tracked)), sorted(set(untracked)), None
+def _changed_files(
+    diff_base: str, vcs_backend: str | None = None
+) -> tuple[str | None, list[str], list[str], str | None]:
+    """经公共 VCS 接口返回 (backend, tracked, untracked, error)。
+
+    Git 用 collect_changes 对固定基准取 tracked 改动与未跟踪文件，重命名保留
+    新旧两条路径；SVN 读公共接口的本地节点状态。双 VCS 未显式指定后端、工具
+    缺失或查询失败都返回 error——工具错误不算无改动。
+    """
+    try:
+        facts = inspect_workspace(Path.cwd(), vcs_backend)
+    except VcsError as error:
+        return None, [], [], _vcs_failure_message(error)
+    if facts["backend"] == "svn":
+        tracked, untracked = _svn_status_changes_from_facts(facts["statuses"])
+        return "svn", tracked, untracked, None
+    try:
+        changes = collect_changes(Path.cwd(), diff_base, facts["backend"])
+    except VcsError as error:
+        return "git", [], [], _vcs_failure_message(error)
+    tracked: list[str] = []
+    untracked: list[str] = []
+    for change in changes:
+        if change["status"] == "?":
+            untracked.append(change["path"])
+        else:
+            tracked.append(change["path"])
+            if change["old_path"]:
+                tracked.append(change["old_path"])
+    return "git", sorted(set(tracked)), sorted(set(untracked)), None
 
 
 def _is_code_file(path_text: str) -> bool:
@@ -518,6 +489,7 @@ def evaluate_spec_drift(
     cli_patterns: Sequence[str] = (),
     config_patterns: Sequence[str] = (),
     baseline_paths: Sequence[str] = (),
+    vcs_backend: str | None = None,
 ) -> CheckResult:
     """Require an explicit reason when code changed but specs/tasks/ADR did not.
 
@@ -533,7 +505,7 @@ def evaluate_spec_drift(
     still classified. Each ignored file's contributing source(s) are recorded in
     ``ignore_sources``.
     """
-    tracked, untracked, error = _changed_files(diff_base)
+    backend, tracked, untracked, error = _changed_files(diff_base, vcs_backend)
     if error:
         return CheckResult(
             "Z-spec-drift",
@@ -579,8 +551,8 @@ def evaluate_spec_drift(
         code_files, spec_files + untracked_spec_files
     )
     value = {
-        # SVN 模式不使用 diff-base（读 svn status 本地改动），报告置 None 避免误导
-        "diff_base": None if _detect_vcs(Path.cwd()) == "svn" else diff_base,
+        # SVN 模式不使用 diff-base（读工作副本本地改动），报告置 None 避免误导
+        "diff_base": None if backend == "svn" else diff_base,
         "code_files": code_files,
         "spec_files": spec_files,
         "untracked_spec_files": untracked_spec_files,
@@ -1230,6 +1202,7 @@ def cmd_save_baseline(
     out_path: Path,
     diff_base: str = "HEAD",
     delivery_scope: Sequence[str] = (),
+    vcs_backend: str | None = None,
 ) -> int:
     """采集基线：只记录 baseline_aware 检查的当前"值"。
 
@@ -1245,7 +1218,7 @@ def cmd_save_baseline(
         "config_snapshot": _config_snapshot(config),
         "ignore_paths_snapshot": list(config.get("ignore_paths", [])),
     }
-    tracked_s0, untracked_s0, s0_error = _changed_files(diff_base)
+    _, tracked_s0, untracked_s0, s0_error = _changed_files(diff_base, vcs_backend)
     if s0_error:
         print(f"[verify] 无法记录基线改动快照：{s0_error}", file=sys.stderr)
         baseline["changed_files_snapshot"] = []
@@ -1254,7 +1227,7 @@ def cmd_save_baseline(
     if delivery_scope:
         try:
             baseline["workspace_residue_snapshot"] = capture_workspace_residue(
-                Path.cwd(), diff_base, delivery_scope
+                Path.cwd(), diff_base, delivery_scope, backend=vcs_backend
             )
         except WorkspaceResidueError as error:
             print(f"[verify] Scoped Delivery 残留快照采集失败：{error}", file=sys.stderr)
@@ -1337,16 +1310,29 @@ def resolve_verify_read_path(path: Path, repo_root: Path) -> Path:
 
 
 def _capture_verify_subject(
-    base: str, config_path: Path | None
+    base: str, config_path: Path | None, vcs_backend: str | None = None
 ) -> dict[str, Any]:
-    """Capture the Native subject bound to a standalone v2 report."""
-    return capture_native_subject(Path.cwd(), base, config_path=config_path)
+    """Capture the Native subject bound to a standalone v2 report.
+
+    Git 用 CLI 提供的固定基准；纯 SVN 的基准取工作副本根的 WC revision
+    （公共接口 facts["base"]，规范形式 svn:r<N>）。双 VCS 未显式选择后端时
+    由公共接口抛 ambiguous_backend，不再隐式 Git 优先。
+    """
+    facts = inspect_workspace(Path.cwd(), vcs_backend)
+    subject_base = facts["base"] if facts["backend"] == "svn" else base
+    return capture_native_subject(
+        Path.cwd(),
+        subject_base,
+        config_path=config_path,
+        backend=facts["backend"],
+    )
 
 
 def _subject_consistency_result(
     subject: dict[str, Any],
     base: str,
     config_path: Path | None,
+    vcs_backend: str | None = None,
 ) -> CheckResult | None:
     """Re-capture after checks; changed or incomplete inputs are invalid.
 
@@ -1354,13 +1340,18 @@ def _subject_consistency_result(
     the only state in which the standalone run may claim PASS.
     """
     try:
-        subject_after = _capture_verify_subject(base, config_path)
+        subject_after = _capture_verify_subject(base, config_path, vcs_backend)
     except (SubjectError, VcsError) as error:
+        detail = (
+            _vcs_failure_message(error)
+            if isinstance(error, VcsError)
+            else error.code
+        )
         return CheckResult(
             "native-subject",
             "native-subject",
             "error",
-            f"检查后内容主体无法取得（{error}），本次结果不能作为验证证据",
+            f"检查后内容主体无法取得（{detail}），本次结果不能作为验证证据",
         )
     comparison = compare_native_subjects(subject, subject_after)
     if not comparison["complete"]:
@@ -1389,6 +1380,7 @@ def cmd_verify(
     attempt: int | None = None,
     cli_ignore_patterns: Sequence[str] = (),
     config_path: Path | None = None,
+    vcs_backend: str | None = None,
 ) -> int:
     """跑全部检查，对 baseline_aware 项做基线对比，产出报告。
 
@@ -1516,11 +1508,15 @@ def cmd_verify(
     subject: dict[str, Any] | None = None
     if runtime_context is None:
         try:
-            subject = _capture_verify_subject(diff_base, config_path)
+            subject = _capture_verify_subject(diff_base, config_path, vcs_backend)
         except (SubjectError, VcsError) as error:
+            detail = (
+                _vcs_failure_message(error)
+                if isinstance(error, VcsError)
+                else error.code
+            )
             print(
-                "[verify] 无法取得 Native v2 内容主体（"
-                f"{getattr(error, 'code', None) or type(error).__name__}: {error}），"
+                f"[verify] 无法取得 Native v2 内容主体（{detail}），"
                 "standalone 报告拒绝无主体写出。",
                 file=sys.stderr,
             )
@@ -1534,6 +1530,7 @@ def cmd_verify(
             cli_ignore_patterns,
             config_paths,
             baseline_snapshot,
+            vcs_backend,
         )
     ]
     for check in config.get("checks", []):
@@ -1587,7 +1584,9 @@ def cmd_verify(
     # 检查后核对同一内容主体：不完整或变化都以独立检查项落进报告，
     # 使 verdict 变为 ERROR；不给改动中的运行留下任何 PASS 解释空间。
     if subject is not None:
-        consistency = _subject_consistency_result(subject, diff_base, config_path)
+        consistency = _subject_consistency_result(
+            subject, diff_base, config_path, vcs_backend
+        )
         if consistency is not None:
             results.append(consistency)
 
@@ -1720,6 +1719,13 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="Scoped Delivery 冻结的可写路径或生成目录；仅可与 --save-baseline 一起使用，可重复",
     )
+    parser.add_argument(
+        "--vcs-backend",
+        choices=["git", "svn"],
+        default=None,
+        help="显式选择版本控制后端；Git 与 SVN 并存时必须指定，"
+        "否则拒绝隐式 Git 优先（change 2048）",
+    )
     args = parser.parse_args(argv)
 
     require_config = bool(args.save_baseline or args.baseline)
@@ -1730,7 +1736,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.save_baseline:
         save_path = resolve_verify_write_path(Path(args.save_baseline), Path.cwd())
         return cmd_save_baseline(
-            config, save_path, args.diff_base, args.delivery_scope
+            config,
+            save_path,
+            args.diff_base,
+            args.delivery_scope,
+            vcs_backend=args.vcs_backend,
         )
 
     baseline_path = (
@@ -1777,6 +1787,7 @@ def main(argv: list[str] | None = None) -> int:
         args.attempt,
         args.ignore,
         config_path=Path(args.config),
+        vcs_backend=args.vcs_backend,
     )
 
 
