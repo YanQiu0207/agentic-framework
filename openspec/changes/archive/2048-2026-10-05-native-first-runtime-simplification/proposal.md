@@ -3,7 +3,7 @@
 **作者**：Codex（依据用户讨论整理）
 **日期**：2026-10-03
 **变更**：2048-native-first-runtime-simplification
-**状态**：Draft
+**状态**：Archived
 
 ## 1. 背景
 

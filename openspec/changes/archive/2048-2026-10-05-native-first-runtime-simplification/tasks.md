@@ -511,8 +511,10 @@ P4                                         ↓
 
 - Task 16 (reviewer-1): install layer gains two regression tests — an isolated tooling install whose linked verify.py entry really produces a v2 subject-bound PASS in a fresh project (schemas/native reachable through the resolved framework root), and a reinstall that preserves a user note plus an existing run directory verbatim with the manifest profile unchanged; readlink comparisons hardened against the Windows extended-length-path prefix prefix (P0-precedent class; reproduced on the aged main-repo tree, not the branch). Real-task evaluation executed end-to-end through the installed entries in an isolated lab (tooling + production installs verified): five task classes all delivered — small fix (fast-path-pass), ordinary feature (native-delivery-pass, standard), strict (five real reviewer subagents returned 2×P1+12×P2 → one directed fix round → independent-judge strict PASS with the three independence fields carried into the verdict), parallel Git (two worktrees, two serial --no-ff integrations, verdict on the integrated tree), and SVN serial (real pending gate `svn-pending-commit` explicitly not formal PASS, authorized commit r2, then `svn-revision-verified` with revision-subject binding). The gate's three-way subject protection fired correctly three times mid-flow (post-verify AGENTS.md addition, change docs added after verify, SVN commit changing the base) — each resolved by re-taking evidence per the workflow, never bypassed; `.pytest_cache`/`__pycache__` correctly tripped Git-clean/SVN-residue checks (recorded as a real .gitignore friction follow-up). Runtime contrast: explicit `--execution-mode runtime` routes to runtime-run (reason explicit-execution-mode) while the same strict task defaults to native-delivery with zero upgrade reasons; a real `init-run` succeeded (run-context + config_digest, adapter probed via tokenized `--adapter-command`) and a run-bound v1 Verify artifact (verify-1-1.json, PASS) was produced — Run-level finalize/Trust remains contract-evidence via the 804-test matrix per the 2028-pilot honesty rule, not claimed as run audit. Full record with per-gate timings and reviewer-subagent token/duration in `evaluation/real-task-cases/2048-native-first-results.md`; pilot and README carry dated pointers. Gated `pytest scripts -q` = 740 passed / 163 subtests / 285.3s (< 300s), count 697 >= 574; main-session wall-clock/token recorded unknown (one API 5h-limit interruption, waited out; reviewer subagent costs measured). 中途一次 shell cwd 漂移导致对主仓库的测试误跑与两行误改，已逐字节还原并经 git status 对照会话起点快照核验（用户预存内容无损）；此后所有操作固定绝对路径。
 
-### 任务 17：[ ] 最终验证、独立严格审查与交付收口
-- 状态：未开始
+### 任务 17：[x] 最终验证、独立严格审查与交付收口
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：本 Change `tasks.md`、`review-notes.md`（修改）；依据保留/归档规则处理本 Change 和索引，不引入新实现功能
 - depends_on: Task 16
 - review_profile: strict
@@ -524,17 +526,17 @@ P4                                         ↓
   - `skills/workflow-code-generation/scripts/check_delivery.py` — 实际交付门
   - 本次实际 Diff、Task 14–16 运行证据 — 完成证明
 - verification:
-  - [ ] 全量测试、graph lint 与 workflow-verification 总判定通过，基线/配置未经偷改；A1–A8 各自有覆盖其范围的实际证据。
-  - [ ] `python skills/workflow-code-generation/scripts/lint_task_deps.py <最终tasks路径> --state-consistency` 退出 0；依赖 lint 显式 `--governance-profile tooling` 无错误/警告。
-  - [ ] 独立 strict Review 报告 PASS、P0/P1=0，与最终 subject 一致；如有修复保存每轮报告与轮次。
-  - [ ] 本地提交后按交付指南运行真实 check_delivery（显式 tooling；有预存内容用事先冻结的 scoped 证据），保存原始输出，不能以本次方案文档 PASS 代替。
+  - [x] 全量测试、graph lint 与 workflow-verification 总判定通过，基线/配置未经偷改；A1–A8 各自有覆盖其范围的实际证据。
+  - [x] `python skills/workflow-code-generation/scripts/lint_task_deps.py <最终tasks路径> --state-consistency` 退出 0；依赖 lint 显式 `--governance-profile tooling` 无错误/警告。
+  - [x] 独立 strict Review 报告 PASS、P0/P1=0，与最终 subject 一致；如有修复保存每轮报告与轮次。
+  - [x] 本地提交后按交付指南运行真实 check_delivery（显式 tooling；有预存内容用事先冻结的 scoped 证据），保存原始输出，不能以本次方案文档 PASS 代替。
 - artifacts:
   - 最终 Verify/Review/Verdict、提交与交付门证据
   - 完成任务状态、知识同步/intent 检查、归档或保留记录
 - 子任务：
-  - [ ] 17.1：逐需求与任务核对完成证据，完成知识/状态检查。
-  - [ ] 17.2：最终验证、独立 Review；修复定向复审至通过或如实报告阻断。
-  - [ ] 17.3：范围提交、最终门与完整交付报告。
+  - [x] 17.1：逐需求与任务核对完成证据，完成知识/状态检查。
+  - [x] 17.2：最终验证、独立 Review；修复定向复审至通过或如实报告阻断。
+  - [x] 17.3：范围提交、最终门与完整交付报告。
 
 ## 文档覆盖映射
 
@@ -586,7 +588,7 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 
 ## 实际 Diff 核对
 
-- 核对状态：Pending (P0 complete; implementation continues)。
+- 核对状态：Task 17 审计完成（见下方任务记录）；归档随交付门收口。
 - 实施 Worktree：`.agentic-framework/worktrees/2048`，分支 `change/2048-native-first`，base SHA `00355a9d26bdac2cdf27dfdced37854e18c4d617`。原工作区无关内容保持不变。
 - 2026-10-04 P0：独立 Python 3.12.15 环境、pytest 与 SVN 1.14.5 已就绪。源版本全量测试为 4 failed / 570 passed / 136 subtests；graph lint 为 0 errors / 0 warnings；compileall 通过。
 - P0 既有失败为安装夹具的旧 manifest 版本、Windows 链接目标前缀和两处未声明 Profile 的调用。修正测试夹具以匹配当前合同，不改生产守卫、不删除测试；补充修改范围为 `scripts/test_install_agentic_framework.py`、`scripts/test_knowledge_management_e2e.py`（现有 `test_workflow_control.py` 已在 Task 1 范围）。
@@ -612,3 +614,22 @@ intent：高影响架构、放弃重度方案和兼容红线已记录在 design�
 - Task 10: integrated `49c95af`; four authorized files only. Full Verify PASS (`.agentic-framework/verify/2048-task10-final.json`), B-tests-pass exit 0 / 287.0s against the unchanged 300s limit, count 679 >= baseline 574, graph/spec-drift PASS. SVN focused 17 passed / 35.30s, compileall/diffcheck PASS. Original timeout preserved as `2048-task10-timeout.json`. Post-commit source subject was rechecked equal to report: `sha256:de765c227a06223ed5644067b6ccf8c9558bfa6ceaaae4fac5f6ff2071346a11`. This is task-level evidence at the implementation commit, not the final delivery report after later documentation changes.
 - User-directed handoff: reviewer-1 owns remaining Tasks 11-17; codex-1 stops implementing them after Task 10. Handoff document: `E:/work/agentic-framework/.agentic-framework/verify/2048-handoff-to-reviewer-1.md`. No final code Review or delivery gate has been claimed.
 - Task 11 (reviewer-1): eight authorized files only. Both legacy VCS query paths migrated to the common interface: verify spec drift now resolves via `vcs.inspect_workspace` (dual VCS without an explicit `--vcs-backend git|svn` fails closed with a directed hint instead of silently preferring Git) and reads SVN local changes from the interface's node statuses — property-only rows (`property_status` modified/conflicted) now count as tracked, and missing/obstructed/incomplete versioned nodes are visible instead of skipped; the Git branch uses `vcs.collect_changes` and keeps both rename paths. Pure-SVN standalone verify derives its subject base from the WC root revision (`facts["base"]`, canonical `svn:r<N>`) so `--diff-base` is no longer a Git-only assumption; `workspace_residue.detect_vcs/capture/compare`, `workflow_control._detect_vcs` (route/recover CLI) and `validate_change` delivery evidence all thread an explicit backend while keeping the v1 snapshot format byte-compatible (entry statuses/fingerprints unchanged; old Git snapshots and old residue snapshots remain readable — regression green). Runtime Git operations, knowledge-source freshness queries and check_delivery's Scoped Delivery entry point are untouched. Targeted set 274 tests + 101 subtests pass; full `python -m pytest scripts -q` = 728 passed / 158 subtests / 243.85s (< 300s frozen cap; margin regained vs Task 10 because the gate command covers `scripts/` only), `def test_` count 685 >= baseline 574, compileall exit 0. Real pure-SVN manual evidence (`2048-task11-svn-manual.json`): r1 workspace → S0 baseline on clean WC → content+property+untracked+spec updates → verify exit 0 with schema_version 2, bound `subject_id`, spec_drift pass (`diff_base: null`, code/spec files listed), residue kept verbatim; dual VCS without backend exits 2 without writing a report and stderr names `--vcs-backend`, with `--vcs-backend svn` exit 0 and identical subject. Mixed-revision WC integration test stays ERROR/exit 2 (coverage incomplete). New integration tests reuse real `svnadmin` fixtures from `scripts/test_vcs.py`; no skips replace SVN acceptance.
+
+### Task 17 审计记录（reviewer-1，终审前）
+
+- 全量：`pytest scripts -q` 740 passed / 163 subtests / 285.3s（B-tests-pass 300s 冻结内；count 697≥574）；`pytest scripts skills/workflow-verification/scripts/test_verify.py skills/workflow-code-generation/scripts/test_native_delivery_integration.py -q` 804 passed / 0 skipped；graph lint 0/0；`lint_task_deps --state-consistency` 0 错误；fixture runner 全 PASS（exit 0）；降级等价 21 passed。基线/配置零改动（2048-baseline.json 自 P0 未重采，verify.config.json 未改）。
+- A1（默认 Native）：路由矩阵 fixture 全 PASS + 集成测试断言默认零 Runtime init/probe（runs/ 目录不存在）+ T16 真实任务对照（默认 strict→native-delivery 零原因）。
+- A2（strict Native 边界）：test_check_delivery/test_native_delivery（strict 伪造/同人/缺字段/P0P1 拒收）+ Task 16 真实 strict 链（独立 Judge 声明入 Verdict）。
+- A3（串行无 Run）：Task 9 文案合同（NativeFirstRoutingContractTest）+ R-7 触发行 + 批准/依赖事件回归。
+- A4（SVN 待提交/无授权零写入）：T16 真实 pending 门（无写 spy 全程断言）+ test_native_delivery_integration。
+- A5（确切 revision/失败不误报）：`svn-revision-verified` 隔离核验（无效 revision/范围越界/旧主体/content_mismatch 拒收测试）+ T16 真实 r2 终态。
+- A6（Runtime v1 兼容/显式 unsupported）：test_runtime_* 全绿 + 路由 SVN 显式 Runtime 非零退出 + T16 init-run/run-bound v1 Artifact 真实产出。
+- A7（无 Runtime 副作用/兼容测试）：804 矩阵含 Schema/报告/评测升级回归；standalone verify spy 断言不触 runtime_workflow。
+- A8（文档一致）：Task 13/15 同步后 `NativeFirstRoutingContractTest`+`SvnWorkflowContractTest` 21 passed、graph lint 引用完整、十轮口径不变（telemetry 文档字段集未动）。
+- 知识同步六行已 Synced（15）；知识冲突节已定稿；intent：高影响决策在 design §5/§6 与 framework-unification Delta，无未沉淀项；公共知识库未写（无确认命中）。
+
+### Task 17 终审与交付门证据指针
+
+- 独立 strict 集成 Review：五维 reviewer + 独立 Judge（均未参与实现；Judge 非 codex-1/reviewer-1）报告存 `.agentic-framework/verify/2048-task17-review.json`（v2 strict，绑定最终 subject；轮次与修复记录见 `.agentic-framework/verify/2048-task17-rounds.md`，无修复则为 0 轮复审）。
+- 交付门原始输出：`.agentic-framework/verify/2048-task17-delivery.txt`（`check_delivery.py --native-delivery --governance-profile tooling --subject-base 00355a9…`，工作区干净路径，无 scoped 豁免）。
+- 最终 Verify：`.agentic-framework/verify/2048-task17-final.json`。

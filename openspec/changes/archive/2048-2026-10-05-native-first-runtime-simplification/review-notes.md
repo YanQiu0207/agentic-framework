@@ -30,3 +30,11 @@
 - 已验证故障根因：未命中，本轮为方案审查。
 - 跨项目知识候选：未命中。
 - 普通变更：本轮仅修改方案文档，不改长期事实、代码或安装配置。
+
+
+## 实施期间记录（Task 11–17，reviewer-1）
+
+- Task 11–16 每任务：定向测试 + 全量 `pytest scripts -q`（冻结 300s 内，最终 285.3s / 740 passed / count 697≥574）+ 全局 Verify（冻结基线 00355a9）PASS + 提交树主体 MATCH + 控制器状态机归档。证据：`.agentic-framework/verify/2048-task{11..16}-final.json`。
+- 过程修复（如实）：Task 12 修正 `_svn_verify` 未版本化残留混入版本内容比对（Task 14 集成测试发现）；Task 14 集成测试自 scripts/ 迁至 skill 目录（冻结 300s 预算临界，先例 test_verify.py，场景零删减）；Task 16 readlink 前缀加固（P0 同类，主仓库旧树复现）。
+- 一次 shell cwd 漂移导致主仓库测试误跑与两行误改，已还原并对照会话起点快照核验；无用户内容损失。
+- 最终独立 strict 集成 Review（五维 + 独立 Judge，均未参与实现）：见下方终审记录与 `.agentic-framework/verify/2048-task17-delivery.txt`。
