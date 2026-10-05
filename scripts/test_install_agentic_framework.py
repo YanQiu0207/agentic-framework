@@ -8,6 +8,7 @@ import locale
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,19 @@ from unittest import mock
 import install_agentic_framework as installer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _readlink_target(path: Path) -> str:
+    """Read a link target with the Windows extended-length prefix normalized.
+
+    CPython 的 os.readlink 在部分 Windows 环境返回 `\\\\?\\` 前缀，而链接
+    创建路径按普通绝对路径存储；比较前统一去掉该前缀（与 P0 修过的
+    「Windows 链接目标前缀」同类，change 2048 Task 16 环境复现）。
+    """
+    target = os.readlink(path)
+    if target.startswith("\\\\?\\"):
+        target = target[4:]
+    return target
 
 
 def _can_create_symlink(source: Path, target: Path) -> bool:
@@ -644,7 +658,7 @@ class InstallTest(unittest.TestCase):
         manifest_path = target / installer.MANIFEST_PATH
         original_manifest = manifest_path.read_bytes()
         managed = target / ".codex" / "commands" / "code-generation.md"
-        original_target = os.readlink(managed)
+        original_target = _readlink_target(managed)
         real_create = installer._create_link
         calls = 0
 
@@ -667,7 +681,7 @@ class InstallTest(unittest.TestCase):
                     registry_path=self.registry,
                 )
         self.assertEqual(original_manifest, manifest_path.read_bytes())
-        self.assertEqual(original_target, os.readlink(managed))
+        self.assertEqual(original_target, _readlink_target(managed))
 
     def test_v1_skill_tree_create_failure_restores_copied_tree(self) -> None:
         self._require_symlinks()
@@ -1053,6 +1067,103 @@ class InstallTest(unittest.TestCase):
         args = installer.parse_args(["--refresh-all"])
         self.assertTrue(args.refresh_all)
         self.assertIsNone(args.target_dir)
+
+    def test_installed_verify_entry_runs_native_v2_in_isolated_project(self) -> None:
+        """change 2048 Task 16：隔离安装后，新 v2 Verify 入口可从安装链接真实运行。"""
+        self._require_symlinks()
+        source = self.root / "source"
+        shutil.copytree(REPO_ROOT, source)
+        target = self.root / "target"
+        target.mkdir()
+        installer.install(
+            source, target, "tooling", set(), registry_path=self.registry
+        )
+        project = self.root / "project"
+        project.mkdir()
+        subprocess.run(["git", "init", "-q", "."], cwd=str(project), check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t"], cwd=str(project), check=True
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "t"], cwd=str(project), check=True
+        )
+        (project / "code.py").write_text("print('v1')\n", encoding="utf-8")
+        (project / "verify.config.json").write_text(
+            '{"checks": [{"name": "ok", "type": "exit_code", '
+            '"command": "python -c \\"print(1)\\""}]}',
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "add", "."], cwd=str(project), check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "base"], cwd=str(project), check=True
+        )
+        linked_verify = (
+            target / ".claude" / "skills" / "workflow-verification" / "scripts"
+            / "verify.py"
+        )
+        self.assertTrue(linked_verify.is_file())
+        report = project / ".agentic-framework" / "verify" / "report.json"
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(linked_verify),
+                "--report",
+                str(report),
+                "--spec-drift-reason",
+                "安装验证：无代码变更",
+            ],
+            cwd=str(project),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=180,
+        )
+        self.assertEqual(0, result.returncode, result.stderr[-500:])
+        payload = json.loads(report.read_text(encoding="utf-8"))
+        self.assertEqual(2, payload["schema_version"])
+        self.assertTrue(payload["subject_id"].startswith("sha256:"))
+        self.assertEqual("PASS", payload["verdict"])
+        # Native v2 合同校验器同样经安装根可达（链接解析回受信框架根）。
+        verdict_schema = (
+            source / "schemas" / "native" / "native-delivery-verdict.schema.json"
+        )
+        self.assertTrue(verdict_schema.is_file())
+
+    def test_refresh_preserves_user_files_and_existing_runs(self) -> None:
+        """change 2048 Task 16：刷新安装不覆盖用户预存文件、不降级既有 Run。"""
+        self._require_symlinks()
+        source = self.root / "source"
+        shutil.copytree(REPO_ROOT, source)
+        target = self.root / "target"
+        target.mkdir()
+        installer.install(
+            source, target, "tooling", set(), registry_path=self.registry
+        )
+        user_note = target / "USER-NOTE.md"
+        user_note.write_text("user content\n", encoding="utf-8")
+        run_dir = (
+            target / ".agentic-framework" / "runs" / "2048-existing-run"
+        )
+        run_dir.mkdir(parents=True)
+        (run_dir / "run-context.json").write_text(
+            '{"schema_version": 1}', encoding="utf-8"
+        )
+        installer.install(
+            source, target, "tooling", set(), registry_path=self.registry
+        )
+        self.assertEqual(
+            "user content\n", user_note.read_text(encoding="utf-8")
+        )
+        manifest = json.loads(
+            (target / ".agentic-framework" / "manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual("tooling", manifest["profile"])
+        self.assertEqual(
+            '{"schema_version": 1}',
+            (run_dir / "run-context.json").read_text(encoding="utf-8"),
+        )
 
 
 if __name__ == "__main__":

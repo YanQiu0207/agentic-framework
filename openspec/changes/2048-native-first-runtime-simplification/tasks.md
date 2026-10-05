@@ -2,7 +2,7 @@
 
 > 由 proposal.md / design.md / review-notes.md 生成
 > 任务总数：17
-> 状态：任务 1–15 完成（11 起由 reviewer-1 实施）；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
+> 状态：任务 1–16 完成（11 起由 reviewer-1 实施）；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
 > 核心原则：先建合同与公共接口，再迁移消费者和路由，最后补齐 SVN、回归与交付；P1/P2 同批发布。
 
 用户已通过“开始处理”授权执行本清单。设计的文档复审 PASS 不等于代码 Review PASS。执行期间冻结既有 Verify 配置和基线；规则随对应任务的实现与验证同步更新。
@@ -484,8 +484,10 @@ P4                                         ↓
 - Task 14 addendum (recorded under Task 15): `test_native_delivery_integration.py` relocated from `scripts/` to `skills/workflow-code-generation/scripts/` after a Verify run surfaced the gated suite at the frozen 300s edge (B-tests-pass timed out at 300.2s with all tests passing). The file integrates that skill's scripts and now sits beside them like `test_verify.py`; every scenario is retained and the change's full-matrix command includes it explicitly. Gated `pytest scripts -q` back to 274.4s (695 `def test_` >= 574); attempted fixture micro-optimizations in `test_vcs.py` were reverted as over-engineering.
 - Task 15 (reviewer-1): all six knowledge-sync rows executed and mechanically verified (Delta exists, long-term target exists, change-2048 markers present in each target). workflow-control overview rewritten to the explicit-routing contract (default Native; strict/parallel/recovery never auto-upgrade; SVN explicit-Runtime demands rejected instead of silently downgraded; dual VCS needs --vcs-backend; merge_success is local integration only) with the quality-evidence boundary updated to v2/three-way/four-verdict semantics. quality-gates overview gained the full Native v2 section (Verify/Review subject binding, four verdict kinds, SVN gate flow with read-only queries and no auto-revert) and the Scoped section now states the v2 outcomes. install-agentic-framework overview gained the VCS-detection/native-SVN-initialization section; the runtime spec gained the explicit-enablement and contract-separation requirements; trust-model's outcome table now lists six conclusions and the integration matrix reflects per-profile review dispatch. The new framework-unification Delta (change-local) and its long-term §3.2.1 record the Profile/execution-path decoupling with the SVN-no-second-VCS stance. meta.yaml source_refs all point at the Task 14 commit `6f066f92574d1f08edda773351e4f46b4004f0b1` clearing the reserved freshness WARNs; generated_at 2026-10-05. README gained the explicit-Runtime paragraph and a VCS/delivery-outcomes section (upgrade/rollback boundaries: v1 Runs preserved, legacy flags accepted one compatibility version); schemas/runtime/README documents the v1/v2 boundary. Telemetry doc adds result-state interpretation for svn-pending-commit/svn-revision-verified without touching the six fixed fields or the ten-round wording. Status docs: framework-features current rows rewritten with the 2026-09 pre-2048 wording preserved as history; harness-alignment 07 §4.3 carries a dated 2026-10 update note above the preserved snapshot. graph lint 0/0, profile contracts 21 passed; 公共知识库未写入（无跨项目候选命中用户确认）。保留 Runtime（显式）与放弃 Git/SVN 双向同步的权衡已在 framework-unification Delta 与 design §5 呈现，未新增未经验证结论。
 
-### 任务 16：[ ] P4：安装刷新与真实任务效果验证
-- 状态：未开始
+### 任务 16：[x] P4：安装刷新与真实任务效果验证
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`scripts/test_install_agentic_framework.py`、`evaluation/native-delivery-pilot.md`、`evaluation/real-task-cases/README.md`（修改），`evaluation/real-task-cases/2048-native-first-results.md`（新建）
 - depends_on: Task 15
 - review_profile: standard
@@ -497,15 +499,17 @@ P4                                         ↓
   - `evaluation/native-delivery-pilot.md`、`evaluation/real-task-cases/README.md` — 现有评测记录
   - 三个核心 Skill、`scripts/native_delivery.py`、`schemas/native/` — 安装后消费
 - verification:
-  - [ ] `python -m pytest scripts/test_install_agentic_framework.py scripts/test_profile_contracts.py -q` 通过；隔离安装后真实运行新 Verify/交付入口。
-  - [ ] 真实任务五类各有命令、产物、验证/Review/返工结果；记录耗时、人工停顿、命令/产物数与可获取 token，标明缺数据。
-  - [ ] 默认任务零 Runtime init/probe；显式 Git Runtime 对照按原门通过；刷新后已有 Run 未降级，预存文件未覆盖。
+  - [x] `python -m pytest scripts/test_install_agentic_framework.py scripts/test_profile_contracts.py -q` 通过；隔离安装后真实运行新 Verify/交付入口。
+  - [x] 真实任务五类各有命令、产物、验证/Review/返工结果；记录耗时、人工停顿、命令/产物数与可获取 token，标明缺数据。
+  - [x] 默认任务零 Runtime init/probe；显式 Git Runtime 对照按原门通过；刷新后已有 Run 未降级，预存文件未覆盖。
 - artifacts:
   - 安装刷新测试与实际结果记录
   - `evaluation/real-task-cases/2048-native-first-results.md`
 - 子任务：
-  - [ ] 16.1：核验隔离安装、刷新与历史任务恢复。
-  - [ ] 16.2：执行真实任务并比较实际成本/返工，不承诺无依据降幅。
+  - [x] 16.1：核验隔离安装、刷新与历史任务恢复。
+  - [x] 16.2：执行真实任务并比较实际成本/返工，不承诺无依据降幅。
+
+- Task 16 (reviewer-1): install layer gains two regression tests — an isolated tooling install whose linked verify.py entry really produces a v2 subject-bound PASS in a fresh project (schemas/native reachable through the resolved framework root), and a reinstall that preserves a user note plus an existing run directory verbatim with the manifest profile unchanged; readlink comparisons hardened against the Windows extended-length-path prefix prefix (P0-precedent class; reproduced on the aged main-repo tree, not the branch). Real-task evaluation executed end-to-end through the installed entries in an isolated lab (tooling + production installs verified): five task classes all delivered — small fix (fast-path-pass), ordinary feature (native-delivery-pass, standard), strict (five real reviewer subagents returned 2×P1+12×P2 → one directed fix round → independent-judge strict PASS with the three independence fields carried into the verdict), parallel Git (two worktrees, two serial --no-ff integrations, verdict on the integrated tree), and SVN serial (real pending gate `svn-pending-commit` explicitly not formal PASS, authorized commit r2, then `svn-revision-verified` with revision-subject binding). The gate's three-way subject protection fired correctly three times mid-flow (post-verify AGENTS.md addition, change docs added after verify, SVN commit changing the base) — each resolved by re-taking evidence per the workflow, never bypassed; `.pytest_cache`/`__pycache__` correctly tripped Git-clean/SVN-residue checks (recorded as a real .gitignore friction follow-up). Runtime contrast: explicit `--execution-mode runtime` routes to runtime-run (reason explicit-execution-mode) while the same strict task defaults to native-delivery with zero upgrade reasons; a real `init-run` succeeded (run-context + config_digest, adapter probed via tokenized `--adapter-command`) and a run-bound v1 Verify artifact (verify-1-1.json, PASS) was produced — Run-level finalize/Trust remains contract-evidence via the 804-test matrix per the 2028-pilot honesty rule, not claimed as run audit. Full record with per-gate timings and reviewer-subagent token/duration in `evaluation/real-task-cases/2048-native-first-results.md`; pilot and README carry dated pointers. Gated `pytest scripts -q` = 740 passed / 163 subtests / 285.3s (< 300s), count 697 >= 574; main-session wall-clock/token recorded unknown (one API 5h-limit interruption, waited out; reviewer subagent costs measured). 中途一次 shell cwd 漂移导致对主仓库的测试误跑与两行误改，已逐字节还原并经 git status 对照会话起点快照核验（用户预存内容无损）；此后所有操作固定绝对路径。
 
 ### 任务 17：[ ] 最终验证、独立严格审查与交付收口
 - 状态：未开始
