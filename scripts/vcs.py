@@ -617,14 +617,19 @@ def _unsupported(facts: dict[str, Any], operation: str) -> Path:
 
 
 def collect_changes(
-    path: Path, base: str, backend: Optional[str] = None
+    path: Path,
+    base: str,
+    backend: Optional[str] = None,
+    facts: Optional[dict[str, Any]] = None,
 ) -> list[dict[str, Any]]:
     """Return Git working-tree changes against a fixed base, including untracked.
 
     Renames retain both paths; status U and index conflicts are never hidden.
     Git behavioral properties are captured separately by capture_subject.
+    ``facts`` 复用同进程内已取得的 inspect_workspace 结果（终审 P1：每次
+    verify 运行此前的 8 次全量探测是纯冗余）。
     """
-    facts = inspect_workspace(path, backend)
+    facts = facts if facts is not None else inspect_workspace(path, backend)
     if facts["backend"] == "svn":
         return _svn_changes(facts, base)
     root = Path(facts["root"])
@@ -676,6 +681,7 @@ def capture_subject(
     excluded_prefixes: Sequence[str] = (),
     excluded_directory_names: Sequence[str] = (),
     additional_paths: Sequence[str] = (),
+    facts: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Capture fixed VCS facts without choosing the subject digest algorithm.
 
@@ -687,6 +693,9 @@ def capture_subject(
             from untracked enumeration only. Tracked/base files always survive.
         excluded_directory_names: Trusted cache directory names, no wildcards.
         additional_paths: Explicit inputs needing attributes despite exclusions.
+        facts: Reuse an in-process inspect_workspace result (final-review P1:
+            repeated full probes per run are pure overhead; Git branch only —
+            the SVN branch derives its own facts before delegating).
 
     Returns:
         Repository identity, resolved base, current files, base_files and effective
@@ -703,7 +712,7 @@ def capture_subject(
         for name in excluded_directory_names
     ):
         raise VcsError("invalid_scope", "subject_exclusions")
-    facts = inspect_workspace(path, backend)
+    facts = dict(facts) if facts is not None else inspect_workspace(path, backend)
     if facts["backend"] == "svn":
         return _svn_capture(facts, base, prefixes, excluded_directory_names)
     root = Path(facts["root"])
@@ -1006,6 +1015,22 @@ def _svn_verify(
     )
     if not capture["complete"]:
         raise VcsError("coverage_incomplete", "svn_delivery")
+    # 终审 P1 修复：不再对整棵树逐文件 `svn cat`（N+1 远程子进程，千级文件
+    # 仓库单次门禁即分钟级）。文本与属性的 revision 等价改由一次
+    # `svn diff --summarize --revision N` 证明——所有节点已核实在 revision N
+    # 上（上面的 revision_mismatch 检查），该查询为空 ⇔ SVN 自身语义下的
+    # 工作副本内容与该 revision 完全一致（含 EOL/keywords 转换与属性）。
+    drift = _xml(
+        root, "diff", "--summarize", "--xml", "--revision", str(revision), "."
+    )
+    for node in drift.findall(".//path"):
+        item_kind, prop_kind = node.get("item"), node.get("props")
+        if node.text == "." and item_kind == "none":
+            # 根路径在干净检出上也常报 props 噪声（无文本可比）；真实的根
+            # 属性差异由下方结构化属性对比覆盖。
+            continue
+        if (item_kind, prop_kind) not in (("none", "none"), (None, None)):
+            raise VcsError("content_mismatch", "svn_delivery")
     # Unversioned paths are Scoped Delivery residue, not revision content: the
     # residue channel (S0/S1 snapshot compare at the delivery gate) protects
     # them separately, so the tree comparison stays on versioned nodes only.
@@ -1027,40 +1052,19 @@ def _svn_verify(
                 "properties": properties.get(path, {}),
             }
         else:
-            url = (
-                facts["url"].rstrip("/")
-                + "/"
-                + quote(path, safe="/")
-                + "@"
-                + str(revision)
-            )
-            content = _run(
-                root,
-                [
-                    "svn",
-                    "cat",
-                    "--ignore-keywords",
-                    "--revision",
-                    str(revision),
-                    url,
-                    "--non-interactive",
-                ],
-            )
-            limits: set[str] = set()
-            content = native_subject.normalize_svn_content(
-                content, properties.get(path, {}), limits
-            )
-            if limits:
-                raise VcsError("coverage_incomplete", "svn_delivery")
-            if native_subject._is_tasks(path):
-                content = native_subject._task_bytes(content)
-
+            if path not in current:
+                raise VcsError("content_mismatch", "svn_delivery")
+            entry = current[path]
+            if entry["type"] != "file":
+                raise VcsError("content_mismatch", "svn_delivery")
+            # 内容等价已由上面的空 diff 证明；结构化对比覆盖路径、类型、
+            # 属性与可执行位，正文摘要直接采用已证等价的当前值。
             expected[path] = {
                 "path": path,
                 "type": "file",
                 "properties": properties.get(path, {}),
                 "executable": "svn:executable" in properties.get(path, {}),
-                "content_sha256": hashlib.sha256(content).hexdigest(),
+                "content_sha256": entry["content_sha256"],
             }
     # Default absent Verify config is an input sentinel, not repository content.
     if current != expected:

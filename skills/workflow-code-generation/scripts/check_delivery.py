@@ -467,7 +467,10 @@ def _current_subject(repo: Path, base: str) -> tuple[dict | None, list[str]]:
     subject_base = facts["base"] if facts["backend"] == "svn" else base
     try:
         subject = native_subject.capture_subject(
-            repo, subject_base, backend=facts["backend"]
+            repo,
+            subject_base,
+            backend=facts["backend"],
+            facts=facts if facts["backend"] == "git" else None,
         )
     except (native_subject.SubjectError, vcs.VcsError) as error:
         return None, [
@@ -817,7 +820,16 @@ def main(argv: list[str]) -> int:
         except workspace_residue.WorkspaceResidueError as error:
             delivery_backend = None
             found = [f"无法判定交付工作区后端：{error}"]
-        if delivery_backend == "git":
+        if delivery_backend == "svn" and not args.native_delivery:
+            # Fast-Path 别名只服务旧 Git 调用方；SVN 工作副本的预期本地改动
+            # 属于原生交付内容，必须走 --native-delivery 的 svn-pending-commit，
+            # 不能以 git-clean 语义放行（终审 P1 修复）。
+            found = [
+                "SVN 工作副本不适用 Fast-Path 兼容别名；请使用 --native-delivery"
+                "（无授权输出 svn-pending-commit，不是正式交付 PASS）"
+            ]
+            success = ""
+        elif delivery_backend == "git":
             found = check_git_clean(args.repo)
             success = "PASS   工作区干净（代码与归档产物已提交）"
         elif delivery_backend == "svn":
@@ -933,6 +945,42 @@ def main(argv: list[str]) -> int:
             if verify_errors
             else "PASS   Fast-Path 机器验证报告 verdict=PASS"
         )
+        # 终审 P1 修复：Fast-Path 别名同样重算当前内容主体并核对三方一致，
+        # 陈旧的 v2 证据（交付前内容变化）不再被接受。
+        checks += 1
+        if not found and not verify_errors:
+            fast_subject, subject_errors = _current_subject(
+                args.repo, args.subject_base
+            )
+            if subject_errors:
+                errors.extend(subject_errors)
+                print("ERROR  " + "；".join(subject_errors))
+            else:
+                fast_reports = []
+                for _label, path in (
+                    ("Verify", args.verify_report),
+                    ("Review", args.review_report),
+                ):
+                    loaded, _ = _load_native_report(path, "Fast-Path")
+                    fast_reports.append(loaded)
+                subject_mismatches = []
+                for label, report in (
+                    ("Verify", fast_reports[0]),
+                    ("Review", fast_reports[1]),
+                ):
+                    if report["subject_id"] != fast_subject["subject_id"]:
+                        subject_mismatches.append(
+                            f"{label} 报告与当前内容不一致"
+                            f"（报告 {report['subject_id'][:19]}…，"
+                            f"当前 {fast_subject['subject_id'][:19]}…）；"
+                            "交付前内容变化或检查基准不同，"
+                            "请对当前内容重跑受影响的 Verify/Review"
+                        )
+                if subject_mismatches:
+                    errors.extend(subject_mismatches)
+                    print("ERROR  " + "；".join(subject_mismatches))
+                else:
+                    print("PASS   Fast-Path Review/Verify/当前内容三方 subject 一致")
 
     if not errors and args.run_dir is not None:
         if args.tasks is None:

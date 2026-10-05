@@ -14,8 +14,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-import pytest
-
 import verify
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]

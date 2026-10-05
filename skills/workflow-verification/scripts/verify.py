@@ -401,6 +401,8 @@ def _changed_files(
         facts = inspect_workspace(Path.cwd(), vcs_backend)
     except VcsError as error:
         return None, [], [], _vcs_failure_message(error)
+    _WORKSPACE_FACTS_CACHE.clear()
+    _WORKSPACE_FACTS_CACHE.append(facts)
     if facts["backend"] == "svn":
         tracked, untracked = _svn_status_changes_from_facts(facts["statuses"])
         return "svn", tracked, untracked, None
@@ -1213,6 +1215,7 @@ def cmd_save_baseline(
     同时快照当时的 changed files（S0）：verify() 后续从当前改动 S1 扣除 S0，
     让动代码前已存在的本地改动不记为本次改动（基线快照差集忽略源）。
     """
+    _WORKSPACE_FACTS_CACHE.clear()
     baseline: dict[str, Any] = {
         "checks": {},
         "config_snapshot": _config_snapshot(config),
@@ -1309,6 +1312,9 @@ def resolve_verify_read_path(path: Path, repo_root: Path) -> Path:
     return selected
 
 
+_WORKSPACE_FACTS_CACHE: list[dict[str, Any]] = []
+
+
 def _capture_verify_subject(
     base: str, config_path: Path | None, vcs_backend: str | None = None
 ) -> dict[str, Any]:
@@ -1318,7 +1324,10 @@ def _capture_verify_subject(
     （公共接口 facts["base"]，规范形式 svn:r<N>）。双 VCS 未显式选择后端时
     由公共接口抛 ambiguous_backend，不再隐式 Git 优先。
     """
-    facts = inspect_workspace(Path.cwd(), vcs_backend)
+    if _WORKSPACE_FACTS_CACHE:
+        facts = dict(_WORKSPACE_FACTS_CACHE[0])
+    else:
+        facts = inspect_workspace(Path.cwd(), vcs_backend)
     subject_base = facts["base"] if facts["backend"] == "svn" else base
     return capture_native_subject(
         Path.cwd(),
@@ -1388,6 +1397,8 @@ def cmd_verify(
     主体，检查后核对同一输入，改动中或覆盖不完整的结果无效。Runtime
     Envelope 沿用既有 v1 分支，不为 Native 初始化 Run。
     """
+    # 进程内 facts 复用只限本次运行：入口清空，避免跨调用/跨测试残留。
+    _WORKSPACE_FACTS_CACHE.clear()
     # 显式传了 --baseline 但文件不存在 → fail-closed，不能静默降级为无基线模式
     if baseline_path is not None and not baseline_path.exists():
         print(f"[verify] 指定了 --baseline 但文件不存在：{baseline_path}，需先运行 --save-baseline 采集基线。", file=sys.stderr)

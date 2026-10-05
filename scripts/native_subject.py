@@ -345,6 +345,7 @@ def capture_subject(
     required_inputs: Sequence[str] = (),
     external_inputs: Sequence[str] = (),
     backend: Optional[str] = None,
+    facts: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Capture one canonical subject and explicit coverage limitations.
 
@@ -365,7 +366,9 @@ def capture_subject(
         vcs.VcsError: Failed repository queries or unsupported backends.
     """
     required = sorted({_path(value) for value in required_inputs})
-    workspace = vcs.inspect_workspace(path, backend)
+    workspace = (
+        dict(facts) if facts is not None else vcs.inspect_workspace(path, backend)
+    )
     root = Path(workspace["root"])
     explicit = _explicit_paths(root, required)
     config = (
@@ -400,6 +403,7 @@ def capture_subject(
             excluded_directory_names=CACHE_DIRECTORY_NAMES
             + VCS_DIRECTORY_NAMES,
             additional_paths=sorted(explicit),
+            facts=workspace if workspace.get("backend") == "git" else None,
         )
     limitations = set(facts["limitations"])
     if facts["conflicts"]:

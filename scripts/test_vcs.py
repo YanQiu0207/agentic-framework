@@ -1,7 +1,6 @@
 """Real local Git/SVN fixtures for the read-only VCS boundary."""
 
 import subprocess
-from pathlib import Path
 
 import pytest
 
