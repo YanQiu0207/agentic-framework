@@ -89,7 +89,7 @@ change 2045 退役 `opsx-*` 后，两个 Profile 共用统一的 `workflow-*` �
 | Production 三阶段门禁 | 已实现并接线 | Plan、Delivery、Archive 三阶段 + 执行期治理守卫 | `scripts/validate_change.py`；`governance_guards.py`；不是官方 OpenSpec CLI |
 | Tooling DAG 分波 | 已实现并接线 | 根据 `depends_on` 生成稳定 Wave | `workflow_control.py` 和 `lint_task_deps.py` 有测试 |
 | 状态机与失败隔离 | 已实现并接线 | 支持重试、阻塞传播、人工接管和恢复 | 状态写回是代码；Agent 执行事实由外部编排提供 |
-| Native Delivery / Runtime Run 双路由 | 已实现并接线 | 按风险与升级条件路由；SVN 工作副本恒走 Native Delivery | `workflow_control.py route`、`check_delivery.py`；Run Envelope 见 `machine-verifiable-agent-runtime` spec |
+| Native Delivery / Runtime Run 双路由 | 已实现并接线 | 默认 Native（strict/并行/恢复不升级）；Runtime 只经显式 execution-mode／硬性审计／跨宿主验证启用（change 2048）；SVN 显式 Runtime 需求被拒绝而非降级，双 VCS 需 `--vcs-backend` | `workflow_control.py route`、`check_delivery.py`；Native v2 与 Verdict 见 `quality-gates` 概览、`schemas/native/` |
 | worktree 隔离 | 已接线，依赖宿主执行 | 中高风险 Tooling Task 使用独立 worktree | 仓库没有自建 Git/worktree Runner |
 | Fast-Path | 已接线，依赖语义判断 | 小改动由主会话直接完成 | 尚无稳定自动判级和端到端效果评测 |
 
@@ -364,7 +364,7 @@ Tier 1 当前是评测资产，不是效果结果；存在 Case 文件不能证�
 
 - `harness/capabilities/codex.json` 与 `harness/capabilities/claude-code.json` 使用统一能力词汇（subagents、worktree_isolation、transcript_access、lifecycle_hooks、structured_tool_results）和三态声明（`supported` / `degraded` / `unsupported`）。静态 `unsupported` 表示「启动前尚无可执行证据」，不是产品能力结论；运行时必须由 Harness Adapter 执行探测，探测结果覆盖静态默认值。合同见 `harness/README.md`。
 - `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` 定义 Run Envelope 与证据链：Review、Verify、Task 结果绑定相同 `run_id` 与 `task_id`/`attempt`，统一 Run、Artifact、Profile、Harness、Commit 与配置摘要的语义。
-- 执行路由分两档：Native Delivery（主会话直接完成小改动）与完整 Runtime Run（命中 `strict` 风险、`--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required` 任一升级条件时）。SVN 工作副本下 `route` 恒输出 `native-delivery`（完整 Runtime Run 的证据链硬编码 Git）。
+- 执行路由分两档：Native Delivery（默认；strict 风险、并行 Worktree 写入与长任务恢复都在 Native 完成——strict 走独立 Judge 的 Native strict Review）与完整 Runtime Run（仅显式 `--execution-mode runtime`、项目硬性审计要求或跨宿主验证时启用；change 2048 收窄）。SVN 工作副本下显式 Runtime 需求被路由以非零退出拒绝（不初始化 Git、不降级）；纯 SVN 走原生串行交付（`svn-pending-commit` 待提交 / `svn-revision-verified` 确切版本核验），双 VCS 并存需显式 `--vcs-backend git|svn`。历史口径（2026-09 前）：strict／并行／恢复命中即自动升级 Runtime，SVN 恒降级 Native——该行为已被 change 2048 取代。
 - 交付门 `check_delivery.py` 校验 Run/Review Artifact 的字段集与档位；工具对照见 `agentic-framework-delivery-gate`（用户级 skill）。
 
 证据：`harness/README.md:1-15`、`harness/capabilities/*.json`、`openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md`、`skills/workflow-code-generation/scripts/workflow_control.py`（`route` / `_detect_vcs`）、`openspec/changes/archive/svn-disable-runtime-run-2026-09-12/proposal.md`。

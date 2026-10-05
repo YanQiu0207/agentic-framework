@@ -8,12 +8,12 @@ Tooling 控制流把 `tasks.md` 作为唯一持久状态，通过确定性脚本
 
 ## 主链路与路径边界
 
-`workflow-code-generation` 只在可能命中 Runtime 升级条件时调用 `workflow_control.py ... route`；其余情况直接进入 Native Delivery：
+`workflow-code-generation` 默认直接进入 Native Delivery；只有存在显式 Runtime 需求（`--execution-mode runtime`、项目硬性审计要求或跨宿主验证）时才调用 `workflow_control.py ... route`：
 
 ```text
 proposal.md / tasks.md 获批
     → lint_spec.py / lint_task_deps.py
-    → 可能升级时 route；否则直接 Native Delivery
+    → 默认直接 Native Delivery；显式 Runtime 需求时 route
         ├── Native Delivery
         │   → 仅并行分支、非线性依赖或恢复时 waves / dispatchable
         │   → 单 Task / 纯串行链直接 event start
@@ -27,7 +27,9 @@ proposal.md / tasks.md 获批
             → Run 级 Review → check_delivery.py --run-dir → Trust Gate
 ```
 
-`waves`、`dispatchable`、状态迁移、阻塞和恢复不是完整 Runtime 专属能力：只有并行分支、非线性依赖图或中断恢复需要时才调用 `waves` / `dispatchable`。单 Task 或纯串行链直接以 `event start` 启动下一任务，依赖和 Verify 配置选择仍由该命令失败关闭。完整 Runtime 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时初始化 Run；无升级条件时直接 Native Delivery，不调用恒为 Native 的 `route`；控制器禁止为 Native Delivery 伪造 Run Context。SVN 工作副本不适用完整 Runtime：`route` 在裁决前探测仓库 VCS，检测到 SVN 时恒输出 `native-delivery` 并在 stderr 明示降级，升级原因保留在 `runtime_upgrade_reasons` 供下游核对；VCS 探测对 Git 优先、二进制缺失时降级探测下一后端、两者皆无时不干预 route 结果。
+`waves`、`dispatchable`、状态迁移、阻塞和恢复不是完整 Runtime 专属能力：只有并行分支、非线性依赖图或中断恢复需要时才调用 `waves` / `dispatchable`。单 Task 或纯串行链直接以 `event start` 启动下一任务，依赖和 Verify 配置选择仍由该命令失败关闭。
+
+路由只由显式模式与硬性要求决定（change 2048）：`select_execution_route` 以 `execution_mode: native|runtime` 为主输入，未指定时默认 `native-delivery`；`strict` 风险、并行 Worktree 写入与长任务恢复不再自动升级——strict 走 Native strict Review（独立 Judge），并行/恢复按需使用隔离与恢复规划，均不初始化 Run。明确 Runtime 需求只有三类：显式 `--execution-mode runtime`、项目硬性审计要求 `--audit-required`（编排方从项目约束读取后显式传入，不从风险、复杂度或 Profile 名推断）、跨宿主验证 `--cross-host-capability-verification`；命中且 VCS 为 Git 时输出 `runtime-run`，`runtime_upgrade_reasons` 只记录实际触发的要求。硬性要求与 `execution_mode=native` 冲突、或 Runtime 在 SVN／未知 VCS 下不受支持时，路由以非零退出拒绝（不再像旧行为那样把 SVN 强制降级为 Native 并仅在 stderr 提示）；`--parallel-worktree-write` 与 `--long-task-recovery` 在一个兼容版本内仍接受，只表示执行需求。VCS 探测经公共接口 `scripts/vcs.py`（`inspect_workspace`）：Git 与 SVN 并存且未显式传 `--vcs-backend git|svn` 时 route/recover 拒绝隐式选择，不再 Git 优先；`recover` 只读核对 tasks、工作区与验证事实，SVN 工作副本按串行写入恢复，更新/提交只由明确的工作流步骤执行。控制器禁止为 Native Delivery 伪造 Run Context。
 
 ## 状态与恢复
 
@@ -64,9 +66,10 @@ proposal.md / tasks.md 获批
 
 ## 质量证据边界
 
-- `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只校验独立 Verify，不写 Run Artifact；完整 Runtime 额外要求 Run-bound Verify Artifact。
-- Task 级不运行 LLM Review；全部任务合并后执行一次最终 Review。Native Delivery 消费 `standard` 集成 Review；完整 Runtime 的 Run 级 `strict` Review 由共享 `workflow-code-review` 绑定 Runtime Context。
-- `check_delivery.py --native-delivery` 校验终态 Tasks、已归档 Proposal、标准集成 Review、独立 Verify、知识影响和 Git 工作区，并输出有界 Verdict。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。交付报告只能逐字引用成功命令的原始 stdout；缺少归档、干净 Git 状态或有效 Artifact 时不得声明「交付门 PASS」。
+- `quality_passed` 始终要求 `verdict: PASS` 的 Verify 报告；Native Delivery 只接受独立 v2 报告（顶层 `schema_version: 2` 与 `subject_id`），旧 v1 不能作为新完成证据；完整 Runtime 额外要求 Run-bound Verify Artifact。
+- Task 级不运行 LLM Review；全部任务合并后执行一次最终 Review。Native Delivery 按任务实际档位出 v2 集成 Review（任务声明 `strict` 时要求独立 Judge 与三项独立性声明）；完整 Runtime 的 Run 级 `strict` Review 由共享 `workflow-code-review` 绑定 Runtime Context。
+- `check_delivery.py --native-delivery` 校验终态 Tasks、已归档 Proposal、档位匹配的集成 Review、独立 v2 Verify、知识影响与工作区状态，重算当前内容主体并核对 Review/Verify/当前三方一致后输出有界 Verdict。Git 工作区要求干净（`native-delivery-pass`）；Scoped Delivery 输出 `git-scoped-delivery-pass`（冻结范围与残留摘要入证据）；纯 SVN 的预期本地改动不适用 Git clean——无提交授权输出 `svn-pending-commit`（本地已验证待提交，不是正式交付 PASS），有确切 revision 且隔离核验通过输出 `svn-revision-verified`。`check_delivery.py --run-dir` 继续校验完整 Runtime 的 Manifest、Journal、Harness 与 Trust Gate。交付报告只能逐字引用成功命令的原始 stdout；缺少归档、有效 Artifact 或工作区证据时不得声明「交付门 PASS」。
+- `merge_success` 只表示任务结果纳入本地集成内容，不等于 SVN 远程提交；正式交付由交付门按确切 revision 核验。
 - 结构化报告只能证明产物存在且字段满足合同，不能替代语义正确性判断。
 
 ## 主要验证证据

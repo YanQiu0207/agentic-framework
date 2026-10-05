@@ -27,3 +27,11 @@ Manifest 的 `profile` 字段现被四个门禁脚本消费：`validate_change.p
 `opsx-*` 六个 Skill 与六个 Command 已退役归档（`openspec/changes/archive/opsx-retirement-2026-07-27/`）。Production 与 Tooling 现共用统一的 `workflow-*` 入口——Profile 差异仅由 manifest 的 `profile` 字段与治理守卫（`governance_guards.py`）承载，不再由独立 Skill 集合表达。`--switch-profile` 切换只改 manifest 字段，不增减已安装文件（两个 Profile 的文件集合已一致）。归档中的 `opsx-*` 引用不改动。
 
 change 2046（2026-08-02）让代码追平上述文本：安装器内 `PRODUCTION_SKILLS`／`TOOLING_SKILLS` 等四组逐元素相同的常量已坍缩为单一 `DELIVERY_SKILLS`／`DELIVERY_COMMANDS`／`MANAGED_SKILL_ROOTS`／`MANAGED_COMMAND_FILES`；`_forbidden_entry_paths`／`_cross_pollution_errors` 这两处交叉污染检查已删除：装前那处因两 Profile 入口集合合并而恒为空（死逻辑）；装后那处在受管链接创建后检查、退化为恒抛 `FileExistsError` 的 always-fail 隐患（change 2045 后引入，被符号链接守门的测试在无 Developer Mode 的 Windows 上 skip 掩盖）。删除同时清理死逻辑与修复该隐患；「拒绝替换未受管目标」的前置防护由 `_preflight` 独立承载，不受影响。Profile 在安装内容层面已无差异，仅由 manifest 的 `profile` 字段、运行时治理守卫，以及两处有意保留的差异（`validate_change.py` 仅 Production、`frontend` pack 仅 Tooling）承载。
+
+## VCS 识别与原生 SVN 初始化（change 2048）
+
+`project-init` 在询问版本管理模式前先探测现有 `.git` / `.svn`（沿目录向上，覆盖纯 Git、纯 SVN、父级 Git 包住 SVN 工作副本与两者并存）：已有纯 SVN 默认推荐原生 SVN；已有 Git 默认推荐纯 Git；双 VCS 并存时展示识别结果并要求用户显式确认开发后端，不隐式 Git 优先。「Git + SVN」仍是显式选项，服务于确实要本地 Git + 正式提交走 SVN 的用户。
+
+- 已配置桥接或团队镜像的项目保留现状，只标注正式提交后端；不因 `.git` 存在推断桥接正确，不创建镜像/桥接，不删除任何 `.git`、`.svn` 元数据——任何移除另行授权。
+- 纯 SVN 初始化沿用逐路径 `svn add`、不自动 `svn commit`：产物加入版本控制计划后保持未提交，由用户自行提交。非工作副本目录报告并停止，提示先 `svn checkout` / `svn import`，不擅自 `svnadmin create`。
+- Profile 描述使用当前统一的 `workflow-*` 入口与 Production 三阶段门禁，不再引用已退役的独立 OPSX 入口提法；Profile 仍只决定执行生命周期，不改变 `openspec/` Artifact 结构。

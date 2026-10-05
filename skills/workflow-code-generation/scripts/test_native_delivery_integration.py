@@ -21,12 +21,11 @@ from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_SKILL_SCRIPTS = _REPO_ROOT / "skills"
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 for _path in (
+    str(Path(__file__).resolve().parent),
     str(_REPO_ROOT / "scripts"),
-    str(_SKILL_SCRIPTS / "workflow-code-generation" / "scripts"),
-    str(_SKILL_SCRIPTS / "workflow-verification" / "scripts"),
+    str(_REPO_ROOT / "skills" / "workflow-verification" / "scripts"),
 ):
     if _path not in sys.path:
         sys.path.insert(0, _path)

@@ -7,14 +7,27 @@
 | 层 | 入口 | 职责 |
 | --- | --- | --- |
 | Production 阶段门 | `scripts/validate_change.py` | 只读校验 Plan、Delivery、Archive 的 Artifact 与证据合同 |
-| Tooling Task 门 | `workflow_control.py quality_passed` | 要求 Task 机器验证报告为 `PASS` |
-| Tooling Run 交付门 | `check_delivery.py` | 校验归档、终态、Review JSON、知识影响和 Git 状态 |
+| Tooling Task 门 | `workflow_control.py quality_passed` | 要求 Task 机器验证报告为 `PASS`（Native 只接受 v2） |
+| Tooling Run 交付门 | `check_delivery.py` | 校验归档、终态、Review JSON、知识影响、工作区状态并输出有界 Verdict |
 | 机器 Verification | `workflow-verification/scripts/verify.py` | 执行项目配置、比较基线、检查 Spec Drift 并生成 JSON 报告 |
 | 语义 Review | `workflow-code-review` 与 `agents/` | 按风险分档审查 Diff；`lightweight` / `standard` 由 `comprehensive-reviewer` 自证并生成 Artifact，`strict` 由独立 Judge 输出最终 Markdown 与结构化 JSON |
 
 这些层相互提供证据，但不能互相替代。
 
 Tooling 的 Fast-Path、Native Delivery、Runtime Run 与 Scoped Delivery 都必须声明 `--knowledge-impact hit|none`。`none` 必须附非空理由；缺失、空理由或非法值均失败关闭。Scoped Delivery 因必须同时使用 `--native-delivery` 而沿用同一检查，但输出以 Scoped Delivery 标识，避免将四条路径混淆。
+
+## Native v2 报告合同（change 2048）
+
+standalone Verify 顶层必须具有 `schema_version: 2` 和 `subject_id`（`sha256:` 加 64 位小写十六进制）：检查前后核对同一内容主体，检查期间输入变化或覆盖不完整时结果无效（不产生 PASS）。Native Review v2 使用原六字段加版本和 subject；`strict` 额外必填 `implementer_actor`、`judge_actor`、`independence_basis`（非空且两参与者不同），standard/lightweight 不允许独立性字段；PASS 必须 P0/P1=0。声明只核验流程分离，不保证强身份隔离或语义正确性。subject 的固定检查基准由交付门显式 CLI／冻结 baseline 与公共固定分类算法提供；报告不能自选任意排除策略，不能给旧报告补造主体。v1 报告使用旧读路径，新完成证据（`quality_passed`、Native 交付门）不接受 v1；Runtime v1 Schema、字段语义及读取入口保持。
+
+Native Verdict v2 由 `native_delivery.build_verdict` 从真实已校验的 Verify/Review 与当前 subject 构造，要求三者一致、两报告 PASS、Review scope=integration；产物保留路径引用及 canonical JSON SHA256 摘要，不内嵌重复报告。四种终态：
+
+- Git `native-delivery-pass` 必填 git_clean=true 和 40 位 commit_sha；SVN 字段不允许混入。
+- Git `git-scoped-delivery-pass` 必填 commit_sha（当前 HEAD）、冻结 scope_paths 与 S0 residue_snapshot_digest；Scoped Delivery 不用虚假 git_clean 包装脏工作区，成功仅表述为「本次交付范围干净，预存残留未变化」。
+- SVN `svn-pending-commit` 必填 repository_uuid、repository_relative_url，绑定工作副本 subject；只表示本地验证待提交，不是正式交付 PASS。
+- SVN `svn-revision-verified` 额外要求正整数 revision 与 revision_subject_id==subject_id；交付门经公共只读接口核验节点基准、范围、内容与属性（未版本化残留走 S0/S1 快照通道，不混入版本内容比对）；查询门不代执行 commit/update/revert，提交结果不明或提交后验证失败保留实际状态、不自动回退或重提。他人不同文件的提交被接纳后，提交前报告不算验证过该组合——必须按确切 revision 内容重新取证。
+
+`validate_verdict` 不访问任意引用路径，不进行 VCS 写入，不初始化 Run。verified_claims 必须精确对应状态和档位；unprovable_claims 明确包括 Runtime Trust、宿主探测、Manifest 图、强身份隔离和语义正确性——不能凭 Verdict 已生成推断正式交付成功。
 
 ## Production 阶段门
 
@@ -88,9 +101,9 @@ Verification 基线、机器报告和 Run 级 Review JSON 统一位于仓库根 
 
 ## Scoped Delivery
 
-Tooling 的 `check_delivery.py` 默认要求 Git 工作区干净。对存量残留场景，可显式启用 Scoped Delivery：Verify 在采基线时冻结任务可写路径和生成目录，并记录独立的 `workspace_residue_snapshot`（S0）；交付门仅在提交 Diff 位于该范围且当前 S1 残留与 S0 状态、路径和内容摘要一致时通过。
+Tooling 的 `check_delivery.py` 对 Git 默认要求工作区干净；纯 SVN 的预期本地改动按「本地已验证待提交」处理，不适用 Git clean。对存量残留场景，可显式启用 Scoped Delivery：Verify 在采基线时冻结任务可写路径和生成目录，并记录独立的 `workspace_residue_snapshot`（S0）；交付门仅在提交 Diff 位于该范围且当前 S1 残留与 S0 状态、路径和内容摘要一致时通过。
 
-`changed_files_snapshot`、`--ignore` 和 `ignore_paths` 仅用于 Spec Drift，不构成交付豁免。Git Scoped Delivery 需声明当前 `HEAD` commit；SVN Scoped Delivery 需声明已提交 revision。范围冲突、快照不完整、残留变化或提交证据缺失均失败关闭，并要求改用干净 worktree／工作副本。Scoped Delivery 仅用于 Native Delivery；框架自身 `.agentic-framework/` 本地运行产物不作为 SVN 残留。Scoped 成功只能声明「本次交付范围干净，预存残留未变化」。Production 的 `validate_change.py` 不消费该模式。
+`changed_files_snapshot`、`--ignore` 和 `ignore_paths` 仅用于 Spec Drift，不构成交付豁免。Git Scoped Delivery 需声明当前 `HEAD` commit（产出 `git-scoped-delivery-pass`）；SVN Scoped Delivery 需声明已提交 revision（产出 `svn-revision-verified`，确切版本隔离核验通过）。范围冲突、快照不完整、残留变化或提交证据缺失均失败关闭，并要求改用干净 worktree／工作副本。Scoped Delivery 仅用于 Native Delivery；框架自身 `.agentic-framework/` 本地运行产物不作为 SVN 残留。Scoped 成功只能声明「本次交付范围干净，预存残留未变化」。Production 的 `validate_change.py` 不消费该模式，但其交付证据门与 Tooling 共享基线格式；SVN 证据必须提供确切 revision，待提交不构成正式交付。
 
 ## Code Review
 
