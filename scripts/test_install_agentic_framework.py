@@ -18,6 +18,19 @@ import install_agentic_framework as installer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
+# 安装器只消费 skills/commands/agents/harness/scripts/schemas 等目录；
+# 复制时排除重负载内容（B-tests-pass 300s 冻结预算）。
+_INSTALL_TEST_IGNORE = shutil.ignore_patterns(
+    ".git", ".agentic-framework", ".pytest_cache", "__pycache__",
+    ".claude", ".codex", "openspec", "docs", "evaluation", "node_modules",
+)
+
+
+def _copy_source(root: Path) -> Path:
+    source = root / "source"
+    shutil.copytree(REPO_ROOT, source, ignore=_INSTALL_TEST_IGNORE)
+    return source
+
 
 def _readlink_target(path: Path) -> str:
     """Read a link target with the Windows extended-length prefix normalized.
@@ -1071,8 +1084,7 @@ class InstallTest(unittest.TestCase):
     def test_installed_verify_entry_runs_native_v2_in_isolated_project(self) -> None:
         """change 2048 Task 16：隔离安装后，新 v2 Verify 入口可从安装链接真实运行。"""
         self._require_symlinks()
-        source = self.root / "source"
-        shutil.copytree(REPO_ROOT, source)
+        source = _copy_source(self.root)
         target = self.root / "target"
         target.mkdir()
         installer.install(
@@ -1132,8 +1144,7 @@ class InstallTest(unittest.TestCase):
     def test_refresh_preserves_user_files_and_existing_runs(self) -> None:
         """change 2048 Task 16：刷新安装不覆盖用户预存文件、不降级既有 Run。"""
         self._require_symlinks()
-        source = self.root / "source"
-        shutil.copytree(REPO_ROOT, source)
+        source = _copy_source(self.root)
         target = self.root / "target"
         target.mkdir()
         installer.install(
