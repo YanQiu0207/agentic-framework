@@ -1006,10 +1006,14 @@ def _svn_verify(
     )
     if not capture["complete"]:
         raise VcsError("coverage_incomplete", "svn_delivery")
+    # Unversioned paths are Scoped Delivery residue, not revision content: the
+    # residue channel (S0/S1 snapshot compare at the delivery gate) protects
+    # them separately, so the tree comparison stays on versioned nodes only.
+    versioned = {node["path"] for node in facts["nodes"]}
     current = {
         entry["path"]: entry
         for entry in capture["entries"]
-        if entry["type"] != "missing"
+        if entry["type"] != "missing" and entry["path"] in versioned
     }
     expected = {}
     for item in remote_files:

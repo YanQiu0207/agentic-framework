@@ -199,6 +199,7 @@ def validate_review_report(
 def _claims(verdict: str, profile: str) -> list[str]:
     delivery = {
         "native-delivery-pass": "git-clean",
+        "git-scoped-delivery-pass": "git-scoped-delivery",
         "svn-pending-commit": "svn-working-copy-verified",
         "svn-revision-verified": "svn-revision-content-verified",
     }[verdict]
@@ -264,6 +265,9 @@ def validate_verdict(
     kind = data["verdict"]
     if kind == "native-delivery-pass":
         fields = {"git_clean", "commit_sha"}
+        expected_vcs = "git"
+    elif kind == "git-scoped-delivery-pass":
+        fields = {"commit_sha", "scope_paths", "residue_snapshot_digest"}
         expected_vcs = "git"
     elif kind == "svn-pending-commit":
         fields = {"repository_uuid", "repository_relative_url"}
@@ -333,6 +337,7 @@ def build_verdict(
     review_report_path: str,
     knowledge_impact: str,
     knowledge_impact_reason: str,
+    scoped: bool = False,
 ) -> dict[str, Any]:
     """Build bounded evidence from actual validated, content-matched reports.
 
@@ -346,6 +351,8 @@ def build_verdict(
         review_report_path: Existing Review evidence reference.
         knowledge_impact: ``none`` or ``updated``.
         knowledge_impact_reason: Reason for the knowledge decision.
+        scoped: Git Scoped Delivery with frozen scope and unchanged residue;
+            never asserted with a false ``git_clean`` over a dirty workspace.
 
     Returns:
         Independent JSON snapshot with references and canonical digests.
@@ -357,8 +364,14 @@ def build_verdict(
     profile = review_report["review_profile"]
     _validate_bound_reports(verify_report, review_report, subject_id, profile)
     if vcs == "git":
-        kind = "native-delivery-pass"
+        kind = (
+            "git-scoped-delivery-pass" if scoped else "native-delivery-pass"
+        )
     elif vcs == "svn":
+        if scoped:
+            raise NativeDeliveryError(
+                "SVN formal delivery requires revision evidence, not a scoped flag"
+            )
         kind = (
             "svn-revision-verified"
             if "revision" in delivery_evidence

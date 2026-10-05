@@ -2090,30 +2090,60 @@ class DeliveryEvidenceTest(unittest.TestCase):
         )
         self.assertEqual([], resolved)
 
-    def test_svn_working_copy_delivery_accepts_revision(self) -> None:
-        """Production 交付门在纯 SVN 工作副本按确切 revision 工作。"""
+    _svn_server: Path | None = None
+    _svn_server_tmp = None
+
+    @classmethod
+    def _shared_svn_server(cls) -> Path:
+        """类级 svnadmin 服务器（r1 含 openspec 与 code.py）；测试仅 checkout。
+
+        B-tests-pass 有 300s 冻结上限：与 check_delivery 的 SVN 用例同法
+        共享服务器，压低每个用例的 fixture 开销。
+        """
+        if cls._svn_server is None:
+            cls._svn_server_tmp = tempfile.TemporaryDirectory(
+                prefix="validate-svn-"
+            )
+            root = Path(cls._svn_server_tmp.name)
+            subprocess.run(
+                ["svnadmin", "create", str(root / "server")],
+                check=True, capture_output=True, timeout=30,
+            )
+            staging = root / "staging"
+            change = staging / "openspec" / "changes" / "2099-evidence"
+            change.mkdir(parents=True)
+            (change / "tasks.md").write_text(cls.TASKS, encoding="utf-8")
+            (staging / "code.py").write_text("print('v1')\n", encoding="utf-8")
+            subprocess.run(
+                [
+                    "svn", "import", "--non-interactive",
+                    str(staging), (root / "server").as_uri(),
+                    "-m", "base", "--force-log",
+                ],
+                check=True, capture_output=True, timeout=30,
+            )
+            cls._svn_server = root / "server"
+        return cls._svn_server
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls._svn_server_tmp is not None:
+            cls._svn_server_tmp.cleanup()
+            cls._svn_server_tmp = None
+            cls._svn_server = None
+
+    def _svn_delivery_lab(self) -> tuple[Path, Path, Path]:
+        """共享服务器 checkout + Scoped 基线文件；返回 (wc, change, baseline)。"""
+        server = self._shared_svn_server()
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         root = Path(temp_dir.name)
-
-        def svn(*args: str, cwd: Path = root) -> None:
-            subprocess.run(
-                ["svn", *args, "--non-interactive"],
-                cwd=str(cwd), check=True, capture_output=True, timeout=30,
-            )
-
+        repo = root / "wc"
         subprocess.run(
-            ["svnadmin", "create", str(root / "server")],
+            ["svn", "checkout", "--non-interactive", server.as_uri(), str(repo)],
             check=True, capture_output=True, timeout=30,
         )
-        repo = root / "wc"
-        svn("checkout", (root / "server").as_uri(), str(repo))
         change = repo / "openspec" / "changes" / "2099-evidence"
-        change.mkdir(parents=True)
-        (change / "tasks.md").write_text(self.TASKS, encoding="utf-8")
-        (repo / "code.py").write_text("print('v1')\n", encoding="utf-8")
-        svn("add", "openspec", "code.py", cwd=repo)
-        svn("commit", "-m", "base", "--force-log", cwd=repo)
         (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
         snapshot = workspace_residue.capture_workspace_residue(
             repo, "", ["code.py"], backend="svn"
@@ -2123,13 +2153,41 @@ class DeliveryEvidenceTest(unittest.TestCase):
         baseline.write_text(
             json.dumps({"workspace_residue_snapshot": snapshot}), encoding="utf-8"
         )
-        (repo / "code.py").write_text("print('v2')\n", encoding="utf-8")
-        svn("commit", "-m", "scope", "--force-log", cwd=repo)
-        revision = "2"
+        return repo, change, baseline
+
+    def test_svn_working_copy_delivery_accepts_revision(self) -> None:
+        """Production 交付门在纯 SVN 工作副本按确切 revision 工作。"""
+        repo, change, baseline = self._svn_delivery_lab()
+
+        def svn(*args: str) -> None:
+            subprocess.run(
+                ["svn", *args, "--non-interactive"],
+                cwd=str(repo), check=True, capture_output=True, timeout=30,
+            )
+
+        (repo / "code.py").write_text("print('delivered')\n", encoding="utf-8")
+        svn("commit", "-m", "scope", "--force-log")
+        svn("update")
+        revision = subprocess.run(
+            ["svn", "info", "--non-interactive", "--show-item", "revision"],
+            cwd=str(repo), check=True, capture_output=True, text=True,
+            encoding="utf-8", timeout=30,
+        ).stdout.strip()
         findings = validate_change._validate_delivery_evidence(
             repo, change, baseline, None, revision, "svn"
         )
         self.assertEqual([], findings)
+
+    def test_svn_pending_without_revision_is_not_formal_delivery(self) -> None:
+        """待提交不是正式交付：SVN 证据缺确切 revision 时 Production 门拒绝。"""
+        repo, change, baseline = self._svn_delivery_lab()
+        (repo / "code.py").write_text("print('v2')\n", encoding="utf-8")
+        findings = validate_change._validate_delivery_evidence(
+            repo, change, baseline, None, None, "svn"
+        )
+        self.assertEqual(["OPSX057"], [f.rule_id for f in findings])
+        self.assertIn("--delivery-revision", findings[0].message)
+        self.assertIn("不得提供 --delivery-commit", findings[0].message)
 
     def test_cross_track_same_baseline_both_pass(self) -> None:
         """同一份基线文件，Production 与 Tooling 都能成功校验（跨轨互认）。"""

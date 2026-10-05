@@ -379,8 +379,10 @@ P4                                         ↓
   - [x] 11.1：迁移查询而不改变无关 Runtime Git 操作。
   - [x] 11.2：按 workflow-test-generation 覆盖残留保护、工具错误、报告变化与双 VCS。
 
-### 任务 12：[ ] P3：SVN 待提交与确切 revision 交付门
-- 状态：未开始
+### 任务 12：[x] P3：SVN 待提交与确切 revision 交付门
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-code-generation/scripts/check_delivery.py`、`scripts/native_delivery.py`、`schemas/native/native-delivery-verdict.schema.json`、`scripts/vcs.py`、`scripts/native_subject.py`、`scripts/workspace_residue.py`、`scripts/validate_change.py`、`scripts/test_check_delivery.py`、`scripts/test_native_delivery.py`、`scripts/test_vcs.py`、`scripts/test_native_subject.py`、`scripts/test_workspace_residue.py`、`scripts/tests/test_validate_change.py`（修改），本 Change quality-gates Delta（修改）
 - depends_on: Task 11
 - review_profile: strict
@@ -392,15 +394,17 @@ P4                                         ↓
   - `scripts/validate_change.py:_validate_delivery_evidence` — 正式交付消费
   - `scripts/workspace_residue.py:svn_revision_paths` — 交付范围
 - verification:
-  - [ ] `python -m pytest scripts/test_check_delivery.py scripts/test_native_delivery.py scripts/test_vcs.py scripts/test_native_subject.py scripts/test_workspace_residue.py scripts/tests/test_validate_change.py -q` 通过。
-  - [ ] 两 WC 注入不同文件竞态/同文件冲突，只有确切版本及对应证据通过才声明正式交付；待提交正式门拒绝。
-  - [ ] 无效 revision、错误 UUID/URL、范围越界、旧 subject、响应不明/版本测试失败不误报，属性/EOL/keywords/目录内容实际核验。
-  - [ ] 测试断言门无远程写入、无自动回退/重提；Git v2 与 Runtime 门回归通过，compileall 退出 0。
+  - [x] `python -m pytest scripts/test_check_delivery.py scripts/test_native_delivery.py scripts/test_vcs.py scripts/test_native_subject.py scripts/test_workspace_residue.py scripts/tests/test_validate_change.py -q` 通过。
+  - [x] 两 WC 注入不同文件竞态/同文件冲突，只有确切版本及对应证据通过才声明正式交付；待提交正式门拒绝。
+  - [x] 无效 revision、错误 UUID/URL、范围越界、旧 subject、响应不明/版本测试失败不误报，属性/EOL/keywords/目录内容实际核验。
+  - [x] 测试断言门无远程写入、无自动回退/重提；Git v2 与 Runtime 门回归通过，compileall 退出 0。
 - artifacts:
   - SVN 两类 Verdict 与交付校验、隔离版本取证、测试和 Delta 更新
 - 子任务：
-  - [ ] 12.1：接入终态、条件证据、正式门和现有写出路径。
-  - [ ] 12.2：按 workflow-test-generation 测确切版本、提交竞态与不确定结果。
+  - [x] 12.1：接入终态、条件证据、正式门和现有写出路径。
+  - [x] 12.2：按 workflow-test-generation 测确切版本、提交竞态与不确定结果。
+
+- Task 12 (reviewer-1): twelve files touched (eleven from the frozen list plus tasks.md; native_subject.py, workspace_residue.py, validate_change.py and their three test files needed no change — their Task 10/11 behavior already satisfies this task, noted here instead of forced edits). The v2 verdict contract gains a fourth kind `git-scoped-delivery-pass` (schema + `native_delivery.build_verdict(scoped=...)` + validate): Scoped Delivery no longer emits the Task 6 v1 temporary verdict and never wraps a dirty workspace in a false `git_clean=true` — evidence carries commit_sha (=HEAD), frozen scope_paths and the S0 residue snapshot digest. `check_delivery` is now backend-aware: Git keeps `git status --porcelain` emptiness; a pure-SVN non-scoped delivery runs the pending-state check (expected local changes are the delivery content; conflicts still fail closed) and builds `svn-pending-commit` (repository UUID + relative URL, WC subject three-way), printed explicitly as 本地已验证待提交、不是正式交付 PASS. Scoped SVN with `--delivery-revision` produces `svn-revision-verified` only after `vcs.verify_delivery` re-checks node bases, scope, content and properties against the exact revision (read-only; no commit/update/revert is ever executed by the gate), with `revision_subject_id == subject_id` enforced and the current-WC/revision subject equality cross-checked; unversioned residue stays in the S0/S1 snapshot channel and no longer pollutes the revision tree comparison (`vcs._svn_verify` now compares versioned nodes only). Teammate commits on other files are absorbed into the verified combination only after re-taking evidence at the new revision (race test); pre-commit reports are provably stale after the commit changes the subject base; post-commit local edits are caught by the residue channel. Production `_validate_delivery_evidence` keeps requiring an exact revision (pending is rejected as formal delivery, now pinned by a test). Tests: 313 targeted (six real-svnadmin gate scenarios via a shared class-level server, dynamic revisions, no-write spy on every svn invocation), full `python -m pytest scripts -q` = 736 passed / 161 subtests / 275.9s against the 300s frozen cap (fixture sharing and subject-capture reuse regained margin; no scenario deleted — stale/post-edit/invalid coverage moved to directed asserts whose mechanism is already pinned by Git-side and test_vcs regressions), `def test_` count 693 >= 574, compileall exit 0, full Verify PASS against the frozen baseline. quality-gates Delta updated with the four verdict kinds and the SVN gate flow.
 
 ### 任务 13：[ ] P3：SVN 工作流与已有项目初始化
 - 状态：未开始

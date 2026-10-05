@@ -5,8 +5,9 @@
   （状态行内附注，或单独的 `- 原因:` 字段）。同时校验状态字段、任务头
   标记与任务块复选框三向一致——只改状态字段不勾选复选框视为矛盾。
 - **spec 已归档**（`--spec`）：`**状态**:` 必须为 `Archived`。
-- **工作区干净**（总是检查）：`git status --porcelain` 必须为空——
-  代码与归档产物（spec / tasks / ADR / issues）都已提交本地 git。
+- **工作区状态**（总是检查，按后端分派）：Git 要求 `git status --porcelain`
+  为空；原生 SVN 的预期本地改动不走 Git clean，输出 `svn-pending-commit`
+  （本地已验证待提交，不是正式交付 PASS）。
 
 Fast-Path 兼容别名（无 spec / tasks）还必须传 lightweight integration Review、
 独立 Verify 报告与结构化知识影响结论；`none` 必须附理由。
@@ -38,7 +39,6 @@ if str(_FRAMEWORK_SCRIPTS) not in sys.path:
 import native_delivery
 import native_subject
 import runtime_workflow
-import runtime_schema
 import vcs
 import workspace_residue
 import knowledge_sync
@@ -450,9 +450,25 @@ def _declared_review_profiles(tasks_path: Path) -> set[str]:
 
 
 def _current_subject(repo: Path, base: str) -> tuple[dict | None, list[str]]:
-    """Recompute the current Native subject for delivery-time binding."""
+    """Recompute the current Native subject for delivery-time binding.
+
+    Git 用 --subject-base（与 Verify 的 --diff-base 一致）；纯 SVN 的固定
+    基准取工作副本根的 WC revision（与 Verify 的主体捕获同源），CLI 的
+    --subject-base 在 SVN 下不参与。
+    """
     try:
-        subject = native_subject.capture_subject(repo, base)
+        facts = vcs.inspect_workspace(repo)
+    except vcs.VcsError as error:
+        return None, [
+            "无法判定交付工作区后端（"
+            f"{error.code}: {error.operation}），"
+            "Native Delivery 需要单一后端；双 VCS 工作副本请先确认开发后端"
+        ]
+    subject_base = facts["base"] if facts["backend"] == "svn" else base
+    try:
+        subject = native_subject.capture_subject(
+            repo, subject_base, backend=facts["backend"]
+        )
     except (native_subject.SubjectError, vcs.VcsError) as error:
         return None, [
             "无法重算当前内容主体（"
@@ -463,6 +479,29 @@ def _current_subject(repo: Path, base: str) -> tuple[dict | None, list[str]]:
         shown = "; ".join(subject["limitations"][:5])
         return None, [f"当前内容主体覆盖不完整：{shown}"]
     return subject, []
+
+
+def check_svn_pending_workspace(repo: Path) -> list[str]:
+    """SVN 待提交状态检查：本地预期改动不适用 Git clean，只核可判定性。
+
+    本地改动是 svn-pending-commit 的交付内容本身，由三方主体一致性绑定；
+    此处只确认公共接口能完整判定该工作副本（冲突、混合版本、switched 等
+    限制会在主体覆盖不完整处失败关闭）。
+    """
+    try:
+        facts = vcs.inspect_workspace(repo, "svn")
+    except vcs.VcsError as error:
+        return [
+            "无法判定 SVN 待提交工作副本（"
+            f"{error.code}: {error.operation}）；"
+            "原生 SVN 预期改动不走 Git clean，但工作副本必须可完整判定"
+        ]
+    if facts["conflicts"]:
+        return [
+            "SVN 工作副本存在未解决冲突："
+            + ", ".join(facts["conflicts"][:10])
+        ]
+    return []
 
 
 def check_knowledge_impact(impact: str | None, reason: str) -> list[str]:
@@ -773,8 +812,23 @@ def main(argv: list[str]) -> int:
         )
         success = "PASS   本次交付范围干净，预存残留未变化"
     else:
-        found = check_git_clean(args.repo)
-        success = "PASS   工作区干净（代码与归档产物已提交）"
+        try:
+            delivery_backend = workspace_residue.detect_vcs(args.repo)
+        except workspace_residue.WorkspaceResidueError as error:
+            delivery_backend = None
+            found = [f"无法判定交付工作区后端：{error}"]
+        if delivery_backend == "git":
+            found = check_git_clean(args.repo)
+            success = "PASS   工作区干净（代码与归档产物已提交）"
+        elif delivery_backend == "svn":
+            # 原生 SVN 预期改动不走 Git clean：本地改动即待提交交付内容。
+            found = check_svn_pending_workspace(args.repo)
+            success = (
+                "PASS   SVN 工作副本待提交状态（预期本地改动，不适用 Git clean）"
+            )
+        else:
+            found = found or ["无法判定交付工作区后端"]
+            success = ""
     errors.extend(found)
     print(("ERROR  " + "；".join(found)) if found else success)
 
@@ -925,16 +979,99 @@ def main(argv: list[str]) -> int:
             print(f"ERROR  Runtime 证据链：{error}")
     elif not errors and args.native_delivery:
         if args.scoped_delivery:
-            # Scoped Delivery 维持既有 v1 Verdict：范围声明与预存残留证据
-            # 在冻结基线中；v2 统一交付状态由后续 SVN 交付任务处理。
+            # Scoped Delivery 统一到 v2 合同（change 2048 Task 12）：Git 输出
+            # git-scoped-delivery-pass（冻结范围 + 残留不变，不用虚假
+            # git_clean 包装脏工作区）；SVN 只在接受确切 revision 隔离核验后
+            # 输出 svn-revision-verified，查询门不代执行 commit/update。
             try:
-                verdict = runtime_schema.build_native_delivery_verdict(
-                    str(args.review_report.resolve()),
-                    str(args.verify_report.resolve()),
-                    args.knowledge_impact,
-                    args.knowledge_impact_reason.strip(),
-                    True,
+                reason = args.knowledge_impact_reason.strip()
+                if args.knowledge_impact == "hit" and not reason:
+                    raise native_delivery.NativeDeliveryError(
+                        "--knowledge-impact hit 生成 v2 Verdict 需要非空"
+                        " --knowledge-impact-reason（说明更新了哪条知识）"
+                    )
+                baseline_payload = json.loads(
+                    args.workspace_residue_baseline.read_text(encoding="utf-8")
                 )
+                stored = workspace_residue.validate_workspace_residue_snapshot(
+                    baseline_payload["workspace_residue_snapshot"]
+                )
+                if stored["vcs"] == "git":
+                    head_result = subprocess.run(
+                        ["git", "-C", str(args.repo), "rev-parse", "HEAD"],
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                    )
+                    if head_result.returncode != 0:
+                        raise native_delivery.NativeDeliveryError(
+                            f"无法读取交付提交 HEAD：{head_result.stderr.strip()}"
+                        )
+                    verdict = native_delivery.build_verdict(
+                        native_verify_report,
+                        native_review_report,
+                        subject_id=native_subject_capture["subject_id"],
+                        vcs="git",
+                        scoped=True,
+                        delivery_evidence={
+                            "commit_sha": head_result.stdout.strip(),
+                            "scope_paths": stored["scope_paths"],
+                            "residue_snapshot_digest": stored["snapshot_digest"],
+                        },
+                        verify_report_path=str(args.verify_report.resolve()),
+                        review_report_path=str(args.review_report.resolve()),
+                        knowledge_impact=(
+                            "updated"
+                            if args.knowledge_impact == "hit"
+                            else "none"
+                        ),
+                        knowledge_impact_reason=reason,
+                    )
+                else:
+                    svn_facts = vcs.inspect_workspace(args.repo, "svn")
+                    # 确切 revision 隔离核验：节点基准、范围、内容与属性逐项
+                    # 比对（公共只读接口，不 update/commit/revert）。SVN 可能
+                    # 接纳他人不同文件的提交——验证只绑定核验过的 revision。
+                    delivery = vcs.verify_delivery(
+                        args.repo,
+                        args.delivery_revision,
+                        f"svn:r{stored['base_ref']}",
+                        backend="svn",
+                    )
+                    if (
+                        delivery["subject_id"]
+                        != native_subject_capture["subject_id"]
+                    ):
+                        raise native_delivery.NativeDeliveryError(
+                            "当前工作副本主体与确切 revision 主体不一致；"
+                            "请更新到交付 revision 并对当前内容重跑受影响的"
+                            " Verify/Review"
+                        )
+                    verdict = native_delivery.build_verdict(
+                        native_verify_report,
+                        native_review_report,
+                        subject_id=native_subject_capture["subject_id"],
+                        vcs="svn",
+                        delivery_evidence={
+                            "repository_uuid": svn_facts["repository_identity"][
+                                "uuid"
+                            ],
+                            "repository_relative_url": svn_facts[
+                                "repository_identity"
+                            ]["relative_url"],
+                            "revision": delivery["revision"],
+                            "revision_subject_id": delivery["subject_id"],
+                        },
+                        verify_report_path=str(args.verify_report.resolve()),
+                        review_report_path=str(args.review_report.resolve()),
+                        knowledge_impact=(
+                            "updated"
+                            if args.knowledge_impact == "hit"
+                            else "none"
+                        ),
+                        knowledge_impact_reason=reason,
+                    )
                 write_native_delivery_verdict(args.native_delivery_verdict, verdict)
                 post_write_errors = check_scoped_delivery(
                     args.repo,
@@ -948,7 +1085,13 @@ def main(argv: list[str]) -> int:
                     print("ERROR  " + "；".join(post_write_errors))
                 else:
                     checks += 1
-                    print("PASS   Native Delivery 裁决：scoped-delivery-pass")
+                    print(f"PASS   Native Delivery 裁决：{verdict['verdict']}")
+                    if verdict["verdict"] == "svn-revision-verified":
+                        print(
+                            "       正式交付 revision：r"
+                            f"{verdict['evidence']['revision']}"
+                            "（工作副本、Verify/Review 与该版本内容三方一致）"
+                        )
                     print(
                         "       verified_claims: "
                         + ", ".join(verdict["verified_claims"])
@@ -957,7 +1100,12 @@ def main(argv: list[str]) -> int:
                         "       unprovable_claims: "
                         + ", ".join(verdict["unprovable_claims"])
                     )
-            except (OSError, runtime_schema.RuntimeSchemaError) as error:
+            except (
+                OSError,
+                ValueError,
+                vcs.VcsError,
+                native_delivery.NativeDeliveryError,
+            ) as error:
                 checks += 1
                 errors.append(f"Native Delivery Verdict 写入失败：{error}")
                 print(f"ERROR  Native Delivery Verdict 写入失败：{error}")
@@ -969,52 +1117,113 @@ def main(argv: list[str]) -> int:
                         "--knowledge-impact hit 生成 v2 Verdict 需要非空"
                         " --knowledge-impact-reason（说明更新了哪条知识）"
                     )
-                head_result = subprocess.run(
-                    ["git", "-C", str(args.repo), "rev-parse", "HEAD"],
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                )
-                if head_result.returncode != 0:
+                try:
+                    backend = workspace_residue.detect_vcs(args.repo)
+                except workspace_residue.WorkspaceResidueError as error:
                     raise native_delivery.NativeDeliveryError(
-                        f"无法读取交付提交 HEAD：{head_result.stderr.strip()}"
+                        f"无法判定交付后端：{error}"
+                    ) from error
+                if backend == "svn":
+                    # 本地已验证、待 SVN 提交：完成报告状态，不是正式交付 PASS。
+                    svn_facts = vcs.inspect_workspace(args.repo, "svn")
+                    verdict = native_delivery.build_verdict(
+                        native_verify_report,
+                        native_review_report,
+                        subject_id=native_subject_capture["subject_id"],
+                        vcs="svn",
+                        delivery_evidence={
+                            "repository_uuid": svn_facts["repository_identity"][
+                                "uuid"
+                            ],
+                            "repository_relative_url": svn_facts[
+                                "repository_identity"
+                            ]["relative_url"],
+                        },
+                        verify_report_path=str(args.verify_report.resolve()),
+                        review_report_path=str(args.review_report.resolve()),
+                        knowledge_impact=(
+                            "updated"
+                            if args.knowledge_impact == "hit"
+                            else "none"
+                        ),
+                        knowledge_impact_reason=reason,
                     )
-                verdict = native_delivery.build_verdict(
-                    native_verify_report,
-                    native_review_report,
-                    subject_id=native_subject_capture["subject_id"],
-                    vcs="git",
-                    delivery_evidence={
-                        "git_clean": True,
-                        "commit_sha": head_result.stdout.strip(),
-                    },
-                    verify_report_path=str(args.verify_report.resolve()),
-                    review_report_path=str(args.review_report.resolve()),
-                    knowledge_impact=(
-                        "updated" if args.knowledge_impact == "hit" else "none"
-                    ),
-                    knowledge_impact_reason=reason,
-                )
-                write_native_delivery_verdict(args.native_delivery_verdict, verdict)
-                post_write_errors = check_git_clean(args.repo)
-                if post_write_errors:
-                    checks += 1
-                    errors.extend(post_write_errors)
-                    print("ERROR  " + "；".join(post_write_errors))
+                    write_native_delivery_verdict(
+                        args.native_delivery_verdict, verdict
+                    )
+                    post_write_errors = check_svn_pending_workspace(args.repo)
+                    if post_write_errors:
+                        checks += 1
+                        errors.extend(post_write_errors)
+                        print("ERROR  " + "；".join(post_write_errors))
+                    else:
+                        checks += 1
+                        print(
+                            "PASS   Native Delivery 裁决：svn-pending-commit"
+                        )
+                        print(
+                            "       本地已验证，待 SVN 提交：这不是正式交付"
+                            " PASS；正式交付需提交后以 --scoped-delivery "
+                            "--delivery-revision 按确切 revision 核验"
+                        )
+                        print(
+                            "       verified_claims: "
+                            + ", ".join(verdict["verified_claims"])
+                        )
+                        print(
+                            "       unprovable_claims: "
+                            + ", ".join(verdict["unprovable_claims"])
+                        )
                 else:
-                    checks += 1
-                    print(f"PASS   Native Delivery 裁决：{verdict['verdict']}")
-                    print(
-                        "       verified_claims: "
-                        + ", ".join(verdict["verified_claims"])
+                    head_result = subprocess.run(
+                        ["git", "-C", str(args.repo), "rev-parse", "HEAD"],
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
                     )
-                    print(
-                        "       unprovable_claims: "
-                        + ", ".join(verdict["unprovable_claims"])
+                    if head_result.returncode != 0:
+                        raise native_delivery.NativeDeliveryError(
+                            f"无法读取交付提交 HEAD：{head_result.stderr.strip()}"
+                        )
+                    verdict = native_delivery.build_verdict(
+                        native_verify_report,
+                        native_review_report,
+                        subject_id=native_subject_capture["subject_id"],
+                        vcs="git",
+                        delivery_evidence={
+                            "git_clean": True,
+                            "commit_sha": head_result.stdout.strip(),
+                        },
+                        verify_report_path=str(args.verify_report.resolve()),
+                        review_report_path=str(args.review_report.resolve()),
+                        knowledge_impact=(
+                            "updated" if args.knowledge_impact == "hit" else "none"
+                        ),
+                        knowledge_impact_reason=reason,
                     )
+                    write_native_delivery_verdict(
+                        args.native_delivery_verdict, verdict
+                    )
+                    post_write_errors = check_git_clean(args.repo)
+                    if post_write_errors:
+                        checks += 1
+                        errors.extend(post_write_errors)
+                        print("ERROR  " + "；".join(post_write_errors))
+                    else:
+                        checks += 1
+                        print(f"PASS   Native Delivery 裁决：{verdict['verdict']}")
+                        print(
+                            "       verified_claims: "
+                            + ", ".join(verdict["verified_claims"])
+                        )
+                        print(
+                            "       unprovable_claims: "
+                            + ", ".join(verdict["unprovable_claims"])
+                        )
             except (
                 OSError,
+                vcs.VcsError,
                 native_delivery.NativeDeliveryError,
             ) as error:
                 checks += 1

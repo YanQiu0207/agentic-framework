@@ -47,7 +47,7 @@ def reports(profile="standard"):
     return verify, review
 
 
-def build(profile="standard", vcs="git", evidence=None):
+def build(profile="standard", vcs="git", evidence=None, scoped=False):
     verify, review = reports(profile)
     if evidence is None:
         evidence = dict(git_clean=True, commit_sha="b" * 40)
@@ -61,6 +61,7 @@ def build(profile="standard", vcs="git", evidence=None):
         review_report_path="review.json",
         knowledge_impact="none",
         knowledge_impact_reason="No knowledge impact",
+        scoped=scoped,
     )
 
 
@@ -239,4 +240,42 @@ def test_svn_revision_subject_mismatch_is_not_formal_delivery():
                 revision=2,
                 revision_subject_id="sha256:" + "d" * 64,
             ),
+        )
+
+
+def test_git_scoped_delivery_binds_scope_and_residue_digest():
+    """Scoped Git v2 终态：冻结范围与残留摘要入证据，不伪造 git_clean。"""
+    verify, review = reports()
+    verdict = build(
+        evidence=dict(
+            commit_sha="b" * 40,
+            scope_paths=["scripts", "docs"],
+            residue_snapshot_digest="sha256:" + "e" * 64,
+        ),
+        scoped=True,
+    )
+    assert verdict["verdict"] == "git-scoped-delivery-pass"
+    assert "git-scoped-delivery" in verdict["verified_claims"]
+    assert "git-clean" not in verdict["verified_claims"]
+    assert "git_clean" not in verdict["evidence"]
+    native.validate_verdict(verdict, verify_report=verify, review_report=review)
+
+    forged = copy.deepcopy(verdict)
+    forged["evidence"]["git_clean"] = True
+    with pytest.raises(native.NativeDeliveryError):
+        native.validate_verdict(forged)
+
+    emptied = copy.deepcopy(verdict)
+    emptied["evidence"]["scope_paths"] = []
+    with pytest.raises(native.NativeDeliveryError):
+        native.validate_verdict(emptied)
+
+    with pytest.raises(native.NativeDeliveryError):
+        build(
+            vcs="svn",
+            evidence=dict(
+                repository_uuid="uuid",
+                repository_relative_url="^/trunk",
+            ),
+            scoped=True,
         )
