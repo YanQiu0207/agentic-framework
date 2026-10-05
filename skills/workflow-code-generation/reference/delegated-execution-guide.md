@@ -27,6 +27,7 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
 - `review_profile` 是 Task 必填字段，只决定最终 Review 档位与独立 Judge 要求；`strict` 仍为 Native Delivery，不因此升级 Runtime。
 - Review finding 修复后只做定向 re-review，不启动第二次首轮 Review。
 - DAG、状态、阻塞和恢复可以独立使用，不自动创建 Runtime Run。
+- SVN 工作副本按串行写入执行：`merge_success` 只表示纳入本地集成内容，不等于 SVN 远程提交；任务内只读验证，`update`/`commit` 只在交付指南「SVN 原生交付」的明确步骤由编排方执行，不创建 Git 镜像或桥接。
 
 ## Phase 0：准备
 

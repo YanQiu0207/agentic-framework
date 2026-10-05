@@ -222,5 +222,74 @@ class NativeFirstRoutingContractTest(unittest.TestCase):
                 self.assertIn(marker, text)
 
 
+class SvnWorkflowContractTest(unittest.TestCase):
+    """change 2048 Task 13：SVN 串行工作流与初始化识别的活跃文案合同。"""
+
+    def test_delivery_guide_pins_svn_serial_workflow(self) -> None:
+        text = (
+            ROOT
+            / "skills/workflow-code-generation/reference/delivery-guide.md"
+        ).read_text(encoding="utf-8")
+        for required in (
+            "SVN 原生交付（串行工作流）",
+            "svn-pending-commit",
+            "svn-revision-verified",
+            "不是正式交付 PASS",
+            "不盲目重提",
+            "不自动回滚共享版本",
+            "git-scoped-delivery-pass",
+        ):
+            self.assertIn(required, text)
+
+    def test_project_init_detects_vcs_and_recommends_native(self) -> None:
+        text = (ROOT / "skills/project-init/SKILL.md").read_text(encoding="utf-8")
+        for required in (
+            "已有 SVN → 默认推荐原生 SVN",
+            "双 VCS 并存时必须显式确认开发后端",
+            "不创建镜像/桥接",
+            "不删除任何 `.git`、`.svn` 元数据",
+            "逐路径 `svn add`",
+            "不执行 `svn commit`",
+        ):
+            self.assertIn(required, text)
+        # OPSX 独立入口提法已退役（change 2048 Task 13 修正）。
+        self.assertNotIn("使用 OPSX 生命周期和 Production Review 门禁", text)
+
+    def test_execution_and_delegation_state_serial_write(self) -> None:
+        for relative in (
+            "skills/workflow-code-generation/reference/execution-setup.md",
+            "skills/workflow-code-generation/reference/delegated-execution-guide.md",
+        ):
+            with self.subTest(file=relative):
+                text = (ROOT / relative).read_text(encoding="utf-8")
+                self.assertIn("不创建 Git 镜像或桥接", text)
+
+    def test_verification_skill_states_explicit_backend(self) -> None:
+        text = (ROOT / "skills/workflow-verification/SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("--vcs-backend git|svn", text)
+        drift = (
+            ROOT
+            / "skills/workflow-verification/reference/spec-drift-and-scope.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("属性列 modified/conflicted 也计入 tracked", drift)
+        self.assertIn("git-scoped-delivery-pass", drift)
+
+    def test_trigger_cases_cover_svn_workflow_rows(self) -> None:
+        generation = (
+            ROOT
+            / "skills/workflow-code-generation/evaluation/trigger-cases.md"
+        ).read_text(encoding="utf-8")
+        for marker in ("R-8", "R-9", "R-10", "R-11"):
+            self.assertIn(marker, generation)
+        verification = (
+            ROOT
+            / "skills/workflow-verification/evaluation/trigger-cases.md"
+        ).read_text(encoding="utf-8")
+        for marker in ("S-7", "S-8", "S-9"):
+            self.assertIn(marker, verification)
+
+
 if __name__ == "__main__":
     unittest.main()

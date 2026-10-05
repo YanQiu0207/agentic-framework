@@ -32,7 +32,8 @@ description: 机器验证。代码改动前采集基线，任务合并及最终 
 
 - 规格包括 Change 的 proposal、design、tasks、Delta，长期 Specs、Issues 和 ADR。
 - Git 标准或委派流程在改动前记录 `base_sha`，后续显式传 `--diff-base <base_sha>`；已提交后的 clean 工作区也使用该基准。
-- SVN 直接检查工作副本，省略 `--diff-base`；两种版本控制都无法识别时返回 ERROR。
+- SVN 直接检查工作副本（公共接口的本地节点状态：属性改动计入 tracked，未版本化目录折叠为单条 `?`），省略 `--diff-base`；两种版本控制都无法识别时返回 ERROR。
+- Git 与 SVN 并存的工作副本拒绝隐式选择：传 `--vcs-backend git|svn` 显式指定后端，否则失败关闭。
 - 最终报告引用 `.agentic-framework/verify/report.json` 中的 `spec_drift` 结果。
 
 遇到规格关联失败、忽略路径、来源版本问题或使用 SVN 时，读取 [规格关联与交付范围](reference/spec-drift-and-scope.md)。新 Change 写入 `openspec/changes/`，旧设计目录只作迁移输入。

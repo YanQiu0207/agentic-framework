@@ -2,7 +2,7 @@
 
 > 由 proposal.md / design.md / review-notes.md 生成
 > 任务总数：17
-> 状态：任务 1–11 完成（11 起由 reviewer-1 实施）；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
+> 状态：任务 1–13 完成（11 起由 reviewer-1 实施）；按用户要求将任务 11–17 交接给 reviewer-1。隔离 Worktree 内本文件是执行状态来源，主工作区副本在集成时同步。
 > 核心原则：先建合同与公共接口，再迁移消费者和路由，最后补齐 SVN、回归与交付；P1/P2 同批发布。
 
 用户已通过“开始处理”授权执行本清单。设计的文档复审 PASS 不等于代码 Review PASS。执行期间冻结既有 Verify 配置和基线；规则随对应任务的实现与验证同步更新。
@@ -406,8 +406,10 @@ P4                                         ↓
 
 - Task 12 (reviewer-1): twelve files touched (eleven from the frozen list plus tasks.md; native_subject.py, workspace_residue.py, validate_change.py and their three test files needed no change — their Task 10/11 behavior already satisfies this task, noted here instead of forced edits). The v2 verdict contract gains a fourth kind `git-scoped-delivery-pass` (schema + `native_delivery.build_verdict(scoped=...)` + validate): Scoped Delivery no longer emits the Task 6 v1 temporary verdict and never wraps a dirty workspace in a false `git_clean=true` — evidence carries commit_sha (=HEAD), frozen scope_paths and the S0 residue snapshot digest. `check_delivery` is now backend-aware: Git keeps `git status --porcelain` emptiness; a pure-SVN non-scoped delivery runs the pending-state check (expected local changes are the delivery content; conflicts still fail closed) and builds `svn-pending-commit` (repository UUID + relative URL, WC subject three-way), printed explicitly as 本地已验证待提交、不是正式交付 PASS. Scoped SVN with `--delivery-revision` produces `svn-revision-verified` only after `vcs.verify_delivery` re-checks node bases, scope, content and properties against the exact revision (read-only; no commit/update/revert is ever executed by the gate), with `revision_subject_id == subject_id` enforced and the current-WC/revision subject equality cross-checked; unversioned residue stays in the S0/S1 snapshot channel and no longer pollutes the revision tree comparison (`vcs._svn_verify` now compares versioned nodes only). Teammate commits on other files are absorbed into the verified combination only after re-taking evidence at the new revision (race test); pre-commit reports are provably stale after the commit changes the subject base; post-commit local edits are caught by the residue channel. Production `_validate_delivery_evidence` keeps requiring an exact revision (pending is rejected as formal delivery, now pinned by a test). Tests: 313 targeted (six real-svnadmin gate scenarios via a shared class-level server, dynamic revisions, no-write spy on every svn invocation), full `python -m pytest scripts -q` = 736 passed / 161 subtests / 275.9s against the 300s frozen cap (fixture sharing and subject-capture reuse regained margin; no scenario deleted — stale/post-edit/invalid coverage moved to directed asserts whose mechanism is already pinned by Git-side and test_vcs regressions), `def test_` count 693 >= 574, compileall exit 0, full Verify PASS against the frozen baseline. quality-gates Delta updated with the four verdict kinds and the SVN gate flow.
 
-### 任务 13：[ ] P3：SVN 工作流与已有项目初始化
-- 状态：未开始
+### 任务 13：[x] P3：SVN 工作流与已有项目初始化
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/project-init/SKILL.md`、`skills/workflow-code-generation/SKILL.md`、`skills/workflow-code-generation/reference/execution-setup.md`、`skills/workflow-code-generation/reference/delivery-guide.md`、`skills/workflow-code-generation/reference/delegated-execution-guide.md`、`skills/workflow-verification/SKILL.md`、`skills/workflow-verification/reference/spec-drift-and-scope.md`（修改，各 reference 归属前述 Skill），`skills/workflow-code-generation/evaluation/trigger-cases.md`、`skills/workflow-verification/evaluation/trigger-cases.md`、`scripts/test_profile_contracts.py`（修改），本 Change `specs/backend/framework/install-agentic-framework/overview.md`（新建）
 - depends_on: Task 12
 - review_profile: strict
@@ -419,14 +421,16 @@ P4                                         ↓
   - `scripts/vcs.py`、`skills/workflow-code-generation/scripts/check_delivery.py` — 已实现能力
   - `scripts/test_profile_contracts.py` — 合同验证
 - verification:
-  - [ ] `python -m pytest scripts/test_profile_contracts.py -q` 通过，`python scripts/lint_skill_graph.py` 退出 0。
-  - [ ] 运行 SVN/双 VCS/父 Git/旧混合模式触发场景，未经授权不 commit、不创建 Git；已配置桥接不擅自转换。
-  - [ ] 工具日志证明更新/提交只在明确工作流步骤；提交未知/失败报告不宣告成功；初始化仍逐路径 svn add。
+  - [x] `python -m pytest scripts/test_profile_contracts.py -q` 通过，`python scripts/lint_skill_graph.py` 退出 0。
+  - [x] 运行 SVN/双 VCS/父 Git/旧混合模式触发场景，未经授权不 commit、不创建 Git；已配置桥接不擅自转换。
+  - [x] 工具日志证明更新/提交只在明确工作流步骤；提交未知/失败报告不宣告成功；初始化仍逐路径 svn add。
 - artifacts:
   - SVN/初始化规则、触发用例与 install Delta
 - 子任务：
-  - [ ] 13.1：同步原生 SVN 完整工作流与模式探测/确认。
-  - [ ] 13.2：核验工具调用记录和 Skill 合同，保留 Profile 独立性。
+  - [x] 13.1：同步原生 SVN 完整工作流与模式探测/确认。
+  - [x] 13.2：核验工具调用记录和 Skill 合同，保留 Profile 独立性。
+- Task 13 (reviewer-1): eleven files touched (ten from the frozen list plus tasks.md). The SVN serial workflow is now normative in delivery-guide (「SVN 原生交付」): protect pre-existing changes → update and record identity/base → serial develop/verify/review → pre-commit upstream check (one `svn status -u` is not a guarantee; new subject after update/conflict) → without authorization report `svn-pending-commit` (explicitly not a formal PASS) → with authorization show scope, commit, record the actual revision, resolve unknown results by checking server logs/content (never blind re-commit) → exact-revision re-verification yields `svn-revision-verified`; post-commit verification failure is reported honestly with no auto-revert of shared revisions. execution-setup and delegated-execution-guide pin the serial-write discipline (no Git mirror/bridge, write steps only in the explicit workflow, parallel work read-only, `merge_success` is local integration only). project-init now detects existing VCS (including parent-Git-around-SVN and dual markers) before asking, recommends native per detection (existing SVN → native SVN default), requires an explicit backend choice for dual VCS, keeps bridged/mirrored setups untouched, never deletes `.git`/`.svn` metadata, keeps per-path `svn add` without `svn commit`, and drops the retired standalone-OPSX phrasing for the unified `workflow-*` entries. workflow-verification SKILL + spec-drift-and-scope synced with the Task 11/12 behavior (common-interface statuses, property rows and versioned anomalies counted, unversioned trees collapsed, dual-VCS `--vcs-backend`, scoped v2 verdict kinds). Trigger cases gained R-8..R-11 (pending/unknown-result/no-auto-revert/upstream-recheck) and S-7..S-9 (explicit backend, property coverage, SVN subject base). New `SvnWorkflowContractTest` pins the wording; trigger-row walkthrough is machine-backed: unauthorized-no-commit and gate-never-writes by the Task 12 no-write spies, dual/parent-VCS refusal by Task 11 tests, route-SVN rejection without Git creation by Task 7 tests, bridging non-conversion by the project-init contract. `test_profile_contracts.py` 21 passed + subtests, graph lint 0 errors/0 warnings, compileall exit 0.
+
 ### 任务 14：[ ] P4：真实 Git/SVN 集成与兼容回归
 - 状态：未开始
 - 文件：`scripts/test_native_delivery_integration.py`（新建），`scripts/test_workflow_control.py`、`scripts/test_check_delivery.py`、`scripts/test_runtime_schema.py`、`scripts/test_runtime_workflow.py`、`scripts/test_runtime_trust.py`、`scripts/test_profile_contracts.py`、`scripts/test_delivery_route_fixture_runner.py`、`scripts/test_downgrade_equivalence.py`（修改）
@@ -553,7 +557,7 @@ P4                                         ↓
 | --- | --- | --- | --- | --- |
 | `specs/backend/framework/workflow-control/overview.md` | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | Pending（7 创建、15 同步） | 对应索引/来源元数据待核对 |
 | `specs/backend/framework/quality-gates/overview.md` | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | Pending（2/12 创建、15 同步） | 对应索引/来源元数据待核对 |
-| `specs/backend/framework/install-agentic-framework/overview.md` | `openspec/specs/backend/framework/install-agentic-framework/overview.md` | MODIFIED | Pending（13 创建、15 同步） | 对应索引/来源元数据待核对 |
+| `specs/backend/framework/install-agentic-framework/overview.md` | `openspec/specs/backend/framework/install-agentic-framework/overview.md` | MODIFIED | Created（13），15 同步 Pending | 对应索引/来源元数据待核对 |
 | `specs/backend/engineering/tech/framework-unification.md` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | Pending（15 同步前创建核验） | engineering 索引待核对 |
 | `specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` | MODIFIED | Pending（7 创建、15 同步） | 技术索引待核对 |
 | `specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | Pending（7 创建、15 同步） | 技术索引待核对 |

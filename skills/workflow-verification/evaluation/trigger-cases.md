@@ -43,3 +43,6 @@
 | S-4 | Verify 配置缺失的仓库 | 主体覆盖不完整 → ERROR，提示先完成配置选择 | 覆盖不完整不发完整 PASS |
 | S-5 | 交付门消费 Verify | 门以 `--subject-base` 重算当前内容，三方（Review/Verify/当前）一致才放行 | 交付前编辑会被拒 |
 | S-6 | Runtime 路径（--run-dir） | 仍产出 v1 Envelope Run-bound Artifact，行为不变 | Runtime v1 合同保留 |
+| S-7 | Git 与 SVN 并存的工作副本 | 无显式后端失败关闭（exit 2 / spec drift error），提示 `--vcs-backend git|svn`；指定后端可核验 | 不再隐式 Git 优先 |
+| S-8 | SVN 纯属性行 / 版本化异常节点（missing、obstructed） | 属性列 modified/conflicted 与异常节点计入 tracked，spec drift 可见 | 属性与异常也是项目输入（Task 11 起覆盖） |
+| S-9 | 纯 SVN 工作副本采基线/Verify | 主体基准取工作副本根 revision（`svn:r<N>`），v2 报告绑定完整，`diff_base` 置 None | SVN 有自己的固定基准语义 |

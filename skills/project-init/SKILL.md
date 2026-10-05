@@ -27,17 +27,19 @@ disable-model-invocation: true
 
 ### 1. 选择版本管理模式
 
-向用户提问（单选），拿到答案前不执行后续步骤：
+先探测现有版本控制（沿目录向上查 `.git` 与 `.svn`，覆盖纯 Git、纯 SVN、父级 Git 包住 SVN 工作副本与两者并存的形态），再按识别结果给出默认推荐并向用户提问（单选）；拿到答案前不执行后续步骤：
 
-- **纯 Git**：Git 同时用于本地开发和正式提交。
-- **Git + SVN**：本地用 Git，正式提交走 SVN。
-- **纯 SVN**：只用 SVN，本地开发和正式提交都走 SVN 工作副本，不引入 Git。
+- **纯 Git**：Git 同时用于本地开发和正式提交。已有 Git → 默认推荐。
+- **Git + SVN**：本地用 Git，正式提交走 SVN。服务于确实要该组合的用户；不因此创建镜像或双向同步。
+- **纯 SVN**：只用 SVN，本地开发和正式提交都走 SVN 工作副本，不引入 Git。已有 SVN → 默认推荐原生 SVN。
+
+探测结果与推荐不符（如已有 SVN 却要选纯 Git）时，展示双方证据并由用户确认。**双 VCS 并存时必须显式确认开发后端**：展示识别到的两类元数据位置，用户指定以哪套为准；不隐式 Git 优先，也不把另一种当作待清理项。已配置桥接或团队镜像的项目保留现状，只标注正式提交后端；不因 `.git` 存在推断桥接正确，不创建镜像/桥接，不删除任何 `.git`、`.svn` 元数据——任何移除另行授权。
 
 ### 2. 选择框架 Profile
 
 单独询问并记录：
 
-- **Production**：使用 OPSX 生命周期和 Production Review 门禁。
+- **Production**：使用统一的 `workflow-*` 入口与 Production 三阶段门禁（plan / delivery / archive 的确定性校验）。
 - **Tooling**：使用 Tooling 的 DAG、Worktree、失败隔离和统一最终 Review。
 
 Profile 只决定执行生命周期；两种 Profile 使用相同的 `openspec/` Artifact 结构。
