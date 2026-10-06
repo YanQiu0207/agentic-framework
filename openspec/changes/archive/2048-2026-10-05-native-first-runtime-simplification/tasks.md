@@ -568,14 +568,14 @@ P4                                         ↓
 
 以下 Delta 在对应实施任务创建；当前只生成任务清单，不制造已存在或已验证的 Delta。路径从本 Change `specs/` 镜像长期目标；同步只在相应行为验证后执行。
 
-| Delta（相对本 Change） | 长期目标 | 动作 | 状态 | 索引更新 |
+| Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `specs/backend/framework/workflow-control/overview.md` | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | Synced（15） | 索引与 meta.yaml 来源已更新（15） |
-| `specs/backend/framework/quality-gates/overview.md` | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | Synced（15） | 索引与 meta.yaml 来源已更新（15） |
-| `specs/backend/framework/install-agentic-framework/overview.md` | `openspec/specs/backend/framework/install-agentic-framework/overview.md` | MODIFIED | Synced（15） | 索引与 meta.yaml 来源已更新（15） |
-| `specs/backend/engineering/tech/framework-unification.md` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | Synced（15） | 索引与 meta.yaml 来源已更新（15） |
-| `specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` | MODIFIED | Synced（15） | 索引与 meta.yaml 来源已更新（15） |
-| `specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | Synced（15） | 索引与 meta.yaml 来源已更新（15） |
+| `specs/backend/framework/workflow-control/overview.md` | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | 已完成 | 索引与 meta.yaml 来源已更新（Task 15） |
+| `specs/backend/framework/quality-gates/overview.md` | `openspec/specs/backend/framework/quality-gates/overview.md` | MODIFIED | 已完成 | 索引与 meta.yaml 来源已更新（Task 15） |
+| `specs/backend/framework/install-agentic-framework/overview.md` | `openspec/specs/backend/framework/install-agentic-framework/overview.md` | MODIFIED | 已完成 | 索引与 meta.yaml 来源已更新（Task 15） |
+| `specs/backend/engineering/tech/framework-unification.md` | `openspec/specs/backend/engineering/tech/framework-unification.md` | MODIFIED | 已完成 | 索引与 meta.yaml 来源已更新（Task 15） |
+| `specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/spec.md` | MODIFIED | 已完成 | 索引与 meta.yaml 来源已更新（Task 15） |
+| `specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | `openspec/specs/backend/engineering/tech/machine-verifiable-agent-runtime/trust-model.md` | MODIFIED | 已完成 | 索引与 meta.yaml 来源已更新（Task 15） |
 
 intent：高影响架构、放弃重度方案和兼容红线已记录在 design；Task 15 只同步经实现证实的长期约束。故障根因和跨项目候选按实际证据判断，公共库写入仍须另有明确确认。
 
