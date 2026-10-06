@@ -1,6 +1,6 @@
 # Agentic Engineering Framework 特性、进展与框架对比
 
-**更新时间**：2026-09-12（change 2047：追平 change 2028-2046 与 SVN 降级后的仓库现状；上一次全文复核为 2026-07-19）
+**更新时间**：2026-09-12（change 2047：追平 change 2028-2046 与 SVN 降级后的仓库现状；上一次全文复核为 2026-07-19；2026-10-04 补审修正 §7.0 Spec Kit 引述）
 
 **文档定位**：面向框架使用者和维护者，统一说明当前能力、开发进展、实际使用边界、历史演进及与开源框架的差异。
 
@@ -475,7 +475,7 @@ python scripts/install_agentic_framework.py --refresh-all
 | 事实 | 来源 | 对本框架的含义 |
 | --- | --- | --- |
 | Codex CLI 已有 hooks 体系：`hooks.json`、PreToolUse/PostToolUse/Stop/SessionStart 等 lifecycle 事件、`/hooks` 命令；0.150.1（2026-08-27）起非受管 hook 需信任审核 | learn.chatgpt.com/docs/hooks；社区核验记录 | 07 号对齐文档 P1「门禁 hooks 化」的最大障碍消除，双宿主可两侧同时强制执行；实施前仍需用 harness Adapter 探测确认目标版本 |
-| Spec Kit 发布正式文档站（github.github.com/spec-kit/），自我定位从「toolkit」升级为「extensible, intent-driven harness」 | github.github.com/spec-kit（2026-08-21） | 上表 Spec Kit 行的「路径与 GitHub 生态」描述偏旧 |
+| Spec Kit 发布正式文档站（github.github.com/spec-kit/），文档站落地页自我定位为「extensible process harness」（repo README 仍自称 toolkit） | github.github.com/spec-kit（2026-08-21） | 上表 Spec Kit 行的「路径与 GitHub 生态」描述偏旧 |
 | Claude Code 2.1.269 新增 `/skill-doctor`（未使用 skill 与上下文成本）、`claude plugin eval`（可打分、可复现的插件评测）、`CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS`（1-256，Workflow 并发上限） | anthropics/claude-code 官方 CHANGELOG | Tier 1 skill 触发评测可借 `/skill-doctor`；P2 波次深化可利用并发上限；P3 plugin 通道更成熟 |
 | Superpowers 已进入官方 plugin 目录（claude.com/plugins/superpowers），star 数各来源口径不一（3 万-4 万+），skills 生态已目录化、跨 Claude Code/Cursor/Codex 复用 | claude.com/plugins；多方报道 | 印证双宿主分发反向优势，同时 plugin 化紧迫性上升（07 文档 P3） |
 

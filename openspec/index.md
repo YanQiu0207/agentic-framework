@@ -13,6 +13,10 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - [已验证 Issues](issues/)
 - [历史 Changes](changes/archive/)
 
+## 待评审方案
+
+- [2048：简化默认执行流程，收窄 Runtime 使用范围](changes/2048-native-first-runtime-simplification/proposal.md) · [设计与实施阶段](changes/2048-native-first-runtime-simplification/design.md)（Draft，尚未实施）
+
 ## 任务路由
 
 - 双 Profile、Shared Core 和整体架构：[`framework-unification.md`](specs/backend/engineering/tech/framework-unification.md)
@@ -35,3 +39,4 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - 多 Agent 协作样例（AWS sample-codex-agent-team）协议设计逐文件解读、维度级对比与补强点候选：[`external-reference-sample-codex-agent-team.md`](specs/backend/engineering/tech/external-reference-sample-codex-agent-team.md)
 - HarnessX Agent Harness Foundry 的组合模型、轨迹驱动演化、模型共演化、证据边界及适配候选：[`external-reference-harnessx.md`](specs/backend/engineering/tech/external-reference-harnessx.md)
 - Alibaba skill-up 的 Skill 评测、with/without 基线、对话式演进、与 HarnessX 的分层对比及试点候选：[`external-reference-skill-up.md`](specs/backend/engineering/tech/external-reference-skill-up.md)
+- Matt Pocock Skills 的工程理念、使用方式、访谈来源与框架适配候选：[`external-reference-mattpocock-skills.md`](specs/backend/engineering/tech/external-reference-mattpocock-skills.md)
