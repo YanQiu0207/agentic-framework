@@ -384,6 +384,22 @@ def test_svn_mixed_revision_and_upstream_update(svn_pair):
     )
 
 
+def test_svn_stat_forgery_cannot_bypass_revision_verification(svn_pair):
+    """伪造 mtime+size 不能绕过确切 revision 内容核验（终审复审实测的捷径）。"""
+    import os as _os
+
+    first, _, _ = svn_pair
+    assert vcs.verify_delivery(first, "1", "0")["verified"]
+    target = first / "source.txt"
+    stat_before = target.stat()
+    forged = b"forged-but-same-length-content"
+    target.write_bytes(forged[: stat_before.st_size].ljust(stat_before.st_size, b"x"))
+    _os.utime(target, ns=(stat_before.st_atime_ns, stat_before.st_mtime_ns))
+    # SVN 的 diff/status 捷径可能认为文件未变；真实字节核验必须拒绝。
+    with pytest.raises(vcs.VcsError, match="content_mismatch"):
+        vcs.verify_delivery(first, "1", "0")
+
+
 def test_svn_conflicts_and_readonly_queries(svn_pair, monkeypatch):
     first, second, _ = svn_pair
     (second / "source.txt").write_text("remote\n", encoding="utf-8")

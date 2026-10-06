@@ -15,10 +15,11 @@ import hashlib
 import os
 import re
 import subprocess
+import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Optional, Sequence
-from urllib.parse import quote, unquote
+from urllib.parse import unquote
 
 
 class VcsError(Exception):
@@ -1015,56 +1016,71 @@ def _svn_verify(
     )
     if not capture["complete"]:
         raise VcsError("coverage_incomplete", "svn_delivery")
-    # 终审 P1 修复：不再对整棵树逐文件 `svn cat`（N+1 远程子进程，千级文件
-    # 仓库单次门禁即分钟级）。文本与属性的 revision 等价改由一次
-    # `svn diff --summarize --revision N` 证明——所有节点已核实在 revision N
-    # 上（上面的 revision_mismatch 检查），该查询为空 ⇔ SVN 自身语义下的
-    # 工作副本内容与该 revision 完全一致（含 EOL/keywords 转换与属性）。
-    drift = _xml(
-        root, "diff", "--summarize", "--xml", "--revision", str(revision), "."
-    )
-    for node in drift.findall(".//path"):
-        item_kind, prop_kind = node.get("item"), node.get("props")
-        if node.text == "." and item_kind == "none":
-            # 根路径在干净检出上也常报 props 噪声（无文本可比）；真实的根
-            # 属性差异由下方结构化属性对比覆盖。
-            continue
-        if (item_kind, prop_kind) not in (("none", "none"), (None, None)):
-            raise VcsError("content_mismatch", "svn_delivery")
-    # Unversioned paths are Scoped Delivery residue, not revision content: the
-    # residue channel (S0/S1 snapshot compare at the delivery gate) protects
-    # them separately, so the tree comparison stays on versioned nodes only.
-    versioned = {node["path"] for node in facts["nodes"]}
-    current = {
-        entry["path"]: entry
-        for entry in capture["entries"]
-        if entry["type"] != "missing" and entry["path"] in versioned
-    }
-    expected = {}
-    for item in remote_files:
-        path = item["path"]
-        if path != "." and native_subject._classify(path) in ("vcs", "report"):
-            raise VcsError("coverage_incomplete", "svn_delivery")
-        if item["kind"] == "dir":
-            expected[path] = {
-                "path": path,
-                "type": "directory",
-                "properties": properties.get(path, {}),
-            }
-        else:
-            if path not in current:
-                raise VcsError("content_mismatch", "svn_delivery")
-            entry = current[path]
-            if entry["type"] != "file":
-                raise VcsError("content_mismatch", "svn_delivery")
-            # 内容等价已由上面的空 diff 证明；结构化对比覆盖路径、类型、
-            # 属性与可执行位，正文摘要直接采用已证等价的当前值。
+    # 终审修复（两轮）：逐文件 `svn cat` 是 N+1 远程子进程；改用
+    # `svn diff --summarize` 又继承了 SVN 的 mtime+size 捷径——伪造 stat
+    # 即绕过内容比对（复审实测确认）。最终方案：一次 `svn export` 把确切
+    # revision 的真实字节导出到系统临时目录（O(1) 子进程、不触碰用户工作
+    # 副本），在 Python 侧与工作副本真实读取字节逐文件比对；EOL/keywords
+    # 两侧都过 normalize_svn_content 规范化，语义与原 cat 实现一致。
+    with tempfile.TemporaryDirectory(prefix="agentic-svn-verify-") as scratch:
+        export_root = Path(scratch) / "tree"
+        target = facts["url"].rstrip("/") + "@" + str(revision)
+        _run(
+            root,
+            [
+                "svn",
+                "export",
+                "--non-interactive",
+                "--revision",
+                str(revision),
+                "--force",
+                "--depth",
+                "infinity",
+                target,
+                str(export_root),
+            ],
+        )
+        # Unversioned paths are Scoped Delivery residue, not revision content:
+        # the residue channel (S0/S1 snapshot compare at the delivery gate)
+        # protects them separately, so the tree comparison stays on versioned
+        # nodes only.
+        versioned = {node["path"] for node in facts["nodes"]}
+        current = {
+            entry["path"]: entry
+            for entry in capture["entries"]
+            if entry["type"] != "missing" and entry["path"] in versioned
+        }
+        expected = {}
+        for item in remote_files:
+            path = item["path"]
+            if path != "." and native_subject._classify(path) in ("vcs", "report"):
+                raise VcsError("coverage_incomplete", "svn_delivery")
+            if item["kind"] == "dir":
+                expected[path] = {
+                    "path": path,
+                    "type": "directory",
+                    "properties": properties.get(path, {}),
+                }
+                continue
+            exported = export_root / path
+            try:
+                content = exported.read_bytes()
+            except OSError:
+                raise VcsError("content_mismatch", "svn_delivery") from None
+            limits: set[str] = set()
+            content = native_subject.normalize_svn_content(
+                content, properties.get(path, {}), limits
+            )
+            if limits:
+                raise VcsError("coverage_incomplete", "svn_delivery")
+            if native_subject._is_tasks(path):
+                content = native_subject._task_bytes(content)
             expected[path] = {
                 "path": path,
                 "type": "file",
                 "properties": properties.get(path, {}),
                 "executable": "svn:executable" in properties.get(path, {}),
-                "content_sha256": entry["content_sha256"],
+                "content_sha256": hashlib.sha256(content).hexdigest(),
             }
     # Default absent Verify config is an input sentinel, not repository content.
     if current != expected:
