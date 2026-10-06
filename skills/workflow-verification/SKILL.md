@@ -18,11 +18,13 @@ description: 机器验证。代码改动前采集基线，任务合并及最终 
 
 | 交付路径 | Verify 产物 | 交付用途 | 禁止事项 |
 | --- | --- | --- | --- |
-| Native Delivery | 独立 `.agentic-framework/verify/report.json`，不传 `--run-dir` | `check_delivery.py --native-delivery` 消费 PASS 的独立 Verify 与标准 integration Review。 | 不得伪造 `run_id`、Harness、Trust Gate 或 Run Artifact。 |
+| Native Delivery | 独立 `.agentic-framework/verify/report.json`，不传 `--run-dir` | `check_delivery.py --native-delivery` 消费 PASS 的 v2 独立 Verify 与 integration Review。 | 不得伪造 `run_id`、Harness、Trust Gate 或 Run Artifact。 |
 | 完整 Runtime Run | 传 `--run-dir <run-dir>` 生成 Run-bound Verify Artifact。 | 完整 Runtime 的 Manifest、Journal、Capability 与 Trust Gate 证据链。 | 不得以独立报告替代 Run-bound Artifact。 |
-| Fast-Path 兼容别名 | 与 Native Delivery 相同的独立 Verify 报告。 | 只服务尚未迁移的低风险调用；不构成独立默认路径。 | 不得声明 Runtime 证据。 |
+| Fast-Path 兼容别名 | 与 Native Delivery 相同的独立 v2 Verify 报告。 | 只服务尚未迁移的低风险调用；不构成独立默认路径。 | 不得声明 Runtime 证据。 |
 
-独立 Verify 只证明已执行的机器检查及其结果。`scope: run` 或 `strict` Review 的交付，必须走完整 Runtime Run；Verify 本身不能把无 Run 任务升级为 Trust Gate PASS。
+独立 Verify 是 Native v2 报告（change 2048）：顶层 `schema_version: 2` 与 `subject_id`，检查前后核对同一内容主体，检查期间输入变化或覆盖不完整时结果无效（不产生 PASS）。旧 v1 报告只按旧合同展示历史，不能作为新完成证据；交付门会用 `--subject-base` 重算当前内容并交叉核对 Review/Verify/当前三方一致。
+
+独立 Verify 只证明已执行的机器检查及其结果。`scope: run` Review 的交付必须走完整 Runtime Run（显式启用）；strict Review 在 Native 与 Runtime 均可交付，Verify 本身不能把无 Run 任务升级为 Trust Gate PASS。
 
 ## 内置 spec drift 检查
 
@@ -30,7 +32,8 @@ description: 机器验证。代码改动前采集基线，任务合并及最终 
 
 - 规格包括 Change 的 proposal、design、tasks、Delta，长期 Specs、Issues 和 ADR。
 - Git 标准或委派流程在改动前记录 `base_sha`，后续显式传 `--diff-base <base_sha>`；已提交后的 clean 工作区也使用该基准。
-- SVN 直接检查工作副本，省略 `--diff-base`；两种版本控制都无法识别时返回 ERROR。
+- SVN 直接检查工作副本（公共接口的本地节点状态：属性改动计入 tracked，未版本化目录折叠为单条 `?`），省略 `--diff-base`；两种版本控制都无法识别时返回 ERROR。
+- Git 与 SVN 并存的工作副本拒绝隐式选择：传 `--vcs-backend git|svn` 显式指定后端，否则失败关闭。
 - 最终报告引用 `.agentic-framework/verify/report.json` 中的 `spec_drift` 结果。
 
 遇到规格关联失败、忽略路径、来源版本问题或使用 SVN 时，读取 [规格关联与交付范围](reference/spec-drift-and-scope.md)。新 Change 写入 `openspec/changes/`，旧设计目录只作迁移输入。

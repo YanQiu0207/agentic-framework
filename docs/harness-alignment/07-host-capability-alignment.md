@@ -59,6 +59,8 @@
 
 **框架现状**：无自建 Git/worktree Runner，只有指令约定——文档明确自认缺口（docs/tooling/13-agentic-workflow-engine-references.md:87）。Skill 指令定义「何时用、失败保留、恢复核对」（delegated-execution-guide.md:47、:64-65、:97）；确定性代码只把 `--parallel-worktree-write` 当 Runtime 升级的路由信号（workflow_control.py `_build_arg_parser` route flag 注册 :1062-1067、`select_execution_route` strict 判定 :143、`route` 输出 :1269 附近），不执行任何 Git 操作。
 
+> 2026-10 更新（change 2048）：`--parallel-worktree-write` 不再是 Runtime 升级信号——路由只由显式 `execution_mode` 与硬性需求（audit-required / 跨宿主验证）决定；并行 Worktree 写入与长任务恢复留在 Native Delivery，由编排方串行集成（见 workflow-control 概览）。上文为 2026-09 复查时点的历史快照，保留供对照。
+
 **与宿主的重叠**：**高**，但零冲突——框架从未自建，宿主原生增强是纯利好。
 
 **处置**：保留规则层（基线路径规则、失败保留策略是宿主不提供的）。可选优化：指令从手写 `git worktree` 命令对齐到宿主 `EnterWorktree` 工具（含 post-create/post-merge hooks）。

@@ -11,7 +11,6 @@ import math
 import os
 import re
 import stat
-import subprocess
 import sys
 import tempfile
 import time
@@ -25,7 +24,9 @@ _FRAMEWORK_SCRIPTS = Path(__file__).resolve().parents[3] / "scripts"
 if str(_FRAMEWORK_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_FRAMEWORK_SCRIPTS))
 import governance_profile
+import native_delivery
 import runtime_workflow
+import vcs
 
 _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _TASK_DOCUMENT_NAME = "tasks.md"
@@ -131,26 +132,51 @@ class ExecutionRoute:
 def select_execution_route(
     review_profile: str,
     *,
+    execution_mode: str | None = None,
     parallel_worktree_write: bool = False,
     long_task_recovery: bool = False,
     cross_host_capability_verification: bool = False,
     audit_required: bool = False,
+    vcs: str | None = None,
 ) -> ExecutionRoute:
-    """Select Native Delivery unless a documented Runtime condition applies."""
+    """Select the execution path from an explicit mode plus hard requirements.
+
+    未指定 execution_mode 时默认 Native：strict 风险、并行 Worktree 写入与
+    普通恢复不再自动升级 Runtime（change 2048）。显式 runtime、项目硬性
+    审计要求（audit_required）与跨宿主验证要求是明确的 Runtime 需求；它们
+    与显式 native 冲突、或当前 VCS/能力不支持时失败关闭，不静默降级。
+    旧 parallel_worktree_write/long_task_recovery 只表示执行需求，由调用
+    方解释隔离与恢复语义，不影响路径选择。
+    """
     if review_profile not in {"lightweight", "standard", "strict"}:
         raise ValueError(f"非法 review_profile: {review_profile!r}")
-    conditions = (
-        (review_profile == "strict", "strict-risk"),
-        (parallel_worktree_write, "parallel-worktree-write"),
-        (long_task_recovery, "long-task-recovery"),
-        (cross_host_capability_verification, "cross-host-capability-verification"),
-        (audit_required, "audit-required"),
-    )
-    reasons = tuple(name for applies, name in conditions if applies)
-    return ExecutionRoute(
-        "runtime-run" if reasons else "native-delivery",
-        reasons,
-    )
+    if execution_mode is not None and execution_mode not in {"native", "runtime"}:
+        raise ValueError(
+            f"非法 execution_mode: {execution_mode!r}，必须为 native 或 runtime"
+        )
+    requirements: list[str] = []
+    if audit_required:
+        requirements.append("audit-required")
+    if cross_host_capability_verification:
+        requirements.append("cross-host-capability-verification")
+    if execution_mode == "runtime":
+        requirements.insert(0, "explicit-execution-mode")
+    if execution_mode == "native" and requirements:
+        raise ValueError(
+            "execution_mode=native 与明确 Runtime 需求冲突（"
+            + "、".join(requirements)
+            + "）；须先变更其来源约束再路由，不能在此静默放宽"
+        )
+    if requirements:
+        if vcs not in {"git"}:
+            raise ValueError(
+                "明确 Runtime 需求（"
+                + "、".join(requirements)
+                + f"）在当前 VCS（{vcs!r}）下不受支持：完整 Runtime 仅支持 Git；"
+                "由用户决定改用不带这些要求的 Native，或更换环境"
+            )
+        return ExecutionRoute("runtime-run", tuple(requirements))
+    return ExecutionRoute("native-delivery", ())
 
 
 def _states(tasks: dict[int, dict]) -> dict[int, str]:
@@ -254,13 +280,28 @@ def _validate_verify_result(result: object, label: str) -> None:
 
 
 def _validate_verify_report(report: object) -> None:
-    """Reject a parsed workflow-verification report whose verdict isn't PASS.
+    """Reject a standalone verify report that is not a passing v2 contract.
 
-    Pure validation only: `report` must already be a parsed dict, so this
-    can be unit-tested without touching the filesystem.
+    The completion gate consumes versioned, subject-bound Native evidence
+    (change 2048). Legacy v1 reports stay readable through their historical
+    readers only and never upgrade into new completion evidence. Pure
+    validation: `report` must already be a parsed dict.
     """
     if not isinstance(report, dict):
         raise ValueError("verify 报告顶层结构必须是 JSON 对象")
+    version = report.get("schema_version")
+    if version != 2:
+        raise ValueError(
+            "verify 报告必须是 schema_version 2 的 Native 报告，实际为 "
+            f"{version!r}；旧 v1 报告只按旧合同展示历史，不能作为新完成证据"
+        )
+    subject_id = report.get("subject_id")
+    if not isinstance(subject_id, str):
+        raise ValueError(f"verify 报告 subject_id 必须为字符串：{subject_id!r}")
+    try:
+        native_delivery.validate_verify_report(report)
+    except native_delivery.NativeDeliveryError as error:
+        raise ValueError(f"verify 报告未通过 Native v2 合同：{error}") from error
     if report.get("verdict") != "PASS":
         raise ValueError("verify 报告 verdict 不是 PASS：" f"{report.get('verdict')!r}")
     for field in ("errors", "violations"):
@@ -714,7 +755,12 @@ def _recovery_action_for(
     if state == "进行中" and task_id in merged_task_ids:
         return RecoveryAction(task_id, "complete", "任务分支已合并")
     if state == "进行中":
-        return RecoveryAction(task_id, "inspect", "任务未合并，检查产物和质量门")
+        return RecoveryAction(
+            task_id,
+            "inspect",
+            "任务未合并，需核对：以实际产物、验证报告与集成内容为准，"
+            "不依赖对话中的完成声明；无副作用的验证可重跑",
+        )
     if state == "阻塞" and deps_complete:
         return RecoveryAction(task_id, "unblock", "全部上游已完成")
     if state == "未开始" and deps_complete:
@@ -946,38 +992,25 @@ def _repository_root(path: Path) -> Path:
     return resolved.parent
 
 
-def _detect_vcs(directory: Path) -> str | None:
-    """Detect the version control backend of a directory: 'git' / 'svn' / None.
+def _detect_vcs(directory: Path, backend: str | None = None) -> str | None:
+    """经公共 VCS 接口探测目录的后端：'git' / 'svn' / None。
 
-    Git 优先于 SVN（git-svn 混合工作副本的 diff 语义以 Git 为准）；二进制缺失
-    （纯 SVN 环境未装 git）不抛异常，降级探测下一后端。两者都探测不到时返回
-    None——临时目录等非仓库场景不干预 route 结果。
+    双 VCS 工作副本不再隐式 Git 优先（change 2048 Task 11）：未显式指定
+    backend 时抛 ValueError，由 CLI 以非零退出拒绝。非仓库目录与工具缺失按
+    旧行为返回 None——临时目录等场景不干预 route 结果；其余查询失败显式报错。
     """
     cwd = directory.resolve(strict=False)
     try:
-        git_code = subprocess.run(
-            ["git", "-C", str(cwd), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-        ).returncode
-    except (OSError, FileNotFoundError):
-        git_code = 1
-    if git_code == 0:
-        return "git"
-    try:
-        svn_code = subprocess.run(
-            ["svn", "info"],
-            cwd=str(cwd),
-            capture_output=True,
-            encoding="utf-8",
-            errors="replace",
-        ).returncode
-    except (OSError, FileNotFoundError):
-        svn_code = 1
-    if svn_code == 0:
-        return "svn"
-    return None
+        facts = vcs.inspect_workspace(cwd, backend)
+    except vcs.VcsError as error:
+        if error.code in ("not_working_copy", "tool_missing", "invalid_path"):
+            return None
+        raise ValueError(
+            "无法判定版本控制后端"
+            f"（{error.code}: {error.operation}）；"
+            "双 VCS 工作副本需用 --vcs-backend git|svn 显式选择"
+        ) from error
+    return facts["backend"]
 
 
 def _task_lock_path(path: Path) -> Path:
@@ -1050,6 +1083,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="显式指定治理 Profile（覆盖 manifest 读取；change 2041 接入，"
         "门层合并后消费）",
     )
+    parser.add_argument(
+        "--vcs-backend",
+        choices=("git", "svn"),
+        help="显式选择版本控制后端；Git 与 SVN 并存时必须指定，"
+        "否则 route/recover 拒绝隐式 Git 优先（change 2048）",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("waves", help="输出稳定拓扑波次")
     subparsers.add_parser("dispatchable", help="输出当前可调度任务")
@@ -1058,6 +1097,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--review-profile",
         choices=("lightweight", "standard", "strict"),
         required=True,
+    )
+    route_parser.add_argument(
+        "--execution-mode",
+        choices=("native", "runtime"),
+        help="显式执行模式；未指定时默认 native（change 2048）",
     )
     route_parser.add_argument("--parallel-worktree-write", action="store_true")
     route_parser.add_argument("--long-task-recovery", action="store_true")
@@ -1231,6 +1275,14 @@ def main(argv: list[str]) -> int:
                             attempt,
                         )
                     _write_decisions(args.tasks_md, text, [decision])
+                    if args.event == "merge_success" and args.run_dir is None:
+                        # change 2048：本地集成语义——正式交付由交付门另行核验。
+                        print(
+                            "[workflow-control] merge_success 仅表示任务结果已纳入"
+                            "本地集成内容，不等于 SVN 远程提交；正式交付由交付门按"
+                            "确切 revision 核验。",
+                            file=sys.stderr,
+                        )
                 else:
                     decisions = propagate_blocked(tasks)
                     output = [asdict(decision) for decision in decisions]
@@ -1243,28 +1295,37 @@ def main(argv: list[str]) -> int:
                 _require_verify_config_decision(args.tasks_md, text)
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
+                detected_vcs = _detect_vcs(
+                    _repository_root(args.tasks_md), args.vcs_backend
+                )
                 selected = select_execution_route(
                     args.review_profile,
+                    execution_mode=args.execution_mode,
                     parallel_worktree_write=args.parallel_worktree_write,
                     long_task_recovery=args.long_task_recovery,
                     cross_host_capability_verification=(
                         args.cross_host_capability_verification
                     ),
                     audit_required=args.audit_required,
+                    vcs=detected_vcs,
                 )
-                # SVN 工作副本不支持完整 Runtime Run（Runtime 只认 Git commit）；
-                # 强制降级并在 stderr 明示，升级原因保留供下游核对。
-                if (
-                    selected.path == "runtime-run"
-                    and _detect_vcs(_repository_root(args.tasks_md)) == "svn"
+                # 旧并行/恢复 flags 保留为执行需求输入：不再自动升级 Runtime，
+                # 由编排方按需使用 Worktree 隔离与恢复规划。
+                if selected.path == "native-delivery" and (
+                    args.parallel_worktree_write or args.long_task_recovery
                 ):
+                    legacy = []
+                    if args.parallel_worktree_write:
+                        legacy.append("--parallel-worktree-write")
+                    if args.long_task_recovery:
+                        legacy.append("--long-task-recovery")
                     print(
-                        "[workflow-control] 检测到 SVN 工作副本：完整 Runtime Run 仅支持 Git，"
-                        "route 强制降级为 native-delivery。",
+                        "[workflow-control] "
+                        + "、".join(legacy)
+                        + " 按执行需求记录（Worktree 隔离/恢复规划），"
+                        "不再自动升级 Runtime；需要完整执行证据时显式传"
+                        " --execution-mode runtime。",
                         file=sys.stderr,
-                    )
-                    selected = ExecutionRoute(
-                        "native-delivery", selected.runtime_upgrade_reasons
                     )
                 output = asdict(selected)
             elif args.command == "event":
@@ -1286,6 +1347,20 @@ def main(argv: list[str]) -> int:
                 output = [asdict(decision) for decision in decisions]
             elif args.command == "recover":
                 _require_verify_config_decision(args.tasks_md, text)
+                detected_vcs = _detect_vcs(
+                    _repository_root(args.tasks_md), args.vcs_backend
+                )
+                print(
+                    "[workflow-control] recover 只读：核对 tasks 与调用方提供的集成"
+                    "事实，不创建 Run、不补历史、不执行 update/commit。",
+                    file=sys.stderr,
+                )
+                if detected_vcs == "svn":
+                    print(
+                        "[workflow-control] SVN 工作副本按串行写入恢复：计划中的"
+                        "更新/提交只由明确的工作流步骤执行，恢复不代执行。",
+                        file=sys.stderr,
+                    )
                 output = [
                     asdict(action) for action in plan_recovery(tasks, set(args.merged))
                 ]

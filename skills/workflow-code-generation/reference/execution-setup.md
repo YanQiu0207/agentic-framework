@@ -18,7 +18,7 @@ Overlay 只补充规范，不自动执行、不覆盖核心 Skill，也不修改
 
 ## 任务执行
 
-`tasks.md` 经用户批准后，执行下放给 Agent：**主会话只编排，不亲自写代码、不逐 task 停等**，全部跑完一次性汇总。除非命中 Runtime 升级条件，标准流程默认使用 Native Delivery，不创建 Run Context。**先为每个 task 判定 review 档位**：
+`tasks.md` 经用户批准后，执行下放给 Agent：**主会话只编排，不亲自写代码、不逐 task 停等**，全部跑完一次性汇总。标准流程默认使用 Native Delivery，只有显式 Runtime 需求才创建 Run Context（change 2048）；`strict` 风险仍为 Native，只是要求 strict Review 与独立 Judge。**先为每个 task 判定 review 档位**：
 
 | 档位 | 适用 |
 | --- | --- |
@@ -28,13 +28,11 @@ Overlay 只补充规范，不自动执行、不覆盖核心 Skill，也不修改
 
 无法判断风险时选 `standard`；命中高风险任一条件时选 `strict`。
 
-各 task 的档位用于选择最终 Review；owner / implementer 禁止在 task 内启动 LLM Review。
+各 task 的档位只用于选择最终 Review（`strict` 额外要求独立 Judge 与三项独立性声明）；owner / implementer 禁止在 task 内启动 LLM Review。档位不隐含执行路径，不因 strict 自动建 Run。
 
-无 `strict` 风险及 `--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required` 任一升级条件时，直接进入 Native Delivery，不运行恒为 `native-delivery` 的 `route` 步骤。
+默认直接进入 Native Delivery，不运行 `route`。只有存在显式 Runtime 需求（`--execution-mode runtime`、`--audit-required`、`--cross-host-capability-verification`）时，主编排方才在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位> --execution-mode runtime`（或对应 flag）；输出 `runtime-run` 时才进入完整 Runtime Run。冲突或不支持（SVN、未知 VCS）时路由直接报错，不静默降级；输出 `native-delivery` 时不得创建或伪造 Run Context。`--parallel-worktree-write`、`--long-task-recovery` 只表示执行需求，不触发该步骤。
 
-可能命中升级条件时，主编排方才在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位>` 并传入对应 flag；输出 `runtime-run` 时才进入完整 Runtime Run，输出 `native-delivery` 时不得创建或伪造 Run Context。
-
-SVN 工作副本下 `route` 恒输出 `native-delivery`（见步骤 1）。**主会话只在并行分支、非线性依赖图或中断恢复时通过控制流内核构建波次（wave）数组**：先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [下放执行指南](delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。
+SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被路由拒绝（见步骤 1），默认任务直接 Native。SVN 执行按串行写入纪律（change 2048）：工作副本是唯一开发内容，不创建 Git 镜像或桥接；写入类操作（update/commit）只在交付指南「SVN 原生交付」的明确步骤执行，任务内验证与路由查询只读；并行只允许只读调研/审查。Git 与 SVN 并存的工作副本在路由、Verify 与交付门处都会拒绝隐式选择，需显式 `--vcs-backend git|svn` 确认开发后端。**主会话只在并行分支、非线性依赖图或中断恢复时通过控制流内核构建波次（wave）数组**：先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [下放执行指南](delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。
 
 仅该路径在每波 dispatch 前运行 `dispatchable`。
 
@@ -52,7 +50,7 @@ SVN 工作副本下 `route` 恒输出 `native-delivery`（见步骤 1）。**主
 
 此路径的每次 `quality_passed --write` 必须同时传 `--run-dir` 和该次执行生成的 Envelope Verify Artifact，旧式无 Run/Task/Attempt 绑定的顶层 `PASS` JSON 不得放行。
 
-路由为 `native-delivery` 时，不调用 `init-run`；`quality_passed --write --verify-report <standalone-report.json>` 必须校验 `PASS` 顶层结论、零错误／违规，以及每项完整的 `CheckResult` 合同，不写入任何 Run Artifact。**定位内置 Harness Adapter**：Adapter 只负责 Runtime 启动时的能力探测，不负责启动或下放 Agent。
+路由为 `native-delivery` 时，不调用 `init-run`，也不做能力探测；`quality_passed --write --verify-report <standalone-report.json>` 必须是 Native v2 报告（顶层 `schema_version: 2` 与 `subject_id`，`PASS` 结论、零错误／违规、完整 `CheckResult`），旧 v1 报告不能作为新完成证据，不写入任何 Run Artifact。**定位内置 Harness Adapter**：Adapter 只负责 Runtime 启动时的能力探测，不负责启动或下放 Agent。
 
 仅 `runtime-run` 执行本段；`native-delivery` 不要求 Adapter，不得因 Adapter 未探测而阻塞实现。
 

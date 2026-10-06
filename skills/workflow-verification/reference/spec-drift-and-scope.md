@@ -4,10 +4,12 @@
 
 ## 内置 spec drift 检查
 
-`verify.py` 总会检查本次改动文件列表，VCS 由 `verify.py` 自动探测：
+`verify.py` 总会检查本次改动文件列表，VCS 经公共接口（`scripts/vcs.py`）判定：
 
-- Git 工作副本 → `git diff --name-only <base>` + `git ls-files --others`。
-- SVN 工作副本 → `svn status`（`A/M/D` 计为已纳入改动，`?` 计为未跟踪，`I` 跳过）。纯 SVN 模式按规则「只 `svn add`、不 `svn commit`」，一个 Change 期间无提交，工作副本本地改动即「本次改动」的全部，`--diff-base` 在 SVN 下不使用。
+- Git 工作副本 → 对固定基准的 tracked 改动（重命名保留新旧两条路径）+ 未跟踪文件。
+- SVN 工作副本 → 公共接口的本地节点状态：item 为 added/deleted/replaced/modified/merged/conflicted/missing/obstructed/incomplete 计为 tracked；**属性列 modified/conflicted 也计入 tracked**（属性是项目输入，change 2048 Task 11 起不再跳过纯属性行）；unversioned 计为未跟踪（未版本化目录在状态中折叠为单条 `?`，逐文件可见需先 `svn add`）；ignored/external/normal 跳过。纯 SVN 模式按规则「只 `svn add`、不 `svn commit`」，一个 Change 期间无提交，工作副本本地改动即「本次改动」的全部，`--diff-base` 在 SVN 下不使用。
+- Git 与 SVN 并存 → 拒绝隐式选择：传 `--vcs-backend git|svn` 显式指定，否则 spec drift 判 error。
+- 工具缺失、查询失败等分类错误 → error，不算「无改动」。
 - 两端都探测不到 → spec drift 判 error，提示不在 Git 仓库或 SVN 工作副本内。
 - **规格类文件判定**：活跃 Change 的 `proposal.md` / `design.md` / `spec.md` / `ui-spec.md` / `tasks.md` 与 `openspec/changes/` 下其余 `.md`（Delta 等）、长期 `openspec/specs|issues/` 下 `.md`、ADR 目录下 `.md`。
 
@@ -45,3 +47,4 @@ python <skill-dir>/scripts/verify.py \
 - S0 残留与冻结的任务写入路径或生成目录重叠、状态不可解析、路径无法读取或树摘要失败时，采基线失败关闭且不覆盖既有基线。应切换干净 worktree 或工作副本，不得扩大 ignore 绕过。
 - Git 交付必须提供等于当前 `HEAD` 的交付 commit；SVN 交付必须提供已提交 revision。`check_delivery.py --scoped-delivery` 仅在提交 Diff 均落入冻结范围且 S1 与 S0 完全一致时通过。
 - 成功只能表述为「本次交付范围干净，预存残留未变化」，不得表述为「Git 工作区干净」。完整 Runtime Run 不使用此模式，仍应使用干净 worktree。
+- Scoped 产出 v2 终态（change 2048 Task 12）：Git 为 `git-scoped-delivery-pass`（commit sha、冻结范围与 S0 残留摘要入证据，不用 `git_clean` 包装脏工作区）；SVN 为 `svn-revision-verified`（确切 revision 隔离核验通过）。SVN 的未版本化残留走本快照通道，不混入版本内容比对。

@@ -32,3 +32,17 @@
 - 触发准确率（should-trigger 命中）：> 90%。
 - 误触发率（should-not-trigger 命中）：< 5%。
 - 边界样本：以「询问澄清」为正确，不计入误触发。
+
+## behavior（行为用例，change 2048；逐条演练 v2 主体绑定）
+
+| ID | 场景 | 预期行为 | 理由 |
+| --- | --- | --- | --- |
+| S-1 | standalone Verify 正常完成 | 顶层 `schema_version: 2` + `subject_id`，检查前后主体一致 | v2 合同 |
+| S-2 | 检查运行期间输入被编辑 | 追加 native-subject error 结果，verdict=ERROR，不能 PASS | 改动中结果无效 |
+| S-3 | 非 VCS 目录或无法绑定主体 | 退出码 2，不写报告 | 失败关闭，不产出无主体报告 |
+| S-4 | Verify 配置缺失的仓库 | 主体覆盖不完整 → ERROR，提示先完成配置选择 | 覆盖不完整不发完整 PASS |
+| S-5 | 交付门消费 Verify | 门以 `--subject-base` 重算当前内容，三方（Review/Verify/当前）一致才放行 | 交付前编辑会被拒 |
+| S-6 | Runtime 路径（--run-dir） | 仍产出 v1 Envelope Run-bound Artifact，行为不变 | Runtime v1 合同保留 |
+| S-7 | Git 与 SVN 并存的工作副本 | 无显式后端失败关闭（exit 2 / spec drift error），提示 `--vcs-backend git|svn`；指定后端可核验 | 不再隐式 Git 优先 |
+| S-8 | SVN 纯属性行 / 版本化异常节点（missing、obstructed） | 属性列 modified/conflicted 与异常节点计入 tracked，spec drift 可见 | 属性与异常也是项目输入（Task 11 起覆盖） |
+| S-9 | 纯 SVN 工作副本采基线/Verify | 主体基准取工作副本根 revision（`svn:r<N>`），v2 报告绑定完整，`diff_base` 置 None | SVN 有自己的固定基准语义 |

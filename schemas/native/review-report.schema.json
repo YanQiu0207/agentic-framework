@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-framework.local/native/review-report/v2",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "subject_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FAIL"
+      ]
+    },
+    "p0_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "p1_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "scope": {
+      "enum": [
+        "integration",
+        "task"
+      ]
+    },
+    "review_profile": {
+      "enum": [
+        "lightweight",
+        "standard",
+        "strict"
+      ]
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "implementer_actor": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "judge_actor": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "independence_basis": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    }
+  },
+  "required": [
+    "schema_version",
+    "subject_id",
+    "verdict",
+    "p0_count",
+    "p1_count",
+    "scope",
+    "review_profile",
+    "round"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "review_profile": {
+            "const": "strict"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "implementer_actor",
+          "judge_actor",
+          "independence_basis"
+        ]
+      },
+      "else": {
+        "allOf": [
+          {
+            "not": {
+              "required": [
+                "implementer_actor"
+              ]
+            }
+          },
+          {
+            "not": {
+              "required": [
+                "judge_actor"
+              ]
+            }
+          },
+          {
+            "not": {
+              "required": [
+                "independence_basis"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

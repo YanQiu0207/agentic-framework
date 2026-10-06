@@ -6,6 +6,8 @@
 
 **状态**：已完成合同级回归；任务绑定的 Runtime Run Artifact 缺失，不能将本记录表述为 Run 级审计证据。
 
+> 2026-10-05 更新（change 2048 Task 16）：路由语义已变——strict／并行／恢复不再自动升级 Runtime（本文「严格档与并行 worktree 写入仍明确升级」为历史快照）；五类真实任务（小修复/普通/strict/并行 Git/SVN 串行）在安装入口的端到端结果与 Runtime 显式对照见 [`real-task-cases/2048-native-first-results.md`](real-task-cases/2048-native-first-results.md)。
+
 ## 结论
 
 - `standard` 的 Task 3 路由为 Native Delivery；`strict` 的 Task 1 与 Task 2 路由为完整 Runtime Run。

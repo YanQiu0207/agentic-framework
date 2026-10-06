@@ -53,18 +53,20 @@
 
 #### 机器可读产物
 
-输出 Markdown 报告的**同一步**，Artifact 生成方额外产出一份机器可读 JSON；两者必须来自同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。`lightweight` / `standard` 的生成方是 `comprehensive-reviewer`，`strict` 的生成方是独立 Judge；owner / implementer 只能原样持久化，不得手写。产物合同由交付路径决定，不能为了放行伪造 Run 字段：
+输出 Markdown 报告的**同一步**，Artifact 生成方额外产出一份机器可读 JSON；两者必须来自同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。`lightweight` / `standard` 的生成方是 `comprehensive-reviewer`，`strict` 的生成方是独立 Judge；owner / implementer 只能原样持久化，不得手写。产物合同由交付路径决定，不能为了放行伪造 Run 字段。Native v2 报告顶层带 `schema_version: 2` 与 `subject_id`（与 Verify 绑定同一内容主体）；旧六字段报告只按旧合同展示历史，不能作为新交付证据（change 2048）：
 
 | 交付路径 | JSON 位置 | 必填裁决字段 | Run Context 与可声明边界 |
 | --- | --- | --- | --- |
-| Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile: "standard"`、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 或严格独立 Judge 声明。 |
+| Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `schema_version: 2`、`subject_id`、`verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile`（standard，或任务声明 strict 时的 `strict`）、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 声明；strict 额外必填 `implementer_actor` / `judge_actor` / `independence_basis`（两者不同且非空），非 strict 携带即非法。 |
 | 完整 Runtime Run | 独立 Judge 生成 `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
-| Fast-Path 兼容别名 | `comprehensive-reviewer` 生成独立 `review-report.json`，由编排方原样保存 | 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
+| Fast-Path 兼容别名 | `comprehensive-reviewer` 生成独立 `review-report.json`，由编排方原样保存 | v2 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
 
-无 Run 的 Native Delivery 标准 Review 使用以下扁平 JSON；`check_delivery.py --native-delivery` 只接受这 6 个字段：
+无 Run 的 Native Delivery Review 使用以下 v2 扁平 JSON（`subject_id` 取自 workflow-verification 的公共内容标识，与被审内容绑定）；`check_delivery.py --native-delivery` 只接受 v2 合同：
 
 ```json
 {
+    "schema_version": 2,
+    "subject_id": "sha256:<64-hex>",
     "verdict": "PASS",
     "p0_count": 0,
     "p1_count": 0,
@@ -112,3 +114,5 @@
 | `scope` | `task` / `integration` / `run` | 与「审核 Scope」定义一致 |
 | `review_profile` | `lightweight` / `standard` / `strict` | 与调用方传入的档位一致 |
 | `round` | 整数 | 与「轮次」字段一致：首审为 0，复审第 N 轮记 N |
+| `schema_version` / `subject_id` | `2` / `sha256:<64-hex>` | Native v2 必填；与 Verify 报告和交付门重算的当前内容为同一主体（change 2048） |
+| `implementer_actor` / `judge_actor` / `independence_basis` | 非空字符串（仅 strict） | 独立 Judge 声明，implementer 与 judge 不同且依据非空。只证明流程分离，不保证强身份隔离或语义正确性 |

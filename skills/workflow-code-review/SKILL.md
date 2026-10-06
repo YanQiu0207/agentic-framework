@@ -43,10 +43,10 @@ description: 代码审查。用户要求审查变更或开发流程进入 Review
 ## 审核 Scope
 
 - `scope: task`：Production 的单个 Task。每个 Task 只能有一次首轮审核。
-- `scope: integration`：无 Run 的完整交付 diff。Tooling Native Delivery 固定使用 `standard`；Fast-Path 兼容别名保留 `lightweight`；Production 仍按其生命周期选择 `strict`。
-- `scope: run`：Tooling 完整 Runtime Run 的完整 diff，固定使用 `strict`，必须绑定 Run Context。
-- `strict` 的 Tooling Review 必须升级到完整 Runtime Run；不得写成无 Run 的 `scope: integration` 报告。
-- 同一 Scope 的修复只能进入 re-review，不能重新启动首轮审核；不同 Task 和最终集成属于不同 Scope。
+- `scope: integration`：无 Run 的完整交付 diff。Tooling Native Delivery 默认 `standard`，任务声明 `strict` 时用 `strict`（独立 Judge 与三项独立性声明，不因此要求 Run）；Fast-Path 兼容别名保留 `lightweight`；Production 仍按其生命周期选择 `strict`。
+- `scope: run`：Tooling 完整 Runtime Run 的完整 diff，固定使用 `strict`，必须绑定 Run Context；Run 只经显式选择启用（change 2048）。
+- `strict` 审查在 Native 与 Runtime 同样要求独立 Judge；无 Run 的 strict 写成 `scope: integration` 的 v2 报告即可，不构成降级。
+- 同一 Scope 的修复只能进入 re-review，不能重新启动首轮审核；不同 Task 和最终集成属于不同 Scope。上游范围改变时建立新 Review 主体（新 `subject_id`），原报告保留。
 
 ## 复审模式（re-review）
 

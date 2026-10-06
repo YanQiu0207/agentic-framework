@@ -124,17 +124,25 @@ Tooling 默认走 Native Delivery；DAG、状态和恢复按任务依赖、并�
 /requirements-clarification 或 /quick-design
     → /system-design
     → /code-generation 路由
-        ├── Native Delivery
+        ├── Native Delivery（默认）
         │   → 按需 DAG／worktree、实现、测试和任务级机器检查
-        │   → 独立机器验证 → 一次风险分级 Review → Native Delivery Verdict
-        └── 完整 Runtime Run
+        │   → 独立 v2 机器验证 → 一次风险分级 Review（strict 含独立 Judge）
+        │   → Native Delivery Verdict（按后端分四种终态）
+        └── 完整 Runtime Run（仅显式选择）
             → init-run、Run 级 Artifact、全局机器验证与 Review
             → Trust Gate
 ```
 
-完整 Runtime Run 只在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用。Native Delivery 只证明独立机器验证、标准集成 Review、知识影响和 Git 工作区检查；不证明 Trust Gate、Harness 能力、完整证据图或严格独立 Judge。Fast-Path 在兼容期保留 lightweight 有界裁决，不是完整 Runtime 的替代品。
+完整 Runtime Run 只经显式 `--execution-mode runtime`、项目硬性审计要求或跨宿主验证启用（change 2048）；`strict` 风险、并行 Worktree 写入和长任务恢复都留在 Native——strict 走带独立 Judge 的 Native strict Review，并行用 Worktree 隔离，恢复按 tasks／工作区／验证事实只读续行。Native Delivery 只证明独立机器验证、档位匹配的集成 Review、知识影响和工作区证据，交付门重算内容主体并核对 Review／Verify／当前三方一致；不证明 Trust Gate、Harness 能力或完整证据图。Fast-Path 在兼容期保留 lightweight 有界裁决，不是完整 Runtime 的替代品。
 
 Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 消耗；机器验证、失败隔离和 intent 检查仍保留。
+
+#### 版本控制与交付终态
+
+- **纯 Git**：默认交付要求工作区干净，产出 `native-delivery-pass`；存在预存残留时用 Scoped Delivery（冻结范围 + 残留快照），产出 `git-scoped-delivery-pass`——成功只表示「本次交付范围干净，预存残留未变化」。
+- **纯 SVN**：原生串行开发，不创建 Git 镜像。无提交授权时本地验证完成后产出 `svn-pending-commit`（完成报告状态，不是正式交付 PASS）；取得授权提交后按确切 revision 隔离核验（节点基准、范围、内容与属性），产出 `svn-revision-verified`。提交结果不明先核对服务器日志与实际内容，不盲目重提；提交后验证失败如实报告，不自动回滚。
+- **双 VCS 并存**：Verify、路由与交付门拒绝隐式选择，需显式 `--vcs-backend git|svn`。
+- **兼容与回退**：Runtime v1 Schema 与既有 Run 按原合同保留可读可校验，不迁移不改写；旧并行／恢复 CLI flags 在一个兼容版本内仍接受（只表示执行需求）；Native v2 产物（`schemas/native/`）与 Runtime v1 分目录分版本，校验器显式分派，旧校验器不误读新报告。
 
 ## 功能与设计文档
 
@@ -145,7 +153,7 @@ Tooling 不对每个 Task 启动 LLM Review，以避免重复上下文和 Token 
 | 机器验证 Verify | 已实现；支持 `build`、`test`、`lint`、基线对比和 spec drift | [workflow-verification](skills/workflow-verification/SKILL.md)、[配置指南](skills/workflow-verification/reference/config-guide.md) |
 | 项目知识库与跨项目公共知识库 | 已实现：双 Profile 统一 `openspec/` Artifact、项目长期 Specs、Change Delta、归档门禁和公共知识晋升 | [统一方案](openspec/specs/backend/engineering/tech/knowledge-management.md)、[实施任务](openspec/changes/archive/2026-07-19-unified-knowledge-management/tasks.md) |
 | 会话遥测 | `telemetry` Pack 提供成本、Review 和收敛分析 | [会话遥测](docs/tooling/11-session-telemetry.md) |
-| Tooling 执行模型 | 已实现；Native-first 路由、可选 DAG／恢复、完整 Runtime 升级条件和最终 Review | [控制流概览](openspec/specs/backend/framework/workflow-control/overview.md) |
+| Tooling 执行模型 | 已实现；Native-first 路由、可选 DAG／恢复、显式 Runtime 启用（change 2048）和最终 Review | [控制流概览](openspec/specs/backend/framework/workflow-control/overview.md) |
 | Tooling 演进记录 | 历史设计证据，不是当前实现事实源 | [Tooling 资料索引](docs/tooling/README.md) |
 
 其中 `docs/tooling/` 来自合并前 Tooling 框架的设计快照，部分内容保留了已经废弃的旧版 `project-knowledge` 等历史描述。判断当前行为时，以代码、Skills 和双 Profile 总体设计为准。现行 `skills/project-knowledge` 是 Production 与 Tooling 共用的项目知识路由和归档规范，与历史文档所指的旧版不是同一套机制。

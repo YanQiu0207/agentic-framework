@@ -44,6 +44,23 @@ def passing_verify_result() -> dict[str, object]:
     }
 
 
+def standalone_verify_report(**overrides) -> dict[str, object]:
+    """Return a minimum Native v2 standalone verify report (change 2048)."""
+    report: dict[str, object] = {
+        "schema_version": 2,
+        "subject_id": "sha256:" + "3" * 64,
+        "verdict": "PASS",
+        "errors": 0,
+        "violations": 0,
+        "total": 1,
+        "results": [passing_verify_result()],
+        "spec_drift": passing_verify_result(),
+        "warnings": [],
+    }
+    report.update(overrides)
+    return report
+
+
 def runtime_verify_fixture(root: Path) -> tuple[Path, Path]:
     """Create the minimum initialized Run needed by the task quality gate."""
     run_dir = root / ".agentic-framework" / "runs" / "run-1"
@@ -139,41 +156,56 @@ class WorkflowControlTest(unittest.TestCase):
         )
         self.assertEqual("完成", merged.state)
 
-    def test_validate_verify_report_requires_pass_verdict(self) -> None:
-        workflow_control._validate_verify_report(
-            {
-                "verdict": "PASS",
-                "errors": 0,
-                "violations": 0,
-                "total": 1,
-                "results": [passing_verify_result()],
-                "spec_drift": passing_verify_result(),
-            }
-        )
-        with self.assertRaisesRegex(ValueError, "PASS"):
-            workflow_control._validate_verify_report({"verdict": "NEEDS_CHANGES"})
-        with self.assertRaisesRegex(ValueError, "PASS"):
-            workflow_control._validate_verify_report({})
-        with self.assertRaisesRegex(ValueError, "JSON 对象"):
-            workflow_control._validate_verify_report([])
-        with self.assertRaisesRegex(ValueError, "errors"):
-            workflow_control._validate_verify_report(
-                {"verdict": "PASS", "errors": 1, "violations": 0}
-            )
-        with self.assertRaisesRegex(ValueError, "violations"):
-            workflow_control._validate_verify_report(
-                {"verdict": "PASS", "errors": 0, "violations": 1}
-            )
-        with self.assertRaisesRegex(ValueError, "缺少必填字段"):
+    def test_validate_verify_report_requires_passing_v2_contract(self) -> None:
+        workflow_control._validate_verify_report(standalone_verify_report())
+        # 旧 v1 形状（无 schema_version）不再是合法完成证据。
+        with self.assertRaisesRegex(ValueError, "schema_version 2"):
             workflow_control._validate_verify_report(
                 {
                     "verdict": "PASS",
                     "errors": 0,
                     "violations": 0,
                     "total": 1,
-                    "results": [{"status": "pass"}],
+                    "results": [passing_verify_result()],
                     "spec_drift": passing_verify_result(),
                 }
+            )
+        with self.assertRaisesRegex(ValueError, "schema_version 2"):
+            workflow_control._validate_verify_report(
+                standalone_verify_report(schema_version=1)
+            )
+        with self.assertRaisesRegex(ValueError, "schema_version 2"):
+            workflow_control._validate_verify_report({"verdict": "NEEDS_CHANGES"})
+        with self.assertRaisesRegex(ValueError, "JSON 对象"):
+            workflow_control._validate_verify_report([])
+        # 缺 subject → 显式拒绝；subject 格式非法 → Native v2 合同拒绝。
+        with self.assertRaisesRegex(ValueError, "subject_id"):
+            report = standalone_verify_report()
+            del report["subject_id"]
+            workflow_control._validate_verify_report(report)
+        with self.assertRaisesRegex(ValueError, "Native v2 合同"):
+            workflow_control._validate_verify_report(
+                standalone_verify_report(subject_id="not-a-digest")
+            )
+        # 嵌套声明 Runtime/独立性字段 → 递归禁止集拒绝（spec_drift 须等于
+        # results[0]，故两侧同步污染，确保命中的是禁止集而非一致性检查）。
+        with self.assertRaisesRegex(ValueError, "Native v2 合同"):
+            polluted = {
+                **passing_verify_result(),
+                "value": {"trust_gate": {"status": "pass"}},
+            }
+            workflow_control._validate_verify_report(
+                standalone_verify_report(results=[polluted], spec_drift=polluted)
+            )
+        with self.assertRaisesRegex(ValueError, "PASS"):
+            failing = {**passing_verify_result(), "status": "fail"}
+            workflow_control._validate_verify_report(
+                standalone_verify_report(
+                    verdict="FAIL",
+                    violations=1,
+                    results=[failing],
+                    spec_drift=failing,
+                )
             )
 
     def test_select_execution_route_defaults_to_native_delivery(self) -> None:
@@ -182,37 +214,85 @@ class WorkflowControlTest(unittest.TestCase):
             workflow_control.select_execution_route("standard"),
         )
 
-    def test_select_execution_route_upgrades_for_every_runtime_condition(self) -> None:
-        conditions = (
-            ("strict", {}, "strict-risk"),
-            ("standard", {"parallel_worktree_write": True}, "parallel-worktree-write"),
-            ("standard", {"long_task_recovery": True}, "long-task-recovery"),
+    def test_select_execution_route_keeps_risk_and_needs_native(self) -> None:
+        # change 2048：strict 风险、并行 Worktree 与普通恢复不再自动升级。
+        for profile, kwargs in (
+            ("strict", {}),
+            ("standard", {"parallel_worktree_write": True}),
+            ("standard", {"long_task_recovery": True}),
             (
-                "standard",
-                {"cross_host_capability_verification": True},
-                "cross-host-capability-verification",
+                "strict",
+                {"parallel_worktree_write": True, "long_task_recovery": True},
             ),
-            ("standard", {"audit_required": True}, "audit-required"),
+        ):
+            with self.subTest(profile=profile, kwargs=kwargs):
+                self.assertEqual(
+                    workflow_control.ExecutionRoute("native-delivery", ()),
+                    workflow_control.select_execution_route(profile, **kwargs),
+                )
+
+    def test_select_execution_route_honors_explicit_runtime_requirements(self) -> None:
+        cases = (
+            ({"execution_mode": "runtime"}, ("explicit-execution-mode",)),
+            ({"audit_required": True}, ("audit-required",)),
+            (
+                {"cross_host_capability_verification": True},
+                ("cross-host-capability-verification",),
+            ),
+            (
+                {
+                    "execution_mode": "runtime",
+                    "parallel_worktree_write": True,
+                },
+                ("explicit-execution-mode",),
+            ),
+            (
+                {"audit_required": True, "cross_host_capability_verification": True},
+                ("audit-required", "cross-host-capability-verification"),
+            ),
         )
-        for profile, kwargs, expected_reason in conditions:
-            with self.subTest(expected_reason=expected_reason):
-                route = workflow_control.select_execution_route(profile, **kwargs)
+        for kwargs, expected_reasons in cases:
+            with self.subTest(kwargs=kwargs):
+                route = workflow_control.select_execution_route(
+                    "standard", vcs="git", **kwargs
+                )
                 self.assertEqual("runtime-run", route.path)
-                self.assertIn(expected_reason, route.runtime_upgrade_reasons)
+                self.assertEqual(expected_reasons, route.runtime_upgrade_reasons)
+
+    def test_select_execution_route_fails_closed_on_conflicts(self) -> None:
+        cases = (
+            {"execution_mode": "native", "audit_required": True},
+            {"execution_mode": "native", "cross_host_capability_verification": True},
+            {"execution_mode": "runtime", "vcs": "svn"},
+            {"audit_required": True, "vcs": "svn"},
+            {"cross_host_capability_verification": True, "vcs": "svn"},
+            {"execution_mode": "runtime", "vcs": None},
+            {"execution_mode": "runtime", "vcs": "unknown-vcs"},
+            {"execution_mode": "serverless"},
+        )
+        for kwargs in cases:
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(
+                ValueError, "execution_mode|Runtime"
+            ):
+                workflow_control.select_execution_route("standard", **kwargs)
 
     def test_route_command_reports_native_and_runtime_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
-            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="git"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
                 self.assertEqual(
                     0,
                     workflow_control.main(
-                        [str(path), "route", "--review-profile", "standard"]
+                        [str(path), "route", "--review-profile", "strict"]
                     ),
                 )
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
-            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="git"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
                 self.assertEqual(
                     0,
                     workflow_control.main(
@@ -226,13 +306,14 @@ class WorkflowControlTest(unittest.TestCase):
                     ),
                 )
             self.assertIn('"path": "runtime-run"', stdout.getvalue())
+            self.assertIn('"audit-required"', stdout.getvalue())
 
-    def test_route_command_forces_native_delivery_on_svn(self) -> None:
+    def test_route_command_explains_legacy_need_flags_without_upgrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
             with mock.patch.object(
-                workflow_control, "_detect_vcs", return_value="svn"
+                workflow_control, "_detect_vcs", return_value="git"
             ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout, mock.patch(
                 "sys.stderr", new_callable=io.StringIO
             ) as stderr:
@@ -244,59 +325,141 @@ class WorkflowControlTest(unittest.TestCase):
                             "route",
                             "--review-profile",
                             "standard",
-                            "--audit-required",
+                            "--parallel-worktree-write",
+                            "--long-task-recovery",
                         ]
                     ),
                 )
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
-            self.assertIn('"audit-required"', stdout.getvalue())
-            self.assertIn("SVN", stderr.getvalue())
+            self.assertIn("不再自动升级 Runtime", stderr.getvalue())
 
-    def test_detect_vcs_git_priority_svn_fallback_and_none(self) -> None:
+    def test_route_command_rejects_runtime_on_svn_without_downgrade(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(
+                    2,
+                    workflow_control.main(
+                        [
+                            str(path),
+                            "route",
+                            "--review-profile",
+                            "standard",
+                            "--audit-required",
+                        ]
+                    ),
+                )
+            self.assertIn("仅支持 Git", stderr.getvalue())
+            # 未指定 Runtime 需求时 SVN 正常走 Native。
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [str(path), "route", "--review-profile", "standard"]
+                    ),
+                )
+            self.assertIn('"path": "native-delivery"', stdout.getvalue())
+
+    def test_detect_vcs_routes_through_common_interface(self) -> None:
+        """公共接口探测：单一后端直返；双 VCS 未显式选择时拒绝而非 Git 优先。"""
         with tempfile.TemporaryDirectory() as temp_dir:
             directory = Path(temp_dir)
 
-            def run_side_effect(args, **kwargs):
-                result = mock.Mock()
-                result.returncode = 0 if args[0] == "git" else 1
-                return result
-
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=run_side_effect
+                workflow_control.vcs,
+                "inspect_workspace",
+                return_value={"backend": "git"},
             ):
                 self.assertEqual("git", workflow_control._detect_vcs(directory))
 
-            def svn_only(args, **kwargs):
-                result = mock.Mock()
-                result.returncode = 1 if args[0] == "git" else 0
-                return result
+            with mock.patch.object(
+                workflow_control.vcs,
+                "inspect_workspace",
+                return_value={"backend": "svn"},
+            ) as inspect_spy:
+                self.assertEqual(
+                    "svn", workflow_control._detect_vcs(directory, "svn")
+                )
+            inspect_spy.assert_called_once_with(
+                directory.resolve(strict=False), "svn"
+            )
+
+            # 非仓库 / 工具缺失按旧行为返回 None，不干预 route 结果。
+            for code in ("not_working_copy", "tool_missing", "invalid_path"):
+                with mock.patch.object(
+                    workflow_control.vcs,
+                    "inspect_workspace",
+                    side_effect=workflow_control.vcs.VcsError(
+                        code, "inspect_workspace"
+                    ),
+                ):
+                    self.assertIsNone(workflow_control._detect_vcs(directory))
 
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=svn_only
+                workflow_control.vcs,
+                "inspect_workspace",
+                side_effect=workflow_control.vcs.VcsError(
+                    "ambiguous_backend", "inspect_workspace"
+                ),
             ):
-                self.assertEqual("svn", workflow_control._detect_vcs(directory))
-
-            def neither(args, **kwargs):
-                result = mock.Mock()
-                result.returncode = 1
-                return result
+                with self.assertRaisesRegex(ValueError, "--vcs-backend"):
+                    workflow_control._detect_vcs(directory)
 
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=neither
+                workflow_control.vcs,
+                "inspect_workspace",
+                side_effect=workflow_control.vcs.VcsError(
+                    "query_timeout", "svn:status"
+                ),
             ):
-                self.assertIsNone(workflow_control._detect_vcs(directory))
+                with self.assertRaisesRegex(ValueError, "query_timeout"):
+                    workflow_control._detect_vcs(directory)
 
-            def git_missing(args, **kwargs):
-                if args[0] == "git":
-                    raise FileNotFoundError
-                result = mock.Mock()
-                result.returncode = 0
-                return result
-
+    def test_route_command_rejects_dual_vcs_without_explicit_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
             with mock.patch.object(
-                workflow_control.subprocess, "run", side_effect=git_missing
-            ):
-                self.assertEqual("svn", workflow_control._detect_vcs(directory))
+                workflow_control,
+                "_detect_vcs",
+                side_effect=ValueError(
+                    "无法判定版本控制后端（ambiguous_backend: inspect_workspace）；"
+                    "双 VCS 工作副本需用 --vcs-backend git|svn 显式选择"
+                ),
+            ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(
+                    2,
+                    workflow_control.main(
+                        [str(path), "route", "--review-profile", "standard"]
+                    ),
+                )
+            self.assertIn("ambiguous_backend", stderr.getvalue())
+            # 显式后端解除歧义后正常路由到 Native。
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ) as detect_spy, mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as stdout:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [
+                            "--vcs-backend",
+                            "svn",
+                            str(path),
+                            "route",
+                            "--review-profile",
+                            "standard",
+                        ]
+                    ),
+                )
+            detect_spy.assert_called_once_with(mock.ANY, "svn")
+            self.assertIn('"path": "native-delivery"', stdout.getvalue())
 
     def test_quality_passed_without_verify_report_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -382,6 +545,42 @@ class WorkflowControlTest(unittest.TestCase):
             path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
             report_path = root / "verify-report.json"
             report_path.write_text(
+                json.dumps(standalone_verify_report()), encoding="utf-8"
+            )
+
+            with mock.patch.object(
+                workflow_control, "runtime_workflow"
+            ) as runtime_spy:
+                result = workflow_control.main(
+                    [
+                        str(path),
+                        "event",
+                        "1",
+                        "quality_passed",
+                        "--write",
+                        "--verify-report",
+                        str(report_path),
+                    ]
+                )
+
+            self.assertEqual(0, result)
+            self.assertIn(
+                "- control_stage：quality_passed", path.read_text(encoding="utf-8")
+            )
+            self.assertFalse((root / ".agentic-framework" / "runs").exists())
+            # Native 完成门不得触发 Run 初始化、能力探测或 Journal 写入。
+            runtime_spy.initialize_run.assert_not_called()
+            runtime_spy.record_quality_passed.assert_not_called()
+
+    def test_native_quality_passed_rejects_legacy_v1_report_as_new_evidence(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            original = tasks_text({1: "进行中"}, {1: []})
+            path.write_text(original, encoding="utf-8")
+            report_path = Path(temp_dir) / "verify-report.json"
+            report_path.write_text(
                 json.dumps(
                     {
                         "verdict": "PASS",
@@ -394,7 +593,6 @@ class WorkflowControlTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-
             result = workflow_control.main(
                 [
                     str(path),
@@ -406,12 +604,8 @@ class WorkflowControlTest(unittest.TestCase):
                     str(report_path),
                 ]
             )
-
-            self.assertEqual(0, result)
-            self.assertIn(
-                "- control_stage：quality_passed", path.read_text(encoding="utf-8")
-            )
-            self.assertFalse((root / ".agentic-framework" / "runs").exists())
+            self.assertEqual(2, result)
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
 
     def test_quality_passed_with_pass_verdict_writes_state_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -554,7 +748,17 @@ class WorkflowControlTest(unittest.TestCase):
             self.assertEqual(0, workflow_control.main([str(path), "dispatchable"]))
             self.assertEqual(
                 0,
-                workflow_control.main([str(path), "event", "1", "start", "--write"]),
+                workflow_control.main(
+                    [
+                        "--governance-profile",
+                        "tooling",
+                        str(path),
+                        "event",
+                        "1",
+                        "start",
+                        "--write",
+                    ]
+                ),
             )
 
     def test_initialize_decision_requires_existing_verify_config(self) -> None:
@@ -1408,3 +1612,125 @@ class WritePathUnificationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NativeRecoverySemanticsTest(unittest.TestCase):
+    """change 2048 Task 8：本地集成语义与只读恢复。"""
+
+    def _tasks_with_config(self, temp_dir: str) -> Path:
+        path = Path(temp_dir) / "tasks.md"
+        path.write_text(tasks_text({1: "进行中", 2: "未开始"}, {1: [], 2: [1]}), encoding="utf-8")
+        (Path(temp_dir) / "verify.config.json").write_text("{}", encoding="utf-8")
+        return path
+
+    def test_merge_success_documented_as_local_integration(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = self._tasks_with_config(temp_dir)
+            report = root / "verify-report.json"
+            report.write_text(json.dumps(standalone_verify_report()), encoding="utf-8")
+            self.assertEqual(
+                0,
+                workflow_control.main(
+                    [str(path), "event", "1", "quality_passed", "--write",
+                     "--verify-report", str(report)]
+                ),
+            )
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [
+                            "--governance-profile",
+                            "tooling",
+                            str(path),
+                            "event",
+                            "1",
+                            "merge_success",
+                            "--write",
+                        ]
+                    ),
+                )
+            self.assertIn("本地集成", stderr.getvalue())
+            self.assertIn("不等于 SVN 远程提交", stderr.getvalue())
+
+    def test_recover_is_read_only_and_repeatable_without_external_writes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            original = path.read_text(encoding="utf-8")
+            commands: list[list[str]] = []
+            real_run = subprocess.run
+
+            def spy_run(args, *call_args, **kwargs):
+                if isinstance(args, (list, tuple)) and args:
+                    commands.append(list(args))
+                kwargs.setdefault("capture_output", True)
+                return real_run(args, *call_args, **kwargs)
+
+            outputs = []
+            with mock.patch("subprocess.run", side_effect=spy_run):
+                for _ in range(2):
+                    with mock.patch(
+                        "sys.stdout", new_callable=io.StringIO
+                    ) as stdout, mock.patch(
+                        "sys.stderr", new_callable=io.StringIO
+                    ):
+                        self.assertEqual(0, workflow_control.main([str(path), "recover"]))
+                    outputs.append(stdout.getvalue())
+            self.assertEqual(outputs[0], outputs[1])
+            self.assertEqual(original, path.read_text(encoding="utf-8"))
+            # 只读核验：允许探测/查询命令，不允许任何写命令。
+            forbidden = {"commit", "update", "push", "revert", "merge", "checkout", "reset"}
+            for command in commands:
+                self.assertFalse(
+                    forbidden.intersection(command),
+                    f"recover 触发了外部写入命令：{command}",
+                )
+
+    def test_recover_reports_serial_write_limit_on_svn(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr, mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ):
+                self.assertEqual(0, workflow_control.main([str(path), "recover"]))
+            self.assertIn("串行写入", stderr.getvalue())
+            self.assertIn("只读", stderr.getvalue())
+
+    def test_recover_command_threads_explicit_vcs_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            with mock.patch.object(
+                workflow_control, "_detect_vcs", return_value="svn"
+            ) as detect_spy, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ), mock.patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        ["--vcs-backend", "svn", str(path), "recover"]
+                    ),
+                )
+            detect_spy.assert_called_once_with(mock.ANY, "svn")
+
+    def test_recover_never_initializes_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = self._tasks_with_config(temp_dir)
+            with mock.patch.object(
+                workflow_control, "runtime_workflow"
+            ) as runtime_spy, mock.patch("sys.stderr", new_callable=io.StringIO), mock.patch(
+                "sys.stdout", new_callable=io.StringIO
+            ):
+                self.assertEqual(0, workflow_control.main([str(path), "recover"]))
+            runtime_spy.initialize_run.assert_not_called()
+
+    def test_inspect_action_names_evidence_to_verify(self) -> None:
+        text = tasks_text({1: "进行中"}, {1: []})
+        actions = workflow_control.plan_recovery(
+            lint_task_deps.parse_tasks(text), set()
+        )
+        self.assertEqual("inspect", actions[0].action)
+        self.assertIn("需核对", actions[0].reason)
+        self.assertIn("不依赖对话中的完成声明", actions[0].reason)

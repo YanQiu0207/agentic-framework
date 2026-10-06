@@ -2060,6 +2060,135 @@ class DeliveryEvidenceTest(unittest.TestCase):
         baseline, commit = self._deliver(repo)
         self.assertEqual([], self._run(repo, baseline, commit))
 
+    def test_dual_vcs_requires_explicit_backend(self) -> None:
+        """双 VCS 交付证据不再隐式 Git 优先；显式后端可核验（change 2048）。"""
+        repo = self._git_repo()
+        (repo / ".svn").mkdir()
+        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
+        snapshot = workspace_residue.capture_workspace_residue(
+            repo, "HEAD", ["code.py"], backend="git"
+        )
+        baseline = repo / ".agentic-framework" / "verify" / "baseline.json"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text(
+            json.dumps({"workspace_residue_snapshot": snapshot}), encoding="utf-8"
+        )
+        (repo / "code.py").write_text("print('v2')\n", encoding="utf-8")
+        commit = self._commit(repo, "scope", ["code.py"])
+        findings = self._run(repo, baseline, commit)
+        self.assertEqual(["OPSX058"], [f.rule_id for f in findings])
+        self.assertIn(
+            "--vcs-backend", findings[0].message + findings[0].hint
+        )
+        resolved = validate_change._validate_delivery_evidence(
+            repo,
+            repo / "openspec" / "changes" / "2099-evidence",
+            baseline,
+            commit,
+            None,
+            "git",
+        )
+        self.assertEqual([], resolved)
+
+    _svn_server: Path | None = None
+    _svn_server_tmp = None
+
+    @classmethod
+    def _shared_svn_server(cls) -> Path:
+        """类级 svnadmin 服务器（r1 含 openspec 与 code.py）；测试仅 checkout。
+
+        B-tests-pass 有 300s 冻结上限：与 check_delivery 的 SVN 用例同法
+        共享服务器，压低每个用例的 fixture 开销。
+        """
+        if cls._svn_server is None:
+            cls._svn_server_tmp = tempfile.TemporaryDirectory(
+                prefix="validate-svn-"
+            )
+            root = Path(cls._svn_server_tmp.name)
+            subprocess.run(
+                ["svnadmin", "create", str(root / "server")],
+                check=True, capture_output=True, timeout=30,
+            )
+            staging = root / "staging"
+            change = staging / "openspec" / "changes" / "2099-evidence"
+            change.mkdir(parents=True)
+            (change / "tasks.md").write_text(cls.TASKS, encoding="utf-8")
+            (staging / "code.py").write_text("print('v1')\n", encoding="utf-8")
+            subprocess.run(
+                [
+                    "svn", "import", "--non-interactive",
+                    str(staging), (root / "server").as_uri(),
+                    "-m", "base", "--force-log",
+                ],
+                check=True, capture_output=True, timeout=30,
+            )
+            cls._svn_server = root / "server"
+        return cls._svn_server
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        if cls._svn_server_tmp is not None:
+            cls._svn_server_tmp.cleanup()
+            cls._svn_server_tmp = None
+            cls._svn_server = None
+
+    def _svn_delivery_lab(self) -> tuple[Path, Path, Path]:
+        """共享服务器 checkout + Scoped 基线文件；返回 (wc, change, baseline)。"""
+        server = self._shared_svn_server()
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        root = Path(temp_dir.name)
+        repo = root / "wc"
+        subprocess.run(
+            ["svn", "checkout", "--non-interactive", server.as_uri(), str(repo)],
+            check=True, capture_output=True, timeout=30,
+        )
+        change = repo / "openspec" / "changes" / "2099-evidence"
+        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
+        snapshot = workspace_residue.capture_workspace_residue(
+            repo, "", ["code.py"], backend="svn"
+        )
+        baseline = repo / ".agentic-framework" / "verify" / "baseline.json"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text(
+            json.dumps({"workspace_residue_snapshot": snapshot}), encoding="utf-8"
+        )
+        return repo, change, baseline
+
+    def test_svn_working_copy_delivery_accepts_revision(self) -> None:
+        """Production 交付门在纯 SVN 工作副本按确切 revision 工作。"""
+        repo, change, baseline = self._svn_delivery_lab()
+
+        def svn(*args: str) -> None:
+            subprocess.run(
+                ["svn", *args, "--non-interactive"],
+                cwd=str(repo), check=True, capture_output=True, timeout=30,
+            )
+
+        (repo / "code.py").write_text("print('delivered')\n", encoding="utf-8")
+        svn("commit", "-m", "scope", "--force-log")
+        svn("update")
+        revision = subprocess.run(
+            ["svn", "info", "--non-interactive", "--show-item", "revision"],
+            cwd=str(repo), check=True, capture_output=True, text=True,
+            encoding="utf-8", timeout=30,
+        ).stdout.strip()
+        findings = validate_change._validate_delivery_evidence(
+            repo, change, baseline, None, revision, "svn"
+        )
+        self.assertEqual([], findings)
+
+    def test_svn_pending_without_revision_is_not_formal_delivery(self) -> None:
+        """待提交不是正式交付：SVN 证据缺确切 revision 时 Production 门拒绝。"""
+        repo, change, baseline = self._svn_delivery_lab()
+        (repo / "code.py").write_text("print('v2')\n", encoding="utf-8")
+        findings = validate_change._validate_delivery_evidence(
+            repo, change, baseline, None, None, "svn"
+        )
+        self.assertEqual(["OPSX057"], [f.rule_id for f in findings])
+        self.assertIn("--delivery-revision", findings[0].message)
+        self.assertIn("不得提供 --delivery-commit", findings[0].message)
+
     def test_cross_track_same_baseline_both_pass(self) -> None:
         """同一份基线文件，Production 与 Tooling 都能成功校验（跨轨互认）。"""
         repo = self._git_repo()
@@ -2099,6 +2228,146 @@ class DeliveryEvidenceTest(unittest.TestCase):
         source = inspect.getsource(validate_change._validate_delivery_evidence)
         for token in ("write_text", "mkstemp", "os.link", "os.rename", "shutil"):
             self.assertNotIn(token, source)
+
+
+class NativeV2ReviewDispatchTest(unittest.TestCase):
+    """change 2048：Review Report 的 v1/v2 版本分派。"""
+
+    def _report(self, repo: Path, payload: str) -> str:
+        report = repo / "review-report.json"
+        report.write_text(payload, encoding="utf-8")
+        return "review-report.json"
+
+    def test_v2_standard_and_strict_reports_are_accepted(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            subject = "sha256:" + "3" * 64
+            base = {
+                "schema_version": 2,
+                "subject_id": subject,
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            relative = self._report(repo, json.dumps(base))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(relative, repo, "integration"),
+            )
+            strict = dict(
+                base,
+                review_profile="strict",
+                implementer_actor="codex-1",
+                judge_actor="reviewer-1",
+                independence_basis="judge not the implementer",
+            )
+            relative = self._report(repo, json.dumps(strict))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(relative, repo, "integration"),
+            )
+
+    def test_v2_contract_violations_are_reported(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            subject = "sha256:" + "3" * 64
+            base = {
+                "schema_version": 2,
+                "subject_id": subject,
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            cases = {
+                "strict_missing_independence": dict(
+                    base, review_profile="strict"
+                ),
+                "standard_claims_independence": dict(
+                    base, judge_actor="external"
+                ),
+                "missing_subject": {
+                    key: value
+                    for key, value in base.items()
+                    if key != "subject_id"
+                },
+            }
+            for name, payload in cases.items():
+                with self.subTest(case=name):
+                    relative = self._report(repo, json.dumps(payload))
+                    errors = validate_change._validate_review_report(
+                        relative, repo, "integration"
+                    )
+                    self.assertTrue(errors)
+                    self.assertIn("Native v2 合同", " ".join(errors))
+
+    def test_unknown_version_fails_closed_and_v1_legacy_stays_readable(
+        self,
+    ) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as temp:
+            repo = Path(temp)
+            unknown = {
+                "schema_version": 3,
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            relative = self._report(repo, json.dumps(unknown))
+            errors = validate_change._validate_review_report(
+                relative, repo, "integration"
+            )
+            self.assertIn("schema_version 非法", " ".join(errors))
+
+            legacy = {
+                "verdict": "PASS",
+                "p0_count": 0,
+                "p1_count": 0,
+                "scope": "integration",
+                "review_profile": "standard",
+                "round": 0,
+            }
+            relative = self._report(repo, json.dumps(legacy))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(
+                    relative, repo, "integration"
+                ),
+            )
+
+            envelope = {
+                "schema_version": 1,
+                "artifact_type": "review-report",
+                "artifact_id": "review-1-1",
+                "run_id": "run-1",
+                "task_id": "1",
+                "attempt": 1,
+                "profile": "tooling",
+                "harness": "codex",
+                "producer": "workflow-code-review",
+                "commit_sha": "1" * 40,
+                "config_digest": "sha256:" + "2" * 64,
+                "created_at": "2026-07-19T12:00:00Z",
+                "payload": dict(legacy, scope="run"),
+            }
+            relative = self._report(repo, json.dumps(envelope))
+            self.assertEqual(
+                [],
+                validate_change._validate_review_report(relative, repo, "run"),
+            )
 
 
 if __name__ == "__main__":

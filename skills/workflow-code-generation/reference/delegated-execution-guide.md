@@ -1,42 +1,39 @@
 # 下放 Agent 执行指南
 
-本指南只定义 Tooling Profile 在 `tasks.md` 获批后的执行段。目标是保留 worktree、DAG、失败隔离和机器验证，同时让普通任务优先使用 Native Delivery；完整 Runtime Run 仅在可检查的升级条件命中时启用。
+本指南只定义 Tooling Profile 在 `tasks.md` 获批后的执行段。目标是保留 worktree、DAG、失败隔离和机器验证，同时让普通任务默认 Native Delivery；完整 Runtime Run 仅经显式选择启用（change 2048）：`strict` 风险、并行 Worktree 与恢复都不再自动升级。
 
 ## 路由合同
 
-在业务副作用前，按本次最高 `review_profile` 和执行需求运行：
-
-仅在可能命中 `strict`、并行 worktree 写入、长任务恢复、跨宿主能力验证或审计要求时运行：
+在业务副作用前运行路由（change 2048 语义：默认 Native，显式需求才选 Runtime）：
 
 ```bash
-python scripts/workflow_control.py <tasks.md> route --review-profile <lightweight|standard|strict>
+python scripts/workflow_control.py <tasks.md> route --review-profile <lightweight|standard|strict> [--execution-mode native|runtime]
 ```
 
-无升级条件时直接进入 Native Delivery；不为确认恒定结果运行该命令。
-
-按需追加以下任一参数：`--parallel-worktree-write`、`--long-task-recovery`、`--cross-host-capability-verification`、`--audit-required`。输出如下：
+按需追加以下参数：显式 Runtime 需求用 `--execution-mode runtime`、项目硬性审计要求 `--audit-required`（来源由编排方说明）、跨宿主验证 `--cross-host-capability-verification`；`--parallel-worktree-write` 与 `--long-task-recovery` 只表示执行需求，不升级路径。输出如下：
 
 | 输出路径 | 条件 | 必须动作 |
 | --- | --- | --- |
-| `native-delivery` | `lightweight` 或 `standard`，且未命中升级条件 | 不调用 `init-run`，不创建或伪造 Run Context；使用独立 Verify、最终 Review 与 Native Delivery Verdict。 |
-| `runtime-run` | `strict` 风险，或并行 worktree 写入、长任务恢复、跨宿主能力验证、明确审计要求 | 在 dispatch 前调用 `init-run`；保留 Manifest、Journal、Capability Probe、Run-bound Artifact 与 Trust Gate。 |
+| `native-delivery` | 未显式要求 Runtime（含 `strict`、并行、恢复场景） | 不调用 `init-run`，不创建或伪造 Run Context；使用独立 v2 Verify（含 `subject_id`）、v2 最终 Review 与 Native Delivery Verdict。 |
+| `runtime-run` | 显式 `--execution-mode runtime`、`--audit-required` 或跨宿主验证，且环境为受支持的 Git 工作副本 | 在 dispatch 前调用 `init-run`；保留 Manifest、Journal、Capability Probe、Run-bound Artifact 与 Trust Gate。 |
 
-任务文件数、模型版本或仅存在 `tasks.md` 不构成 Runtime 升级条件。若是否需要并行写入、恢复、跨宿主验证或审计尚不明确，先澄清，不得通过伪造 Run Context 规避判断。
+硬性要求与 `--execution-mode native` 冲突、或 Runtime 在 SVN/未知 VCS 下不受支持时，路由以非零退出拒绝并说明原因；不得静默降级或伪造 Run Context。任务文件数、模型版本或仅存在 `tasks.md` 不构成 Runtime 启用条件。「需要审计」但未说明证据要求时，先确定所需证据，不自动等同于完整 Runtime。
 
 ## 核心合同
 
 - Task 级质量门：实现、测试、任务级机器检查。
 - 交付级质量门：全部可合并 Task 合并后，全局机器验证，再执行一次首轮 Code Review。
 - owner / implementer 禁止在 Task 内调用 `workflow-code-review`。
-- `review_profile` 仍是 Task 必填字段，用于最终 Review 与 Runtime 路由；`strict` 必定升级为完整 Runtime Run。
+- `review_profile` 是 Task 必填字段，只决定最终 Review 档位与独立 Judge 要求；`strict` 仍为 Native Delivery，不因此升级 Runtime。
 - Review finding 修复后只做定向 re-review，不启动第二次首轮 Review。
 - DAG、状态、阻塞和恢复可以独立使用，不自动创建 Runtime Run。
+- SVN 工作副本按串行写入执行：`merge_success` 只表示纳入本地集成内容，不等于 SVN 远程提交；任务内只读验证，`update`/`commit` 只在交付指南「SVN 原生交付」的明确步骤由编排方执行，不创建 Git 镜像或桥接。
 
 ## Phase 0：准备
 
 1. 确认步骤 1.5 已在路由后无条件完成 Verify 配置选择；配置缺失时，`tasks.md` 中的「初始化」／「跳过」记录必须已在任何 `event start` 前写入。不得在 Phase 0 首次询问或推断该选择。
 2. 记录 `base_sha`，有 `verify.config.json` 时采集基线。
-3. 仅在可能命中 Runtime 升级条件时运行路由命令；输出 `runtime-run` 时，才在后续 Phase 0 初始化 Run。无升级条件时直接走 Native Delivery。
+3. 按路由合同运行路由命令；只有输出 `runtime-run`（显式 Runtime 需求）时才在后续 Phase 0 初始化 Run，其余情况直接走 Native Delivery。
 4. 存在可并行分支、非线性依赖图或中断恢复需求时，运行：
 
     ```bash
@@ -44,7 +41,7 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
     python scripts/workflow_control.py <tasks.md> dispatchable
     ```
 
-4. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖和 Verify 配置选择。每个并行 Task 使用独立 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由必须传 `--parallel-worktree-write` 并升级 Runtime。
+4. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖和 Verify 配置选择。每个并行 Task 使用独立 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由可传 `--parallel-worktree-write` 记录执行需求；主编排方串行集成，不因此升级 Runtime。
 5. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`。
 6. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。先对已加载 Skill 路径执行等价于 Python `Path(skill_path).resolve()` 的解析，再从真实路径逐级向上定位框架根；不要在 `~/.codex/skills/workflow-code-generation/scripts/` 下寻找框架 Adapter。失败时禁止 dispatch。
    - Codex 使用 `<framework-root>/harness/capabilities/codex.json` 与 `python <framework-root>/scripts/codex_adapter.py`。
@@ -81,8 +78,8 @@ owner / implementer 的固定职责：
 1. 对集成结果执行一次全局 `workflow-verification`。`runtime-run` 生成 Run-bound Verify Artifact；Native Delivery 生成独立 Verify 报告。
 2. 涉及前端时执行 Taste 和浏览器验证；修复后重跑全局机器验证。
 3. 取所有已执行 Task 的最高 `review_profile`，对完整 diff 调用一次 `workflow-code-review`，`mode: initial`。
-4. `strict` 必须由未参与实现的独立 Judge 裁决，并保持完整 Runtime Run 的证据要求。
-5. keep 的 P0 / P1 触发修复；修复后重跑受影响的机器验证，并以 `mode: re-review` 只复核原 finding 和修复 diff，最多两轮。
+4. `strict` 必须由未参与实现的独立 Judge 裁决并声明 `implementer_actor` / `judge_actor` / `independence_basis`；该要求在 Native 与 Runtime 同样适用，不因走 Native 降低独立性。
+5. keep 的 P0 / P1 触发修复；修复后重跑受影响的机器验证，并以 `mode: re-review` 只复核原 finding 和修复 diff，最多十轮（与主 Review Skill 一致；任务自身机器修复仍按 attempts 预算，两者不是同一计数）。
 6. P2 和 follow-up 不触发修复循环；仍有 P0 / P1 时整体标 `需人工`。
 7. Review 通过后：
     - `runtime-run`：由 Judge 写出 Run-bound `review-report.json`，再运行完整 Runtime 的 `check_delivery.py --run-dir ...` 交付门。
@@ -92,13 +89,13 @@ owner / implementer 的固定职责：
 
 ## 恢复中断
 
-恢复本身是 Runtime 升级条件。先收集已合并 Task ID，再运行：
+恢复按事实进行，本身不是 Runtime 启用条件，不初始化 Run。先收集已合并 Task ID，再运行：
 
 ```bash
 python scripts/workflow_control.py <tasks.md> recover --merged <task-id...>
 ```
 
-执行恢复前，路由命令必须传 `--long-task-recovery` 并初始化完整 Runtime Run。恢复时核对 worktree、Git 合并事实和机器验证记录。若 Run 尚无首轮 Review，全部任务完成后正常执行一次；若已有首轮 Review，只允许继续其定向 re-review，禁止重启首轮。
+恢复是只读操作：核对 tasks 状态、worktree、Git 合并事实和机器验证记录，不创建 Run、不补历史、不执行 update/commit；SVN 工作副本按串行写入恢复。不能证明是否完成的步骤按「需核对」处理——以实际产物、验证报告与集成内容为准，不依赖对话中的完成声明。若已有首轮 Review，只允许继续其定向 re-review，禁止重启首轮；上游范围改变时建立新 Review 主体并保留旧报告。
 
 ## 上下文控制
 

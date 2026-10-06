@@ -76,14 +76,26 @@
 
 ## Scoped Delivery（显式例外）
 
-默认交付门保持「工作区干净」。
+默认交付门保持「工作区干净」（Git）；SVN 原生路径按下方「SVN 原生交付」处理预期本地改动。
 
 只有本次任务已在动代码前冻结允许修改路径／生成目录，并由 `workflow-verification --save-baseline --delivery-scope <路径>` 写入 `workspace_residue_snapshot` 时，Native Delivery 才可显式传 `check_delivery.py --scoped-delivery --workspace-residue-baseline <baseline>`：
 
 - Scoped Delivery 必须与 `--native-delivery` 一起使用，并声明 `--knowledge-impact hit|none`；`none` 时必须追加 `--knowledge-impact-reason "<具体理由>"`。Git 同时传 `--delivery-commit <HEAD>`，SVN 同时传 `--delivery-revision <已提交 revision>`。
 - 交付门比较 S1 与 S0，并拒绝提交 Diff 超出冻结范围的路径；`--ignore`、`ignore_paths` 和 `changed_files_snapshot` 不参与此判定。
 - Scoped Delivery 不适用于完整 Runtime Run；S0 与范围重叠、内容变化、提交证据缺失或无法判定时，切换干净 worktree／工作副本。
-- Scoped 成功报告只能逐字引用「本次交付范围干净，预存残留未变化」，不得声称「Git 工作区干净」。
+- Git Scoped 成功产出 v2 `git-scoped-delivery-pass`（提交 sha、冻结范围与 S0 残留摘要入证据，不用 `git_clean` 包装脏工作区）；SVN Scoped 按「SVN 原生交付」产出 `svn-revision-verified`。Scoped 成功报告只能逐字引用「本次交付范围干净，预存残留未变化」，不得声称「Git 工作区干净」。
+
+## SVN 原生交付（串行工作流）
+
+纯 SVN 工作副本的 Native Delivery 按固定串行顺序推进；`update` / `commit` 只发生在下述明确步骤，查询与门禁绝不代执行（change 2048）：
+
+1. **保护预存改动**：开始前检查工作副本本地改动。干净副本可继续；有预存改动时先展示影响，需要 Scoped Delivery 的在动代码前冻结范围并采残留快照，不得自动 revert 或用更新覆盖未知状态。
+2. **更新并记录基准**：完成必要更新后记录仓库身份（UUID + repository-relative URL）与节点基准。混合版本、switched、sparse、externals 等无法完整判定的状态不发完整 PASS，明确报告限制。
+3. **串行开发、验证、审查**：工作副本是唯一开发内容，不创建 Git 镜像或桥接。并行只允许只读调研/审查；写入串行。
+4. **提交前上游核对**：提交前查询上游（`svn status -u`）。相关上游有变化时更新、解决冲突，并按新主体重新验证／审查——一次 `svn status -u` 的结果不是「之后不会再变化」的保证；文本无冲突也不代表验证过他人改动与自己改动的组合。
+5. **无授权 → 待提交**：没有提交授权时，本地完成验证与审查后运行 `check_delivery.py --native-delivery`（SVN 不适用 Git clean，本地预期改动即交付内容），产出 `svn-pending-commit`。这是完成报告状态，**不是正式交付 PASS**；交付报告逐字引用原始输出并注明待提交。
+6. **有授权 → 明确提交**：展示范围与差异后执行 `svn commit`，记录实际返回 revision。超时或响应丢失导致结果不明时，先核对服务器日志与实际内容，不盲目重提、不推断成功；SVN 可能接纳他人不同文件的提交，正式声明只绑定核验过的 revision。
+7. **确切版本验证**：更新到交付 revision，对当前内容重跑 Verify／Review（提交前的报告只保留为提交前证据），再以 `--scoped-delivery --delivery-revision <N>` 运行交付门，产出 `svn-revision-verified`。提交后验证失败时如实报告「已提交、版本验证失败」，不自动回滚共享版本；是否修复或回退由后续明确任务决定。
 
 ## 统一交付证据格式
 

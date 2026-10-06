@@ -62,6 +62,8 @@ ADR 003 两个质量验证指标的口径：
 
 统一交付报告的「任务归因」区块记录 `feature`、`task`、`review_profile`、`review_retries`、`verify_retries` 和 `manual_intervention`。脚本只消费这 6 个固定字段，不从其他对话推测；缺少完整区块的旧报告返回空列表。同一会话重复输出相同 feature/task 时，账本保留最后一份完整记录。
 
+结果状态解释（change 2048，字段集不变）：「提交状态」除本地 commit hash 外新增两类合法表述——纯 SVN 无提交授权时为「本地已验证，待 SVN 提交」（对应 `svn-pending-commit`，是完成报告状态不是正式交付 PASS），提交后为「已提交 revision N 并核验」（对应 `svn-revision-verified`）；「交付门」逐字引用 `check_delivery.py` 原始输出，SVN 两种终态的裁决行都按原文计入，不概括为「交付门 PASS」。
+
 ### 其他口径
 
 - **活跃时长**：相邻条目间隔之和，单个间隔超过 `--idle-gap`（默认 300 秒）的部分按「等用户」剔除，避免人离开把阶段耗时撑大。
