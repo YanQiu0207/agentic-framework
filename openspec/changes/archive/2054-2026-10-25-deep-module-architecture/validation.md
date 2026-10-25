@@ -78,4 +78,8 @@ python -m pytest scripts -q --tb=short --lf
 - 独立执行 `python -m pytest scripts -q --tb=short --durations=12`：836 passed in 257.36s，退出码为 0。此项是完整测试结果，不等于正式交付门结果。
 - 用户明确批准配置维护：仅将全量测试 `timeout_seconds` 从 300 调为 600；其余配置保持不变。未删测试、改断言、扩大排除或重采基线。
 - 原基线 SHA256 为 `343CA73E8994BBD28D02EAC5B3735F756BEBA3BBA10EB43E3412102803F5BFDD`，恢复期间继续使用该文件。
-- 恢复日志：`.agentic-framework/verify/resume-verify.log`、`resume-full-pytest.log`。接下来以更新后的配置执行正式 Verify，未完成前不归档或宣称交付通过。
+- 恢复日志：`.agentic-framework/verify/resume-verify.log`、`resume-full-pytest.log`。
+- 600 秒配置正式 Verify 已通过：`.agentic-framework/verify/report-resume-600.json`，errors=0、violations=0，spec drift 和全部检查 PASS；保留既有知识来源版本滞后警告。配置维护试运行通过，未新增或排除检查，基线哈希未变。
+- 独立定向复审第 2 轮 PASS，P0／P1 为 0，报告为 `.agentic-framework/review/review-integration-r2.md` 和 `.json`；原首审及第 1 轮报告保留。
+- 归档收口仅更新状态、文件清单、验证记录与索引，不改变功能、测试或批准边界。交付门仍在归档及提交后独立强制执行，任务验收不以该后置门为循环前置。
+- 归档后将重新捕获内容主体并运行 Verify，再由独立审查方定向复核归档 Diff；最终交付只引用 `check_delivery.py` 的原始 stdout，不以前置通过替代最终裁决。

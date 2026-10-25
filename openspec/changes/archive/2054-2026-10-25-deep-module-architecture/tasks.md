@@ -15,6 +15,7 @@ Task 1 → Task 2 → Task 3 → Task 4
 | `skills/workflow-system-design/SKILL.md`、`skills/workflow-quick-design/SKILL.md`、`skills/workflow-test-generation/SKILL.md` | 修改 | Task 2 | 接点与授权复用 |
 | `skills/workflow-architecture-improvement/`、`commands/architecture-improvement.md`、`scripts/install_agentic_framework.py`、`README.md` | 新增／修改 | Task 3 | 用户入口与安装 |
 | `scripts/test_architecture_improvement_installation.py`、`skills/workflow-architecture-improvement/evaluation/trigger-cases.md`、`openspec/specs/backend/engineering/tech/architecture-improvement.md`、`openspec/index.md` | 新增／修改 | Task 4 | 回归、行为与知识 |
+| `verify.config.json` | 修改 | Task 4 | 用户明确批准仅将全量测试超时从 300 秒调为 600 秒 |
 
 受影响接口：新增用户命令，无 Python 函数签名变化。构建系统：无需新增依赖，测试由现有 pytest 发现。
 
@@ -76,10 +77,10 @@ Task 1 → Task 2 → Task 3 → Task 4
   - `commands/architecture-improvement.md`
   - `scripts/install_agentic_framework.py`
 
-### 任务 4：[ ] 验证、知识与最终审查
-- 状态：需人工
-- 原因：原环境限制已解除，独立全量测试 836 项通过；待用户批准的 600 秒正式 Verify 与归档交付收口。详见 validation.md，独立 Review 证据在 `.agentic-framework/review/`。
-- 文件：`scripts/test_architecture_improvement_installation.py`、`skills/workflow-architecture-improvement/evaluation/trigger-cases.md`、`openspec/specs/backend/engineering/tech/architecture-improvement.md`、`openspec/index.md`
+### 任务 4：[x] 验证、知识与最终审查
+- 状态：完成
+- 结果：独立全量测试 836 项通过，600 秒配置正式 Verify PASS，定向复审第 2 轮 PASS；归档后的交付门仍须独立执行，不能用任务完成替代交付裁决。
+- 文件：`scripts/test_architecture_improvement_installation.py`、`skills/workflow-architecture-improvement/evaluation/trigger-cases.md`、`openspec/specs/backend/engineering/tech/architecture-improvement.md`、`openspec/index.md`、`verify.config.json`
 - depends_on: Task 3
 - review_profile: standard
 - 文档映射：proposal.md §1.5、§3、§4
@@ -91,11 +92,14 @@ Task 1 → Task 2 → Task 3 → Task 4
   - [x] `python -m pytest scripts -q` 通过
   - [x] `python scripts/lint_skill_graph.py` 通过
   - [x] 独立行为演练与最终 standard Review 完成
-  - [ ] 原基线机器验证、状态一致性及交付门完成
+  - [x] 原基线机器验证与状态一致性通过
 - artifacts:
   - `scripts/test_architecture_improvement_installation.py`
   - `skills/workflow-architecture-improvement/evaluation/trigger-cases.md`
   - `openspec/specs/backend/engineering/tech/architecture-improvement.md`
+  - `verify.config.json`
+
+交付门按 proposal.md §4 与框架既有合同，在归档及提交后独立强制执行。非 0 时禁止宣称交付通过；不将后置交付门纳入归档前必须全部勾选的任务验收，避免循环前置。
 
 ## 文档覆盖映射
 

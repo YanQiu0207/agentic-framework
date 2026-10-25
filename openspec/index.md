@@ -15,6 +15,8 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 近期变更
 
+- [2054：深模块、测试接点与只读架构改善](changes/archive/2054-2026-10-25-deep-module-architecture/proposal.md)（方法、设计／测试接线与存量调查入口；完整测试及安装生命周期已复验）
+
 - [2052：以远程 main 为基线整合评测与 Runtime 修复](changes/archive/2052-2026-10-25-main-integration/proposal.md)（Native v2 与显式 Runtime、嵌套目录边界、跨平台验证及证据限制）
 
 - [2048：简化默认执行流程，收窄 Runtime 使用范围](changes/archive/2026-10-05-native-first-runtime-simplification/proposal.md) · [设计与实施阶段](changes/archive/2026-10-05-native-first-runtime-simplification/design.md)（已实施并归档：默认 Native、显式 Runtime、纯 SVN 串行交付与 v2 证据链）
