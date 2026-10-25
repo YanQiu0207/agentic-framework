@@ -40,3 +40,7 @@ scripts/test_workflow_control.py::WorkflowControlTest::test_skip_decision_allows
 原 Run 保留：控制器 start/failure 未记录到 Journal，质量事件 attempt 3 先落盘，随后重放报 `attempt_mismatch:1:expected=1`。已有事件不能通过正常追加恢复；未裁剪、插入或重写原 Journal。源头见 `scripts/runtime_workflow.py` 与 `scripts/run_journal.py`，完整结论是控制器与 Journal 的重试记账／追加后校验缺口，尚未在本次修改。
 
 使用独立 `recovery/tasks.md`、新 Run Context、真实重跑 attempt 1 和真实定向复审恢复验证。原实施任务根据新证据闭环，不表示旧 Run 历史完整或旧缺陷已修复。后续应单独修复重试事件一致性和追加原子性；本次不扩大到生产门禁源码。
+
+## 最终交付门状态
+
+代码与归档产物已本地提交，工作区干净。恢复 Run 交付检查先要求补齐知识同步表与 context_files；补齐后重复执行报 `ERROR  Runtime 证据链：artifact_already_exists:task-1-state`。未删除或覆盖 Artifact 以绕过检查，交付门未通过。问题与后续验收已保存至 `openspec/issues/runtime-retry-and-delivery-replay.md`。
