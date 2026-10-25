@@ -101,7 +101,7 @@ Task 1（根定位与写锁修复、回归测试）→ Task 2（知识同步与�
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| design.md 的写锁与限制 | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | Synced | 已有入口，无需新增 |
+| design.md 的写锁与限制 | `openspec/specs/backend/framework/workflow-control/overview.md` | MODIFIED | 已完成 | 已有入口，无需新增 |
 
 ## 知识冲突
 
