@@ -1,0 +1,51 @@
+{
+    "base_files": {
+        "openspec/index.md": "# 测试项目索引\n\n- [业务知识](specs/business/index.md)\n",
+        "openspec/changes/3001-partial-cancel/proposal.md": "# 部分取消候选\n\n状态：Draft。拟允许按订单行部分取消，尚未实施或批准。\n",
+        "openspec/changes/3001-partial-cancel/specs/business/ordering/rules.md": "# Delta：部分取消\n\n动作：MODIFIED。状态：Pending。拟允许按订单行取消，未交付。\n",
+        "openspec/specs/business/glossary.md": "# 项目术语\n\n## 订购上下文\n\n- 客户：签约购买服务的组织，不是登录用户。\n- 取消：终止整笔尚未履约的订单。\n\n## 财务上下文\n\n- 客户：开票对象，可以是签约组织的结算主体。\n",
+        "openspec/specs/business/index.md": "# 业务知识\n\n- [术语](glossary.md)\n- [订购领域](ordering/overview.md)\n- [订购规则](ordering/rules.md)\n",
+        "openspec/specs/business/ordering/overview.md": "# 订购领域\n\n一个客户可包含多个登录用户。订单属于客户，登录用户仅代表操作人。订购客户与财务开票对象可不同。\n",
+        "openspec/specs/business/ordering/rules.md": "# 订购规则\n\n尚未履约的订单可整笔取消；尚不支持部分取消。规则来源为测试夹具确认，适用范围为订购上下文。\n"
+    },
+    "conflict_extra_files": {
+        "cancel.py": "def cancellation_scope(order):\n    return list(order[\"items\"])\n",
+        "openspec/changes/3002-retain-whole/specs/business/ordering/rules.md": "# Delta：保持整单取消\n\n状态：Pending。动作：MODIFIED。候选要求取消范围必须包含全部订单行，不允许部分取消。\n"
+    },
+    "actual_model_b_changed_paths": [
+        "openspec/specs/business/glossary.md"
+    ],
+    "stage-design": {
+        "cancel.py": "def cancellation_scope(order):\n    return list(order[\"items\"])\n",
+        "openspec/index.md": "# 测试项目索引\n\n- [业务知识](specs/business/index.md)\n",
+        "openspec/changes/3001-partial-cancel/proposal.md": "# 部分取消候选\n\n状态：Draft。拟允许按订单行部分取消，尚未实施或批准。\n",
+        "openspec/changes/3001-partial-cancel/specs/business/ordering/rules.md": "# Delta：部分取消\n\n动作：MODIFIED。状态：Pending。拟允许按订单行取消，未交付。\n",
+        "openspec/changes/3100-cancel-notify/proposal.md": "# 取消通知\n\n## 背景\n客户不知道订单取消结果。现有规则仅整单取消。\n\n## 目标\n操作人明确知道成功或失败。\n\n## 需求\n仅在客户内整单取消，成功与失败均通知操作人，不通知其他人，不做跨客户或部分取消。\n\n## 验收标准\n成功、失败均通知一次操作人，禁止通知其他人，禁止跨客户操作。\n\n## 约束\n不改变现有取消语义，无新增持久化，不写代码。\n",
+        "openspec/specs/business/glossary.md": "# 项目术语\n\n## 订购上下文\n\n- 客户：签约购买服务的组织，不是登录用户。\n- 取消：终止整笔尚未履约的订单。\n\n## 财务上下文\n\n- 客户：开票对象，可以是签约组织的结算主体。\n",
+        "openspec/specs/business/index.md": "# 业务知识\n\n- [术语](glossary.md)\n- [订购领域](ordering/overview.md)\n- [订购规则](ordering/rules.md)\n",
+        "openspec/specs/business/ordering/overview.md": "# 订购领域\n\n一个客户可包含多个登录用户。订单属于客户，登录用户仅代表操作人。订购客户与财务开票对象可不同。\n",
+        "openspec/specs/business/ordering/rules.md": "# 订购规则\n\n尚未履约的订单可整笔取消；尚不支持部分取消。规则来源为测试夹具确认，适用范围为订购上下文。\n"
+    },
+    "stage-missing": {
+        "cancel.py": "def cancellation_scope(order):\n    return list(order[\"items\"])\n",
+        "openspec/index.md": "# 测试项目索引\n\n- [业务知识](specs/business/index.md)\n",
+        "openspec/changes/3001-partial-cancel/proposal.md": "# 部分取消候选\n\n状态：Draft。拟允许按订单行部分取消，尚未实施或批准。\n",
+        "openspec/changes/3001-partial-cancel/specs/business/ordering/rules.md": "# Delta：部分取消\n\n动作：MODIFIED。状态：Pending。拟允许按订单行取消，未交付。\n",
+        "openspec/changes/3100-cancel-notify/proposal.md": "# 待补充需求\n\n尚未说明目标与验收标准。\n",
+        "openspec/specs/business/glossary.md": "# 项目术语\n\n## 订购上下文\n\n- 客户：签约购买服务的组织，不是登录用户。\n- 取消：终止整笔尚未履约的订单。\n\n## 财务上下文\n\n- 客户：开票对象，可以是签约组织的结算主体。\n",
+        "openspec/specs/business/index.md": "# 业务知识\n\n- [术语](glossary.md)\n- [订购领域](ordering/overview.md)\n- [订购规则](ordering/rules.md)\n",
+        "openspec/specs/business/ordering/overview.md": "# 订购领域\n\n一个客户可包含多个登录用户。订单属于客户，登录用户仅代表操作人。订购客户与财务开票对象可不同。\n",
+        "openspec/specs/business/ordering/rules.md": "# 订购规则\n\n尚未履约的订单可整笔取消；尚不支持部分取消。规则来源为测试夹具确认，适用范围为订购上下文。\n"
+    },
+    "stage-requirements": {
+        "cancel.py": "def cancellation_scope(order):\n    return list(order[\"items\"])\n",
+        "openspec/index.md": "# 测试项目索引\n\n- [业务知识](specs/business/index.md)\n",
+        "openspec/changes/3001-partial-cancel/proposal.md": "# 部分取消候选\n\n状态：Draft。拟允许按订单行部分取消，尚未实施或批准。\n",
+        "openspec/changes/3001-partial-cancel/specs/business/ordering/rules.md": "# Delta：部分取消\n\n动作：MODIFIED。状态：Pending。拟允许按订单行取消，未交付。\n",
+        "openspec/changes/3100-cancel-notify/proposal.md": "# 取消通知\n\n## 背景\n客户不知道订单取消结果。现有规则仅整单取消。\n\n## 目标\n操作人明确知道成功或失败。\n\n## 需求\n仅在客户内整单取消，成功与失败均通知操作人，不通知其他人，不做跨客户或部分取消。\n\n## 验收标准\n成功、失败均通知一次操作人，禁止通知其他人，禁止跨客户操作。\n\n## 约束\n不改变现有取消语义，无新增持久化，不写代码。\n",
+        "openspec/specs/business/glossary.md": "# 项目术语\n\n## 订购上下文\n\n- 客户：签约购买服务的组织，不是登录用户。\n- 取消：终止整笔尚未履约的订单。\n\n## 财务上下文\n\n- 客户：开票对象，可以是签约组织的结算主体。\n",
+        "openspec/specs/business/index.md": "# 业务知识\n\n- [术语](glossary.md)\n- [订购领域](ordering/overview.md)\n- [订购规则](ordering/rules.md)\n",
+        "openspec/specs/business/ordering/overview.md": "# 订购领域\n\n一个客户可包含多个登录用户。订单属于客户，登录用户仅代表操作人。订购客户与财务开票对象可不同。\n",
+        "openspec/specs/business/ordering/rules.md": "# 订购规则\n\n尚未履约的订单可整笔取消；尚不支持部分取消。规则来源为测试夹具确认，适用范围为订购上下文。\n"
+    }
+}

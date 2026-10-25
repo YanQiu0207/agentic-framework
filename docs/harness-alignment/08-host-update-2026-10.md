@@ -45,7 +45,7 @@
 
 ### 2.3 重点二：idle compaction 与 Skill 存活
 
-2.1.299 起 200K+ 会话空闲约 54 分钟即自动压缩；叠加既有手动 compaction，Skill 的长会话存活成为一等风险。竞品 superpowers 已实际踩雷（§3.2）：compaction 后只回挂 Skill 前 20,000 字符，写在 Skill 后半段的约束因此丢失。框架 27 个 Skills 中存在多个长文 Skill，暴露于同一机制——这是跟进 1（新增 P0）的直接依据。
+2.1.299 起 200K+ 会话空闲约 54 分钟即自动压缩；叠加既有手动 compaction，Skill 的长会话存活成为一等风险。竞品 superpowers 已实际踩雷（§3.2）：〔社区〕口径称 compaction 后只回挂 Skill 前 20,000 字符，写在 Skill 后半段的约束因此丢失——该机制数字官方 CHANGELOG 未载（官方口径反而是 compaction 后重发完整 skill 清单），待本地验证。框架 27 个 Skills 中存在多个长文 Skill，在该机制成立的前提下暴露于同一风险——这是跟进 1（新增 P0）的直接依据。
 
 ### 2.4 重点三：Claude Mods
 
@@ -79,9 +79,9 @@ superpowers 的 star 数与 9 月社区口径（3-4 万）差一个量级，疑�
 
 ### 3.2 superpowers 的 compaction 存活事故（跟进 1 的直接依据）
 
-v7.0.1（2026-10-21）前后的社区披露：compaction 后宿主只回挂 Skill 前 20,000 字符，写在 Skill 更后位置的轮次上限约束因此丢失，实测 5 轮上限的任务跑成 18 轮。修复路线：把长 Skill 重构为「主文件短 + references/ 渐进加载」，并加约 20,000 字符的体积红线测试防回归。
+v7.0.1（2026-10-21）前后的社区披露：compaction 后宿主只回挂 Skill 前 20,000 字符，写在 Skill 更后位置的轮次上限约束因此丢失，实测 5 轮上限的任务跑成 18 轮。修复路线：把长 Skill 重构为「主文件短 + references/ 渐进加载」，并加约 20,000 字符的体积红线测试防回归。2026-10-26 复核：官方 CHANGELOG 无「回挂 20,000 字符」对应条目，事故经过（含数字）按社区报告采信，机制成立性留待本地验证。
 
-对框架的含义：这不是 superpowers 的个例，而是宿主 compaction 回挂机制的结构性约束。框架 Skill 体系（含 workflow-code-generation 等长文 Skill）与 superpowers 同构，应视为已知风险而非他山叙事。事故细节属〔社区〕级证据，机制数字（20,000 字符）列入跟进 1 实施时的本地验证项。
+对框架的含义：这不是 superpowers 的个例，而是宿主 compaction 回挂机制的结构性约束（按社区口径）。框架 Skill 体系（含 workflow-code-generation 等长文 Skill）与 superpowers 同构，应视为已知风险而非他山叙事。事故细节属〔社区〕级证据，机制数字（20,000 字符）已按跟进 1 落为体积红线门禁（`lint_skill_graph.py` 的 `SKILL_BODY_CHAR_LIMIT`，change 2050），数字被本地验证推翻时改常量一处即可。
 
 ### 3.3 Comet 0.5.0
 
@@ -111,7 +111,7 @@ Comet 从 0.4 系到 0.5.0（10-23）补齐三块：Comet Any（入口形态）�
 
 | # | 级别 | 事项 | 依据 | 动作要点 |
 | --- | --- | --- | --- | --- |
-| 1 | 【新增 P0】 | Skill 压缩与 compaction 存活改造 | §2.3 + §3.2（superpowers 事故） | `/skill-doctor` 全量体检 + Skills 体积审计；长 Skill 重构为「主文件短 + references/ 渐进加载」；加体积红线测试（对齐宿主回挂上限）防回归 |
+| 1 | 【新增 P0】 | Skill 压缩与 compaction 存活改造 | §2.3 + §3.2（superpowers 事故） | 体积审计 + 红线门禁（〔实施于 change 2050〕：27 个 SKILL.md 审计无一超 20,000 字符，最大 workflow-code-generation 15,259；红线检查并入 `lint_skill_graph.py` 的 `SKILL_BODY_CHAR_LIMIT=20000`，超限报 ERROR 并提示移入 reference/ 渐进加载）。原方案中 `/skill-doctor` 命令名经复核查无出处（官方 CHANGELOG 无此命令），已废弃 |
 | 2 | 【P0 升级】 | 行为级评测闭环 | §3.3（Comet 0.5.0 已交卷）+ 宿主 `--restricted` / `claude plugin eval` | 选约 20 个确定性场景（三阶段门禁触发、批准升级、Delta 闭环等）做成可重复评测；先 `--restricted` 后 plugin eval 双通道评估 |
 | 3 | 【P1 修订】 | 门禁 hooks 化 → hooks 为主、Mods 为辅 | §2.4（Mods 不沙箱、Codex 无对应）+ 07 号 P1（hooks 双宿主已核验） | 主通道维持 hooks（`onFailure: "block"` 提供 fail-closed 语义）；Mods 仅 Claude 侧观察，不进承诺路径 |
 | 4 | 低成本立即做 | 提示与模型基线清理 | §2.1（`/doctor prompt-audit`、AGENTS.md）+ §4（sonnet-4-5 退役） | 跑一次 `/doctor prompt-audit` 体检 Skills 与 CLAUDE.md；全仓清理旧模型 ID（sonnet-4-5 等）；评估 AGENTS.md 单源收敛（CLAUDE.md 已 @ 转发，宿主 2.1.277/281 起直读 AGENTS.md） |
@@ -123,6 +123,6 @@ Comet 从 0.4 系到 0.5.0（10-23）补齐三块：Comet Any（入口形态）�
 - Claude Code：官方 changelog（anthropics/claude-code 仓库 CHANGELOG.md）逐版本条目，〔官方〕级；发布日期以 changelog 标注为准。
 - Codex：官方文档与 changelog，〔官方〕级；hooks 结论沿用 07 号 P1 节 2026-09-12 核验记录。
 - 竞品版本与 star：GitHub API 经 `gh api` 实测（2026-10-25），〔实测〕级；superpowers star 数异常已标注待复核。
-- superpowers compaction 事故：社区披露（v7.0.1 前后），〔社区〕级；机制数字（回挂 20,000 字符）未在官方文档复核，按事故报告采信并列入跟进 1 的本地验证项。
+- superpowers compaction 事故：社区披露（v7.0.1 前后），〔社区〕级；机制数字（回挂 20,000 字符）未在官方文档复核到对应条目（2026-10-26 实抓 CHANGELOG 2.1.287 → 最新复核，官方口径为 compaction 后重发完整 skill 清单），按事故报告采信并已作为 `SKILL_BODY_CHAR_LIMIT` 常量落入门禁（change 2050），待本地验证推翻时改常量。
 - 模型层：各厂商官方公告〔官方〕级；GPT-6 Sol 上下文数字、GPT-6.1 Astra 撤回、Kimi K3.1 为〔社区〕口径，正文已逐条标注。
 - 本文不重复 07 号的历史基线，两文配合阅读。

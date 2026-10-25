@@ -7,6 +7,8 @@
 - command 目标：每个 command 指向的 skill 必须存在。
 - name 一致：每个 SKILL.md 的 frontmatter name 必须等于其目录名。
 - frontmatter 完整：每个 SKILL.md 必须有 description 字段且非空（触发评估的依据）。
+- 体积红线：每个 SKILL.md 全文字符数不超过 SKILL_BODY_CHAR_LIMIT（超限时长 Skill
+  后半段约束在宿主 compaction 后可能丢失，须拆分到 reference/ 渐进加载）。
 - review 档位映射闭环：workflow-code-review 档位表 / 清单里引用的每个 reviewer /
   critic 都必须在 agents/ 下存在——改档位、拼错 reviewer 名会被挡住。
 - orphan：定义了却无人引用的 skill（warning，不阻断）。
@@ -35,6 +37,10 @@ FRONTMATTER_NAME = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 FRONTMATTER_DESC = re.compile(r"^description:(.*)$", re.MULTILINE)
 # 反引号包裹的 reviewer / critic 名（档位映射闭环检查用）
 REVIEWER_TOKEN = re.compile(r"`([a-z][a-z0-9-]*(?:-reviewer|-critic))`")
+# 单个 SKILL.md 的体积红线（字符数）。数值对齐 docs/harness-alignment/08 号跟进 1
+# 的宿主 compaction 回挂上限口径（社区级证据，官方 CHANGELOG 未载，待本地验证）；
+# 作为防线其价值在「变长前拦截」，若后续本地验证推翻该数字，改这一处即可。
+SKILL_BODY_CHAR_LIMIT = 20000
 
 
 def read(path: Path) -> str:
@@ -132,6 +138,20 @@ def check_description(skill_md: Path, fm_text: str) -> str | None:
     if not match.group(1).strip():  # 块标量 `|` / `>` 会留下非空标记，视为有内容
         return f"{skill_md}: frontmatter description 为空"
     return None
+
+
+def find_size_errors(skills: dict[str, Path]) -> list[str]:
+    """每个 SKILL.md 全文字符数不得超过红线，超限报错并给出拆分指引。"""
+    errors: list[str] = []
+    for name, skill_md in sorted(skills.items()):
+        size = len(read(skill_md))
+        if size > SKILL_BODY_CHAR_LIMIT:
+            errors.append(
+                f"{skill_md}: 全文 {size} 字符超过红线 {SKILL_BODY_CHAR_LIMIT}，"
+                "长 Skill 后半段约束在宿主 compaction 后可能丢失——"
+                "把后半段移入 reference/ 渐进加载，主文件留渐进加载指引"
+            )
+    return errors
 
 
 def find_review_profile_errors(root: Path, agents: set[str]) -> list[str]:
@@ -277,6 +297,7 @@ def main(argv: list[str]) -> int:
 
     errors: list[str] = []
     errors.extend(name_errors)
+    errors.extend(find_size_errors(skills))
     errors.extend(find_command_target_errors(root, set(skills)))
     errors.extend(find_review_profile_errors(root, agents))
     errors.extend(find_dangling(files, known, namespaces))

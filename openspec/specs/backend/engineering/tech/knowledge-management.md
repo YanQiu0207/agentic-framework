@@ -185,7 +185,7 @@ openspec/
 保存与具体前后端实现无关的项目业务上下文：
 
 - `glossary.md`：业务术语。
-- `<domain>/overview.md`：业务域范围和能力。
+- `<domain>/overview.md`：业务域范围、能力、概念职责与关系。
 - `<domain>/rules.md`：业务规则和不变量。
 - `<domain>/flows.md`：跨模块业务流程。
 - `<domain>/custom/`：人工补充的背景、例外和历史约束。
@@ -263,6 +263,8 @@ openspec/
 
 所有 Coding Agent 开始处理项目任务时，先读取 `openspec/index.md`，再按问题类型定位相关知识。根索引保持精简，不要求默认读取全部条目。
 
+领域模型属于项目，由多个 Change 共享。领域讨论、需求解释与设计决定前先读取相关模型，再叠加当前 Change 已批准的差异；实现、测试与 Review 涉及领域语义时使用相同路由。操作规则统一见 `skills/project-knowledge/SKILL.md` §3.4：包含新会话重读、上下文限定、索引兜底与事实核对，不依赖旧会话或全量扫描历史 Change。
+
 ### 7.2 按任务类型路由
 
 | 任务类型 | 优先读取 |
@@ -334,6 +336,8 @@ openspec/specs/common/protocols/refund-api/
 ```
 
 Delta 使用 `ADDED`、`MODIFIED`、`REMOVED` 和 `RENAMED` 表达变化。
+
+领域模型采用双轨更新（change 2053），具体前置条件和唯一写入位置统一见 `skills/project-knowledge/SKILL.md` §5、§7.1：既有知识澄清在语义确认、相关事实核实、无未决冲突及明确写入授权后，可及时最小更新共享模型和索引；未来业务变化仍先保留 Change Delta，验证归档后同步。分类不明或未授权时只保留候选，不以「澄清」发布未来规则。纯业务定义标明用户确认来源，不冒充实现已验证；人工知识及公共知识保护不变。
 
 ### 9.2 归档门禁
 
@@ -490,6 +494,7 @@ Production 与 Tooling 共用统一入口（change 2045），以下为各阶段�
 
 - `/requirements-clarification`：需求前读取项目索引，Change-local Delta 镜像长期 Specs 路径。
 - `/system-design`：设计前读取相关业务、公共契约、模块人工知识和 Issues。
+- `/grill-me`：通用讨论默认不写入；`/grill-with-docs`：先读取共享领域模型，再按现有阶段和双轨写入规则访谈与记录，不自动实现。
 - `/code-generation`：实现前读取当前 Change 与相关模块约束。
 - `/test-generation`：使用验收条件、业务规则、契约和 Issues 生成测试。
 - 归档阶段（`validate_change.py` archive 门 + `check_delivery.py`）：执行知识影响检查、Delta 合并和索引更新后再移动目录。
@@ -565,6 +570,7 @@ Production 与 Tooling 共用统一入口（change 2045），以下为各阶段�
 - 给定一条知识，Agent 能根据路由表确定唯一目标位置。
 - 代码与知识冲突时，Agent 会展示双方证据而不是静默选择。
 - Change 归档后，值得长期保留的 Delta 已进入长期 Specs，不值得保留的内容只留在 Archive。
+- 新会话通过根索引可复用已确认领域模型；同名概念按业务上下文区分，未交付的未来规则不会污染共享主本。
 - 外置知识库从项目 `openspec/` 路径透明可读，链接失效能够被检测。
 
 ### 17.2 跨项目公共知识库

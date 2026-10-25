@@ -32,7 +32,9 @@ CORE_SKILLS = {
     "bp-cli-tool-design",
     "bp-coding-best-practices",
     "bp-component-design",
+    "bp-decision-interview",
     "bp-distributed-systems",
+    "bp-domain-modeling",
     "bp-performance-optimization",
     "bp-skill-authoring",
     "project-init",
@@ -46,6 +48,7 @@ CORE_SKILLS = {
     "workflow-verification",
 }
 DELIVERY_SKILLS = {
+    "workflow-architecture-improvement",
     "workflow-code-generation",
     "workflow-quick-design",
     "workflow-requirements-clarification",
@@ -54,6 +57,8 @@ DELIVERY_SKILLS = {
 }
 CORE_COMMANDS = {
     "code-review.md",
+    "grill-me.md",
+    "grill-with-docs.md",
     "performance-optimization.md",
     "project-init.md",
     "reflect.md",
@@ -61,6 +66,7 @@ CORE_COMMANDS = {
     "troubleshooting.md",
 }
 DELIVERY_COMMANDS = {
+    "architecture-improvement.md",
     "code-generation.md",
     "quick-design.md",
     "requirements-clarification.md",
@@ -126,7 +132,9 @@ MANAGED_SKILL_ROOTS = frozenset(
         "bp-cli-tool-design",
         "bp-coding-best-practices",
         "bp-component-design",
+        "bp-decision-interview",
         "bp-distributed-systems",
+        "bp-domain-modeling",
         "bp-performance-optimization",
         "bp-skill-authoring",
         "project-init",
@@ -136,6 +144,7 @@ MANAGED_SKILL_ROOTS = frozenset(
         "std-go",
         "std-python",
         "troubleshooting",
+        "workflow-architecture-improvement",
         "workflow-code-generation",
         "workflow-code-review",
         "workflow-quick-design",
@@ -147,8 +156,11 @@ MANAGED_SKILL_ROOTS = frozenset(
 )
 MANAGED_COMMAND_FILES = frozenset(
     {
+        "architecture-improvement.md",
         "code-generation.md",
         "code-review.md",
+        "grill-me.md",
+        "grill-with-docs.md",
         "performance-optimization.md",
         "project-init.md",
         "quick-design.md",

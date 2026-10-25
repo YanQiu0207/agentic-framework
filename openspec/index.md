@@ -15,11 +15,15 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 近期变更
 
+- [2054：深模块、测试接点与只读架构改善](changes/archive/2054-2026-10-25-deep-module-architecture/proposal.md)（方法、设计／测试接线与存量调查入口；完整测试及安装生命周期已复验）
+
 - [2052：以远程 main 为基线整合评测与 Runtime 修复](changes/archive/2052-2026-10-25-main-integration/proposal.md)（Native v2 与显式 Runtime、嵌套目录边界、跨平台验证及证据限制）
 
 - [2048：简化默认执行流程，收窄 Runtime 使用范围](changes/archive/2026-10-05-native-first-runtime-simplification/proposal.md) · [设计与实施阶段](changes/archive/2026-10-05-native-first-runtime-simplification/design.md)（已实施并归档：默认 Native、显式 Runtime、纯 SVN 串行交付与 v2 证据链）
 
 ## 任务路由
+
+- 深模块、测试接点与只读存量架构改善：[`architecture-improvement`](specs/backend/engineering/tech/architecture-improvement.md)
 
 - 双 Profile、Shared Core 和整体架构：[`framework-unification.md`](specs/backend/engineering/tech/framework-unification.md)
 - Tooling DAG、状态与恢复：[`workflow-control`](specs/backend/framework/workflow-control/overview.md)
@@ -38,6 +42,7 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 外部参考
 
+- 同类框架对比、近两个月模型与平台动态、项目证据缺口及候选路线（2026-10-25 快照）：[`external-reference-agentic-landscape-2026-10.md`](specs/backend/engineering/tech/external-reference-agentic-landscape-2026-10.md)
 - 多 Agent 协作样例（AWS sample-codex-agent-team）协议设计逐文件解读、维度级对比与补强点候选：[`external-reference-sample-codex-agent-team.md`](specs/backend/engineering/tech/external-reference-sample-codex-agent-team.md)
 - HarnessX Agent Harness Foundry 的组合模型、轨迹驱动演化、模型共演化、证据边界及适配候选：[`external-reference-harnessx.md`](specs/backend/engineering/tech/external-reference-harnessx.md)
 - Alibaba skill-up 的 Skill 评测、with/without 基线、对话式演进、与 HarnessX 的分层对比及试点候选：[`external-reference-skill-up.md`](specs/backend/engineering/tech/external-reference-skill-up.md)

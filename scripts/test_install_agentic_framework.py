@@ -18,17 +18,33 @@ import install_agentic_framework as installer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# 安装器只消费 skills/commands/agents/harness/scripts/schemas 等目录；
-# 复制时排除重负载内容（B-tests-pass 300s 冻结预算）。
-_INSTALL_TEST_IGNORE = shutil.ignore_patterns(
+# 只复制受跟踪的工作区文件，避免遍历任意本地大目录；保留原有排除范围。
+_INSTALL_TEST_IGNORE = frozenset({
     ".git", ".agentic-framework", ".pytest_cache", "__pycache__",
     ".claude", ".codex", "openspec", "docs", "evaluation", "node_modules",
-)
+})
 
 
 def _copy_source(root: Path) -> Path:
     source = root / "source"
-    shutil.copytree(REPO_ROOT, source, ignore=_INSTALL_TEST_IGNORE)
+    result = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        check=True,
+        timeout=30,
+    )
+    source.mkdir()
+    for name in result.stdout.split("\0"):
+        if not name:
+            continue
+        relative = Path(name)
+        if _INSTALL_TEST_IGNORE.intersection(relative.parts):
+            continue
+        destination = source / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO_ROOT / relative, destination)
     return source
 
 
@@ -84,6 +100,34 @@ class InstallTest(unittest.TestCase):
     def _require_symlinks(self) -> None:
         if not self.symlinks_available:
             self.skipTest("symbolic-link creation is unavailable")
+
+    def test_copy_source_uses_tracked_working_files_only(self) -> None:
+        repo = self.root / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        tracked = repo / "scripts" / "中文 空格.py"
+        tracked.parent.mkdir()
+        tracked.write_text("original", encoding="utf-8")
+        docs = repo / "docs"
+        docs.mkdir()
+        (docs / "note.md").write_text("excluded", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True)
+        tracked.write_text("working change", encoding="utf-8")
+        for name in (".learn-by-gpt", ".artifacts", "resource_downloads",
+                     "vendor", "arbitrary-local", "scripts/local-cache"):
+            directory = repo / name
+            directory.mkdir(parents=True)
+            (directory / "payload.bin").write_bytes(b"not source")
+        with mock.patch(__name__ + ".REPO_ROOT", repo):
+            source = _copy_source(self.root)
+        self.assertEqual(
+            [Path("scripts") / tracked.name],
+            [p.relative_to(source) for p in source.rglob("*") if p.is_file()],
+        )
+        self.assertEqual(
+            "working change",
+            (source / "scripts" / tracked.name).read_text(encoding="utf-8"),
+        )
 
     def _install(
         self,
