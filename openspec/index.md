@@ -21,6 +21,8 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 任务路由
 
+- 深模块、测试接点与只读存量架构改善：[`architecture-improvement`](specs/backend/engineering/tech/architecture-improvement.md)
+
 - 双 Profile、Shared Core 和整体架构：[`framework-unification.md`](specs/backend/engineering/tech/framework-unification.md)
 - Tooling DAG、状态与恢复：[`workflow-control`](specs/backend/framework/workflow-control/overview.md)
 - Production 阶段门、Review 与 Verification：[`quality-gates`](specs/backend/framework/quality-gates/overview.md)

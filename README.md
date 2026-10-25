@@ -407,6 +407,7 @@ Command 是加载对应 skill 的快捷方式：
 | Command | 加载的 Skill |
 |---------|-------------|
 | `/code-review` | `workflow-code-review` |
+| `/architecture-improvement` | `workflow-architecture-improvement`（只读调查存量架构，用户选择后讨论） |
 | `/troubleshooting` | `troubleshooting` |
 | `/performance-optimization` | `bp-performance-optimization` |
 | `/reflect` | `self-refinement` |
