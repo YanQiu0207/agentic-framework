@@ -55,7 +55,9 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
 
 宿主无法创建子 Agent、或 Git 无法建立独立 worktree 时，停止并报告缺失能力，不静默转由主会话实现。只有用户明确批准后才能按其授权范围例外执行，并记录原因、执行方式和验证证据。此检查只针对实际执行能力，不启用 Runtime 或要求 Harness Adapter 探测，也不以支持嵌套子 Agent 为前提。
 
-SVN 不支持 Git worktree，默认停止并请求用户批准串行工作副本例外；不得创建 Git 镜像或桥接。获批后每 Task 仍使用新 Agent，遵守既有 SVN 串行写入与交付合同。
+SVN 是正常支持的串行执行方式，不因缺少 Git worktree 请求例外授权。每个 Change 使用一个工作副本，各 Task 使用新 Agent，严格串行写入；不创建 Git 镜像或桥接，遵守既有 SVN 更新、提交授权与交付合同。同一工作副本不得同时承载其他 Change 的写入。
+
+SVN Task 失败时停止该工作副本的所有后续写入任务（包括无依赖的 Task）；先核对任务前后差异，修复并验证，或经用户确认隔离失败改动，再继续执行。不得自动 revert 或删除改动，不得将失败现场带入下一 Task。可继续只读调研和审查。SVN 只有 Agent 上下文隔离，不具备 Git Task 级工作区与失败隔离能力。
 
 ## Phase 1：逐波执行
 

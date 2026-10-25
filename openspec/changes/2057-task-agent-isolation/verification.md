@@ -11,3 +11,7 @@
 ## 环境说明
 
 Windows 首次基线因缺少 grep/true 未成功；将已安装 Git 的 usr/bin 加入当前进程 PATH 后采集成功，未修改验证配置。
+
+## SVN 追加调整验证
+
+用户确认 SVN 正常串行后端后，仅同步相关文档；技能图仍为 0 errors、0 warnings，既有合同与引用图测试 18 passed，git diff --check 通过。本轮未重跑全量 Verify，先前只读 Review 不覆盖本轮追加差异。

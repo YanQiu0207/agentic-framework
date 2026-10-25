@@ -32,7 +32,7 @@ Overlay 只补充规范，不自动执行、不覆盖核心 Skill，也不修改
 
 默认直接进入 Native Delivery，不运行 `route`。只有存在显式 Runtime 需求（`--execution-mode runtime`、`--audit-required`、`--cross-host-capability-verification`）时，主编排方才在业务副作用前运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> route --review-profile <最高档位> --execution-mode runtime`（或对应 flag）；输出 `runtime-run` 时才进入完整 Runtime Run。冲突或不支持（SVN、未知 VCS）时路由直接报错，不静默降级；输出 `native-delivery` 时不得创建或伪造 Run Context。`--parallel-worktree-write`、`--long-task-recovery` 只表示执行需求，不触发该步骤。
 
-SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被路由拒绝（见步骤 1），默认任务直接 Native。SVN 默认先按下放指南请求串行工作副本例外；获用户明确批准后执行串行写入纪律（change 2048）：工作副本是唯一开发内容，不创建 Git 镜像或桥接；写入类操作（update/commit）只在交付指南「SVN 原生交付」的明确步骤执行，任务内验证与路由查询只读；并行只允许只读调研/审查。Git 与 SVN 并存的工作副本在路由、Verify 与交付门处都会拒绝隐式选择，需显式 `--vcs-backend git|svn` 确认开发后端。**主会话只在并行分支、非线性依赖图或中断恢复时通过控制流内核构建波次（wave）数组**：先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [下放执行指南](delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。
+SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被路由拒绝（见步骤 1），默认任务直接 Native。SVN 正常使用每 Change 一个工作副本、每 Task 新 Agent 的串行方式，不因缺少 worktree 另行申请例外；任务失败先停止后续写入并按下放指南处理现场。串行写入纪律（change 2048）：工作副本是唯一开发内容，不创建 Git 镜像或桥接；写入类操作（update/commit）只在交付指南「SVN 原生交付」的明确步骤执行，任务内验证与路由查询只读；并行只允许只读调研/审查。Git 与 SVN 并存的工作副本在路由、Verify 与交付门处都会拒绝隐式选择，需显式 `--vcs-backend git|svn` 确认开发后端。**主会话只在并行分支、非线性依赖图或中断恢复时通过控制流内核构建波次（wave）数组**：先运行 `python <本 skill 目录>/scripts/workflow_control.py <tasks.md 路径> waves` 得到任务 ID 分层数组，按 [下放执行指南](delegated-execution-guide.md) 将当前一波的每个任务 ID 富化为 task 对象（从 `tasks.md` 取 `title`、`context_files`、`verification`、`artifacts`、`review_profile`）后再传入 Workflow 工具的 `args.waves`。
 
 仅该路径在每波 dispatch 前运行 `dispatchable`。
 
@@ -42,7 +42,7 @@ SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被路由拒�
 - **模式 A（默认，Claude Code 支持嵌套）**：每 task 派 owner 子 agent 执行实现、测试和机器验证。
 - **模式 B（兜底，不支持嵌套）**：implementer 执行相同职责，由主 agent 负责状态编排。**详细操作（Phase 0 准备 / Phase 1 逐波执行 / 失败隔离 / 合并 / 阻塞）见 [下放执行指南](delegated-execution-guide.md)，按其执行。** 执行要求：每产物必须完成实现、测试和任务级机器检查后才合并；LLM Review 只在全部任务合并并完成全局验证后启动一次。
 
-失败标 `需人工` 不阻塞其余；上游未合并则下游 `阻塞`；`tasks.md` 的 `状态:` 字段是恢复执行的状态依据。
+失败标 `需人工`，Git 不阻塞其余独立任务；SVN 先停止该工作副本的后续写入并处理失败现场；上游未合并则下游 `阻塞`；`tasks.md` 的 `状态:` 字段是恢复执行的状态依据。
 
 当路由为 `runtime-run` 时，Phase 0 必须先调用 `workflow_control.py <tasks.md> init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明与 Adapter 命令。
 

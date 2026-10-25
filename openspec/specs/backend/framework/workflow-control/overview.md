@@ -84,4 +84,4 @@ proposal.md / tasks.md 获批
 
 标准流程每个 Task 使用新实现 Agent；Git Task 使用独立分支与 Worktree，单 Task 和串行链也适用。串行只表示依赖顺序，不表示复用 Agent 或由主会话实现。同一 Task 修复优先延续原 Agent 与现场；无法恢复时，新 Agent 读取该 Task 证据接手。
 
-能力不足时停止，只有用户明确批准后才能例外执行；SVN 请求串行工作副本例外，不创建 Git 桥接。轻量路径、Runtime 路由和现有验证交付门不变。完整执行规则维护于 `skills/workflow-code-generation/reference/delegated-execution-guide.md`。
+缺少子 Agent 或 Git Worktree 能力时停止，只有用户明确批准后才能例外执行。SVN 是正常串行后端：每 Change 一个工作副本，每 Task 新 Agent；失败先停止后续写入并处理现场，不创建 Git 桥接，不宣称具备任务级工作区隔离能力。轻量路径、Runtime 路由和现有验证交付门不变。完整执行规则维护于 `skills/workflow-code-generation/reference/delegated-execution-guide.md`。

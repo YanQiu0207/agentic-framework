@@ -139,7 +139,7 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 - 默认 Native Delivery；仅显式 Runtime 需求（execution-mode/audit/cross-host）才路由 `runtime-run`，`strict`、并行与恢复不再自动升级。
 - 单任务或串行依赖同样每 Task 委派新 Agent，Git Task 使用独立分支与 Worktree，不复用其他 Task 的 Agent；不要求波次计算或 Runtime 宿主探测。并行分支、非线性依赖或恢复场景按需使用控制器的 `waves` / `dispatchable`。隔离与能力不足的停止条件见下放执行指南。
-- 每项产物通过测试和机器检查后才合并。失败或冲突标为 `需人工`，依赖它的任务标为 `阻塞`，其他独立任务继续。
+- 每项产物通过测试和机器检查后才合并。失败或冲突标为 `需人工`，依赖它的任务标为 `阻塞`，Git 其他独立任务继续；SVN 共用工作副本须先停止后续写入并处理失败现场，详见下放执行指南。
 - owner / implementer 禁止在 task 内启动 LLM Review；全部可合并任务完成后进行一次最终审核。
 - 完整 Runtime Run 在派发前完成 `init-run` 和必需能力检查；Native Delivery 使用带内容主体的独立 v2 验证报告，不初始化 Run。
 
