@@ -70,6 +70,42 @@ class WorkspaceResidueTest(unittest.TestCase):
             workspace_residue.compare_workspace_residue(repo, snapshot),
         )
 
+    def test_detect_vcs_routes_git_and_requires_choice_for_dual(self) -> None:
+        """公共接口探测：Git 直返；双 VCS 未显式选择失败关闭，不再 Git 优先。"""
+        repo = self._git_repo()
+        self.assertEqual("git", workspace_residue.detect_vcs(repo))
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with self.assertRaisesRegex(
+                workspace_residue.WorkspaceResidueError, "不在 Git 仓库"
+            ):
+                workspace_residue.detect_vcs(Path(temp_dir))
+        # 空的 .svn 标记即构成双 VCS：公共接口按 ambiguous_backend 拒绝。
+        (repo / ".svn").mkdir()
+        with self.assertRaisesRegex(
+            workspace_residue.WorkspaceResidueError, "--vcs-backend"
+        ):
+            workspace_residue.detect_vcs(repo)
+        self.assertEqual("git", workspace_residue.detect_vcs(repo, "git"))
+
+    def test_capture_workspace_residue_threads_backend_choice(self) -> None:
+        repo = self._git_repo()
+        (repo / ".svn").mkdir()
+        (repo / "residue.txt").write_text("keep\n", encoding="utf-8")
+        with self.assertRaisesRegex(
+            workspace_residue.WorkspaceResidueError, "--vcs-backend"
+        ):
+            workspace_residue.capture_workspace_residue(repo, "HEAD", ["code.py"])
+        snapshot = workspace_residue.capture_workspace_residue(
+            repo, "HEAD", ["code.py"], backend="git"
+        )
+        self.assertEqual("git", snapshot["vcs"])
+        self.assertEqual(
+            [],
+            workspace_residue.compare_workspace_residue(
+                repo, snapshot, backend="git"
+            ),
+        )
+
     def test_snapshot_rejects_residue_overlapping_scope(self) -> None:
         repo = self._git_repo()
         (repo / "generated").mkdir()

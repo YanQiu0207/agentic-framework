@@ -124,7 +124,7 @@ Status FooBar(const Request& req, Response* resp) {
 
 #### 原则 8：为每个任务标注 review 档位
 
-每个任务必须标注 `review_profile`，供全部任务完成后计算 Run 级 Review 的最高风险档位：
+每个任务必须标注 `review_profile`，供全部任务完成后计算最终 Review 的最高风险档位（档位只决定审查强度与独立 Judge 要求，不隐含执行路径或 Run）：
 
 | 档位 | 适用 |
 | --- | --- |
@@ -279,5 +279,5 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 6. **verification 必须可操作**：不能是"确保正确"之类的模糊描述；每个任务必须包含可运行的测试命令作为 verification
 7. **先建后迁后删**：涉及替换旧代码的场景，禁止先删除再创建，必须遵循建→迁→删顺序
 8. **歧义必须记录**：拆解过程中遇到 spec 有歧义或需要假设的地方，必须在对应任务中明确标注假设，禁止默默补全
-9. **review 档位必须标注**：每个任务必须写 `review_profile`，作为 Run 级统一 Review 的风险输入
+9. **review 档位必须标注**：每个任务必须写 `review_profile`，作为最终统一 Review 的风险输入，不隐含执行路径
 10. **半结构化字段必须齐全**：每个任务必须写 `depends_on`、`review_profile`、`context_files`、`verification`、`artifacts`

@@ -99,6 +99,10 @@ Production 与 Tooling 共享 Artifact 协议，但生命周期差异不只是 R
 2. 存在降级等价判据的可执行实现：把 governance_profile 从 production 降到 tooling 后，剩余行为与纯 Tooling 逐字节相同。（已满足：change 2042 的比对器；2043 的三判据举证报告）
 3. Production 现有的强制规则（§5.3）在收敛后逐条仍可被机器门禁强制，不退化为散文要求。（已满足：2043 治理强度举证，逐条守卫与用例见 `openspec/changes/2043-governance-overlay-merge/evidence_report.md`）
 
+### 3.2.1 Profile 与执行路径解耦（change 2048）
+
+治理 Profile（Production / Tooling）只选择生命周期与治理门强度（逐任务 Review、批准门、strict 集成下限等），不再隐含完整 Runtime Run 的启用条件：`strict` 风险、并行 Worktree 写入与长任务恢复在两个 Profile 下都默认 Native Delivery，Runtime 只经显式 `execution_mode=runtime`、项目硬性审计要求或跨宿主验证启用。Native strict Review（独立 Judge 与三项独立性声明）在两个 Profile 都是一等公民，不因无 Run 构成降级；Production 的逐任务 Review、批准门与 strict 集成下限在 Native Delivery 下原样生效。纯 SVN 工作副本在两个 Profile 下都走原生串行开发与交付（待提交 / 确切 revision），不为获得 Runtime 证据而创建 Git 镜像或桥接；Runtime 在 SVN 上显式报 unsupported。
+
 ### 3.3 代码事实源
 
 | 信息 | 权威来源 |

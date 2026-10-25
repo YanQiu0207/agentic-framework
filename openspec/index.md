@@ -13,6 +13,10 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - [已验证 Issues](issues/)
 - [历史 Changes](changes/archive/)
 
+## 近期变更
+
+- [2048：简化默认执行流程，收窄 Runtime 使用范围](changes/archive/2026-10-05-native-first-runtime-simplification/proposal.md) · [设计与实施阶段](changes/archive/2026-10-05-native-first-runtime-simplification/design.md)（已实施并归档：默认 Native、显式 Runtime、纯 SVN 串行交付与 v2 证据链）
+
 ## 任务路由
 
 - 双 Profile、Shared Core 和整体架构：[`framework-unification.md`](specs/backend/engineering/tech/framework-unification.md)
@@ -35,4 +39,6 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - 多 Agent 协作样例（AWS sample-codex-agent-team）协议设计逐文件解读、维度级对比与补强点候选：[`external-reference-sample-codex-agent-team.md`](specs/backend/engineering/tech/external-reference-sample-codex-agent-team.md)
 - HarnessX Agent Harness Foundry 的组合模型、轨迹驱动演化、模型共演化、证据边界及适配候选：[`external-reference-harnessx.md`](specs/backend/engineering/tech/external-reference-harnessx.md)
 - Alibaba skill-up 的 Skill 评测、with/without 基线、对话式演进、与 HarnessX 的分层对比及试点候选：[`external-reference-skill-up.md`](specs/backend/engineering/tech/external-reference-skill-up.md)
+- Matt Pocock Skills 的工程理念、使用方式、访谈来源与框架适配候选：[`external-reference-mattpocock-skills.md`](specs/backend/engineering/tech/external-reference-mattpocock-skills.md)
+
 - Comet 流程编排状态机（rpamis/comet）的双工作流、源码核验机制、三层扩展模型、与本框架 27 skills 的迁移对照及共存策略：[`external-reference-comet.md`](specs/backend/engineering/tech/external-reference-comet.md)

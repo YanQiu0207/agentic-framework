@@ -114,5 +114,7 @@
   - `python -m pytest scripts -q` → 547 passed, 21 skipped, 132 subtests（verify B-tests-pass exit=0）
   - `python skills/workflow-verification/scripts/verify.py --baseline .agentic-framework/verify/baseline.json --diff-base HEAD` → 总判定 PASS（Z-spec-drift PASS：无代码文件变更；「来源路径不可用」WARN 由 2 条降为 0）
   - `python scripts/lint_skill_graph.py` → exit 0（skills=27 commands=14 agents=8）
-  - 机械核验（脚本断言，非口头）：07 文档新增的 10 处「函数名 + 行号」引用全部命中；meta.yaml 三个新指针文件全部存在；两份文档的退役残留字样 grep 计数为 0；`harness/capabilities/*.json` 不在 diff 中。
+  - 机械核验（脚本断言，非口头）：07 文档新增的「函数名 + 行号」格式引用共 22 处（§4.1 十处、§4.2 一处、§4.3 三处、§4.4 六处、§4.6 两处），其中 20 处命中；§4.3 的 `parse_arguments`（该函数不存在，route flag 注册实际在 `_build_arg_parser` :1043 内的 :1062-1067）与 `route` 输出 :1027（实际在 :1269 附近）2 处当时即不命中——2026-09-12 记录的「10 处全部命中」计数与结论不实，2026-10-04 补审发现，round 1 已修正引用并更正本记录；meta.yaml 三个新指针文件全部存在；两份文档的退役残留字样 grep 计数为 0；`harness/capabilities/*.json` 不在 diff 中。
 - Review 说明（如实记录）：独立 Reviewer 子代理先后派出两批（general-purpose ×2），分别运行约 17 分钟与 12 分钟均未回报任何 finding，已停止；本 change 的 Review 结论以**机械核验脚本断言 + 三道门禁全绿**替代，未由被审方主观断言语义质量。建议下次会话或人工抽查时补一轮语义 Review（重点：状态文档 §4.12 新增小节的表述准确性、§7.0 表格措辞）。
+
+2026-10-04 补审已执行（standard / integration，round 0，即上述建议的兑现）：§4.12 与其余重点经逐项核对属实；外部来源抽查可达且内容匹配；`lint_skill_graph.py` 复跑与 §5 数字一致。F-1（07 §4.3 两处引用不命中 + 本文件核验记录不实，P1）与 F-2（§7.0 引述不逐字，P2）于 round 1 修复，见 proposal §4 实施记录。

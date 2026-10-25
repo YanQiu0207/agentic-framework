@@ -20,7 +20,7 @@
    - 完全未覆盖 7-19 后落地的能力：`governance_guards.py` 治理守卫、`harness/` Capability Matrix 与 Adapter 探测合同、`evaluation/swebench` 与 Native Delivery 试点、`machine-verifiable-agent-runtime` spec、SVN 工作副本强制 native-delivery（`9b46152`）、风险触发批准（`2029`/`2030`）。
    - §3.1/§3.3/§4.2 仍以「Production 与 Tooling 生命周期入口相互隔离」「两族入口」描述架构，与 2045 后「共用统一入口、差异由 manifest 与治理守卫承载」的现实相反。
 2. **`docs/harness-alignment/07-host-capability-alignment.md`（更新日期 2026-09-12）存在两类过时**：
-   - 行号漂移：「治理 Profile 守卫（:1090-1118）」——该区间现为 argparse 注册代码，守卫实际在 `workflow_control.py:1125`（`_event_governance_errors`）；「约 1254 行」→ 实际 1302 行；「1400+ 行」→ 实际 1478 行（漂移源于 07 写成当天的 change 2046 refactor）。其余 40 余处行号引用经逐条核验仍然命中。
+   - 行号漂移：「治理 Profile 守卫（:1090-1118）」——该区间现为 argparse 注册代码，守卫实际在 `workflow_control.py:1125`（`_event_governance_errors`）；「约 1254 行」→ 实际 1302 行；「1400+ 行」→ 实际 1478 行（漂移源于 07 写成当天的 change 2046 refactor）。其余 40 余处既有行号引用经逐条核验仍然命中（本 change 新增的「函数名 + 行号」格式引用当时有 2 处不命中，2026-10-04 补审发现并修正，见 §4 实施记录）。
    - P1 的「未核实项」已可解除：本 change 当天联网核验确认 Codex CLI 已有 hooks 体系（`hooks.json`、PreToolUse/PostToolUse/Stop/SessionStart 等 lifecycle 事件，`/hooks` 命令；0.150.1 起强制信任审核）。P1 门禁 hooks 化的最大障碍消除。
 
 ### 目标
@@ -64,7 +64,7 @@
    - §4.11 评测体系补一行：`evaluation/swebench` 与 Native Delivery 三任务试点（2026-07-25，合同级回归完成、Run 级审计证据缺失）。
    - §5 实测快照更新为本次数字与日期。
    - §6.1 入口改为 `workflow-*` 统一路径，与 README §6 一致。
-   - §7 在历史基线声明后新增「2026-09-12 增量核验」小表：Spec Kit（2026-08-21 官方文档站，自我定位升级为「extensible, intent-driven harness」）、Codex hooks、Claude Code 2.1.261-2.1.269 相关能力（`/skill-doctor`、`claude plugin eval`、`CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS`）。
+   - §7 在历史基线声明后新增「2026-09-12 增量核验」小表：Spec Kit（2026-08-21 官方文档站，自我定位升级为「extensible process harness」）、Codex hooks、Claude Code 2.1.261-2.1.269 相关能力（`/skill-doctor`、`claude plugin eval`、`CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS`）。
 2. `docs/harness-alignment/07-host-capability-alignment.md`：
    - 「治理 Profile 守卫（:1090-1118）」→「治理守卫 `:1125` `_event_governance_errors` + `governance_guards.py`」。
    - 「约 1254 行」→ 1302 行；「1400+ 行」→ 1478 行；installer 行号引用改为「函数名 + 行号」。
@@ -88,3 +88,4 @@
 ## 4. 实施记录
 
 - 2026-09-12：Task 1（状态文档 §1/§3/§4/§5/§6/§7 追平）、Task 2（07 文档行号修正 + P1 未核实项解除）、Task 3（meta.yaml quality-gates 失效指针修复）全部完成。三道门禁全绿：pytest 547 passed / 21 skipped、verify 总判定 PASS（spec drift PASS）、skill 图 lint 0 错误。独立 Reviewer 两批均未回报（详见 tasks.md 实际 Diff 核对节），Review 以机械核验 + 门禁替代，语义 Review 留待补审。
+- 2026-10-04：补审（standard / integration，round 0）兑现上述承诺，结论 NEEDS_CHANGES：F-1（P1）07 §4.3 新增「函数名 + 行号」引用 2 处当时即不命中（`parse_arguments` 函数不存在、`route` 输出行号偏移约 240 行），且 tasks.md 核验记录「新增 10 处全部命中」计数与结论不实（实际 22 处）；F-2（P2）§7.0 Spec Kit 引述与来源不逐字。round 1 修复：07 §4.3 两处引用改为 `_build_arg_parser` :1062-1067 / `route` 输出 :1269 附近；§7.0 与本文件 §2.1 引述改为「extensible process harness」；tasks.md 核验记录更正；§1 与本节补记。

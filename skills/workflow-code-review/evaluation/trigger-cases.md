@@ -43,3 +43,14 @@
 | P-1 | 局部低风险修复 | `comprehensive-reviewer` | `lightweight` 单 Reviewer |
 | P-2 | 风险可控的普通功能或跨模块修改 | `comprehensive-reviewer` | `standard` 单 Reviewer |
 | P-3 | 安全、权限、数据迁移、并发或公共 API | 全量 5 Reviewer | `strict` 保留多维审查与 Critic |
+
+## behavior（行为用例，change 2048；逐条演练报告合同）
+
+| ID | 场景 | 预期行为 | 理由 |
+| --- | --- | --- | --- |
+| V-1 | Tooling 任务声明 strict，无 Run | `scope: integration` 的 v2 strict 报告 + 独立 Judge 三项独立性声明 | strict Native 合法，不要求 Run |
+| V-2 | standard/lightweight 审查 | v2 报告，不携带任何独立性字段 | 非 strict 携带独立性字段即非法 |
+| V-3 | strict 报告 implementer 与 judge 相同 | 交付门拒绝（同 actor） | 分离声明必须可核验 |
+| V-4 | 修复复审 | `mode: re-review` 只复核原 finding 与修复 diff，最多十轮；不重启首审 | 十轮定向复审 |
+| V-5 | 上游合入新变更改变审查范围 | 建立新 Review 主体（新 subject_id），原报告保留 | 范围变化不沿用旧裁决 |
+| V-6 | 旧六字段报告被当作新交付证据 | 交付门拒绝并提示按 v2 重出 | v1 只展示历史 |

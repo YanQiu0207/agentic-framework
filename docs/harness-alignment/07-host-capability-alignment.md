@@ -2,7 +2,7 @@
 
 > 本专题的第三次对齐：前两次对标外部 Harness Engineering 方法论文章（来源一、来源二），本次对标宿主（Claude Code）2026 年原生新增能力。属于「调研 + 规划」，不是 feature spec；实施时按本目录「后续约定」走 `docs/design-docs/`。
 
-**更新日期**：2026-09-12（change 2047 当天二次修订：修正 3 处被 change 2046 漂移的行号引用，行号引用改为「函数名 + 行号」格式；解除第 5 节 P1 的 Codex hooks 未核实项）；2026-10-25（change 2049：更正 §4.6 观察项措辞——「逐 Task 批准」为过时表述，批准语义以 `workflow_control.py` `approval_mode()` 缺省 `risk-triggered` 为准）
+**更新日期**：2026-09-12（change 2047 当天二次修订：修正 3 处被 change 2046 漂移的行号引用，行号引用改为「函数名 + 行号」格式；解除第 5 节 P1 的 Codex hooks 未核实项）；2026-10-04 补审修正 §4.3 两处当时即不命中的引用（`parse_arguments` 函数名不存在、`route` 输出行号偏移）
 
 ## 1. 背景
 
@@ -57,7 +57,9 @@
 
 ### 4.3 worktree：保留
 
-**框架现状**：无自建 Git/worktree Runner，只有指令约定——文档明确自认缺口（docs/tooling/13-agentic-workflow-engine-references.md:87）。Skill 指令定义「何时用、失败保留、恢复核对」（delegated-execution-guide.md:47、:64-65、:97）；确定性代码只把 `--parallel-worktree-write` 当 Runtime 升级的路由信号（workflow_control.py `parse_arguments` 升级词表 :133、`select_execution_route` strict 判定 :143、`route` 输出 :1027 附近），不执行任何 Git 操作。
+**框架现状**：无自建 Git/worktree Runner，只有指令约定——文档明确自认缺口（docs/tooling/13-agentic-workflow-engine-references.md:87）。Skill 指令定义「何时用、失败保留、恢复核对」（delegated-execution-guide.md:47、:64-65、:97）；确定性代码只把 `--parallel-worktree-write` 当 Runtime 升级的路由信号（workflow_control.py `_build_arg_parser` route flag 注册 :1062-1067、`select_execution_route` strict 判定 :143、`route` 输出 :1269 附近），不执行任何 Git 操作。
+
+> 2026-10 更新（change 2048）：`--parallel-worktree-write` 不再是 Runtime 升级信号——路由只由显式 `execution_mode` 与硬性需求（audit-required / 跨宿主验证）决定；并行 Worktree 写入与长任务恢复留在 Native Delivery，由编排方串行集成（见 workflow-control 概览）。上文为 2026-09 复查时点的历史快照，保留供对照。
 
 **与宿主的重叠**：**高**，但零冲突——框架从未自建，宿主原生增强是纯利好。
 
@@ -81,7 +83,7 @@
 
 ### 4.6 权限治理：平行，观察
 
-框架侧对应物是自建批准门（workflow_control.py `approval_gate_errors` :551-567）与治理守卫（`_event_governance_errors` :1125 + `governance_guards.py`），与宿主 auto mode 无调用关系，属平行实现。语义不同：auto mode 治理「权限提示」，框架批准门治理「变更契约」。观察项：auto mode 默认化改变了「用户在权限提示处把关」的交互模式，需留意对 Production 风险触发的暂停批准（尤其 irreversible 任务）假设的影响。
+框架侧对应物是自建批准门（workflow_control.py `approval_gate_errors` :551-567）与治理守卫（`_event_governance_errors` :1125 + `governance_guards.py`），与宿主 auto mode 无调用关系，属平行实现。语义不同：auto mode 治理「权限提示」，框架批准门治理「变更契约」。观察项：auto mode 默认化改变了「用户在权限提示处把关」的交互模式，需留意对 Production 逐 Task 批准假设的影响。
 
 ## 5. 优先级动作清单
 

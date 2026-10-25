@@ -73,27 +73,30 @@ Run 级 Review 必须满足：
 - 已完全控制主机的攻击者没有伪造文件、进程、Git 或命令输出；
 - 未在 `verify.config.json`、行为用例或 Harness 探测中声明的行为正确。
 
-### 三类交付结论的边界
+### 交付结论的边界（change 2048 起）
 
 | 结论 | 适用条件 | 可证明范围 | 不可证明范围 |
 | --- | --- | --- | --- |
-| `native-delivery-pass` | 普通低／中风险 Tooling 任务，未命中 Runtime 升级条件 | 独立机器验证、`standard` 集成 Review、知识影响和 Git 工作区检查均通过 | Trust Gate、Harness 能力、Run Manifest 证据图、严格独立 Judge |
-| 完整 Runtime Run 的 Trust Gate PASS | `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求 | 本文第 1～4 节定义的 Run 绑定、Manifest、Journal、能力探测和流程独立性声明 | 超出当前 Trust Model 的业务正确性或强身份隔离 |
+| `native-delivery-pass` | 普通 Git 任务，默认 Native（strict 也在 Native 走独立 Judge） | 独立 v2 机器验证、档位匹配集成 Review、知识影响和 Git 工作区检查通过，三方 subject 一致 | Trust Gate、Harness 能力、Run Manifest 证据图、强身份隔离 |
+| `git-scoped-delivery-pass` | 存在预存残留的 Scoped Delivery | 提交位于冻结范围、S0/S1 残留一致、三方 subject 一致 | 整体 Git 工作区干净、上述全部 Runtime 保证 |
+| `svn-pending-commit` | 纯 SVN 无提交授权 | 本地已验证待提交（UUID/URL 与工作副本 subject 绑定） | 正式交付 PASS、确切 revision 内容核验 |
+| `svn-revision-verified` | 纯 SVN 提交后按确切 revision 隔离核验 | 指定 revision 的节点基准、范围、内容与属性核验通过，revision_subject 绑定 | 他人后续提交、Runtime 保证、强身份隔离 |
+| 完整 Runtime Run 的 Trust Gate PASS | 显式 `--execution-mode runtime`、项目硬性审计要求或跨宿主验证 | 本文第 1～4 节定义的 Run 绑定、Manifest、Journal、能力探测和流程独立性声明 | 超出当前 Trust Model 的业务正确性或强身份隔离 |
 | `fast-path-pass` | 兼容期内的局部低风险调用 | lightweight Review、机器验证、工作区干净与知识影响检查通过 | Native Delivery 或完整 Runtime 的额外保证 |
 
-Native Delivery 不创建或伪造 `run_id`、Harness、Trust Gate 或严格独立性字段；它由 `check_delivery.py --native-delivery` 生成版本化 Verdict。Fast-Path 保留兼容语义，不能将其输出升级表述为 Native Delivery 或 Trust Gate PASS。
+Native Delivery 不创建或伪造 `run_id`、Harness、Trust Gate 或严格独立性字段；它由 `check_delivery.py --native-delivery` 生成版本化 Verdict（v2 合同见 quality-gates 概览）。Fast-Path 保留兼容语义，不能将其输出升级表述为 Native Delivery 或 Trust Gate PASS。
 
 ## 6. Tooling 接入矩阵
 
-完整 Runtime 不再是 Tooling 的默认前置条件。`workflow-code-generation` 先通过 `workflow_control.py ... route` 判定路径；只有命中 Runtime 升级条件时才初始化 Run。
+完整 Runtime 不是 Tooling 的默认路径，也不因 `strict` 风险、并行 Worktree 写入或长任务恢复自动启用（change 2048）：只有显式 `--execution-mode runtime`、项目硬性审计要求（`--audit-required`）或跨宿主验证需求才经 `workflow_control.py ... route` 输出 `runtime-run` 并初始化 Run；与显式 native 冲突或在 SVN／未知 VCS 下不受支持时，路由以非零退出拒绝，不静默降级。
 
 | 组件 | Native Delivery | 完整 Runtime Run |
 | --- | --- | --- |
-| `workflow-code-generation` | 默认路径；不调用 `init-run`，不创建或伪造 Run Context | 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时调用 `init-run` |
-| `workflow_control.py` | 可独立提供 DAG、状态、阻塞和恢复；无 Run 的 `quality_passed` 只校验独立 Verify | 冻结输入、创建 Run Context、Journal，并要求 Run-bound Verify Artifact |
-| `workflow-verification` | 生成独立 Verify 报告 | 使用 `--run-dir`、`--task-id` 和 `--attempt` 生成 Run／Task／Attempt 绑定 Artifact |
-| `workflow-code-review` | 交付门消费 `standard` 集成 Review，不得携带 Run、Trust 或严格独立性声明 | Run 级 `strict` Review 绑定 Runtime Context，并在最终 Trust Gate 中校验 |
-| `check_delivery.py` | `--native-delivery` 输出 `native-delivery-pass` | `--run-dir` 继续执行 Manifest、Journal、Harness 与 Trust Gate 校验 |
+| `workflow-code-generation` | 默认路径；不调用 `init-run`，不创建或伪造 Run Context | 仅显式 Runtime 需求（execution-mode / audit-required / 跨宿主验证）时调用 `init-run` |
+| `workflow_control.py` | 可独立提供 DAG、状态、阻塞和恢复；无 Run 的 `quality_passed` 只接受独立 v2 Verify | 冻结输入、创建 Run Context、Journal，并要求 Run-bound Verify Artifact |
+| `workflow-verification` | 生成独立 v2 Verify 报告（subject 绑定；Git 用固定基准，纯 SVN 用工作副本根 revision） | 使用 `--run-dir`、`--task-id` 和 `--attempt` 生成 Run／Task／Attempt 绑定 Artifact |
+| `workflow-code-review` | 交付门按任务档位消费集成 Review（任务声明 `strict` 时要求独立 Judge 与三项独立性声明），不得携带 Run、Trust 声明 | Run 级 `strict` Review 绑定 Runtime Context，并在最终 Trust Gate 中校验 |
+| `check_delivery.py` | `--native-delivery` 按后端输出 `native-delivery-pass` / `git-scoped-delivery-pass` / `svn-pending-commit` / `svn-revision-verified` | `--run-dir` 继续执行 Manifest、Journal、Harness 与 Trust Gate 校验 |
 
 两条当前调用链分别为：
 

@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 import knowledge_sync
+import native_delivery
 import task_ast
 import workspace_residue
 import governance_profile
@@ -301,6 +302,23 @@ def _validate_review_report(
             )
         label = "Review Report（扁平格式）"
         fields = data
+
+    # 版本分派（change 2048）：v2 扁平报告按 Native 合同校验（档位独立性
+    # 字段、subject 绑定与递归禁止集）；未知版本失败关闭。v1 六字段与
+    # Runtime Envelope 继续按旧读路径评估，不推断独立 Judge 或内容绑定证据。
+    if payload is None and isinstance(data.get("schema_version"), int):
+        version = data["schema_version"]
+        if version != 2:
+            errors.append(
+                f"{label}的 schema_version 非法，当前为 {version!r}，"
+                "扁平报告仅支持 2（Native v2）。"
+            )
+        else:
+            label = "Review Report（Native v2）"
+            try:
+                native_delivery.validate_review_report(data)
+            except native_delivery.NativeDeliveryError as error:
+                errors.append(f"{label}未通过 Native v2 合同：{error}。")
 
     verdict = fields.get("verdict")
     if verdict != "PASS":
@@ -2022,6 +2040,7 @@ def _validate_delivery_evidence(
     baseline_path: Path | None,
     delivery_commit: str | None,
     delivery_revision: str | None,
+    vcs_backend: str | None = None,
 ) -> list[Finding]:
     """OPSX057-061: delivery 阶段的交付范围与工作区残留证据（change 2038）。
 
@@ -2088,7 +2107,7 @@ def _validate_delivery_evidence(
             )
         ]
     try:
-        vcs = workspace_residue.detect_vcs(repo)
+        vcs = workspace_residue.detect_vcs(repo, vcs_backend)
     except workspace_residue.WorkspaceResidueError as error:
         return [
             _finding(
@@ -2097,7 +2116,8 @@ def _validate_delivery_evidence(
                 repo,
                 1,
                 f"无法识别版本控制：{error}。Production 的 Delivery 门要求版本控制证据。",
-                "在 Git 或 SVN 工作副本中运行，或显式声明交付证据豁免。",
+                "在 Git 或 SVN 工作副本中运行（双 VCS 用 --vcs-backend 显式选择），"
+                "或显式声明交付证据豁免。",
             )
         ]
     if vcs != stored["vcs"]:
@@ -2184,7 +2204,9 @@ def _validate_delivery_evidence(
                 "把越界改动移出本次交付，或在相关任务的「- 文件:」中补充声明。",
             )
         ]
-    residue_changes = workspace_residue.compare_workspace_residue(repo, stored)
+    residue_changes = workspace_residue.compare_workspace_residue(
+        repo, stored, backend=vcs_backend
+    )
     if residue_changes:
         return [
             _finding(
@@ -2208,6 +2230,7 @@ def validate_change(
     delivery_commit: str | None = None,
     delivery_revision: str | None = None,
     profile_override: str | None = None,
+    vcs_backend: str | None = None,
 ) -> ValidationResult:
     """Validate an OPSX change without modifying repository files.
 
@@ -2256,7 +2279,12 @@ def validate_change(
         findings.extend(_validate_delivery(repo, change, "PENDING", True, profile_override))
         findings.extend(
             _validate_delivery_evidence(
-                repo, change, workspace_residue_baseline, delivery_commit, delivery_revision
+                repo,
+                change,
+                workspace_residue_baseline,
+                delivery_commit,
+                delivery_revision,
+                vcs_backend,
             )
         )
     elif phase == "archive":
@@ -2350,6 +2378,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Delivery 阶段的 SVN 交付修订号",
     )
     parser.add_argument(
+        "--vcs-backend",
+        choices=("git", "svn"),
+        help="显式选择版本控制后端；Git 与 SVN 并存时必须指定，"
+        "否则交付证据拒绝隐式 Git 优先（change 2048）",
+    )
+    parser.add_argument(
         "--governance-profile",
         choices=("production", "tooling"),
         help="显式指定治理 Profile（覆盖 manifest 读取）",
@@ -2395,6 +2429,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.delivery_commit,
             args.delivery_revision,
             args.governance_profile,
+            args.vcs_backend,
         )
     except InvocationError as error:
         if args.json:

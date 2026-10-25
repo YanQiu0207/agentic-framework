@@ -25,6 +25,8 @@ _ROUTE_FLAGS = frozenset(
         "audit_required",
     }
 )
+# change 2048：显式执行模式与 VCS 能力输入；旧 fixtures v1 不含新语义。
+_ROUTE_STRING_INPUTS = frozenset({"execution_mode", "vcs"})
 
 
 class DeliveryRouteFixtureError(Exception):
@@ -49,8 +51,8 @@ def load_fixtures(path: Path) -> list[dict[str, Any]]:
         document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         raise DeliveryRouteFixtureError(f"cannot read fixtures: {path}") from error
-    if not isinstance(document, dict) or document.get("schema_version") != 1:
-        raise DeliveryRouteFixtureError("fixture schema_version must be 1")
+    if not isinstance(document, dict) or document.get("schema_version") != 2:
+        raise DeliveryRouteFixtureError("fixture schema_version must be 2")
     if document.get("artifact_type") != "delivery-route-fixtures":
         raise DeliveryRouteFixtureError("fixture artifact_type is invalid")
     fixtures = document.get("fixtures")
@@ -68,7 +70,9 @@ def evaluate_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
     expected = fixture.get("expected")
     if not isinstance(route_input, dict) or not isinstance(expected, dict):
         raise DeliveryRouteFixtureError(f"fixture {fixture_id} requires input and expected")
-    unexpected = set(route_input) - ({"review_profile"} | _ROUTE_FLAGS)
+    unexpected = set(route_input) - (
+        {"review_profile"} | _ROUTE_FLAGS | _ROUTE_STRING_INPUTS
+    )
     if unexpected:
         raise DeliveryRouteFixtureError(f"fixture {fixture_id} has unsupported input")
     profile = _require_string(route_input.get("review_profile"), "review_profile")
@@ -76,6 +80,40 @@ def evaluate_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
         flag: _require_bool(route_input.get(flag, False), flag)
         for flag in _ROUTE_FLAGS
     }
+    for name in _ROUTE_STRING_INPUTS:
+        value = route_input.get(name)
+        if value is not None:
+            flags[name] = _require_string(value, name)
+    expected_error = expected.get("error")
+    if expected_error is not None:
+        expected_error = _require_string(expected_error, "expected.error")
+        try:
+            route = workflow_control.select_execution_route(profile, **flags)
+        except ValueError as error:
+            return {
+                "id": fixture_id,
+                "verdict": "PASS" if expected_error in str(error) else "FAIL",
+                "expected": {"error": expected_error},
+                "actual": {"error": str(error)},
+            }
+        return {
+            "id": fixture_id,
+            "verdict": "FAIL",
+            "expected": {"error": expected_error},
+            "actual": {
+                "path": route.path,
+                "runtime_upgrade_reasons": list(route.runtime_upgrade_reasons),
+            },
+        }
+    if "path" in expected or "runtime_upgrade_reasons" in expected:
+        if "path" not in expected or "runtime_upgrade_reasons" not in expected:
+            raise DeliveryRouteFixtureError(
+                f"fixture {fixture_id} expected requires path and reasons together"
+            )
+    else:
+        raise DeliveryRouteFixtureError(
+            f"fixture {fixture_id} expected requires path+reasons or error"
+        )
     expected_path = _require_string(expected.get("path"), "expected.path")
     expected_reasons = expected.get("runtime_upgrade_reasons")
     if not isinstance(expected_reasons, list) or not all(
@@ -84,7 +122,18 @@ def evaluate_fixture(fixture: dict[str, Any]) -> dict[str, Any]:
         raise DeliveryRouteFixtureError(
             f"fixture {fixture_id} expected.runtime_upgrade_reasons is invalid"
         )
-    route = workflow_control.select_execution_route(profile, **flags)
+    try:
+        route = workflow_control.select_execution_route(profile, **flags)
+    except ValueError as error:
+        return {
+            "id": fixture_id,
+            "verdict": "FAIL",
+            "expected": {
+                "path": expected_path,
+                "runtime_upgrade_reasons": expected_reasons,
+            },
+            "actual": {"error": str(error)},
+        }
     actual = {
         "path": route.path,
         "runtime_upgrade_reasons": list(route.runtime_upgrade_reasons),
@@ -106,7 +155,7 @@ def run_fixtures(fixtures: Sequence[dict[str, Any]]) -> dict[str, Any]:
     results = [evaluate_fixture(fixture) for fixture in fixtures]
     passed = sum(result["verdict"] == "PASS" for result in results)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "artifact_type": "delivery-route-fixture-result",
         "verdict": "PASS" if passed == len(results) else "FAIL",
         "passed": passed,

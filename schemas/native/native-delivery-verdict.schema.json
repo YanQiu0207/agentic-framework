@@ -1,0 +1,576 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agentic-framework.local/native/native-delivery-verdict/v2",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "artifact_type": {
+      "const": "native-delivery-verdict"
+    },
+    "subject_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "verdict": {
+      "enum": [
+        "native-delivery-pass",
+        "git-scoped-delivery-pass",
+        "svn-pending-commit",
+        "svn-revision-verified"
+      ]
+    },
+    "vcs": {
+      "enum": [
+        "git",
+        "svn"
+      ]
+    },
+    "review_profile": {
+      "enum": [
+        "lightweight",
+        "standard",
+        "strict"
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "verify_report": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "review_report": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "knowledge_impact": {
+          "enum": [
+            "none",
+            "updated"
+          ]
+        },
+        "knowledge_impact_reason": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "git_clean": {
+          "type": "boolean",
+          "const": true
+        },
+        "commit_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "repository_uuid": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "repository_relative_url": {
+          "type": "string",
+          "pattern": "^\\^/"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "revision_subject_id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "scope_paths": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "residue_snapshot_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "verify_report_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "review_report_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "implementer_actor": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "judge_actor": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "independence_basis": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "verify_report",
+        "review_report",
+        "knowledge_impact",
+        "knowledge_impact_reason",
+        "verify_report_digest",
+        "review_report_digest"
+      ],
+      "additionalProperties": false
+    },
+    "verified_claims": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "uniqueItems": true
+    },
+    "unprovable_claims": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schema_version",
+    "artifact_type",
+    "subject_id",
+    "verdict",
+    "vcs",
+    "review_profile",
+    "evidence",
+    "verified_claims",
+    "unprovable_claims"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "native-delivery-pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "vcs": {
+            "const": "git"
+          },
+          "evidence": {
+            "type": "object",
+            "required": [
+              "verify_report",
+              "review_report",
+              "verify_report_digest",
+              "review_report_digest",
+              "knowledge_impact",
+              "knowledge_impact_reason",
+              "git_clean",
+              "commit_sha"
+            ],
+            "properties": {
+              "verify_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "review_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "verify_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "review_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "knowledge_impact": {
+                "enum": [
+                  "none",
+                  "updated"
+                ]
+              },
+              "knowledge_impact_reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "git_clean": {
+                "type": "boolean",
+                "const": true
+              },
+              "commit_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "implementer_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "judge_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "independence_basis": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "git-scoped-delivery-pass"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "vcs": {
+            "const": "git"
+          },
+          "evidence": {
+            "type": "object",
+            "required": [
+              "verify_report",
+              "review_report",
+              "verify_report_digest",
+              "review_report_digest",
+              "knowledge_impact",
+              "knowledge_impact_reason",
+              "commit_sha",
+              "scope_paths",
+              "residue_snapshot_digest"
+            ],
+            "properties": {
+              "verify_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "review_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "verify_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "review_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "knowledge_impact": {
+                "enum": [
+                  "none",
+                  "updated"
+                ]
+              },
+              "knowledge_impact_reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "commit_sha": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "scope_paths": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                }
+              },
+              "residue_snapshot_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "implementer_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "judge_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "independence_basis": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "svn-pending-commit"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "vcs": {
+            "const": "svn"
+          },
+          "evidence": {
+            "type": "object",
+            "required": [
+              "verify_report",
+              "review_report",
+              "verify_report_digest",
+              "review_report_digest",
+              "knowledge_impact",
+              "knowledge_impact_reason",
+              "repository_uuid",
+              "repository_relative_url"
+            ],
+            "properties": {
+              "verify_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "review_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "verify_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "review_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "knowledge_impact": {
+                "enum": [
+                  "none",
+                  "updated"
+                ]
+              },
+              "knowledge_impact_reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "repository_uuid": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "repository_relative_url": {
+                "type": "string",
+                "pattern": "^\\^/"
+              },
+              "implementer_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "judge_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "independence_basis": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "svn-revision-verified"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "vcs": {
+            "const": "svn"
+          },
+          "evidence": {
+            "type": "object",
+            "required": [
+              "verify_report",
+              "review_report",
+              "verify_report_digest",
+              "review_report_digest",
+              "knowledge_impact",
+              "knowledge_impact_reason",
+              "repository_uuid",
+              "repository_relative_url",
+              "revision",
+              "revision_subject_id"
+            ],
+            "properties": {
+              "verify_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "review_report": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "verify_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "review_report_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "knowledge_impact": {
+                "enum": [
+                  "none",
+                  "updated"
+                ]
+              },
+              "knowledge_impact_reason": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "repository_uuid": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "repository_relative_url": {
+                "type": "string",
+                "pattern": "^\\^/"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "revision_subject_id": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "implementer_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "judge_actor": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "independence_basis": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "review_profile": {
+            "const": "strict"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "evidence": {
+            "required": [
+              "implementer_actor",
+              "judge_actor",
+              "independence_basis"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "evidence": {
+            "allOf": [
+              {
+                "not": {
+                  "required": [
+                    "implementer_actor"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "judge_actor"
+                  ]
+                }
+              },
+              {
+                "not": {
+                  "required": [
+                    "independence_basis"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

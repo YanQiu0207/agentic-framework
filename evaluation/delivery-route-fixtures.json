@@ -1,21 +1,12 @@
 {
-    "schema_version": 1,
+    "schema_version": 2,
     "artifact_type": "delivery-route-fixtures",
     "fixtures": [
         {
-            "id": "native-standard",
-            "input": {
-                "review_profile": "standard"
-            },
-            "expected": {
-                "path": "native-delivery",
-                "runtime_upgrade_reasons": []
-            }
-        },
-        {
             "id": "native-lightweight",
             "input": {
-                "review_profile": "lightweight"
+                "review_profile": "lightweight",
+                "vcs": "git"
             },
             "expected": {
                 "path": "native-delivery",
@@ -23,53 +14,107 @@
             }
         },
         {
-            "id": "runtime-strict",
+            "id": "native-standard",
             "input": {
-                "review_profile": "strict"
+                "review_profile": "standard",
+                "vcs": "git"
             },
             "expected": {
-                "path": "runtime-run",
-                "runtime_upgrade_reasons": ["strict-risk"]
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
             }
         },
         {
-            "id": "runtime-parallel-worktree-write",
+            "id": "native-strict-risk-no-longer-upgrades",
             "input": {
-                "review_profile": "standard",
-                "parallel_worktree_write": true
+                "review_profile": "strict",
+                "vcs": "git"
             },
             "expected": {
-                "path": "runtime-run",
-                "runtime_upgrade_reasons": ["parallel-worktree-write"]
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
             }
         },
         {
-            "id": "runtime-long-task-recovery",
+            "id": "native-parallel-worktree-need",
             "input": {
                 "review_profile": "standard",
-                "long_task_recovery": true
+                "parallel_worktree_write": true,
+                "vcs": "git"
             },
             "expected": {
-                "path": "runtime-run",
-                "runtime_upgrade_reasons": ["long-task-recovery"]
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
             }
         },
         {
-            "id": "runtime-cross-host-capability",
+            "id": "native-long-task-recovery-need",
             "input": {
                 "review_profile": "standard",
-                "cross_host_capability_verification": true
+                "long_task_recovery": true,
+                "vcs": "git"
             },
             "expected": {
-                "path": "runtime-run",
-                "runtime_upgrade_reasons": ["cross-host-capability-verification"]
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
             }
         },
         {
-            "id": "runtime-audit",
+            "id": "native-strict-parallel-recovery-combined",
+            "input": {
+                "review_profile": "strict",
+                "parallel_worktree_write": true,
+                "long_task_recovery": true,
+                "vcs": "git"
+            },
+            "expected": {
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
+            }
+        },
+        {
+            "id": "native-svn-default",
             "input": {
                 "review_profile": "standard",
-                "audit_required": true
+                "vcs": "svn"
+            },
+            "expected": {
+                "path": "native-delivery",
+                "runtime_upgrade_reasons": []
+            }
+        },
+        {
+            "id": "runtime-explicit-git",
+            "input": {
+                "review_profile": "standard",
+                "execution_mode": "runtime",
+                "vcs": "git"
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["explicit-execution-mode"]
+            }
+        },
+        {
+            "id": "runtime-explicit-with-legacy-needs",
+            "input": {
+                "review_profile": "strict",
+                "execution_mode": "runtime",
+                "parallel_worktree_write": true,
+                "long_task_recovery": true,
+                "vcs": "git"
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["explicit-execution-mode"]
+            }
+        },
+        {
+            "id": "runtime-audit-required",
+            "input": {
+                "review_profile": "standard",
+                "audit_required": true,
+                "vcs": "git"
             },
             "expected": {
                 "path": "runtime-run",
@@ -77,19 +122,109 @@
             }
         },
         {
-            "id": "runtime-multiple-conditions",
+            "id": "runtime-cross-host-capability",
             "input": {
-                "review_profile": "strict",
-                "parallel_worktree_write": true,
-                "audit_required": true
+                "review_profile": "standard",
+                "cross_host_capability_verification": true,
+                "vcs": "git"
+            },
+            "expected": {
+                "path": "runtime-run",
+                "runtime_upgrade_reasons": ["cross-host-capability-verification"]
+            }
+        },
+        {
+            "id": "runtime-audit-and-cross-host",
+            "input": {
+                "review_profile": "standard",
+                "audit_required": true,
+                "cross_host_capability_verification": true,
+                "vcs": "git"
             },
             "expected": {
                 "path": "runtime-run",
                 "runtime_upgrade_reasons": [
-                    "strict-risk",
-                    "parallel-worktree-write",
-                    "audit-required"
+                    "audit-required",
+                    "cross-host-capability-verification"
                 ]
+            }
+        },
+        {
+            "id": "runtime-explicit-on-svn-rejected",
+            "input": {
+                "review_profile": "standard",
+                "execution_mode": "runtime",
+                "vcs": "svn"
+            },
+            "expected": {
+                "error": "仅支持 Git"
+            }
+        },
+        {
+            "id": "runtime-audit-on-svn-rejected",
+            "input": {
+                "review_profile": "standard",
+                "audit_required": true,
+                "vcs": "svn"
+            },
+            "expected": {
+                "error": "仅支持 Git"
+            }
+        },
+        {
+            "id": "runtime-on-unknown-vcs-rejected",
+            "input": {
+                "review_profile": "standard",
+                "execution_mode": "runtime",
+                "vcs": "unknown-vcs"
+            },
+            "expected": {
+                "error": "仅支持 Git"
+            }
+        },
+        {
+            "id": "runtime-on-unknown-vcs-without-explicit-vcs-rejected",
+            "input": {
+                "review_profile": "standard",
+                "execution_mode": "runtime"
+            },
+            "expected": {
+                "error": "仅支持 Git"
+            }
+        },
+        {
+            "id": "conflict-native-with-audit-required",
+            "input": {
+                "review_profile": "standard",
+                "execution_mode": "native",
+                "audit_required": true,
+                "vcs": "git"
+            },
+            "expected": {
+                "error": "冲突"
+            }
+        },
+        {
+            "id": "conflict-native-with-cross-host",
+            "input": {
+                "review_profile": "standard",
+                "execution_mode": "native",
+                "cross_host_capability_verification": true,
+                "vcs": "git"
+            },
+            "expected": {
+                "error": "冲突"
+            }
+        },
+        {
+            "id": "invalid-execution-mode-rejected",
+            "input": {
+                "review_profile": "standard",
+                "execution_mode": "serverless",
+                "vcs": "git"
+            },
+            "expected": {
+                "error": "非法 execution_mode"
             }
         }
     ]

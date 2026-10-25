@@ -9,6 +9,11 @@ import subprocess
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+try:
+    from . import vcs
+except ImportError:
+    import vcs
+
 
 class WorkspaceResidueError(ValueError):
     """工作区残留快照无法可靠采集或校验。"""
@@ -107,31 +112,28 @@ def _hash_path(path: Path) -> str:
     return _canonical_digest({"type": "other", "mode": info.st_mode})
 
 
-def detect_vcs(root: Path) -> str:
-    """返回 Git 或 SVN；无法确认时失败关闭。"""
+def detect_vcs(root: Path, backend: str | None = None) -> str:
+    """经公共 VCS 接口返回 Git 或 SVN；无法确认或双 VCS 未显式选择时失败关闭。
+
+    旧实现 Git 优先吞掉 SVN（change 2048 Task 11 移除）：Git 与 SVN 并存时
+    公共接口按 ambiguous_backend 拒绝，调用方以显式 backend 解除。
+    """
     try:
-        result = subprocess.run(
-            ["git", "rev-parse", "--is-inside-work-tree"],
-            cwd=str(root),
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip() == b"true":
-            return "git"
-    except OSError:
-        pass
-    try:
-        result = subprocess.run(
-            ["svn", "info", "--show-item", "revision"],
-            cwd=str(root),
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return "svn"
-    except OSError:
-        pass
-    raise WorkspaceResidueError("当前目录不在 Git 仓库或 SVN 工作副本内")
+        facts = vcs.inspect_workspace(root, backend)
+    except vcs.VcsError as error:
+        if error.code == "not_working_copy":
+            raise WorkspaceResidueError(
+                "当前目录不在 Git 仓库或 SVN 工作副本内"
+            ) from error
+        if error.code == "ambiguous_backend":
+            raise WorkspaceResidueError(
+                "检测到 Git 与 SVN 并存，残留快照拒绝隐式选择后端；"
+                "请显式指定 backend（CLI 为 --vcs-backend git|svn）"
+            ) from error
+        raise WorkspaceResidueError(
+            f"无法识别版本控制（{error.code}: {error.operation}）"
+        ) from error
+    return facts["backend"]
 
 
 def _git_base(root: Path, diff_base: str) -> str:
@@ -239,13 +241,16 @@ def _svn_entries(root: Path) -> list[dict[str, Any]]:
 
 
 def capture_workspace_residue(
-    root: Path, diff_base: str, scope_paths: Iterable[str]
+    root: Path,
+    diff_base: str,
+    scope_paths: Iterable[str],
+    backend: str | None = None,
 ) -> dict[str, Any]:
     """采集冻结范围之外的工作区残留；重叠即失败关闭。"""
     root = root.resolve()
     scope = normalize_scope_paths(scope_paths)
-    vcs = detect_vcs(root)
-    if vcs == "git":
+    vcs_kind = detect_vcs(root, backend)
+    if vcs_kind == "git":
         base_ref = _git_base(root, diff_base)
         entries = _git_entries(root)
     else:
@@ -265,7 +270,7 @@ def capture_workspace_residue(
         )
     payload: dict[str, Any] = {
         "version": 1,
-        "vcs": vcs,
+        "vcs": vcs_kind,
         "base_ref": base_ref,
         "scope_paths": scope,
         "entries": entries,
@@ -298,11 +303,13 @@ def validate_workspace_residue_snapshot(snapshot: object) -> dict[str, Any]:
     return snapshot
 
 
-def compare_workspace_residue(root: Path, snapshot: object) -> list[str]:
+def compare_workspace_residue(
+    root: Path, snapshot: object, backend: str | None = None
+) -> list[str]:
     """比较 S1 与经过完整性校验的 S0，并返回可审计差异。"""
     stored = validate_workspace_residue_snapshot(snapshot)
     root = root.resolve()
-    if detect_vcs(root) != stored["vcs"]:
+    if detect_vcs(root, backend) != stored["vcs"]:
         return ["当前 VCS 与 S0 快照不一致"]
     if stored["vcs"] == "git":
         current_entries = _git_entries(root)

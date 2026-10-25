@@ -151,7 +151,15 @@ class KnowledgeManagementE2ETest(unittest.TestCase):
             self.assertEqual(
                 0,
                 WORKFLOW_CONTROL.main(
-                    [str(tasks_path), "event", "1", "merge_success", "--write"]
+                    [
+                        "--governance-profile",
+                        "tooling",
+                        str(tasks_path),
+                        "event",
+                        "1",
+                        "merge_success",
+                        "--write",
+                    ]
                 ),
             )
             persisted = tasks_path.read_text(encoding="utf-8")

@@ -2,6 +2,8 @@
 
 本目录记录用于比较 `fast-path`、`standard` 与 `strict` 路径的真实开发任务。它不替代测试、Verify 或 Code Review；其作用是把交付结果、返工和 Telemetry 成本放到同一份可比较数据中。
 
+> change 2048 补充（2026-10-05）：`2048-native-first-results.md` 记录五类真实任务（小修复/普通/strict/并行 Git/SVN 串行）与显式 Runtime 对照的完整实测（命令、产物、评审子代理 token、返工与门拒收事实）；其表格式记录与下方 case.json/outcome.json 流程并存，后续任务可按需选用。
+
 ## 记录流程
 
 1. 开始实现前，创建 `evaluation/real-task-cases/<task-id>/case.json`，固定任务标题、风险级别、路由和验收标准。

@@ -25,6 +25,8 @@ Telemetry 是显式安装的可选 Pack。当前只实现 transcript 后处理�
 
 阶段边界依赖独占行的 `Using <skill-name>` 标记；Review 指标依赖 `workflow-code-review` 的标题、结论、轮次和 Finding 编号格式（`scripts/analyze_session_metrics.py:51-72`）。这些 Markdown 字段属于机器接口，修改时必须同步解析器和测试。
 
+`scripts/analyze_session_metrics.py` 按当前 Review 合同最多允许 10 轮复审（首审为第 0 轮）：第 10 轮及以上仍 `NEEDS_CHANGES` 才计为需人工；此前中断计为未收敛，第 10 轮 `PASS` 计为收敛。历史会话重算也使用当前阈值，不推测旧规则；既有账本需重新分析后更新。
+
 ## 输出与恢复
 
 - 默认打印人类可读报告。

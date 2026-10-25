@@ -9,6 +9,12 @@
 - 删除、改名、改变字段语义或收紧现有取值时，必须新增 Schema 版本和迁移器；不得原地改写历史 Artifact。
 - 同一 Task 重试必须生成新的 `artifact_id`；不得覆盖旧 Artifact。
 
+## Native v2 与 Runtime v1 的边界（change 2048）
+
+- 本目录的 Runtime v1 Schema（Run Envelope 与 Run-bound Artifact）只服务完整 Runtime Run；完整 Runtime 仅经显式 `--execution-mode runtime`、项目硬性审计要求或跨宿主验证启用，已有 Run 按原合同完成，不迁移、不改写。
+- 无 Run 的 Native Delivery 使用独立版本化合同：`schemas/native/` 下的 v2 Verify/Review/Verdict（顶层 `schema_version: 2` 与 `subject_id`）。v2 产物不得携带 Runtime 字段（run_id、harness、config_digest、trust_gate 等，递归禁止）。
+- 校验器按版本显式分派：Runtime v1 走本目录 Schema 与 `runtime_schema.py`；Native v2 走 `schemas/native/` 与 `scripts/native_delivery.py`。旧校验器不误读新报告，新校验器拒绝未知版本；无 subject 的旧报告只按旧合同展示历史，不能作为新完成证据。
+
 ## `config_digest`
 
 `config_digest` 是完整 `run-config.json` 的规范化 UTF-8 JSON 字节的 SHA-256，格式为 `sha256:<64 位小写十六进制>`。规范化序列化固定使用按键名字典序、无多余空白且不转义非 ASCII 字符的 JSON。
