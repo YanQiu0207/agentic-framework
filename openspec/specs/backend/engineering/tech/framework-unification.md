@@ -674,6 +674,7 @@ E:\work\my-ai-resource\agentic-framework
 - 重装幂等。
 - 升级和卸载不损害项目自有文件。
 - `lint_skill_graph.py` 输出 `errors=0 warnings=0`。
+- 每个 `SKILL.md` 全文字符数不超过 20000（`SKILL_BODY_CHAR_LIMIT`）；超限视为结构错误失败关闭，须把后半段拆入 `reference/` 渐进加载（长 Skill 后半段约束在宿主 compaction 后可能丢失）。
 
 ### 16.5 测试
 
