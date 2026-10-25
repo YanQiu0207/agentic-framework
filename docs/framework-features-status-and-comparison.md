@@ -281,7 +281,7 @@ python scripts/install_agentic_framework.py <project> \
 4. 搜索已有规则与检查，核验接线、覆盖范围及失败传播，优先修复失效护栏。
 5. 按严重度和影响范围给出不超过三条建议，只有得到用户确认后才修改检查、配置或规则。
 
-也可以通过 `/reflect` 手动触发完整回顾，扫描导航、自动检查、编码标准、全局指令文件膨胀、工具经济、no-op 与信息可及性；无有效发现时不制造规则。确定性约束进检查，编码标准进 Standards，操作流程进 Skill，全局指令只保留每会话必需事实及导航。证据：`skills/self-refinement/SKILL.md` 的「触发模式」「核心闭环」，`skills/self-refinement/reference/manual-retro-scan.md`，`commands/reflect.md`。
+也可以通过 `/reflect` 手动触发完整回顾，扫描导航、自动检查、编码标准、全局指令文件膨胀、工具经济、无效指令（No-ops）与信息可及性；无效指令指不改变 Agent 行为的指令，删除或精简候选须经用户确认。无有效发现时不制造规则。确定性约束进检查，编码标准进 Standards，操作流程进 Skill，全局指令只保留每会话必需事实及导航。证据：`skills/self-refinement/SKILL.md` 的「触发模式」「核心闭环」，`skills/self-refinement/reference/manual-retro-scan.md`，`commands/reflect.md`。
 
 当前限制：扫描、违规分类与建议仍依赖语义执行；本 Skill 不自带通用检查器，也没有独立效果评测 Runner，无法自动证明规则更新降低了同类错误复发率。
 
