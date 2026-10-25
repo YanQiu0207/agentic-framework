@@ -218,6 +218,7 @@ openspec/
 - `specs/`：对长期 Specs 的 Delta。
 - `design.md`：设计方案、权衡和风险。
 - `tasks.md`：任务、验证和知识同步状态。
+- `research.md`：本 Change 的代码调研结论（中间产物，追加式，随 Change 归档）。
 
 归档状态由目录位置表达：活跃 Change 位于 `changes/<ticket>-<change>/`，完成后移动到 `changes/archive/<ticket>-YYYY-MM-DD-<change>/`。
 
@@ -271,7 +272,7 @@ openspec/
 | --- | --- |
 | 需求澄清 | `specs/business/`、相关历史 Change、相关 Issues |
 | 系统设计 | 当前 Change、相关业务域、`specs/common/`、相关模块 `custom/`、相关 Issues |
-| 编码实现 | 当前 Change、相关模块 `custom/constraints.md` 和 `custom/pitfalls.md`，然后读取代码 |
+| 编码实现 | 当前 Change（含 `research.md`，存在时）、相关模块 `custom/constraints.md` 和 `custom/pitfalls.md`，然后读取代码 |
 | 测试生成 | 当前 Change 验收条件、业务规则、共享契约和相关 Issues |
 | Code Review | 当前 Change、相关业务规则、共享契约、模块约束和代码 Diff |
 | 故障排查 | 项目 Issues、模块 `custom/pitfalls.md`、代码与运行证据，必要时再查公共 Issues |
