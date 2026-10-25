@@ -55,13 +55,14 @@ owner / implementer 的固定职责：
 
 1. 只修改 Task 声明的范围；发现范围或依赖错误时停止并报告。
 2. 实现功能并通过 `workflow-test-generation` 补齐测试。
-3. 运行 Task 的 `verification` 和 `workflow-verification`；禁止弱化配置绕过失败。
-4. 返回摘要、验证命令、报告路径和 Spec Drift 结论，不返回完整 diff。
+3. 内部开发与修复迭代优先运行已有相关测试，按 `workflow-verification` 的「开发反馈与正式验证」返回定向反馈；提交任务质量门前，运行 Task 的 `verification` 和正式完整 Verify，禁止弱化配置绕过失败。
+4. 内部迭代返回摘要、实际定向命令、退出码和必要输出；提交任务质量门时另附完整验证报告路径和 Spec Drift 结论，不返回完整 diff。
 5. 禁止调用 LLM Reviewer，也不得把「尚未 Review」当作 Task 失败。
 
 主编排方收到结果后：
 
-- 实现、测试和机器检查通过 → 使用 `event <task-id> quality_passed --verify-report <verify-report.json> --write` 写入状态。Native Delivery 只接受独立 JSON 的 `verdict: PASS`，不写 Run Artifact；完整 Runtime Run 还必须传 `--run-dir <run-dir>`，并要求 Verify Artifact 与 Run、Task、Attempt 绑定。
+- 仅收到定向结果 → 作为开发反馈，不写入 `quality_passed`，要求补齐正式完整 Verify 证据。
+- 实现、测试和正式完整 Verify 通过 → 使用 `event <task-id> quality_passed --verify-report <verify-report.json> --write` 写入状态。Native Delivery 只接受独立 JSON 的 `verdict: PASS`，不写 Run Artifact；完整 Runtime Run 还必须传 `--run-dir <run-dir>`，并要求 Verify Artifact 与 Run、Task、Attempt 绑定。
 - 失败且两轮内可修复 → 在原 worktree 修复并重验。
 - 仍失败、Agent 未返回或出现范围冲突 → 标 `需人工`，保留 worktree。
 - 上游未合并 → 下游标 `阻塞`，不得 dispatch。
@@ -75,11 +76,11 @@ owner / implementer 的固定职责：
 
 所有 Task 到达「完成 / 需人工 / 阻塞」终态后：
 
-1. 对集成结果执行一次全局 `workflow-verification`。`runtime-run` 生成 Run-bound Verify Artifact；Native Delivery 生成独立 Verify 报告。
+1. 先按交付指南「正式验证前收口」完成结构检查及已知文档准备，再对集成结果执行正式完整 `workflow-verification`。`runtime-run` 生成 Run-bound Verify Artifact；Native Delivery 生成独立 Verify 报告。
 2. 涉及前端时执行 Taste 和浏览器验证；修复后重跑全局机器验证。
 3. 取所有已执行 Task 的最高 `review_profile`，对完整 diff 调用一次 `workflow-code-review`，`mode: initial`。
 4. `strict` 必须由未参与实现的独立 Judge 裁决并声明 `implementer_actor` / `judge_actor` / `independence_basis`；该要求在 Native 与 Runtime 同样适用，不因走 Native 降低独立性。
-5. keep 的 P0 / P1 触发修复；修复后重跑受影响的机器验证，并以 `mode: re-review` 只复核原 finding 和修复 diff，最多十轮（与主 Review Skill 一致；任务自身机器修复仍按 attempts 预算，两者不是同一计数）。
+5. keep 的 P0 / P1 触发修复；先按上述分类取得定向反馈，再重跑正式完整 Verify，并以 `mode: re-review` 只复核原 finding 和修复 diff，最多十轮（与主 Review Skill 一致；任务自身机器修复仍按 attempts 预算，两者不是同一计数）。
 6. P2 和 follow-up 不触发修复循环；仍有 P0 / P1 时整体标 `需人工`。
 7. Review 通过后：
     - `runtime-run`：由 Judge 写出 Run-bound `review-report.json`，再运行完整 Runtime 的 `check_delivery.py --run-dir ...` 交付门。

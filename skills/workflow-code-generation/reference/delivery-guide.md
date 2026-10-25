@@ -4,6 +4,16 @@
 
 本指南中的步骤 1、1.5、3、4 指主 Skill 的同名步骤；步骤 6 指本指南的标准交付。
 
+## 正式验证前收口
+
+轻量及标准路径在正式完整 Verify 前执行：
+
+1. 完成实现与定向反馈后，先运行低成本结构检查，例如 `git diff --check`；适用时检查 Skill 引用或任务状态一致性。检查失败先修复，不将静态检查冒充正式 Verify。
+2. 核对修改范围，收口已知的 Change 文档、规格关联、知识影响说明及可提前完成的文档更新；未达成的验收不得提前勾选。
+3. 按原流程执行正式完整 Verify、前端验证、最终 Review 和后续交付步骤。检查分类与证据边界以 `workflow-verification` 的「开发反馈与正式验证」为准。
+
+Review 修复、知识同步、任务状态更新或归档等后续操作若改变受验证主体，仍须按现有主体绑定合同重新完整验证，不得复用失效报告或调整指纹排除规则。本顺序不取消后续沉淀、知识同步、归档和交付门，也不保证每个 Change 只运行一次完整 Verify。
+
 ## 轻量交付（Fast-Path 兼容）
 
 轻量任务由当前宿主执行；中等任务可下放 Agent 并按需使用 DAG。
@@ -14,13 +24,13 @@
 
 1. 加载编码规范（同步骤 4）。
 2. 实现改动（步骤 1.5 已完成配置选择；有 `verify.config.json` 时，动代码前先 `workflow-verification` 采基线；选择跳过时只跑内置门禁并在交付报告标注）。发现外溢（超出步骤 1 路由判据）→ **立即退出**，转标准流程。
-3. **机器验证**：加载 `workflow-verification`（有 config 比基线；无 config 也跑内置 spec drift 检查），通过后继续；失败回第 2 步修复，若只是无法证明相关规格已更新且确实无需更新，则补 `--spec-drift-reason` 后重跑。
+3. **机器验证**：先执行上方「正式验证前收口」，再加载 `workflow-verification` 运行正式完整 Verify（有 config 比基线；无 config 也跑内置 spec drift 检查），通过后继续；失败回第 2 步修复，若只是无法证明相关规格已更新且确实无需更新，则补 `--spec-drift-reason` 后重跑。
 4. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证；产生代码改动时回到第 3 步重验。
 5. **统一 Code Review**：实现、测试和机器验证全部完成后，加载一次 `workflow-code-review`（Fast-Path 兼容别名使用 `review_profile: lightweight`；新的 Native Delivery 使用 `standard`；均为 `scope: integration`，`mode: initial`）。
 
    Review Artifact 必须由审查流程生成，implementer 只能原样保存，不得依据对话手写 JSON。
 
-   结论为 `NEEDS_CHANGES`（存在 keep 的 P0 / P1）→ 自行修复、重跑受影响的机器验证，再按 `mode: re-review` 定向复核，最多 10 轮；禁止启动第二次全量首审。
+   结论为 `NEEDS_CHANGES`（存在 keep 的 P0 / P1）→ 自行修复、先取得定向反馈再重跑正式完整 Verify，再按 `mode: re-review` 定向复核，最多 10 轮；禁止启动第二次全量首审。
 6. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)（强制，Fast-Path 不豁免）。
 7. **提交**：将本次改动提交本地 git（push / `svn commit` 由用户决定）；用户明确要求不提交时，在交付报告标注「未提交待用户处理」。
 8. **交付门（机器判定）**：Fast-Path 兼容别名免传 spec / tasks 与 `--run-dir`，但必须传由审查流程生成的 lightweight integration Review、独立机器验证报告与长期知识影响结论：命中时运行 `python <本 skill 目录>/scripts/check_delivery.py --review-report <review-report.json> --verify-report <.agentic-framework/verify/report.json> --knowledge-impact hit`；未命中时运行 `python <本 skill 目录>/scripts/check_delivery.py --review-report <review-report.json> --verify-report <.agentic-framework/verify/report.json> --knowledge-impact none --knowledge-impact-reason "<具体理由>"`。
@@ -39,7 +49,7 @@
 全部 wave 处理完、`tasks.md` 任务为 `完成` / `需人工` / `阻塞` 时，**禁止直接宣布交付**，先走：
 
 1. **汇总报告**（一次性，不逐 task）：汇总每个 task 的实现、测试和机器检查结果，列出哪些 `需人工`、哪些 `阻塞`、哪些合并冲突。
-2. **机器验证**：对合并结果整体跑 `workflow-verification`。
+2. **机器验证**：先执行上方「正式验证前收口」，再对合并结果整体跑正式完整 `workflow-verification`。
 
    `runtime-run` 传 `--run-dir <run-dir>` 生成 Run 级 Verify Artifact；`native-delivery` 生成独立 Verify 报告，不创建 Run Artifact。
 
@@ -53,7 +63,7 @@
 
    Artifact 必须由审查流程生成：`standard` 可由 `comprehensive-reviewer` 自证，`strict` 必须由未参与实现的独立 Judge 裁决；implementer 不得手写或改写 Artifact。
 
-   存在 keep 的 P0 / P1 时派 fix agent 修复、重跑受影响的验证，再按 `mode: re-review` 只复核 finding 和修复 diff；最多 10 轮，禁止启动第二次全量首审。
+   存在 keep 的 P0 / P1 时派 fix agent 修复、先取得定向反馈再重跑正式完整 Verify，再按 `mode: re-review` 只复核 finding 和修复 diff；最多 10 轮，禁止启动第二次全量首审。
 5. **交付前沉淀检查**：见下方[「交付前沉淀检查」](#交付前沉淀检查)，执行统一知识影响检查，并逐条核销步骤 3 / Phase 1 预留的「intent 沉淀」任务。命中长期知识影响时记录目标 `openspec/specs/` 或 `openspec/issues/` 及同步状态；Fast-Path 未创建 Change 时必须说明无长期知识影响的理由。
 6. **知识同步与归档**：加载 `project-knowledge`，对照实际 Diff 和验证证据完成 Delta、索引、Issues 与冲突检查；知识同步任务未完成时禁止归档。**归档移动前必须先跑 `python <本 skill 目录>/scripts/lint_task_deps.py <tasks.md 路径> --state-consistency`**：`tasks.md` 的任务头复选框、`- 状态：` 字段与验收标准／子任务复选框必须同向。
 
