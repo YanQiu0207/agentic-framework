@@ -15,6 +15,8 @@
 - Spec：{spec_path 或 N/A}
 - Tasks：{tasks_path 或 N/A}
 - 当前 Task：{task_id 或 N/A}
+- 交付路径与档位：{Native Delivery 或 Runtime Run} / {review_profile}
+- 内容主体：{Native 的 subject_id，取自绑定本次被审内容的 Verify；Runtime 使用 Run Context}
 - 适用 skill：{skill_list}
 - 变更摘要：{scope_summary}
 
@@ -25,7 +27,7 @@
 
 只报你的维度内的问题。其他维度的线索可以用一行 handoff note 提示。
 
-当 `review_profile` 为 `lightweight` 或 `standard` 时，`comprehensive-reviewer` 还必须在回复末尾输出本轮完整、可直接保存的 6 字段 JSON Artifact（`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round`）。编排方只能字节级原样保存该 JSON，不得手写、补全或改写字段。
+当 `review_profile` 为 `lightweight` 或 `standard` 时，`comprehensive-reviewer` 还必须按 report-format.md 输出本轮完整、可直接保存的 JSON Artifact。无 Run 的 Native Delivery（含 Fast-Path 兼容别名）使用 v2：`schema_version: 2`、`subject_id`、`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round`；集成交付使用 `scope: integration`。缺少与被审内容绑定的 `subject_id` 时先报告缺失，不得猜测或退回旧六字段报告。strict 由独立 Judge 按对应交付路径的合同生成，Reviewer 不代写裁决。编排方只能字节级原样保存该 JSON，不得手写、补全或改写字段。
 ```
 
 

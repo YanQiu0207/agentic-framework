@@ -6,7 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[0]))
@@ -148,6 +148,11 @@ class SwebenchRunnerTest(unittest.TestCase):
             swebench_runner.execute_plan(plan, True)
 
     def test_wsl_docker_command_mounts_predictions_parent(self) -> None:
+        class AbsoluteWindowsPath(PureWindowsPath):
+            def resolve(self):
+                assert self.is_absolute()
+                return self
+
         plan = {
             "dataset": swebench_runner.DEFAULT_DATASET,
             "predictions_path": r"E:\evaluation\predictions.jsonl",
@@ -156,19 +161,20 @@ class SwebenchRunnerTest(unittest.TestCase):
             "model_name_or_path": "codex",
             "command": ["python", "--max_workers", "2"],
         }
-        command = swebench_runner.build_wsl_docker_command(plan)
+        with mock.patch.object(swebench_runner, "Path", AbsoluteWindowsPath):
+            command = swebench_runner.build_wsl_docker_command(plan)
         self.assertEqual("wsl", command[0])
         self.assertIn("/mnt/e/evaluation:/work", command[-1])
         self.assertIn("swebench==4.1.0", command[-1])
 
     def test_official_report_path_uses_swebench_model_name_format(self) -> None:
         plan = {
-            "predictions_path": r"E:\evaluation\predictions.jsonl",
+            "predictions_path": str(Path("evaluation") / "predictions.jsonl"),
             "model_name_or_path": "org/model",
             "run_id": "pilot",
         }
         self.assertEqual(
-            Path(r"E:\evaluation\org__model.pilot.json"),
+            Path("evaluation") / "org__model.pilot.json",
             swebench_runner._official_report_path(plan),
         )
 

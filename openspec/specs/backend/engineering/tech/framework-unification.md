@@ -252,20 +252,20 @@ Tasks 获批
         │   → 按需 DAG、worktree、失败隔离与恢复
         │   → 实现、测试、独立机器验证、一次最终 Review
         │   → Native Delivery Verdict
-        └── 完整 Runtime Run（升级条件命中）
+        └── 完整 Runtime Run（显式选择、硬性审计或跨宿主验证）
             → init-run、Run-bound Artifact、一次最终 Review
             → Trust Gate
 ```
 
 ### 6.3 强制规则
 
-- Native Delivery 是 Tooling 的默认交付路径。轻量任务也使用 standard integration Review 与完整独立 Verify，不再提供 Fast-Path 独立兼容交付。
-- 完整 Runtime Run 仅在 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求命中时启用；任务文件数和模型版本不是升级条件。必须先启用 `runtime`；缺包或查询失败时停止，不降低风险。SVN 命中升级需求时停止并建议使用 Git 隔离工作区，普通 SVN Native Delivery 不额外要求高级初始化能力包。
-- `workflow_control.py` 的 DAG、waves、状态、锁、失败隔离和恢复可独立使用，不得因使用这些能力自动伪造或创建 Run Context。并行 worktree 写入本身是 Runtime 升级条件。
+- Native Delivery 是 Tooling 的默认交付路径，使用 v2 integration Review 与独立 v2 Verify，绑定同一 `subject_id`。Fast-Path 仅保留为 lightweight 兼容别名，不是新的默认路径，也不能绕过 v2 内容绑定。
+- 完整 Runtime Run 仅在显式 `--execution-mode runtime`、硬性审计要求（`--audit-required`）或跨宿主能力验证（`--cross-host-capability-verification`）时启用；`strict` 风险、并行 worktree 写入、长任务恢复、任务文件数和模型版本均不自动触发。必须先启用 `runtime`；缺包或查询失败时停止，不绕过已确认的 Runtime 要求。SVN 命中 Runtime 要求时停止，不自动创建 Git 镜像或桥接；普通 SVN Native Delivery 不额外要求高级初始化能力包。
+- `workflow_control.py` 的 DAG、waves、状态、锁、失败隔离和恢复可独立使用，不得因使用这些能力自动伪造或创建 Run Context。
 - 风险触发的升级与批准（change 2039）：任务声明 `Escalation` 条件后可经 `event escalate` 进入「待批准」暂停，凭与 `Escalation` 一致的 `Approval: granted (<条件>)` 证据经 `event approval_granted` 恢复；`merge_success` 前按同一证据规则失败关闭，`per-task` 模式下每个任务都需批准。升级条件与批准模式词表逐项抄录 Production（`validate_change.py:102-113`），不新建第二套。「待批准」是执行期内部态：持久化映射为规范态 `需人工` 加 `control_stage: awaiting_approval`，读侧规范值恒为五个，`TASK_STATES` 与 `parse_state` 不含 `待批准`。未声明升级条件的执行路径零变化（零触发等价，波次／恢复／阻塞／可派发逐字节比对）。这是 §3.2 条件 3 的**部分**举证：审批规则可机器强制，其余强制规则仍未举证。
 - 每个任务可以执行测试和机器检查，但禁止启动 LLM Review；全部任务完成后只启动一次最终 Review。
 - Review Profile：
-  - Native Delivery：Tooling 使用 `standard` 集成 Review，Production 使用 `strict` 集成 Review；后者是治理下限，不自动等同于 Runtime 风险升级。
+  - Native Delivery：Tooling 默认使用 `standard`，任务声明 `strict` 时使用 `strict`；Production 使用 `strict` 集成 Review。strict 必须由独立 Judge 裁决，并提供 v2 三项独立性声明；治理或风险档位均不自动启用 Runtime。
   - 完整 Runtime Run：`strict` Run 级 Review。
 - P0/P1 才触发修复；修复后只执行定向 re-review。
 - Tooling 与 Production 使用相同的 `openspec/changes/`、`openspec/specs/` 和 `openspec/issues/` 契约；差异仅保留在审批、Review、DAG、Worktree、失败恢复和 Runtime 审计策略中。
@@ -397,8 +397,8 @@ scope: task | integration | run
 
 - 每个 Review Scope 只有一次 `initial` Review。
 - Production 普通 Task 使用 `standard`，高风险 Task 使用 `strict`，最终 `integration` 固定使用 `strict`。
-- Tooling 的新标准交付固定使用 Native Delivery 的 `standard` 集成 Review；轻量任务使用同一合同，不再输出 Fast-Path Verdict。
-- Tooling 命中 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求时，必须在启用 `runtime` 后升级为完整 Runtime Run，并使用 `strict` Review；能力缺失时停止。
+- Tooling 的新标准交付默认使用 Native Delivery 的 `standard` 集成 Review；高风险任务使用 Native `strict` 与独立 Judge。Fast-Path 兼容别名保留 lightweight Review，但仍受 v2 内容主体绑定约束。
+- Tooling 仅在显式 Runtime 选择、硬性审计要求或跨宿主能力验证时，在启用 `runtime` 后进入完整 Runtime Run，并使用 `strict` Review；能力缺失时停止。strict 风险、并行与恢复本身不启用 Runtime。
 - 只有 P0/P1 触发修复。
 - re-review 只检查原 finding 和修复 diff，禁止重新全量扫描。
 - re-review 最多 10 轮，仍未通过则转人工。
@@ -660,12 +660,12 @@ E:\work\my-ai-resource\agentic-framework
 
 ### 16.3 Tooling
 
-- Native Delivery 为默认路径；轻量任务与标准任务共用 standard integration Review 和独立 Verify。
-- 完整 Runtime Run 只在已定义的风险或执行条件命中时启用。
+- Native Delivery 为默认路径，默认 standard integration Review，任务声明 strict 时使用独立 Judge；Review 与独立 Verify 均使用同一内容主体的 v2 合同。Fast-Path 仅为 lightweight 兼容别名。
+- 完整 Runtime Run 只在显式 Runtime 选择、硬性审计要求或跨宿主能力验证时启用。
 - Quick、Native Delivery 和完整 Runtime Run 使用统一的 `openspec/changes/` Artifact；长期知识使用 `openspec/specs/`。
 - DAG 分波、失败隔离、worktree、锁和恢复可按执行需求启用。
 - task 级不启动 LLM Review；全部任务完成后只执行一次分级首轮 Review。
-- 高风险改动必须升为 `strict`；仅在 `runtime` 已启用且运行条件满足时进入完整 Run，否则停止。
+- 高风险改动必须升为 `strict` Review，但不自动创建 Run；已确认的 Runtime 要求必须在 `runtime` 已启用且运行条件满足时执行，否则停止。
 
 ### 16.4 安装
 

@@ -22,7 +22,8 @@ def repository(tmp_path):
     command(tmp_path, "git", "init")
     command(tmp_path, "git", "config", "user.email", "fixture@example.invalid")
     command(tmp_path, "git", "config", "user.name", "Fixture")
-    (tmp_path / "原始 file.txt").write_text("base\n", encoding="utf-8")
+    command(tmp_path, "git", "config", "core.autocrlf", "false")
+    (tmp_path / "原始 file.txt").write_bytes(b"base\n")
     command(tmp_path, "git", "add", ".")
     command(tmp_path, "git", "commit", "-m", "base")
     return tmp_path

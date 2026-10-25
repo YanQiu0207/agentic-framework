@@ -1,6 +1,6 @@
 # Runtime 执行
 
-仅在主 Skill 判定需要 Runtime 且能力查询确认 `runtime` 已启用时读取。缺包时停止并提示安装器 `--with runtime`，不得改用 Native Delivery 绕过严格风险。SVN 命中 Runtime 条件时停止，改用 Git 隔离工作区后重新路由。
+仅在主 Skill 根据显式选择、硬性审计要求或跨宿主验证判定需要 Runtime，且能力查询确认 `runtime` 已启用时读取。缺包时停止并提示安装器 `--with runtime`，不得改用 Native Delivery 绕过已确认的 Runtime 要求；strict 风险本身不启用 Runtime。SVN 命中 Runtime 条件时停止，不自动创建 Git 镜像或桥接。
 
 ## 启动
 
@@ -20,4 +20,4 @@
 - 每次 `quality_passed --write` 传 `--run-dir` 和本次执行生成、绑定 Run／Task／Attempt 的 Envelope Verify Artifact；顶层 `PASS` 不能替代绑定证据。
 - 全局 Verify 传 `--run-dir`。最终 Review 使用 `scope: run`、`review_profile: strict`，由未参与实现的独立 Judge 生成 Envelope；implementer 不得编写或改写 Artifact。
 - 按主 Skill 完成知识同步、归档和本地提交后，执行 `check_delivery.py --run-dir <run-dir> --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <run-dir>/artifacts/review-run.json --knowledge-impact hit|none`；`none` 时附具体理由。门禁校验 Manifest、Journal、Harness、Trust Gate、终态、归档和工作区。报告只引用原始 stdout。
-- 恢复时传 `--long-task-recovery` 重新确认路由，再运行 `workflow_control.py <tasks.md> recover --merged <task-id...>`。核对 worktree、合并事实和机器证据；已有首轮 Review 时只继续定向复审，不重启首审。
+- 恢复已有 Runtime Run 时传 `--execution-mode runtime --long-task-recovery` 重新确认路由，保留原 Run 绑定，再运行 `workflow_control.py <tasks.md> recover --merged <task-id...>`。`--long-task-recovery` 本身不启用 Runtime。核对 worktree、合并事实和机器证据；已有首轮 Review 时只继续定向复审，不重启首审。

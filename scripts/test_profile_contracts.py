@@ -158,16 +158,16 @@ class ProfileContractTest(unittest.TestCase):
             "openspec/index.md",
             "openspec/specs/index.md",
             "openspec/issues/index.md",
-            "已有同名章节不覆盖",
-            "未跟踪内容也不得移动或删除",
+            "不得覆盖已有同名章节",
+            "不得以「未跟踪」为由移动或删除",
             "disable-model-invocation: true",
             ".agentic-framework/",
         ):
             self.assertIn(required, text)
         self.assertIn("](reference/advanced-init.md)", text)
-        self.assertIn("仅当用户要求 SVN、外置正文或公共库接线", text)
-        self.assertIn("默认不询问外置和公共接线", text)
-        self.assertIn("缺包时停止所请求的高级操作", text)
+        self.assertIn("选择 SVN、外置正文或公共库接线之前", text)
+        self.assertIn("公共知识库由用户单独决定", text)
+        self.assertIn("缺包或查询失败时停止", text)
         self.assertIn("--show-packs <project>", text)
         advanced = (
             ROOT / "skills/project-init/reference/advanced-init.md"

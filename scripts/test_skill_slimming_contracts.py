@@ -35,28 +35,34 @@ def test_task_template_dependency_uses_real_parser() -> None:
 
 
 def test_no_independent_compatibility_delivery_in_active_instructions() -> None:
-    """Old calls cannot continue routing to weaker evidence."""
-    for area in ("skills", "commands", "agents"):
-        for path in (ROOT / area).rglob("*.md"):
-            text = path.read_text(encoding="utf-8")
-            assert "Fast-Path" not in text, path
-            assert "fast-path-pass" not in text, path
+    """The compatibility alias cannot claim Runtime or bypass v2 evidence."""
     generation = read("skills/workflow-code-generation/SKILL.md")
-    section = generation.split("## Native Delivery", 1)[1].split(
-        "## 标准流程", 1
-    )[0]
+    assert "Fast-Path 仅作兼容别名" in generation
+    assert "reference/delivery-guide.md" in generation
+    guide = read("skills/workflow-code-generation/reference/delivery-guide.md")
     for required in (
-        "review_profile: standard",
         "scope: integration",
         "--native-delivery",
         "--verify-report",
         "--review-report",
         "--knowledge-impact",
         "knowledge-impact-reason",
-        "`hit` 而无 Change 时先停止并创建 Change",
+        "不得声明 strict Review 或 Trust Gate PASS",
     ):
-        assert required in section
-    assert "review_profile: lightweight" not in section
+        assert required in guide
+    report = read("skills/workflow-code-review/reference/report-format.md")
+    alias = next(line for line in report.splitlines()
+                 if line.startswith("| Fast-Path 兼容别名 |"))
+    for required in ("v2", 'scope: "integration"',
+                     'review_profile: "lightweight"', "不得声明 Runtime 证据"):
+        assert required in alias
+    assert "旧六字段报告只按旧合同展示历史，不能作为新交付证据" in report
+    prompts = read("skills/workflow-code-review/reference/reviewer-prompts.md")
+    for required in ("report-format.md", "schema_version: 2", "`subject_id`",
+                     "不得猜测或退回旧六字段报告", "strict 由独立 Judge"):
+        assert required in prompts
+    for entry in (prompts, read("agents/comprehensive-reviewer.md")):
+        assert "6 字段 JSON Artifact" not in entry
 
 
 @pytest.mark.parametrize(
@@ -134,6 +140,8 @@ def test_manual_initialization_and_telemetry_fields_preserved() -> None:
     assert "disable-model-invocation: true" in init
     assert "禁止模型自动调用" in init
     generation = read("skills/workflow-code-generation/SKILL.md")
+    assert "reference/delivery-guide.md#统一交付证据格式" in generation
+    delivery = read("skills/workflow-code-generation/reference/delivery-guide.md")
     for field in (
         "Feature",
         "Task",
@@ -142,18 +150,15 @@ def test_manual_initialization_and_telemetry_fields_preserved() -> None:
         "Verify Retries",
         "Manual Intervention",
     ):
-        assert f"**{field}**:" in generation
-    delegated = read(
-        "skills/workflow-code-generation/reference/delegated-execution-guide.md"
-    )
-    assert "最多 10 轮" in generation and "最多 10 轮" in delegated
+        assert f"**{field}**:" in delivery
+    assert "最多十轮" in generation and "最多 10 轮" in delivery
     assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation
 
 
 def test_existing_svn_is_detected_before_git_initialization() -> None:
     """Existing SVN or an unresolved marker must not become a Git repo."""
     text = read("skills/project-init/SKILL.md")
-    routing, initialization = text.split("## 初始化", 1)
+    routing, initialization = text.split("### 4. 初始化版本控制", 1)
     for required in (
         "当前目录及祖先",
         "`svn info`",
@@ -173,74 +178,76 @@ def test_existing_svn_is_detected_before_git_initialization() -> None:
     assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation
 
 
-def test_native_review_templates_match_profile_specific_machine_gate(
-    tmp_path: Path,
-) -> None:
-    """Both documented flat examples must pass only their governance floor."""
-    import check_delivery
+def test_native_review_templates_match_profile_specific_machine_gate() -> None:
+    """The documented v2 template and strict declarations match the gate."""
+    import native_delivery
 
-    review = read("skills/workflow-code-review/SKILL.md")
+    review = read("skills/workflow-code-review/reference/report-format.md")
     examples = [
         json.loads(block)
         for block in re.findall(r"```json\n(.*?)```", review, re.S)
     ]
-    native = {
-        item["review_profile"]: item
-        for item in examples
-        if item.get("scope") == "integration"
+    template = next(item for item in examples
+                    if item.get("scope") == "integration")
+    assert template["schema_version"] == 2
+    assert template["subject_id"] == "sha256:<64-hex>"
+    template["subject_id"] = "sha256:" + "0" * 64
+    independence = {
+        "implementer_actor": "implementer",
+        "judge_actor": "independent-reviewer",
+        "independence_basis": "Judge did not implement this change",
     }
-    assert set(native) == {"standard", "strict"}
-    fields = {
-        "verdict",
-        "p0_count",
-        "p1_count",
-        "scope",
-        "review_profile",
-        "round",
-    }
-    for profile, artifact in native.items():
-        assert set(artifact) == fields
-        report = tmp_path / f"{profile}.json"
-        report.write_text(json.dumps(artifact), encoding="utf-8")
-        assert not check_delivery.check_native_delivery_review(report, profile)
-        wrong = "strict" if profile == "standard" else "standard"
-        assert check_delivery.check_native_delivery_review(report, wrong)
+    for field in independence:
+        assert f"`{field}`" in review
+    for profile in ("lightweight", "standard", "strict"):
+        artifact = {**template, "review_profile": profile}
+        if profile == "strict":
+            with pytest.raises(native_delivery.NativeDeliveryError):
+                native_delivery.validate_review_report(artifact, profile)
+            artifact.update(independence)
+        native_delivery.validate_review_report(artifact, profile)
+        wrong = "strict" if profile != "strict" else "standard"
+        with pytest.raises(native_delivery.NativeDeliveryError):
+            native_delivery.validate_review_report(artifact, wrong)
+        for override in ({"run_id": "fake-run"}, {"scope": "run"}):
+            with pytest.raises(native_delivery.NativeDeliveryError):
+                native_delivery.validate_review_report({**artifact, **override})
+    with pytest.raises(native_delivery.NativeDeliveryError):
+        native_delivery.validate_review_report({**template, **independence})
+    with pytest.raises(native_delivery.NativeDeliveryError):
+        native_delivery.validate_review_report({
+            **template, **independence, "review_profile": "strict",
+            "judge_actor": independence["implementer_actor"],
+        })
+    legacy = {key: value for key, value in template.items()
+              if key not in {"schema_version", "subject_id"}}
+    with pytest.raises(native_delivery.NativeDeliveryError):
+        native_delivery.validate_review_report(legacy)
 
 
 def test_shared_native_instructions_respect_governance_not_risk() -> None:
-    """All shared handoffs agree on scope, producer and strict risk routing."""
+    """Risk selects review rigor; only explicit requirements select Runtime."""
     generation = read("skills/workflow-code-generation/SKILL.md")
-    light = generation.split("## Native Delivery", 1)[1].split(
-        "## 标准流程", 1
-    )[0]
-    final = generation.split("4. **一次最终审核**", 1)[1].split(
-        "5. **交付前沉淀检查**", 1
-    )[0]
-    for section in (light, final):
-        for required in (
-            "Tooling 使用 `review_profile: standard`",
-            "Production 使用 `review_profile: strict`",
-            "scope: integration",
-            "扁平 6 字段",
-            "comprehensive-reviewer",
-            "独立 Judge",
-        ):
-            assert required in section
-    assert "Tooling 为 `standard`，Production 为 `strict`" in light
-    assert "不降低机器门下限" in light
-    assert "这不代表任务风险为 `strict`，不单独触发 Runtime" in generation
-    assert "两种 Profile 都仍须走 Runtime" in generation
+    for required in ("--execution-mode runtime", "--audit-required",
+                     "--cross-host-capability-verification",
+                     "不因风险自动建 Run", "三项独立性声明",
+                     "独立 v2 验证报告，不初始化 Run"):
+        assert required in generation
     assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation
     review = read("skills/workflow-code-review/SKILL.md")
-    production = next(
-        line
-        for line in review.splitlines()
-        if line.startswith("| Production Native Delivery |")
-    )
-    assert "未参与实现的独立 Judge" in production
-    assert 'scope: "integration"' in production
-    assert 'review_profile: "strict"' in production
-    assert "不添加 Run 或独立性机器字段" in production
-    assert "`strict` 的 Tooling Review 必须升级到完整 Runtime Run" in review
-    assert "两种 Profile 都仍须按代码生成路由处理" in review
-    assert '不得输出 `scope: "run"` 或 `review_profile: "strict"`' not in review
+    for required in ("Tooling Native Delivery 默认 `standard`",
+                     "Production 仍按其生命周期选择 `strict`",
+                     "独立 Judge 与三项独立性声明，不因此要求 Run",
+                     "无 Run 的 strict 写成 `scope: integration` 的 v2 报告",
+                     "编排方与实现者只能原样保存完整 JSON"):
+        assert required in review
+    report = read("skills/workflow-code-review/reference/report-format.md")
+    assert '不得输出 `scope: "run"` 或 `review_profile: "strict"`' not in report
+    assert "不得提供 `run_id`、Harness、Trust Gate、Manifest 声明" in report
+    delivery = read("skills/workflow-code-generation/reference/delivery-guide.md")
+    assert "任务声明 `strict` 时使用 `strict`，由独立 Judge" in delivery
+    assert "与独立 v2 Verify，校验同一 `subject_id`" in delivery
+    runtime = read("skills/workflow-code-generation/reference/runtime-guide.md")
+    assert "strict 风险本身不启用 Runtime" in runtime
+    assert "--execution-mode runtime --long-task-recovery" in runtime
+    assert "不自动创建 Git 镜像或桥接" in runtime

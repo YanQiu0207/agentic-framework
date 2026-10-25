@@ -57,7 +57,7 @@
 
 | 交付路径 | JSON 位置 | 必填裁决字段 | Run Context 与可声明边界 |
 | --- | --- | --- | --- |
-| Native Delivery | `comprehensive-reviewer` 生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `schema_version: 2`、`subject_id`、`verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile`（standard，或任务声明 strict 时的 `strict`）、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 声明；strict 额外必填 `implementer_actor` / `judge_actor` / `independence_basis`（两者不同且非空），非 strict 携带即非法。 |
+| Native Delivery | `comprehensive-reviewer`（standard）或独立 Judge（strict）生成独立 `review-report.json`；编排方原样保存到建议路径 `.agentic-framework/review/review-integration.json`，并显式传给 `check_delivery.py` | 顶层 `schema_version: 2`、`subject_id`、`verdict`、`p0_count`、`p1_count`、`scope: "integration"`、`review_profile`（standard，或任务声明 strict 时的 `strict`）、`round` | 不得提供 `run_id`、Harness、Trust Gate、Manifest 声明；strict 额外必填 `implementer_actor` / `judge_actor` / `independence_basis`（两者不同且非空），非 strict 携带即非法。 |
 | 完整 Runtime Run | 独立 Judge 生成 `.agentic-framework/runs/<run-id>/artifacts/review-run.json` | Envelope `payload` 中的裁决字段，`scope: "run"`、`review_profile: "strict"` | 必须提供 `run-context.json`，可按 Runtime 合同声明 Run 绑定证据。 |
 | Fast-Path 兼容别名 | `comprehensive-reviewer` 生成独立 `review-report.json`，由编排方原样保存 | v2 顶层字段，`scope: "integration"`、`review_profile: "lightweight"` | 仅为迁移兼容；不是新的默认执行合同，也不得声明 Runtime 证据。 |
 
@@ -76,7 +76,7 @@
 }
 ```
 
-完整 Runtime Run 使用 Envelope，并从 `run-context.json` 复制 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`。缺少 Run Context 时，不得输出 `scope: "run"` 或 `review_profile: "strict"` 的可放行报告：
+完整 Runtime Run 使用 Envelope，并从 `run-context.json` 复制 `run_id`、`profile`、`harness`、`commit_sha` 和 `config_digest`。缺少 Run Context 时，不得输出 `scope: "run"` 的可放行报告；无 Run 的 strict 审查使用上述 Native v2 合同，并提供三项独立性声明：
 
 ```json
 {

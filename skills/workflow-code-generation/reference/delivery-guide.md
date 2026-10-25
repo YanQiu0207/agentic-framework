@@ -49,7 +49,7 @@
 3. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证。失败则修复并回到第 2 步重验。
 4. **一次最终审核**：对本次全部变更调用一次 `workflow-code-review`（`mode: initial`）。
 
-   `native-delivery` 固定产出无 Run 的 `scope: integration`、`review_profile: standard` 报告；`runtime-run` 固定产出绑定 Run Context 的 `scope: run`、`review_profile: strict` Envelope。
+   `native-delivery` 产出无 Run 的 v2 `scope: integration` 报告，默认 `review_profile: standard`；任务声明 `strict` 时使用 `strict`，由独立 Judge 提供 `implementer_actor`、`judge_actor`、`independence_basis` 三项独立性声明。报告的 `subject_id` 与 Verify 绑定同一被审内容。`runtime-run` 固定产出绑定 Run Context 的 `scope: run`、`review_profile: strict` Envelope。
 
    Artifact 必须由审查流程生成：`standard` 可由 `comprehensive-reviewer` 自证，`strict` 必须由未参与实现的独立 Judge 裁决；implementer 不得手写或改写 Artifact。
 
@@ -69,7 +69,7 @@
 
    `native-delivery` 运行 `python <本 skill 目录>/scripts/check_delivery.py --native-delivery --native-delivery-verdict <repo>/.agentic-framework/native-delivery/verdict.json --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <review-report.json> --verify-report <verify-report.json> --knowledge-impact hit|none`；`none` 时追加 `--knowledge-impact-reason "<具体理由>"`。
 
-   该门只接受由审查流程生成的无 Run standard integration Review 与独立 Verify，只能生成有界 Verdict，不得声明 Trust Gate 或 Harness 能力。**交付报告只能逐字引用 `check_delivery.py` 成功执行的原始 stdout，不得自行归纳为「交付门 PASS」或等价措辞。** 缺少归档路径、干净 Git 状态或有效 Review / Verify Artifact，或命令非 0 时，禁止任何「交付门 PASS」类表述；必须改报实际缺失项或失败输出。
+   该门只接受由审查流程生成的无 Run v2 integration Review（standard，或任务声明 strict 时的 strict）与独立 v2 Verify，校验同一 `subject_id` 和 strict 独立性声明；只能生成有界 Verdict，不得声明 Trust Gate 或 Harness 能力。**交付报告只能逐字引用 `check_delivery.py` 成功执行的原始 stdout，不得自行归纳为「交付门 PASS」或等价措辞。** 缺少归档路径、干净 Git 状态或有效 Review / Verify Artifact，或命令非 0 时，禁止任何「交付门 PASS」类表述；必须改报实际缺失项或失败输出。
 
    非 0 → 回对应步骤修复后重跑。
 9. 按[「统一交付证据格式」](#统一交付证据格式)交付，等用户验收 `需人工` / `阻塞` 项的处理。

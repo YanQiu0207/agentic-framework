@@ -1206,8 +1206,9 @@ def main(argv: list[str]) -> int:
             sys.stdout.reconfigure(encoding="utf-8")  # 避免 Windows 控制台中文乱码
         if args.command == "init-run":
             repo = _repository_root(args.tasks_md)
-            framework_packs.require_pack(repo, "runtime")
-            if _detect_vcs(repo, args.vcs_backend) == "svn":
+            task_directory = args.tasks_md.resolve().parent
+            framework_packs.require_pack(task_directory, "runtime")
+            if _detect_vcs(task_directory, args.vcs_backend) == "svn":
                 raise ValueError("完整 Runtime Run 仅支持 Git；SVN 不得降级为 Native Delivery")
             _, tasks = _load(args.tasks_md)
             context = runtime_workflow.initialize_run(
@@ -1306,7 +1307,7 @@ def main(argv: list[str]) -> int:
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
                 detected_vcs = _detect_vcs(
-                    _repository_root(args.tasks_md), args.vcs_backend
+                    args.tasks_md.resolve().parent, args.vcs_backend
                 )
                 selected = select_execution_route(
                     args.review_profile,
@@ -1320,7 +1321,9 @@ def main(argv: list[str]) -> int:
                     vcs=detected_vcs,
                 )
                 if selected.path == "runtime-run":
-                    framework_packs.require_pack(_repository_root(args.tasks_md), "runtime")
+                    framework_packs.require_pack(
+                        args.tasks_md.resolve().parent, "runtime"
+                    )
                 # 旧并行/恢复 flags 保留为执行需求输入：不再自动升级 Runtime，
                 # 由编排方按需使用 Worktree 隔离与恢复规划。
                 if selected.path == "native-delivery" and (
@@ -1360,7 +1363,7 @@ def main(argv: list[str]) -> int:
             elif args.command == "recover":
                 _require_verify_config_decision(args.tasks_md, text)
                 detected_vcs = _detect_vcs(
-                    _repository_root(args.tasks_md), args.vcs_backend
+                    args.tasks_md.resolve().parent, args.vcs_backend
                 )
                 print(
                     "[workflow-control] recover 只读：核对 tasks 与调用方提供的集成"

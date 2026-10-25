@@ -138,23 +138,23 @@
 
 - **Given** 一次未命中 Runtime 升级条件的标准交付未走完整 Run（无 `--run-dir`）
 - **When** 交付门以 Native Delivery 模式校验
-- **Then** 必须按治理 Profile 校验 integration Review（Tooling 为 `standard`，Production 为 `strict`）、机器验证报告、工作区干净与知识影响结论
+- **Then** 必须校验 v2 integration Review（Tooling 默认 `standard`，任务声明 `strict` 时使用独立 Judge；Production 为 `strict`）、同一 `subject_id` 的独立 v2 Verify、工作区干净与知识影响结论
 - **And** 裁决必须为 `native-delivery-pass`，不得表述为 strict Trust Gate PASS
-- **And** 必须显式声明 `strict-independent-review` 与 `run-manifest-evidence-graph` 为不可证明
+- **And** Native strict 必须提供 `implementer_actor`、`judge_actor`、`independence_basis`，但不能证明强身份隔离、语义正确性或 Runtime 的 `run-manifest-evidence-graph`
 
 #### Scenario：轻量 Native Delivery
 
 - **Given** 一次局部低风险改动没有 Change
 - **When** 交付门显式使用 `--native-delivery`
 - **Then** 仅 `--knowledge-impact none` 且附具体理由时允许同时省略 `--tasks` 与 `--spec`
-- **And** 仍校验与治理 Profile 匹配的 integration Review（Tooling 为 `standard`，Production 为 `strict`）、完整独立 Verify 与工作区；只传一个路径或声明 `hit` 均失败关闭
-- **And** 旧 Fast-Path 隐式调用拒绝并提示迁移，不输出 `fast-path-pass`
+- **And** 仍校验与治理及任务档位匹配的 v2 integration Review（Tooling 默认 `standard`，任务声明 `strict` 时使用独立 Judge；Production 为 `strict`）、同一内容主体的完整独立 v2 Verify 与工作区；只传一个路径或声明 `hit` 均失败关闭
+- **And** Fast-Path 仅为 lightweight 兼容别名，保留兼容裁决 `fast-path-pass`，仍须校验 v2 Review／Verify 内容主体绑定，不得声明 Runtime 证据
 
-Production 的治理 `strict` 下限本身不触发 Runtime 升级；以下升级条件指任务风险或实际执行需求。
+Production 的治理 `strict` 下限、任务 `strict` 风险、并行 worktree 写入和长任务恢复均不自动启用 Runtime；以下条件只指显式 Runtime 选择或必须由 Runtime 提供的证据要求。
 
 #### Scenario：Runtime 启用检查
 
-- **Given** 一次交付命中 `strict` 风险、并行 worktree 写入、长任务恢复、跨宿主能力验证或明确审计要求
+- **Given** 一次交付显式选择 `--execution-mode runtime`，或声明硬性审计要求（`--audit-required`）、跨宿主能力验证（`--cross-host-capability-verification`）
 - **When** 交付门校验该交付
 - **Then** 必须先通过 `runtime` 能力检查，再使用带 `--run-dir` 的完整 Runtime Run 与 `strict` Review
 - **And** 缺包、查询失败或 SVN 工作副本均停止，不得降级为 Native Delivery
