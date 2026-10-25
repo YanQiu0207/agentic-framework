@@ -1,0 +1,25 @@
+{
+    "schema_version": 1,
+    "artifact_type": "review-report",
+    "artifact_id": "review-run",
+    "run_id": "2051-runtime-replay-fix",
+    "profile": "tooling",
+    "harness": "codex",
+    "commit_sha": "d4bfdbfd9d152d9a46b0d10039702713f87a08b6",
+    "config_digest": "sha256:a0245b770035268ab4dc8fcdafd2895903ee08a0f5a4f22ab28ab851623a968e",
+    "task_id": null,
+    "attempt": null,
+    "producer": "workflow-code-review",
+    "created_at": "2026-10-25T05:56:55.613017Z",
+    "payload": {
+        "verdict": "NEEDS_CHANGES",
+        "p0_count": 0,
+        "p1_count": 1,
+        "scope": "run",
+        "review_profile": "strict",
+        "round": 0,
+        "implementer_actor": "/root",
+        "judge_actor": "/root/runtime_fix_judge",
+        "independence_basis": "process-separated-agent"
+    }
+}
