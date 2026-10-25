@@ -43,6 +43,7 @@ python -m pytest scripts -q --tb=short --lf
 - 原 Verify 另有既有框架知识来源版本滞后警告，未为通过本 Change 重写无关元数据。
 - 机器报告位于 `.agentic-framework/verify/report.json`，失败复跑日志位于 `.agentic-framework/verify/last-failed.log`。最终 Review 位于 `.agentic-framework/review/`，只由独立审查方生成。
 - 需在具备 SVN 工具和符号链接权限的环境重跑原配置；当前不归档、不宣称正式交付通过。
+- 首次交付门还发现知识同步使用了散文，未被同步表解析器识别；已补标准同步表，并直接核对知识门。该修正不改变功能与测试范围，按修复 Diff 定向复审，不重新启动全量首审。
 
 ## 独立行为演练
 

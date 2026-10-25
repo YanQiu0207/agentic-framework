@@ -109,6 +109,10 @@ Task 1 → Task 2 → Task 3 → Task 4
 
 目标：`openspec/specs/backend/engineering/tech/architecture-improvement.md`，根索引已接线；已同步，证据边界明确。
 
+| Delta | 长期目标 | 动作 | 状态 | 索引更新 |
+| --- | --- | --- | --- | --- |
+| proposal.md §3（Quick Draft，无独立 Delta） | `openspec/specs/backend/engineering/tech/architecture-improvement.md` | ADDED | Completed | `openspec/index.md` 已接线 |
+
 ## 知识冲突
 
 无已发现冲突；历史外部研究候选不视为已实施合同，新增实现合同独立接线，不覆盖历史研究。
