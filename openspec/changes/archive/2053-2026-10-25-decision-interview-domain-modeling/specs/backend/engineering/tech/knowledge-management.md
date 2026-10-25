@@ -1,6 +1,6 @@
 # Delta：跨 Change 共享领域模型及双轨更新
 
-**状态**：Pending（待用户再次审核，未实施、未同步）
+**状态**：Synced（操作合同已实施、验证并同步长期方案）
 **动作**：MODIFIED
 **长期目标**：`openspec/specs/backend/engineering/tech/knowledge-management.md`
 
@@ -29,4 +29,4 @@
 
 ## 验收与同步
 
-按 design.md §4.2.6、§7 及 proposal.md AC9～AC10 验证跨 Change、新会话、双轨写入、同名概念和冲突场景。审核与实施完成前不修改长期知识，不声称上述能力已存在。归档时对照实际技能和证据更新长期方案；机器索引与同步校验不能代替语义评测。
+按 design.md §4.2.6、§7 及 proposal.md AC9～AC10 验证跨 Change、新会话、双轨写入、同名概念和冲突场景。实现及有限行为证据见 validation.md，长期方案已定向更新，最终验证与归档同步仍待核对；机器索引与同步校验不能代替语义评测，不声称全量交付通过。

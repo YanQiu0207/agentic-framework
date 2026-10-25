@@ -1,6 +1,6 @@
 # Delta：决策依赖追问与领域建模适配候选
 
-**状态**：Pending（待审核、未同步）
+**状态**：Synced（适配已实施、验证并同步长期研究）
 **动作**：MODIFIED
 **长期目标**：`openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md`
 
@@ -17,7 +17,7 @@
 
 审核后按实际裁决更新候选结论；实施后补充采用版本、许可处理、行为评测证据和最终 Review 结果。没有实施证据的建议继续标记为候选。
 
-当前不修改长期文档；交付归档时按 `skills/project-knowledge/SKILL.md` 同步，并核对原文上下文，禁止整篇覆盖。长期入口和路径未变化时不重复新增索引条目。
+长期文档已按实现与证据定向更新；最终验证及归档时按 `skills/project-knowledge/SKILL.md` 核对同步，不整篇覆盖。长期入口和路径未变化，不重复新增索引条目；机器和安装环境限制保留在 validation.md，不宣称已通过。
 
 ## 证据
 

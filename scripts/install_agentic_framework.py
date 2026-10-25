@@ -32,7 +32,9 @@ CORE_SKILLS = {
     "bp-cli-tool-design",
     "bp-coding-best-practices",
     "bp-component-design",
+    "bp-decision-interview",
     "bp-distributed-systems",
+    "bp-domain-modeling",
     "bp-performance-optimization",
     "bp-skill-authoring",
     "project-init",
@@ -54,6 +56,8 @@ DELIVERY_SKILLS = {
 }
 CORE_COMMANDS = {
     "code-review.md",
+    "grill-me.md",
+    "grill-with-docs.md",
     "performance-optimization.md",
     "project-init.md",
     "reflect.md",
@@ -126,7 +130,9 @@ MANAGED_SKILL_ROOTS = frozenset(
         "bp-cli-tool-design",
         "bp-coding-best-practices",
         "bp-component-design",
+        "bp-decision-interview",
         "bp-distributed-systems",
+        "bp-domain-modeling",
         "bp-performance-optimization",
         "bp-skill-authoring",
         "project-init",
@@ -149,6 +155,8 @@ MANAGED_COMMAND_FILES = frozenset(
     {
         "code-generation.md",
         "code-review.md",
+        "grill-me.md",
+        "grill-with-docs.md",
         "performance-optimization.md",
         "project-init.md",
         "quick-design.md",
