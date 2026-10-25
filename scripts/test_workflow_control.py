@@ -3,6 +3,7 @@
 import errno
 import io
 import json
+import locale
 import os
 import subprocess
 import sys
@@ -119,6 +120,20 @@ def tasks_text(
             f"- depends_on：{deps or '[]'}\n"
         )
     return "\n".join(sections)
+
+
+def link_directory(link: Path, target: Path) -> None:
+    """Create a Junction on Windows, or a directory symlink elsewhere."""
+    if os.name != "nt":
+        link.symlink_to(target, target_is_directory=True)
+        return
+    result = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode:
+        raise AssertionError(result.stderr.decode(locale.getencoding(), "replace"))
 
 
 class WorkflowControlTest(unittest.TestCase):
@@ -1130,10 +1145,12 @@ class WorkflowControlTest(unittest.TestCase):
                     text=True,
                     encoding="utf-8",
                     check=False,
-                    env={**os.environ, "PYTHONUTF8": "1"},
+                    env={
+                        **os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"
+                    },
                 )
             self.assertEqual(2, result.returncode)
-            self.assertIn(str(workflow_control._task_lock_path(path)), result.stderr)
+            self.assertIn(str(workflow_control._task_identity_lock_path(path)), result.stderr)
             self.assertIn("0.1 秒", result.stderr)
             self.assertEqual(original, path.read_text(encoding="utf-8"))
 
@@ -1203,6 +1220,405 @@ class WorkflowControlTest(unittest.TestCase):
                 first_lock.name,
                 workflow_control._task_lock_path(other_change).name,
             )
+
+    def test_repository_root_supports_git_worktrees_svn_and_fallback(self) -> None:
+        for marker in ("git-directory", "git-file", "svn", "none"):
+            with self.subTest(marker=marker), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                path = root / "openspec" / "changes" / "2055-test" / "tasks.md"
+                path.parent.mkdir(parents=True)
+                if marker == "git-directory":
+                    (root / ".git").mkdir()
+                elif marker == "git-file":
+                    (root / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+                elif marker == "svn":
+                    (root / ".svn").mkdir()
+                    (root / ".svn" / "wc.db").touch()
+                expected = root if marker != "none" else path.parent
+                self.assertEqual(expected, workflow_control._repository_root(path))
+                original_cwd = Path.cwd()
+                try:
+                    os.chdir(root)
+                    self.assertEqual(
+                        expected,
+                        workflow_control._repository_root(path.relative_to(root)),
+                    )
+                finally:
+                    os.chdir(original_cwd)
+                self.assertEqual(
+                    expected / "verify.config.json",
+                    workflow_control._verify_config_path(path),
+                )
+                self.assertEqual(
+                    expected / ".agentic-framework" / "locks",
+                    workflow_control._task_lock_path(path).parent,
+                )
+
+    def test_repository_root_falls_back_to_link_target_repository(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            root = base / "repository"
+            root.mkdir()
+            (root / ".git").mkdir()
+            target = root / "knowledge"
+            target.mkdir()
+            entry = base / "entry"
+            entry.mkdir()
+            link_directory(entry / "openspec", target)
+            path = entry / "openspec" / "tasks.md"
+            self.assertEqual(root, workflow_control._repository_root(path))
+
+    def test_project_root_alias_retains_runtime_checks_inside_project(self) -> None:
+        from scripts.test_framework_packs import write_manifest
+
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            root = base / "project"
+            subprocess.run(
+                ["git", "init", str(root)], check=True, capture_output=True
+            )
+            subprocess.run(
+                ["git", "-C", str(root), "-c", "user.name=Test",
+                 "-c", "user.email=test@example.com", "commit",
+                 "--allow-empty", "-m", "base"],
+                check=True, capture_output=True,
+            )
+            write_manifest(root, packs=["runtime"])
+            path = root / "openspec" / "changes" / "2055-test" / "tasks.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+            )
+            alias = base / "project-alias"
+            link_directory(alias, root)
+            entry = alias / path.relative_to(root)
+            with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+                self.assertEqual(
+                    0,
+                    workflow_control.main(
+                        [str(entry), "route", "--review-profile", "strict",
+                         "--execution-mode", "runtime"]
+                    ),
+                )
+            self.assertIn('"path": "runtime-run"', stdout.getvalue())
+
+    def test_knowledge_repository_link_does_not_override_owner_root(self) -> None:
+        for target_backend in ("git", "svn"):
+            with tempfile.TemporaryDirectory() as temp:
+                base = Path(temp)
+                target = base / "knowledge"
+                target.mkdir()
+                marker = target / (
+                    ".git" if target_backend == "git" else ".svn"
+                )
+                marker.mkdir()
+                if target_backend == "svn":
+                    (marker / "wc.db").touch()
+                (target / "verify.config.json").write_text(
+                    "knowledge-config", encoding="utf-8"
+                )
+                task = target / "changes" / "2055-test" / "tasks.md"
+                task.parent.mkdir(parents=True)
+                task.write_text(
+                    tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+                )
+                for owner_backend in ("git", "svn", "none"):
+                    with self.subTest(
+                        target=target_backend, owner=owner_backend
+                    ):
+                        owner = base / f"owner-{owner_backend}"
+                        owner.mkdir()
+                        if owner_backend != "none":
+                            marker = owner / (
+                                ".git" if owner_backend == "git" else ".svn"
+                            )
+                            marker.mkdir()
+                            if owner_backend == "svn":
+                                (marker / "wc.db").touch()
+                        config = owner / "verify.config.json"
+                        config.write_text(owner_backend, encoding="utf-8")
+                        link_directory(owner / "openspec", target)
+                        path = owner / "openspec" / task.relative_to(target)
+                        expected = target if owner_backend == "none" else owner
+                        self.assertEqual(
+                            expected, workflow_control._repository_root(path)
+                        )
+                        self.assertEqual(
+                            expected / "verify.config.json",
+                            workflow_control._verify_config_path(path),
+                        )
+                        self.assertEqual(
+                            expected / ".agentic-framework" / "locks",
+                            workflow_control._task_lock_path(path).parent,
+                        )
+                        expected_text = (
+                            "knowledge-config" if owner_backend == "none"
+                            else owner_backend
+                        )
+                        self.assertEqual(
+                            expected_text,
+                            workflow_control._verify_config_path(path).read_text(
+                                encoding="utf-8"
+                            ),
+                        )
+
+    def test_nested_knowledge_links_keep_outer_owner_scope(self) -> None:
+        for backend in ("git", "svn"):
+            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp)
+                owner = base / "owner"
+                owner.mkdir()
+                (owner / ".git").mkdir()
+                knowledge = base / "knowledge"
+                (knowledge / "changes").mkdir(parents=True)
+                marker = knowledge / (".git" if backend == "git" else ".svn")
+                marker.mkdir()
+                if backend == "svn":
+                    (marker / "wc.db").touch()
+                body = base / "body"
+                body.mkdir()
+                (body / "tasks.md").write_text(
+                    tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+                )
+                link_directory(knowledge / "changes" / "case", body)
+                link_directory(owner / "openspec", knowledge)
+                path = owner / "openspec" / "changes" / "case" / "tasks.md"
+                self.assertEqual(owner, workflow_control._repository_root(path))
+                self.assertEqual(
+                    owner, workflow_control._task_project_directory(path)
+                )
+                self.assertEqual(
+                    owner / "verify.config.json",
+                    workflow_control._verify_config_path(path),
+                )
+                self.assertEqual(
+                    owner / ".agentic-framework" / "locks",
+                    workflow_control._task_lock_path(path).parent,
+                )
+
+    def test_shared_openspec_link_keeps_project_roots_and_identity_lock(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="共享知识 ") as temp:
+            base = Path(temp)
+            target = base / "knowledge"
+            change = target / "changes" / "2055-test"
+            change.mkdir(parents=True)
+            original = tasks_text({1: "进行中"}, {1: []})
+            (change / "tasks.md").write_text(original, encoding="utf-8")
+            paths = []
+            roots = [base / "git project", base / "svn project"]
+            for root in roots:
+                root.mkdir()
+                if root == roots[0]:
+                    (root / ".git").mkdir()
+                else:
+                    (root / ".svn").mkdir()
+                    (root / ".svn" / "wc.db").touch()
+                (root / "verify.config.json").write_text("{}", encoding="utf-8")
+                link_directory(root / "openspec", target)
+                path = root / "openspec" / "changes" / "2055-test" / "tasks.md"
+                paths.append(path)
+                self.assertEqual(root, workflow_control._repository_root(path))
+                self.assertEqual(
+                    root / "verify.config.json",
+                    workflow_control._verify_config_path(path),
+                )
+                self.assertEqual(
+                    root / ".agentic-framework" / "locks",
+                    workflow_control._task_lock_path(path).parent,
+                )
+            self.assertEqual(
+                workflow_control._task_identity_lock_path(paths[0]),
+                workflow_control._task_identity_lock_path(paths[1]),
+            )
+            self.assertNotEqual(
+                workflow_control._task_identity_lock_path(paths[0]),
+                workflow_control._task_identity_lock_path(change / "other-tasks.md"),
+            )
+            command = [
+                sys.executable, str(Path(workflow_control.__file__)), str(paths[1]),
+                "event", "1", "failure", "--write", "--lock-timeout", "0.1",
+            ]
+            env = {
+                **os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
+            }
+            with workflow_control._task_write_lock(paths[0], 0):
+                result = subprocess.run(
+                    command, capture_output=True, text=True, encoding="utf-8",
+                    check=False, env=env,
+                )
+            self.assertEqual(2, result.returncode)
+            self.assertIn(
+                str(workflow_control._task_identity_lock_path(paths[1])),
+                result.stderr,
+            )
+            self.assertIn("0.1 秒", result.stderr)
+            self.assertEqual(original, paths[1].read_text(encoding="utf-8"))
+            result = subprocess.run(
+                command, capture_output=True, text=True, encoding="utf-8",
+                check=False, env=env,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("- attempts：1", paths[0].read_text(encoding="utf-8"))
+
+    def test_linked_cli_checks_use_logical_project_scope(self) -> None:
+        for backend in ("git", "svn"):
+            with self.subTest(backend=backend), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp)
+                root = base / "project"
+                root.mkdir()
+                marker = root / (".git" if backend == "git" else ".svn")
+                marker.mkdir()
+                if backend == "svn":
+                    (marker / "wc.db").touch()
+                (root / "verify.config.json").write_text("{}", encoding="utf-8")
+                target = base / "knowledge" / "changes" / "2055-test"
+                target.mkdir(parents=True)
+                (target / "tasks.md").write_text(
+                    tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+                )
+                link_directory(root / "openspec", base / "knowledge")
+                path = root / "openspec" / "changes" / "2055-test" / "tasks.md"
+                commands = [
+                    ["route", "--review-profile", "strict",
+                     "--execution-mode", "runtime"],
+                    ["recover"],
+                    [
+                        "init-run", "--run-dir", str(root / "run"),
+                        "--run-id", "test", "--profile", "tooling",
+                        "--harness", "codex", "--commit-sha", "a" * 40,
+                        "--base-commit-sha", "a" * 40, "--spec", "proposal.md",
+                        "--agents-file", "AGENTS.md", "--skill-file", "SKILL.md",
+                        "--harness-declaration", "harness.json",
+                        "--adapter-command", "python", "adapter.py",
+                    ],
+                ]
+                for command in commands:
+                    with self.subTest(command=command[0]), mock.patch.object(
+                        workflow_control.vcs, "inspect_workspace",
+                        return_value={"backend": backend},
+                    ) as inspect, mock.patch.object(
+                        workflow_control.framework_packs, "require_pack"
+                    ) as require_pack, mock.patch.object(
+                        workflow_control.runtime_workflow,
+                        "initialize_run", return_value={},
+                    ) as initialize, mock.patch(
+                        "sys.stdout", new_callable=io.StringIO
+                    ), mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                        result = workflow_control.main(
+                            [str(path), "--vcs-backend", backend, *command]
+                        )
+                    rejected = backend == "svn" and command[0] != "recover"
+                    self.assertEqual(2 if rejected else 0, result, stderr.getvalue())
+                    inspect.assert_called_once_with(root, backend)
+                    if command[0] == "init-run" or (
+                        command[0] == "route" and backend == "git"
+                    ):
+                        require_pack.assert_called_once_with(root, "runtime")
+                    else:
+                        require_pack.assert_not_called()
+                    if command[0] == "init-run" and not rejected:
+                        self.assertEqual(root, initialize.call_args.args[0])
+                    else:
+                        initialize.assert_not_called()
+                    if rejected:
+                        self.assertIn("svn", stderr.getvalue().lower())
+
+    def test_linked_cli_rejects_ambiguous_vcs_without_explicit_backend(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "project"
+            root.mkdir()
+            (root / ".git").mkdir()
+            target = Path(temp) / "knowledge"
+            target.mkdir()
+            (target / "tasks.md").write_text(
+                tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+            )
+            link_directory(root / "openspec", target)
+            path = root / "openspec" / "tasks.md"
+            error = workflow_control.vcs.VcsError(
+                "ambiguous_backend", "inspect_workspace"
+            )
+            with mock.patch.object(
+                workflow_control.vcs, "inspect_workspace", side_effect=error
+            ) as inspect, mock.patch(
+                "sys.stderr", new_callable=io.StringIO
+            ) as stderr:
+                self.assertEqual(
+                    2,
+                    workflow_control.main(
+                        [str(path), "route", "--review-profile", "strict"]
+                    ),
+                )
+            inspect.assert_called_once_with(root, None)
+            self.assertIn("--vcs-backend git|svn", stderr.getvalue())
+
+    def test_linked_nested_project_keeps_local_pack_and_vcs_boundaries(self) -> None:
+        from scripts.test_framework_packs import write_manifest
+
+        with tempfile.TemporaryDirectory() as temp:
+            outer = Path(temp) / "outer"
+            outer.mkdir()
+            (outer / ".git").mkdir()
+            inner = outer / "inner"
+            inner.mkdir()
+            target = Path(temp) / "knowledge"
+            target.mkdir()
+            (target / "tasks.md").write_text(
+                tasks_text({1: "未开始"}, {1: []}), encoding="utf-8"
+            )
+            link_directory(inner / "openspec", target)
+            path = inner / "openspec" / "tasks.md"
+            write_manifest(outer, packs=["runtime"])
+            write_manifest(inner)
+            command = [str(path), "route", "--review-profile", "strict",
+                       "--execution-mode", "runtime"]
+            with mock.patch.object(
+                workflow_control.vcs, "inspect_workspace",
+                return_value={"backend": "git"},
+            ) as inspect, mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(2, workflow_control.main(command))
+            inspect.assert_called_once_with(inner, None)
+            self.assertIn("--with runtime", stderr.getvalue())
+            (inner / ".svn").mkdir()
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                self.assertEqual(2, workflow_control.main(command))
+            self.assertIn("ambiguous_backend", stderr.getvalue())
+
+    def test_identity_lock_is_released_if_project_lock_acquisition_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "tasks.md"
+            lock = workflow_control._task_lock_path(path)
+            with workflow_control._file_lock(lock, 0, 0, True):
+                with self.assertRaises(TimeoutError):
+                    with workflow_control._task_write_lock(path, 0):
+                        self.fail("Contended project lock was acquired")
+                identity = workflow_control._task_identity_lock_path(path)
+                with workflow_control._file_lock(identity, 0, 0, True):
+                    pass
+
+    def test_cli_python_output_remains_utf8_under_cp936_parent(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="中文路径 ") as temp:
+            path = Path(temp) / "tasks.md"
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
+            script = (
+                "import os, subprocess, sys\n"
+                "assert sys.stdout.encoding.lower() in ('cp936', 'gbk')\n"
+                "result = subprocess.run(sys.argv[1:], capture_output=True, "
+                "text=True, encoding='utf-8', "
+                "env={**os.environ, 'PYTHONUTF8': '1', "
+                "'PYTHONIOENCODING': 'utf-8'})\n"
+                "assert result.returncode == 0, result.stderr\n"
+                "assert '\\u8fdb\\u884c\\u4e2d' in result.stdout, result.stdout\n"
+            )
+            result = subprocess.run(
+                [sys.executable, "-c", script, sys.executable,
+                 str(Path(workflow_control.__file__)), str(path),
+                 "event", "1", "failure", "--write"],
+                capture_output=True, text=True, encoding="cp936", check=False,
+                env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "cp936"},
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertIn("- attempts：1", path.read_text(encoding="utf-8"))
 
     def test_existing_legacy_lock_is_read_only_compatibility_input(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

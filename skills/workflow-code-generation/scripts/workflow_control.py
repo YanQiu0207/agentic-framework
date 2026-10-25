@@ -985,12 +985,42 @@ def _unlock(stream) -> None:
 
 
 def _repository_root(path: Path) -> Path:
-    """Return the nearest Git repository root, or the task directory."""
+    """Find the logical Git/SVN root before following a knowledge link."""
+    logical = _task_project_directory(path)
+    for candidate in (logical, *logical.parents):
+        if (candidate / ".git").exists() or (
+            candidate / ".svn" / "wc.db"
+        ).is_file():
+            return candidate
     resolved = path.resolve(strict=False)
-    for candidate in (resolved.parent, *resolved.parents[1:]):
-        if (candidate / ".git").exists():
+    for candidate in resolved.parents:
+        if (candidate / ".git").exists() or (
+            candidate / ".svn" / "wc.db"
+        ).is_file():
             return candidate
     return resolved.parent
+
+
+def _task_project_directory(path: Path) -> Path:
+    """Keep nested project boundaries outside a linked knowledge directory."""
+    logical = Path(os.path.abspath(path)).parent
+    ancestors = (logical, *logical.parents)
+    knowledge_index = next(
+        (index for index, candidate in enumerate(ancestors)
+         if candidate.name.casefold() == "openspec"),
+        None,
+    )
+    if knowledge_index is None:
+        return logical
+    # Only knowledge links change scope; a whole-project alias stays inside it.
+    scope = logical
+    for candidate in ancestors[:knowledge_index + 1]:
+        # Compare one component at a time; Python 3.10/3.11 lack is_junction().
+        if candidate.resolve(strict=False) != (
+            candidate.parent.resolve(strict=False) / candidate.name
+        ):
+            scope = candidate.parent
+    return scope
 
 
 def _detect_vcs(directory: Path, backend: str | None = None) -> str | None:
@@ -1020,9 +1050,22 @@ def _task_lock_path(path: Path) -> Path:
     normalized = os.path.normcase(str(resolved))
     digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
     return (
-        _repository_root(resolved)
+        _repository_root(path)
         / ".agentic-framework"
         / "locks"
+        / f"{digest}.lock"
+    )
+
+
+def _task_identity_lock_path(path: Path) -> Path:
+    """Coordinate aliases of one real task in the same system temp directory."""
+    resolved = path.resolve(strict=False)
+    normalized = os.path.normcase(str(resolved))
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return (
+        Path(tempfile.gettempdir())
+        / "agentic-framework"
+        / "workflow-locks"
         / f"{digest}.lock"
     )
 
@@ -1054,6 +1097,7 @@ def _task_write_lock(path: Path, timeout: float):
     if not math.isfinite(timeout) or timeout < 0:
         raise ValueError("锁超时必须是大于等于 0 的有限数")
     legacy_path = path.parent / f".{path.name}.lock"
+    identity_lock_path = _task_identity_lock_path(path)
     lock_path = _task_lock_path(path)
     deadline = time.monotonic() + timeout
     with contextlib.ExitStack() as stack:
@@ -1064,6 +1108,9 @@ def _task_write_lock(path: Path, timeout: float):
                 file=sys.stderr,
             )
             stack.enter_context(_file_lock(legacy_path, deadline, timeout, False))
+        stack.enter_context(
+            _file_lock(identity_lock_path, deadline, timeout, True)
+        )
         stack.enter_context(_file_lock(lock_path, deadline, timeout, True))
         yield
 
@@ -1206,7 +1253,7 @@ def main(argv: list[str]) -> int:
             sys.stdout.reconfigure(encoding="utf-8")  # 避免 Windows 控制台中文乱码
         if args.command == "init-run":
             repo = _repository_root(args.tasks_md)
-            task_directory = args.tasks_md.resolve().parent
+            task_directory = _task_project_directory(args.tasks_md)
             framework_packs.require_pack(task_directory, "runtime")
             if _detect_vcs(task_directory, args.vcs_backend) == "svn":
                 raise ValueError("完整 Runtime Run 仅支持 Git；SVN 不得降级为 Native Delivery")
@@ -1307,7 +1354,7 @@ def main(argv: list[str]) -> int:
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
                 detected_vcs = _detect_vcs(
-                    args.tasks_md.resolve().parent, args.vcs_backend
+                    _task_project_directory(args.tasks_md), args.vcs_backend
                 )
                 selected = select_execution_route(
                     args.review_profile,
@@ -1322,7 +1369,7 @@ def main(argv: list[str]) -> int:
                 )
                 if selected.path == "runtime-run":
                     framework_packs.require_pack(
-                        args.tasks_md.resolve().parent, "runtime"
+                        _task_project_directory(args.tasks_md), "runtime"
                     )
                 # 旧并行/恢复 flags 保留为执行需求输入：不再自动升级 Runtime，
                 # 由编排方按需使用 Worktree 隔离与恢复规划。
@@ -1363,7 +1410,7 @@ def main(argv: list[str]) -> int:
             elif args.command == "recover":
                 _require_verify_config_decision(args.tasks_md, text)
                 detected_vcs = _detect_vcs(
-                    args.tasks_md.resolve().parent, args.vcs_backend
+                    _task_project_directory(args.tasks_md), args.vcs_backend
                 )
                 print(
                     "[workflow-control] recover 只读：核对 tasks 与调用方提供的集成"
