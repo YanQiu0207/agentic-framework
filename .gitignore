@@ -12,8 +12,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# AI 客户端本地配置
-.claude/settings.local.json
+# AI 客户端本地安装产物与配置
+/.codex/
+/.claude/
 
 # tencent-workbuddy
 .workbuddy/tmp.key

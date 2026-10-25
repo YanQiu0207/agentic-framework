@@ -1,1 +1,0 @@
-E:/work/agentic-framework/agents/magical-prompt-reviewer.md

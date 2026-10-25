@@ -1,1 +1,0 @@
-E:/work/agentic-framework/commands/quick-design.md

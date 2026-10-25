@@ -1,1 +1,0 @@
-E:/work/agentic-framework/commands/verify-config.md
