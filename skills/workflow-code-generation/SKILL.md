@@ -67,6 +67,10 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 没有 `tasks.md` 的 Native Delivery 在最终报告中记录用户选择。步骤 3 只负责持久化已有选择，不重新询问或推断。
 
+## 开发与修复反馈
+
+实现中及失败修复后，先运行已有相关测试取得快速反馈；两类检查的定义与证据边界以 `workflow-verification` 的「开发反馈与正式验证」为准。完成实现并进入任务质量门、合并前检查、集成验证或最终 Review 前，仍须执行正式完整 Verify。后续流程中的「重验」不得仅凭定向结果申请正式放行。
+
 ## 轻量任务执行
 
 进入此路径前，读取 [交付指南的轻量交付流程](reference/delivery-guide.md#轻量交付fast-path-兼容)。
