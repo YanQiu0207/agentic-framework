@@ -41,13 +41,23 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
     python scripts/workflow_control.py <tasks.md> dispatchable
     ```
 
-4. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖和 Verify 配置选择。每个并行 Task 使用独立 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由可传 `--parallel-worktree-write` 记录执行需求；主编排方串行集成，不因此升级 Runtime。
-5. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`。
-6. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。先对已加载 Skill 路径执行等价于 Python `Path(skill_path).resolve()` 的解析，再从真实路径逐级向上定位框架根；不要在 `~/.codex/skills/workflow-code-generation/scripts/` 下寻找框架 Adapter。失败时禁止 dispatch。
+5. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖和 Verify 配置选择。每个 Git Task（含单 Task 和串行链）使用独立分支与 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由可传 `--parallel-worktree-write` 记录执行需求；主编排方串行集成，不因此升级 Runtime。
+6. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`。
+7. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。先对已加载 Skill 路径执行等价于 Python `Path(skill_path).resolve()` 的解析，再从真实路径逐级向上定位框架根；不要在 `~/.codex/skills/workflow-code-generation/scripts/` 下寻找框架 Adapter。失败时禁止 dispatch。
    - Codex 使用 `<framework-root>/harness/capabilities/codex.json` 与 `python <framework-root>/scripts/codex_adapter.py`。
    - Claude Code 使用 `<framework-root>/harness/capabilities/claude-code.json` 与 `python <framework-root>/scripts/claude_code_adapter.py`。
    - Adapter 只探测能力，不负责下放 Agent；`subagents` 或 `worktree_isolation` 为 `unsupported` 不等于 Adapter 缺失。只把任务实际依赖的能力传给 `--required-capability`，其余能力按降级模式记录。
    - 仅当按真实路径定位后内置 Adapter 仍缺失、探测进程失败或明确声明的必需能力不受支持时报告阻塞；禁止用临时脚本伪造能力结果。可选能力不受支持时走降级模式，不能阻塞代码实现。
+
+## Task 隔离与能力不足
+
+标准流程每个 Task 委派新的实现 Agent，单 Task 和串行链也不例外；不同 Task 不复用 Agent。主会话只编排、收集摘要和串行集成。Git Task 均使用独立分支与 worktree，避免直接修改集成工作区；轻量路径不受此规则影响。
+
+宿主无法创建子 Agent、或 Git 无法建立独立 worktree 时，停止并报告缺失能力，不静默转由主会话实现。只有用户明确批准后才能按其授权范围例外执行，并记录原因、执行方式和验证证据。此检查只针对实际执行能力，不启用 Runtime 或要求 Harness Adapter 探测，也不以支持嵌套子 Agent 为前提。
+
+SVN 是正常支持的串行执行方式，不因缺少 Git worktree 请求例外授权。每个 Change 使用一个工作副本，各 Task 使用新 Agent，严格串行写入；不创建 Git 镜像或桥接，遵守既有 SVN 更新、提交授权与交付合同。同一工作副本不得同时承载其他 Change 的写入。
+
+SVN Task 失败时停止该工作副本的所有后续写入任务（包括无依赖的 Task）；先核对任务前后差异，修复并验证，或经用户确认隔离失败改动，再继续执行。不得自动 revert 或删除改动，不得将失败现场带入下一 Task。可继续只读调研和审查。SVN 只有 Agent 上下文隔离，不具备 Git Task 级工作区与失败隔离能力。
 
 ## Phase 1：逐波执行
 
@@ -63,14 +73,14 @@ owner / implementer 的固定职责：
 
 - 仅收到定向结果 → 作为开发反馈，不写入 `quality_passed`，要求补齐正式完整 Verify 证据。
 - 实现、测试和正式完整 Verify 通过 → 使用 `event <task-id> quality_passed --verify-report <verify-report.json> --write` 写入状态。Native Delivery 只接受独立 JSON 的 `verdict: PASS`，不写 Run Artifact；完整 Runtime Run 还必须传 `--run-dir <run-dir>`，并要求 Verify Artifact 与 Run、Task、Attempt 绑定。
-- 失败且两轮内可修复 → 在原 worktree 修复并重验。
+- 失败且两轮内可修复 → 优先由原 Agent 在原 worktree 修复并重验；同一 Task 不因每轮修复更换 Agent。原 Agent 无法恢复时，由新 Agent 读取该 Task 的现场与证据接手，保留原 worktree。
 - 仍失败、Agent 未返回或出现范围冲突 → 标 `需人工`，保留 worktree。
 - 上游未合并 → 下游标 `阻塞`，不得 dispatch。
 - Git 合并成功后才写 `merge_success`；冲突标 `需人工`，不得伪装完成。
 
 `quality_passed` 只写 `- 状态：` 字段，不动复选框。**主编排方在把任务写成 `完成` 的同一步，必须按真实完成情况勾选该任务的任务头 `[x]`、验收标准与子任务复选框**——三者是同一个完成信号的三处表达，只改状态字段会留下自相矛盾的记录，并在归档前被 `lint_task_deps.py --state-consistency` 拦住。未达成的验收项不得勾选：改标 `需人工` / `阻塞` 并附原因，未勾选项正是「哪些验收项没达成」的记录。
 
-并行波间必须串行：当前波的合并和状态持久化结束后，重新运行 `dispatchable` 再开始下一波。纯串行链在前置 Task 合并后直接启动下一 Task，不运行 `dispatchable`。
+并行波间必须串行：当前波的合并和状态持久化结束后，重新运行 `dispatchable` 再开始下一波。纯串行链在前置 Task 合并后，为下一 Task 创建新 Agent 和独立 worktree，不运行 `dispatchable`。
 
 ## Phase 2：交付级质量门
 

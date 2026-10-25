@@ -9,8 +9,12 @@ from pathlib import Path
 import install_agentic_framework as installer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-INTERVIEW_SKILLS = ("bp-decision-interview", "bp-domain-modeling")
-INTERVIEW_COMMANDS = ("grill-me.md", "grill-with-docs.md")
+INTERVIEW_SKILLS = (
+    "bp-decision-interview", "bp-domain-modeling", "handoff", "prototype"
+)
+INTERVIEW_COMMANDS = (
+    "grill-me.md", "grill-with-docs.md", "handoff.md", "prototype.md"
+)
 
 
 class InterviewInstallationTest(unittest.TestCase):
