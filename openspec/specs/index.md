@@ -16,3 +16,7 @@
 - [会话 Telemetry 模块知识](backend/framework/session-telemetry/overview.md)
 
 - [Agent 实验评测与 Review 首例](backend/engineering/tech/agent-evaluation.md)
+
+## 外部研究参考
+
+- [同类框架、模型演进与候选路线（2026-10-25）](backend/engineering/tech/external-reference-agentic-landscape-2026-10.md)：研究快照，不是当前实现合同或已批准决策。
