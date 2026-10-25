@@ -1,5 +1,15 @@
 # 知识管理实现概览
 
+source_ref: git:c5dd8c28a8111c05553a3b77e4613fd270db418d
+source_paths:
+    - skills/project-knowledge/SKILL.md
+    - skills/project-init/SKILL.md
+    - skills/bp-domain-modeling/SKILL.md
+    - skills/bp-domain-modeling/reference/glossary-format.md
+    - skills/bp-domain-modeling/reference/adr-format.md
+    - openspec/specs/backend/engineering/tech/knowledge-management.md
+generated_at: 2026-10-26
+
 ## 职责
 
 知识管理实现由操作合同、初始化入口、迁移工具、公共库校验和交付门共同组成。长期语义以 [`knowledge-management.md`](../../engineering/tech/knowledge-management.md) 为准；本文件只定位当前实现。
@@ -19,6 +29,36 @@
 项目内知识读取、冲突报告和归档属于 Core。SVN 初始化、外置正文、公共库接线及晋升需要 `knowledge-advanced`；普通 SVN 代码交付不受该初始化能力门限制。初始化先识别已有 Git／SVN 工作副本；发现 SVN 或状态未决时不得转而执行 `git init`。默认流程不主动询问外置存储或公共接线。
 
 内部仍逐项检查知识影响；无命中只输出具体理由，命中只列命中项、目标路径与同步状态。机器 `--knowledge-impact` 字段及 `none` 理由不变；无 Change 的轻量 Native Delivery 只允许 `none`。
+
+## 合同速查（2026-10-26 通读核对的导航性归纳，权威原文见各合同文件）
+
+本节是对既有合同文件的定位性归纳，帮助快速找到权威原文；条款语义以链接文件为准，此处不复制完整规则。
+
+### 位置与接线
+
+- 位置是硬编码约定，不存在动态查询：项目知识固定逻辑入口 `<project>/openspec/`（`project-knowledge/SKILL.md` §2「工作流只使用逻辑入口」），外置模式下该入口是指向外部私有目录的链接，对消费方透明。工作流技能直接用相对路径（如 `workflow-requirements-clarification` 直接 `mkdir -p openspec/changes/...`）。
+- 二次声明：`project-init` 第 8 步把「入口固定为 `openspec/index.md`」等规则写入项目 `AGENTS.md`。
+- 公共知识库路径不是约定路径：接线时从 `~/.claude/CLAUDE.md`「跨项目共用知识库」读取并经用户确认，再追加进项目 `AGENTS.md`。
+- 唯一的能力查询是 `knowledge-advanced` 包检查（`install_agentic_framework.py --show-packs`），查权限而非位置。
+- 契约主从：`skills/project-knowledge/SKILL.md` 是操作合同权威；`openspec/specs/backend/engineering/tech/knowledge-management.md` 是方案记录（Active），其操作规则段落显式回指 SKILL.md。两者冲突时须按冲突报告流程展示双方证据。
+
+### 目录结构
+
+- 初始化最小骨架：`index.md`、`specs/index.md`、`changes/archive/`、`issues/index.md`；`business/`、`frontend/`、`backend/`、`common/` 按需创建，不为模板造空目录。
+- 四目录是两条轴，不是业务包含实现：`business/` 是领域语义轴（与实现无关的「是什么」，人工维护）；`frontend/`、`backend/` 是实现轴（代码派生事实 + `meta.yaml` 版本元数据 + 人工 `custom/`）；`common/` 是共享契约轴（protocols、data-models、error-codes）。同一条知识选一个主位置，禁止复制多份正文。
+- `business/` 文件分工：`glossary.md`（全项目唯一术语表，按业务上下文分节，同名概念不合并，格式见 `bp-domain-modeling/reference/glossary-format.md`）；`<domain>/overview.md`（概念职责、关系、边界）；`rules.md`（规则与不变量）；`flows.md`（跨模块流程）；`custom/` 三件套 `constraints.md`／`decisions.md`／`pitfalls.md`（§6.2，自动流程不可覆盖）。
+- 读取路由：根索引 → `business/index.md` 定位共享领域模型 → 叠加当前 Change 已批准差异；按任务类型的路由表见 `project-knowledge/SKILL.md` §3.2，公共知识库仅 §3.3 五条件下查询。
+- Change 目录含 `research.md`（追加式调研中间产物，随 Change 归档；定义在 `knowledge-management.md` §5.5 与 `workflow-requirements-clarification`，`project-knowledge/SKILL.md` §2 目录树尚未列入——已知差异）。
+- 公共库完整结构：`index.md`、`domains/`、`issues/`、`sources/`（允许跨项目消费的原始资料索引）、`changes/`（仅公共库自身治理）、`archives/`（整体退役主题，首版非日常重点）；`projects/` 已停止新增。
+- 端内工程规范在 `specs/<端>/engineering/`（conventions、lib-usage、tech）；`engineering/tech/adr/` 是本仓库 ADR 现行落点，不再新建平行 ADR 目录（`adr-format.md`「本框架落点」）。
+
+### 写入与退役语义
+
+- 写入前置：每条知识按 `project-knowledge/SKILL.md` §5 唯一位置表归位；业务域、端或模块判断不了时不得猜目录，候选留当前 Change 待确认。
+- 双轨更新（§7.1）：既有知识澄清（确认 + 授权 + 事实核实 + 无未决冲突）可直写共享位置并记录来源日期；未来业务变化走 Change Delta（`ADDED`/`MODIFIED`/`REMOVED`/`RENAMED`），归档验证后同步。用户确认含义不等于允许写入。
+- 交付前强制做 §9 intent 沉淀检查；机器参数 `--knowledge-impact` 与理由字段见本文件「实现入口」。
+- 退役/删除现状（2026-10-26 通读结论，属已知待补缺口而非已定合同）：四种状态机制各管一段——ADR Status 枚举含 `deprecated`/`superseded by`（`adr-format.md`）、公共库证据等级含 `deprecated`（`knowledge-management.md` §11.1）、`meta.yaml` 有 `status` 字段、Change Delta 有 `REMOVED`；但直写路径的 glossary/rules 条目与 `custom/`、`issues/` 条目暂无作废 SOP，只能改写或保留。修复走 Change，不在此处预写规则。
+- 其他已知缺口（同上，待 Change 处理）：`business/index.md` 无职责定义；glossary 分节名与 `<domain>` 目录名的对应未约定。
 
 ## 数据流
 
