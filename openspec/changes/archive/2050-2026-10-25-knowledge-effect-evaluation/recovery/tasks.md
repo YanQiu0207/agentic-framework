@@ -27,3 +27,12 @@
 ## 知识同步
 
 Completed：目标为 `openspec/specs/backend/engineering/tech/agent-evaluation.md`。旧 Run 失败与恢复证据必须保留，新的真实实验报告不得冒充模型性能统计定论。
+
+| 增量 | 目标 | 动作 | 状态 | 证据 |
+| --- | --- | --- | --- | --- |
+| review-first-amendment.md | openspec/specs/backend/engineering/tech/agent-evaluation.md | 新增并同步边界 | Completed | agent_eval.py、专项测试及恢复 Run 验证 |
+| historical-pilot | evaluation/review/historical-pilot/README.md | 保存真实试点结果与限制 | Completed | 8 份观察与独立 AI 逐条初评 |
+
+## 知识冲突
+
+原 proposal 的代码生成／容器验收方向与用户后续 Review 优先要求不同，原文保留并标注修订优先。当前代码不执行待审代码、不自动调用模型或 Judge；历史试点由外部 Agent 编排执行，不能将其能力写成 CLI 自动执行能力。旧 Run Journal 失败与新恢复 Run 通过并列保留，不将新证据解释为旧 Journal 已修复。
