@@ -1,6 +1,6 @@
 # Delta：Change 级调研结论落盘约定
 
-**状态**：Pending（归档时按实际实施与验证结果更新）
+**状态**：Synced（2026-11-27 已按 Delta 同步长期文档 §5.5 与 §7.2，文本逐字一致；归档前由最终 Review 复核）
 **动作**：MODIFIED
 **长期目标**：`openspec/specs/backend/engineering/tech/knowledge-management.md`
 
