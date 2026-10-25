@@ -24,6 +24,15 @@
 
 ## 边界
 
-- Windows 无符号链接权限场景未通过全量测试，不声明 Windows 全量绿灯。
+- Windows 无符号链接权限场景未通过全量测试；后续具备权限环境的全量结果见下节，不据此宣称无权限环境也通过。
 - 本次不重跑历史 Bug 的模型效果实验；评测结果沿用原证据，不将功能回归等同于效果提升。
 - 本 Change 归档的是整合实现与验证决策；是否已推送以及用户工作区恢复状态须另查 Git 与恢复记录，不由归档状态推断。
+
+## Windows 验证收尾（2026-10-25）
+
+- 修复基线为 `7e4539e`。独立工作区为 `E:\github\.worktrees\windows-install-test-copy`，分支为 `fix/windows-install-test-copy`。
+- `scripts/test_install_agentic_framework.py` 中三个无过滤的整仓复制统一复用已有 `_copy_source()`，保留全部测试断言和符号链接权限检查；未修改生产代码。其他 `copytree()` 调用仅复制测试 fixture 或单个 Skill，未扩大修改范围。
+- Agent 在非管理员终端运行安装器专项：`rtk proxy python -m pytest scripts/test_install_agentic_framework.py -q --tb=short --durations=5`，结果为 31 passed、21 skipped，2.30 秒。权限相关跳过不作为完整验收。
+- 用户在上述独立工作区完成 Windows 全量，命令为 `rtk proxy python -m pytest scripts -vv --tb=short --durations=20`；回传终端输出为 `833 passed in 275.13s (0:04:35)`，无失败、无跳过。来源是本次交接会话中用户提供的终端输出，不是 Agent 自行运行的管理员测试，也没有将该输出包装为内容主体绑定的机器 Verify 报告。
+- 回传输出中，安装后的隔离项目验证测试耗时 3.06 秒；此前中断退出码 `0xC000013A` 仍仅代表被中断，没有运行堆栈证明旧停顿由整仓复制导致。
+- 上述全量针对三处测试修复后的代码；随后仅补充本节知识记录。本轮增量审查不替代原整合的严格 Review 或交付门报告。

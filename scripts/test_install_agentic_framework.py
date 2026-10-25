@@ -166,8 +166,7 @@ class InstallTest(unittest.TestCase):
         self.assertEqual("existing", target.read_text(encoding="utf-8"))
 
     def test_unregistered_agent_file_is_not_installed(self) -> None:
-        source = self.root / "source"
-        shutil.copytree(REPO_ROOT, source)
+        source = _copy_source(self.root)
         extra = source / "agents" / "unregistered-reviewer.md"
         extra.write_text("unregistered", encoding="utf-8")
         operations = installer.build_operations(source, "tooling", set())
@@ -180,8 +179,7 @@ class InstallTest(unittest.TestCase):
                 installer.build_operations(REPO_ROOT, "tooling", set())
 
     def test_missing_profile_and_pack_scripts_fail_clearly(self) -> None:
-        source = self.root / "source"
-        shutil.copytree(REPO_ROOT, source)
+        source = _copy_source(self.root)
         validator = source / "scripts" / "validate_change.py"
         validator.unlink()
         with self.assertRaisesRegex(FileNotFoundError, "validate_change.py"):
@@ -277,8 +275,7 @@ class InstallTest(unittest.TestCase):
 
     def test_source_content_change_is_immediately_visible(self) -> None:
         self._require_symlinks()
-        source = self.root / "source"
-        shutil.copytree(REPO_ROOT, source)
+        source = _copy_source(self.root)
         target = self.root / "target"
         target.mkdir()
         installer.install(
