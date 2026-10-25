@@ -37,4 +37,5 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - Alibaba skill-up 的 Skill 评测、with/without 基线、对话式演进、与 HarnessX 的分层对比及试点候选：[`external-reference-skill-up.md`](specs/backend/engineering/tech/external-reference-skill-up.md)
 - Comet 流程编排状态机（rpamis/comet）的双工作流、源码核验机制、三层扩展模型、与本框架 27 skills 的迁移对照及共存策略：[`external-reference-comet.md`](specs/backend/engineering/tech/external-reference-comet.md)
 
-- Agent 实验评测与 Review 首例：[gent-evaluation](specs/backend/engineering/tech/agent-evaluation.md)
+- Agent 实验评测与 Review 首例：[agent-evaluation](specs/backend/engineering/tech/agent-evaluation.md)
+- Review 效果评测方法：[SWR-Bench 与 SWE-PRBench](specs/backend/engineering/tech/external-reference-review-evaluation-methods.md)
