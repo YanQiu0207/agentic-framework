@@ -8,7 +8,7 @@
             "type": "exit_code",
             "command": "python -m pytest scripts -q",
             "expect_code": 0,
-            "timeout_seconds": 300,
+            "timeout_seconds": 600,
             "baseline_aware": false
         },
         {

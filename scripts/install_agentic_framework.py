@@ -48,6 +48,7 @@ CORE_SKILLS = {
     "workflow-verification",
 }
 DELIVERY_SKILLS = {
+    "workflow-architecture-improvement",
     "workflow-code-generation",
     "workflow-quick-design",
     "workflow-requirements-clarification",
@@ -65,6 +66,7 @@ CORE_COMMANDS = {
     "troubleshooting.md",
 }
 DELIVERY_COMMANDS = {
+    "architecture-improvement.md",
     "code-generation.md",
     "quick-design.md",
     "requirements-clarification.md",
@@ -142,6 +144,7 @@ MANAGED_SKILL_ROOTS = frozenset(
         "std-go",
         "std-python",
         "troubleshooting",
+        "workflow-architecture-improvement",
         "workflow-code-generation",
         "workflow-code-review",
         "workflow-quick-design",
@@ -153,6 +156,7 @@ MANAGED_SKILL_ROOTS = frozenset(
 )
 MANAGED_COMMAND_FILES = frozenset(
     {
+        "architecture-improvement.md",
         "code-generation.md",
         "code-review.md",
         "grill-me.md",
