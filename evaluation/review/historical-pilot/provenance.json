@@ -1,0 +1,45 @@
+{
+    "dataset": "princeton-nlp/SWE-bench_Verified",
+    "dataset_revision": "c104f840cc67f8b6eec6f759ebc8b2693d585d4a",
+    "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+    "task_sources": {
+        "r01": {
+            "instance_id": "astropy__astropy-12907",
+            "repo": "astropy/astropy",
+            "base_commit": "d16bfe05a744909de4b27f5875fe0d4ed41ce607"
+        },
+        "r02": {
+            "instance_id": "django__django-10554",
+            "repo": "django/django",
+            "base_commit": "14d026cccb144c6877294ba4cd4e03ebf0842498"
+        },
+        "r03": {
+            "instance_id": "pytest-dev__pytest-7571",
+            "repo": "pytest-dev/pytest",
+            "base_commit": "422685d0bdc110547535036c1ff398b5e1c44145"
+        },
+        "r04": {
+            "instance_id": "scikit-learn__scikit-learn-13142",
+            "repo": "scikit-learn/scikit-learn",
+            "base_commit": "1c8668b0a021832386470ddf740d834e02c66f69"
+        }
+    },
+    "materials": {
+        "materials/workflow.md": {
+            "repo_path": "skills/workflow-code-review/SKILL.md",
+            "sha256": "58d12b32a555c7ccf21276ce4f170bff5b6c17901356387921be893d43c31bae"
+        },
+        "materials/reviewer.md": {
+            "repo_path": "agents/comprehensive-reviewer.md",
+            "sha256": "de83224b020a5a207572850076d86c172922e84933203e99c7c38ff02e1b197a"
+        },
+        "materials/coding.md": {
+            "repo_path": "skills/bp-coding-best-practices/SKILL.md",
+            "sha256": "68a8abaafb9e0125b8e07101a34cda5b9adb3b302ff4f6da86759ad5bb4e8c33"
+        }
+    },
+    "source_execution": "not_executed",
+    "rounds_per_cell": 1,
+    "enforced_sandbox": false,
+    "protocol_note": "r01 SKILL requested strict escalation but only standard phase executed."
+}

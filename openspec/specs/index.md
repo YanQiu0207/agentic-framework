@@ -14,3 +14,5 @@
 - [质量门模块知识](backend/framework/quality-gates/overview.md)
 - [知识管理实现模块知识](backend/framework/knowledge-management/overview.md)
 - [会话 Telemetry 模块知识](backend/framework/session-telemetry/overview.md)
+
+- [Agent 实验评测与 Review 首例](backend/engineering/tech/agent-evaluation.md)

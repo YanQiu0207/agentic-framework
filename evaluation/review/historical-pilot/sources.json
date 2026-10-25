@@ -1,0 +1,37 @@
+[
+  {
+    "instance_id": "astropy__astropy-12907",
+    "path": "astropy/modeling/separable.py",
+    "url": "https://raw.githubusercontent.com/astropy/astropy/d16bfe05a744909de4b27f5875fe0d4ed41ce607/astropy/modeling/separable.py",
+    "sha256": "cac38fe9744203c720d50d6c88dcdcb0d93a7b2326fe89911e83640ad5676b0f",
+    "bytes": 9878
+  },
+  {
+    "instance_id": "django__django-10554",
+    "path": "django/db/models/sql/compiler.py",
+    "url": "https://raw.githubusercontent.com/django/django/14d026cccb144c6877294ba4cd4e03ebf0842498/django/db/models/sql/compiler.py",
+    "sha256": "8346b2e8d5b645a0ceb5fff3e4e0271e0f53573902b6e9cdc951d91bb9b86f3b",
+    "bytes": 69533
+  },
+  {
+    "instance_id": "django__django-10554",
+    "path": "django/db/models/sql/query.py",
+    "url": "https://raw.githubusercontent.com/django/django/14d026cccb144c6877294ba4cd4e03ebf0842498/django/db/models/sql/query.py",
+    "sha256": "c650a22763e510c9dadf8fd95ed801f95a9bb533070f5a0fa3db91bdb67e40b8",
+    "bytes": 103243
+  },
+  {
+    "instance_id": "pytest-dev__pytest-7571",
+    "path": "src/_pytest/logging.py",
+    "url": "https://raw.githubusercontent.com/pytest-dev/pytest/422685d0bdc110547535036c1ff398b5e1c44145/src/_pytest/logging.py",
+    "sha256": "0df6b074700388ef4fea72a36a10ef9fc97680e46dc66ce8bdd73a39d93928af",
+    "bytes": 29762
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13142",
+    "path": "sklearn/mixture/base.py",
+    "url": "https://raw.githubusercontent.com/scikit-learn/scikit-learn/1c8668b0a021832386470ddf740d834e02c66f69/sklearn/mixture/base.py",
+    "sha256": "0d24ba0f9a12e8dca935c2423009120853aa8e1db488981ebd5c631134fcfb5d",
+    "bytes": 18167
+  }
+]

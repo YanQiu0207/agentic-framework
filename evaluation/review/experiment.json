@@ -1,0 +1,36 @@
+{
+    "id": "review_knowledge_demo",
+    "repeats": 2,
+    "execution": {
+        "model": "declare-before-real-run",
+        "tools": "read-only exported input",
+        "budget": "same for both treatments",
+        "session_policy": "fresh session; isolation is a declaration"
+    },
+    "tasks": [
+        {
+            "id": "checkout",
+            "requirement": "Review the supplied Python code for actionable defects and team-contract violations. Return findings with id, title, file, line, and severity (P0-P3). Do not execute code.",
+            "files": ["public/checkout.py"],
+            "expected": [
+                {"id": "rounding", "description": "Team invoices require decimal ROUND_HALF_UP to cents; binary round violates the rule.", "severity": "P1", "category": "business"},
+                {"id": "mutation", "description": "Repository cache values are shared; popping items mutates repository-owned state.", "severity": "P1", "category": "architecture"},
+                {"id": "logging", "description": "Printing the customer email violates the team's personal-data logging prohibition.", "severity": "P2", "category": "conventions"}
+            ]
+        },
+        {
+            "id": "clean",
+            "requirement": "Review this complete implementation of add(a, b) for integer inputs. Report only actionable defects, not speculative requirements or style preferences. Do not execute code.",
+            "files": ["public/add.py"],
+            "expected": []
+        }
+    ],
+    "treatments": [
+        {"id": "CONTROL", "knowledge": {}},
+        {"id": "KNOWLEDGE", "knowledge": {
+            "business": ["knowledge/business.md"],
+            "architecture": ["knowledge/architecture.md"],
+            "conventions": ["knowledge/conventions.md"]
+        }}
+    ]
+}
