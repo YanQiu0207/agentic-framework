@@ -1,6 +1,6 @@
 # Runtime 重试记账与交付重跑失败
 
-**状态**：源头已修复并通过独立复审，正在进行实际交付重跑验收。下方原始故障记录保留，不代表旧 Run 已被改写恢复。
+**状态**：源头已修复，独立复审、实际交付及同参数重跑均通过。下方原始故障记录保留，不代表旧 Run 已被改写恢复。
 
 **日期**：2026-10-25。
 
@@ -48,4 +48,8 @@ ERROR  Runtime 证据链：artifact_already_exists:task-1-state
 - 相关 112 项测试通过；完整配置的任务 Verify 和全局 Verify 均通过，独立复审第 1 轮 PASS、P0/P1 为 0。CP936 下显式 UTF-8 环境的重试 CLI 回归通过。
 - 当前有效 Run 为 `.agentic-framework/runs/2051-runtime-replay-fix-r1/`，绑定代码提交 `4f322a7`。旧 `2050-review-eval` 的损坏 Journal 不作自动补写；新 Run 通过不代表旧历史已修复。
 
-实际交付与重复调用结果随后追加。远程 main 存在 Native v2 等分叉改造，合并结果还需独立兼容验证，不把本分支测试直接外推到合并结果。
+实际 `check_delivery.py` 首次成功及同参数重跑均为 `checks=8 | errors=0`，Manifest、Journal、Harness 与 Trust Gate 均 PASS。重跑前后 25 份 Artifact、快照、Checkpoint、Journal 和 Manifest 的 SHA-256 相同，证据未被覆盖。完整命令、输出及摘要见 [重跑证据](../changes/archive/2051-2026-10-25-runtime-replay-fix/evidence/delivery-replay.json)。
+
+交付前曾因 task 中包含尚未执行的交付勾选项、Archived 标记多了句号而被拒绝；改为明确的任务完成后独立验收，并修正状态值，未提前勾选未发生的验收。原失败记录仍保留在会话输出。
+
+远程 main 存在 Native v2 等分叉改造，合并结果还需独立兼容验证，不把本分支测试直接外推到合并结果。
