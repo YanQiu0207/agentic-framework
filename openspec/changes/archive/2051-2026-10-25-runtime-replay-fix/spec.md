@@ -1,6 +1,6 @@
 # Runtime 重试与交付重放修复
 
-**状态**：Archived。
+**状态**：Archived
 
 ## 范围
 

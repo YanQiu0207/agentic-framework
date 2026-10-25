@@ -15,7 +15,7 @@
 - verification:
   - [x] 全量 Verify 与回归测试通过。
   - [x] 独立 strict 审核通过。
-  - [ ] 实际交付与同参数重跑通过。
+  - 任务完成后的交付验收：实际运行交付门并用同参数重跑，结果单独记录，不提前勾选未发生的验收。
 - artifacts:
   - `.agentic-framework/runs/2051-runtime-replay-fix-r1/artifacts/verify-run.json`
   - `.agentic-framework/runs/2051-runtime-replay-fix-r1/artifacts/review-run.json`
