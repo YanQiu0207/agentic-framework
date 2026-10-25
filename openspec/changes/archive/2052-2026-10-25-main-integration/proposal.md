@@ -20,7 +20,7 @@
 - 严格首审发现两项嵌套目录边界问题和一项活跃知识冲突；修复后信任链、需求符合度定向复审均无剩余 P0／P1。完整报告保留在整合工作区 `.agentic-framework/review/main-integration/`，原失败报告不覆盖。
 - Windows 首轮全量：806 passed、24 skipped、2 failed。失败分别为测试 fixture 的 CRLF／LF 差异，以及符号链接权限不足（WinError 1314）。前者通过显式 LF fixture 修复并单独重测通过；后者不改为跳过、不弱化断言，转 Linux 验证真实符号链接。
 - Linux（WSL Ubuntu 22.04）同一代码与测试快照：828 passed、5 skipped，23.63 秒；日志为 `.agentic-framework/verify/linux-full-tests-r1.txt`。两项 SWE-bench 测试改为跨平台路径 fixture，未改生产执行逻辑。
-- 最终 v2 Verify、严格 Review 与交付门在 Linux 隔离仓库绑定同一内容主体。机器报告路径为 `.agentic-framework/verify/final.json`、`.agentic-framework/review/main-integration/round-1-review.json`；最终门禁状态以实际报告为准，不由本文替代。
+- 最终 v2 Verify、严格 Review 与交付门在 Linux 隔离仓库绑定同一内容主体。机器报告分轮保存在 `.agentic-framework/verify/`、`.agentic-framework/review/main-integration/`；最终门禁状态以实际报告为准，不由本文替代。
 
 ## 边界
 
