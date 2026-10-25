@@ -16,7 +16,7 @@ description: 代码修改的统一入口；新增功能、修复、优化或重�
 | 复杂度 | 默认执行形态 | 前置 |
 | --- | --- | --- |
 | **轻量**（请求即计划的局部低风险修改） | **Native Delivery**：当前宿主直接执行；Fast-Path 仅作兼容别名 | 免 spec / tasks |
-| **中等**（已明确目标与验收标准，需拆分或委派） | **Native Delivery**：下放 Agent 执行，按需使用 DAG | spec + tasks 批准 |
+| **中等**（已明确目标与验收标准，需拆分或委派） | **Native Delivery**：每 Task 新 Agent 执行，按需使用 DAG | spec + tasks 批准 |
 | **strict** 风险（仍为 Native，strict Review + 独立 Judge） | **Native Delivery**：三档审查独立执行，不因风险自动建 Run | spec + tasks 批准 |
 | **显式选择 Runtime**（`--execution-mode runtime`、硬性审计要求或跨宿主验证） | **完整 Runtime Run**：下放 Agent 执行并初始化 Run | spec + tasks 批准 |
 
@@ -138,7 +138,7 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 任务计划获批后，主会话负责编排，由 Agent 完成实现、测试和任务级机器验证。派发前读取 [执行准备](reference/execution-setup.md) 和 [下放执行指南](reference/delegated-execution-guide.md)。
 
 - 默认 Native Delivery；仅显式 Runtime 需求（execution-mode/audit/cross-host）才路由 `runtime-run`，`strict`、并行与恢复不再自动升级。
-- 单任务或串行依赖按任务顺序直接执行，不要求子 Agent、波次计算或宿主探测；并行分支、非线性依赖或恢复场景按需使用控制器的 `waves` / `dispatchable`。
+- 单任务或串行依赖同样每 Task 委派新 Agent，Git Task 使用独立分支与 Worktree，不复用其他 Task 的 Agent；不要求波次计算或 Runtime 宿主探测。并行分支、非线性依赖或恢复场景按需使用控制器的 `waves` / `dispatchable`。隔离与能力不足的停止条件见下放执行指南。
 - 每项产物通过测试和机器检查后才合并。失败或冲突标为 `需人工`，依赖它的任务标为 `阻塞`，其他独立任务继续。
 - owner / implementer 禁止在 task 内启动 LLM Review；全部可合并任务完成后进行一次最终审核。
 - 完整 Runtime Run 在派发前完成 `init-run` 和必需能力检查；Native Delivery 使用带内容主体的独立 v2 验证报告，不初始化 Run。

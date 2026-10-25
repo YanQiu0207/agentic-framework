@@ -79,3 +79,9 @@ proposal.md / tasks.md 获批
 - `scripts/test_workflow_control.py`：覆盖稳定分波、同波失败隔离、Verify 证据、状态迁移、阻塞、恢复、锁和原子写入。
 - `scripts/test_check_delivery.py`：覆盖终态、归档状态、Git 干净、知识影响和 Review JSON 合同。
 - `scripts/test_knowledge_management_e2e.py:109`：覆盖 Tooling 使用统一 Change Artifact 和控制器。
+
+## Task 执行隔离（change 2057）
+
+标准流程每个 Task 使用新实现 Agent；Git Task 使用独立分支与 Worktree，单 Task 和串行链也适用。串行只表示依赖顺序，不表示复用 Agent 或由主会话实现。同一 Task 修复优先延续原 Agent 与现场；无法恢复时，新 Agent 读取该 Task 证据接手。
+
+能力不足时停止，只有用户明确批准后才能例外执行；SVN 请求串行工作副本例外，不创建 Git 桥接。轻量路径、Runtime 路由和现有验证交付门不变。完整执行规则维护于 `skills/workflow-code-generation/reference/delegated-execution-guide.md`。
