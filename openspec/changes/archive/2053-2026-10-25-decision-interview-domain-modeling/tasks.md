@@ -202,8 +202,8 @@ Task 3（行为验收与知识同步）
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | `openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | MODIFIED | 完成 | 定向内容及历史状态限定已更新，既有入口不变 |
-| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | 完成 | 共享模型与双轨知识合同已更新，既有入口不变 |
+| `specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | `openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | MODIFIED | 已完成 | 定向内容及历史状态限定已更新，既有入口不变 |
+| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | 已完成 | 共享模型与双轨知识合同已更新，既有入口不变 |
 
 ## 知识冲突
 
