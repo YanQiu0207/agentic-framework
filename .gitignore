@@ -22,4 +22,8 @@ tmp.key
 # CAO Windows + Herdr 实验产物
 .artifacts/cao-user-test/
 resource_downloads/cli-agent-orchestrator/
+resource_downloads/manifest.json
 vendor/cli-agent-orchestrator-windows/
+
+.learn-by-gpt/
+.artifacts
