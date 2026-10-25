@@ -40,9 +40,9 @@ description: 基于活跃 Change 或代码生成测试。用户要求补测试�
 
 知识与代码冲突时必须同时报告知识结论和代码证据；不能把知识或当前实现直接当作预期行为。
 
-## Step 1.5: 前置条件检查（仅 E2E）
+## Step 1.5: 前置条件检查（仅浏览器测试）
 
-如果代码涉及前端 UI 流程（`.tsx` 文件或 proposal.md 或 design.md 有用户操作路径），检查 E2E 前置条件：
+如果测试范围涉及前端 UI 操作路径，检查以下浏览器测试前置条件；不以 `.tsx` 后缀作为唯一判断依据。纯 API、CLI 或消息驱动的系统级 E2E 不需要 Playwright，在 Step 3 检查其服务、数据与依赖环境。
 
 ```
 检测到前端 UI 场景。
@@ -65,9 +65,14 @@ description: 基于活跃 Change 或代码生成测试。用户要求补测试�
 | 特征 | 测试类型 |
 |------|----------|
 | 纯函数、无外部依赖 | 单元测试 |
-| 端到端流程、多组件交互 | 集成测试 |
+| 多组件或服务之间的协作 | 集成测试；跨服务接口兼容时补充契约测试 |
+| 从系统入口到最终业务结果的完整链路（API、CLI、消息或 UI） | 系统级 E2E；按声明的系统边界验证真实协作，不按进程数量判断 |
 | proposal.md 或 design.md 有性能指标要求 | 性能测试 |
-| 前端 UI 核心用户流程（.tsx 文件 / spec 有操作路径） | E2E 测试（Playwright） |
+| 前端 UI 操作路径 | 前端隔离测试；关键完整业务链路补充浏览器 E2E（Playwright） |
+| 网络通信、多进程协作、复制或故障恢复 | 按风险增加分布式专项场景，与上述测试层级组合 |
+| 多线程、共享状态或并发生命周期 | 按风险增加并发专项场景，与上述测试层级组合 |
+
+非内嵌路径选中浏览器测试后，先执行 Step 1.5，再进入 Step 3；测试策略设计路径仅记录前置条件，不安装或执行测试。内嵌路径保持 Step 0 的降级与记录规则。
 
 ## Step 3: 制定测试计划
 
@@ -79,8 +84,12 @@ description: 基于活跃 Change 或代码生成测试。用户要求补测试�
 
 1. 读取被测代码，识别公共接口、输入/输出、副作用、需要 mock 的依赖
 2. 读取 [reference/boundary-checklist.md](reference/boundary-checklist.md)，选择适用的边界条件
-3. 根据项目需要，读取对应模块的测试参考文档（如有）
-4. 为每个测试目标列出：正常路径、边界条件、异常场景的具体测试点
+3. 按实际测试范围加载专项参考，不要求每次运行完整场景库：
+    - 前端 UI：[reference/frontend-testing.md](reference/frontend-testing.md)
+    - 网络通信、多进程协作、复制或故障恢复：[reference/distributed-testing.md](reference/distributed-testing.md)
+    - 多线程、共享状态或并发生命周期：[reference/concurrency-testing.md](reference/concurrency-testing.md)
+    - 项目已有模块测试参考：按需读取并复用
+4. 为每个测试目标列出：正常路径、边界条件、异常场景的具体测试点；专项场景记录适用条件、测试边界、真实／替换依赖、操作或故障注入、预期不变量、完成期限与验证证据。不适用项说明理由；环境缺失的适用项标记待验证，不冒充已覆盖。
 
 创建测试任务清单，**与用户确认**后再继续（已有适用批准或内嵌路径除外，见上文及 Step 0）：
 
@@ -88,7 +97,8 @@ description: 基于活跃 Change 或代码生成测试。用户要求补测试�
 示例：
 1. [pending] UnitTest - FooClass::Bar() 正常路径 + 边界条件
 2. [pending] UnitTest - FooClass::Bar() 异常处理
-3. [pending] IntegrationTest - 端到端流程
+3. [pending] IntegrationTest - 组件协作
+4. [pending] E2E - 系统入口到最终业务结果
 ```
 
 > **测试策略设计路径**到此结束。将测试计划输出为 design.md 测试计划章节的内容，不进入 Step 4。
@@ -114,49 +124,18 @@ description: 基于活跃 Change 或代码生成测试。用户要求补测试�
 
 ### 4.2 逐个生成
 
-对每个测试任务生成测试代码。每个测试必须覆盖三类场景：
+对每个测试任务生成测试代码。每个测试目标的用例集合必须覆盖三类适用场景，不要求单个用例混合执行全部场景：
 1. **正常路径** — happy path
 2. **边界条件** — 基于 Step 3 选出的 boundary-checklist 条目
 3. **异常场景** — 错误输入、异常处理
 
 生成后更新构建配置，复用项目现有的测试基类和断言工具（不要自己造）。
 
-#### E2E 测试（Playwright）专属规则
+#### 专项测试执行
 
-仅当 Step 2 判定需要 E2E 测试时执行：
+按 Step 3 选定的专项参考生成测试。浏览器测试使用 `frontend-playwright-verification` 的浏览器／Playwright 规范，并遵循前端参考中的隔离测试与全链路 E2E 边界；非浏览器 E2E 复用项目现有运行器，不强制引入 Playwright。
 
-- 加载 `frontend-playwright-verification` 获取浏览器 / Playwright 使用规范（定位器、等待、避免 sleep 等）
-- 文件命名：`<feature>.e2e.ts`，放在对应 feature 目录内
-- 每个 E2E 场景必须包含：
-  - **正常流程**：完整用户操作路径（点击 → 填表 → 提交 → 验证结果）
-  - **错误状态**：空表单提交、网络错误、无权限等
-  - **边界状态**：空列表、超长输入、多页分页等
-- 使用 `page.getByRole` / `page.getByText` 等语义选择器，禁止 CSS 选择器
-- 网络拦截：用 `page.route()` mock API 响应，不依赖真实后端
-- 断言必须用 `expect(locator).toBeVisible()` 等 Playwright 断言（自动等待，不要 `sleep`）
-
-```ts
-// 示例结构
-import { test, expect } from '@playwright/test'
-
-test.describe('UserList', () => {
-  test('正常加载并显示用户列表', async ({ page }) => {
-    await page.route('/api/users', route =>
-      route.fulfill({ json: [{ id: '1', name: '张三' }] })
-    )
-    await page.goto('/users')
-    await expect(page.getByRole('listitem')).toHaveCount(1)
-    await expect(page.getByText('张三')).toBeVisible()
-  })
-
-  test('空列表显示引导操作', async ({ page }) => {
-    await page.route('/api/users', route => route.fulfill({ json: [] }))
-    await page.goto('/users')
-    await expect(page.getByText('暂无用户')).toBeVisible()
-    await expect(page.getByRole('link', { name: '添加用户' })).toBeVisible()
-  })
-})
-```
+分布式和并发测试必须验证计划中的业务不变量及恢复／终止条件，不能只断言进程存活或无异常。故障注入仅在获授权的隔离测试环境执行，设置超时并在失败时恢复故障、清理本次创建的资源；未获授权或环境不可用时停止相关执行，报告待验证项，不修改生产环境。
 
 每完成一个任务，标记 `[completed]`，继续下一个。
 
@@ -177,7 +156,7 @@ test.describe('UserList', () => {
 ## 强制规则
 
 1. **测试计划必须经用户确认后才能生成代码**（已有适用批准直接复用；内嵌路径除外，见 Step 0；范围变化与契约冲突按 Step 3 处理）
-2. **必须覆盖三类场景**：正常路径 + 边界条件 + 异常场景
+2. **必须覆盖三类场景**：每个测试目标覆盖适用的正常路径、边界条件与异常场景，不适用项说明理由
 3. **必须应用 boundary-checklist**：Step 3 中读取并选择适用条目
 4. **必须可编译运行**：包含所有必要头文件/导入，更新构建配置
 5. **复用现有基础设施**：使用项目的测试基类和断言工具，不要自己造
