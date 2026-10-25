@@ -170,6 +170,18 @@ class RuntimeWorkflowTest(unittest.TestCase):
             )
             review_path = runtime_workflow._write_artifact(run_dir, review)
 
+            original_replace = runtime_workflow.os.replace
+            def interrupt_snapshot(source, destination):
+                if Path(destination).name == "code.diff":
+                    raise OSError("snapshot publish interrupted")
+                return original_replace(source, destination)
+            with mock.patch.object(runtime_workflow.os, "replace", side_effect=interrupt_snapshot):
+                with self.assertRaisesRegex(OSError, "snapshot publish interrupted"):
+                    runtime_workflow.finalize_run(repo, run_dir, review_path, [
+                        {"task_id": "1", "state": "completed", "attempts": failures}
+                    ])
+            self.assertFalse((run_dir / "snapshots/code.diff").exists())
+
             result = check_delivery.main(
                 [
                     "--repo",

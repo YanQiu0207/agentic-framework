@@ -494,7 +494,7 @@ def _finalize_run(
         if code_path.read_bytes() != diff:
             raise RuntimeWorkflowError("code_snapshot_conflict")
     else:
-        code_path.write_bytes(diff)
+        run_journal._atomic_write(code_path, diff)
     code = envelope(
         context,
         "code-result",

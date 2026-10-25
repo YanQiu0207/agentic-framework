@@ -3,7 +3,7 @@
 ### 任务 1：[ ] 修复与验证 Runtime 证据重放
 - 状态：进行中
 - attempts：0
-- control_stage：running
+- control_stage：quality_passed
 - depends_on: []
 - review_profile: strict
 - 文件：`scripts/run_journal.py`、`scripts/runtime_workflow.py`、`skills/workflow-code-generation/scripts/workflow_control.py`、相关测试。
