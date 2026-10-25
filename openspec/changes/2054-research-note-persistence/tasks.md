@@ -48,8 +48,8 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
 
 ## 任务列表
 
-### 任务 1：[ ] 在 task_planning_guide 定义「实现参考」字段与 research.md 提取职责
-- 状态：未开始    （合法值：未开始 / 进行中 / 完成 / 需人工 / 阻塞；执行期由 code-generation 维护，是续跑的真相源）
+### 任务 1：[x] 在 task_planning_guide 定义「实现参考」字段与 research.md 提取职责
+- 状态：完成    （合法值：未开始 / 进行中 / 完成 / 需人工 / 阻塞；执行期由 code-generation 维护，是续跑的真相源）
 - 文件：`skills/workflow-code-generation/reference/task_planning_guide.md`（修改）
 - depends_on: []
 - review_profile: lightweight
@@ -59,19 +59,19 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
   - `skills/workflow-code-generation/reference/task_planning_guide.md` — 唯一修改目标，全部改动落在此文件
   - `skills/workflow-code-generation/SKILL.md:100` — 引用本 guide 的步骤 3，确认不与本任务字段冲突
 - verification:
-  - [ ] `grep -n "实现参考" skills/workflow-code-generation/reference/task_planning_guide.md` 在「第二步信息项」「原则 7」「模板正文」「质量自检表」四处全部命中
-  - [ ] `grep -n "research.md" skills/workflow-code-generation/reference/task_planning_guide.md` 至少命中第二步信息项与质量自检表两处
-  - [ ] 模板中 `实现参考` 标注为可选（有「无则省略」语义）
+  - [x] `grep -n "实现参考" skills/workflow-code-generation/reference/task_planning_guide.md` 在「第二步信息项」「原则 7」「模板正文」「质量自检表」四处全部命中
+  - [x] `grep -n "research.md" skills/workflow-code-generation/reference/task_planning_guide.md` 至少命中第二步信息项与质量自检表两处
+  - [x] 模板中 `实现参考` 标注为可选（有「无则省略」语义）
 - artifacts:
   - `skills/workflow-code-generation/reference/task_planning_guide.md`（修改后版本）
 - 子任务：
-  - [ ] 1.1: 第二步信息项加第 6 项
-  - [ ] 1.2: 原则 7 加字段定义与填写规则
-  - [ ] 1.3: 模板正文加示例行
-  - [ ] 1.4: 质量自检表加检查行
+  - [x] 1.1: 第二步信息项加第 6 项
+  - [x] 1.2: 原则 7 加字段定义与填写规则
+  - [x] 1.3: 模板正文加示例行
+  - [x] 1.4: 质量自检表加检查行
 
-### 任务 2：[ ] 需求澄清 Step 1 接入 research.md 落盘
-- 状态：未开始
+### 任务 2：[x] 需求澄清 Step 1 接入 research.md 落盘
+- 状态：完成
 - 文件：`skills/workflow-requirements-clarification/SKILL.md`（修改）
 - depends_on: Task 1
 - review_profile: lightweight
@@ -81,14 +81,14 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
   - `skills/workflow-requirements-clarification/SKILL.md:118-148` — Step 1 全段，落盘段插入点
   - `skills/workflow-code-generation/reference/task_planning_guide.md` — Task 1 定稿的字段写法，保持措辞一致
 - verification:
-  - [ ] `grep -n "research.md" skills/workflow-requirements-clarification/SKILL.md` 命中新增段落
-  - [ ] `git diff` 显示仅 Step 1 区域新增，无其他段落变动
-  - [ ] 路径写法与 design.md §4.2.2 一致（`openspec/changes/<ticket>-<change-name>/research.md`）
+  - [x] `grep -n "research.md" skills/workflow-requirements-clarification/SKILL.md` 命中新增段落
+  - [x] `git diff` 显示仅 Step 1 区域新增，无其他段落变动
+  - [x] 路径写法与 design.md §4.2.2 一致（`openspec/changes/<ticket>-<change-name>/research.md`）
 - artifacts:
   - `skills/workflow-requirements-clarification/SKILL.md`（修改后版本）
 
-### 任务 3：[ ] 系统设计 Step 0 接入 research.md 落盘
-- 状态：未开始
+### 任务 3：[x] 系统设计 Step 0 接入 research.md 落盘
+- 状态：完成
 - 文件：`skills/workflow-system-design/SKILL.md`（修改）
 - depends_on: Task 1
 - review_profile: lightweight
@@ -98,14 +98,14 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
   - `skills/workflow-system-design/SKILL.md:153-185` — Step 0 全段
   - `skills/workflow-requirements-clarification/SKILL.md` — Task 2 产物，措辞对齐来源
 - verification:
-  - [ ] `grep -n "research.md" skills/workflow-system-design/SKILL.md` 命中新增项
-  - [ ] `git diff` 显示仅 Step 0 区域新增一行，无其他段落变动
-  - [ ] 两处落盘段的关键词一致（追加式、六段结构、用户确认后）
+  - [x] `grep -n "research.md" skills/workflow-system-design/SKILL.md` 命中新增项
+  - [x] `git diff` 显示仅 Step 0 区域新增一行，无其他段落变动
+  - [x] 两处落盘段的关键词一致（追加式、六段结构、用户确认后）
 - artifacts:
   - `skills/workflow-system-design/SKILL.md`（修改后版本）
 
-### 任务 4：[ ] 编码入口步骤 2 加入 research.md 强制通读
-- 状态：未开始
+### 任务 4：[x] 编码入口步骤 2 加入 research.md 强制通读
+- 状态：完成
 - 文件：`skills/workflow-code-generation/SKILL.md`（修改）
 - depends_on: Task 1
 - review_profile: lightweight
@@ -115,14 +115,14 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
   - `skills/workflow-code-generation/SKILL.md:82-96` — 步骤 2 全段
   - `skills/workflow-code-generation/reference/task_planning_guide.md` — Task 1 定稿的字段名
 - verification:
-  - [ ] `grep -n "research.md" skills/workflow-code-generation/SKILL.md` 命中新增句
-  - [ ] `git diff` 显示仅步骤 2 段落变动
-  - [ ] 新增句包含「存在时」条件（research.md 缺失不阻塞轻量与小型 Change）
+  - [x] `grep -n "research.md" skills/workflow-code-generation/SKILL.md` 命中新增句
+  - [x] `git diff` 显示仅步骤 2 段落变动
+  - [x] 新增句包含「存在时」条件（research.md 缺失不阻塞轻量与小型 Change）
 - artifacts:
   - `skills/workflow-code-generation/SKILL.md`（修改后版本）
 
-### 任务 5：[ ] knowledge-management Delta 与索引同步
-- 状态：未开始
+### 任务 5：[x] knowledge-management Delta 与索引同步
+- 状态：完成
 - 文件：`openspec/changes/2054-research-note-persistence/specs/backend/engineering/tech/knowledge-management.md`（新建）
 - depends_on: Task 1
 - review_profile: lightweight
@@ -134,16 +134,16 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
   - `openspec/changes/2053-decision-interview-domain-modeling/specs/` — 既有 Delta 的格式参照（main 上已归档，路径在 archive 下）
   - `openspec/index.md` — 活跃 Change 登记
 - verification:
-  - [ ] Delta 文件存在且相对路径镜像长期 specs：`ls openspec/changes/2054-research-note-persistence/specs/backend/engineering/tech/knowledge-management.md`
-  - [ ] `python scripts/lint_spec.py openspec/changes/2054-research-note-persistence/specs 2>&1` 无 ERROR（或确认该脚本按目录/文件用法无此校验时，记录实际执行的校验命令与结果）
-  - [ ] tasks.md 知识同步表已填写（非 Pending）
-  - [ ] `openspec/index.md` 已登记本 Change
+  - [x] Delta 文件存在且相对路径镜像长期 specs：`ls openspec/changes/2054-research-note-persistence/specs/backend/engineering/tech/knowledge-management.md`
+  - [x] `python scripts/lint_spec.py openspec/changes/2054-research-note-persistence/specs 2>&1` 无 ERROR（或确认该脚本按目录/文件用法无此校验时，记录实际执行的校验命令与结果）
+  - [x] tasks.md 知识同步表已填写（非 Pending）
+  - [x] `openspec/index.md` 已登记本 Change
 - artifacts:
   - `openspec/changes/2054-research-note-persistence/specs/backend/engineering/tech/knowledge-management.md`
   - `openspec/index.md`（修改后版本）
 
-### 任务 6：[ ] 交叉核验、lint 与全量自检
-- 状态：未开始
+### 任务 6：[x] 交叉核验、lint 与全量自检
+- 状态：完成
 - 文件：无新增修改（只读核验；发现问题时回到对应任务修复后重跑本任务）
 - depends_on: Task 2, Task 3, Task 4, Task 5
 - review_profile: standard
@@ -156,10 +156,10 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
   - `skills/workflow-code-generation/reference/task_planning_guide.md`
   - `openspec/changes/2054-research-note-persistence/specs/backend/engineering/tech/knowledge-management.md`
 - verification:
-  - [ ] lint_task_deps.py 本 tasks.md 通过（含 --state-consistency 在任务全为终态时）
-  - [ ] grep 交叉核验全部命中
-  - [ ] 逐文件 git diff 无本 Change 之外的改动
-  - [ ] md-zh 自检通过
+  - [x] lint_task_deps.py 本 tasks.md 通过（含 --state-consistency 在任务全为终态时）
+  - [x] grep 交叉核验全部命中
+  - [x] 逐文件 git diff 无本 Change 之外的改动
+  - [x] md-zh 自检通过
 - artifacts:
   - 本任务勾选记录与核验输出（写在任务勾选项与最终报告）
 
@@ -181,7 +181,7 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | Pending | TODO |
+| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | Delta 已创建（Synced 于归档前核对） | 已登记 `openspec/index.md` 近期变更 |
 
 ## 知识冲突
 
@@ -189,4 +189,10 @@ Task 6 (交叉核验与全文自检) ← 依赖 Task 2, 3, 4, 5
 
 ## 实际 Diff 核对
 
-- 核对状态：Pending。归档前记录实际 Diff、Change 和测试证据的核对命令与 PASS 结论。
+- 核对状态：PASS（2026-11-27，worktree 分支 `2054-research-note-persist`）。
+- 核对命令与结论：
+  - `git diff --stat`：6 文件 +21/−12，全部落在本 Change 声明的目标文件内，无越界改动。
+  - `grep -n "research.md"` 四个 skill 文件 7 处命中，路径写法一致（`openspec/changes/<ticket>-<change-name>/research.md` 与「存在时」条件齐全）。
+  - `python skills/workflow-code-generation/scripts/lint_task_deps.py <tasks.md> --governance-profile tooling`：tasks=6 | errors=0 | warnings=0。
+  - `lint_spec.py` proposal（--phase code）与 design（--phase design-code）：均 errors=0。
+  - md-zh 排版抽查：新增行中英文空格、全角标点无违规。

@@ -88,7 +88,7 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 **强制**：`proposal.md` 与 `tasks.md` 同时存在时，编码前必须完整读取；存在 `design.md` 和 Delta 时也必须完整读取。
 
-同时读取 `openspec/index.md`，再按当前 Task 定向读取相关模块 `custom/` 约束和踩坑；随后回到代码核实现状。知识与代码冲突时必须显式报告双方证据，不得静默修改任意一方。
+同时读取 `openspec/index.md`，再按当前 Task 定向读取相关模块 `custom/` 约束和踩坑；Change 目录存在 `research.md` 时将其一并纳入强制通读，实现前按当前任务的 `实现参考` 字段定位已有实现，不重造现有代码已覆盖的方案。research.md 只辅助理解，随后仍回到代码核实现状。知识与代码冲突时必须显式报告双方证据，不得静默修改任意一方。
 
 **前端分支检查**：任务涉及 `.tsx` 文件或 UI 页面时：
 - 同目录下存在 `ui-spec.md` → 与 `proposal.md`、`design.md` 和 Delta 一起**强制通读**，`ui-spec.md` 是视觉与布局契约，代码实现须与其对齐。

@@ -147,6 +147,8 @@ cp skills/workflow-requirements-clarification/reference/proposal_template.md \
 
 **实时更新 Proposal**：用户确认后，更新 proposal.md 的 `1.2 现状分析` 和 `1.3 主要使用场景`。
 
+**落盘调研结论**：用户确认调研摘要后，将 subagent 报告追加写入 `openspec/changes/<ticket>-<change-name>/research.md`（不存在时创建）：按调研问题分节，沿用 `codebase-researcher` 的报告结构（摘要、关键发现、模块分析、依赖图、相关测试、待明确问题），保留报告中的 `file:line` 引用；后续调研追加新章节，不覆盖旧章节。proposal.md 的 `1.2 现状分析` 只写摘要并指向 research.md 对应章节，不复制全文。
+
 ### Step 2: 澄清背景与问题
 
 **目标**：让用户说清楚"要解决什么问题"

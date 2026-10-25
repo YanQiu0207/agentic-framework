@@ -15,6 +15,8 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 近期变更
 
+- [2054：变更调研结论落盘与实现参考传递](changes/2054-research-note-persistence/proposal.md)（调研落盘 `research.md`、任务级「实现参考」字段与编码入口通读接线；进行中）
+
 - [2054：深模块、测试接点与只读架构改善](changes/archive/2054-2026-10-25-deep-module-architecture/proposal.md)（方法、设计／测试接线与存量调查入口；完整测试及安装生命周期已复验）
 
 - [2052：以远程 main 为基线整合评测与 Runtime 修复](changes/archive/2052-2026-10-25-main-integration/proposal.md)（Native v2 与显式 Runtime、嵌套目录边界、跨平台验证及证据限制）
