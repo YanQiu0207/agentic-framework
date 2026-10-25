@@ -57,6 +57,8 @@ description: 代码审查。用户要求审查变更或开发流程进入 Review
 3. **处理验证类修复**：若修复来自机器或前端验证、没有上一轮保留的问题，则按当前档位选择 Reviewer，只检查修复 diff。
 4. **输出增量报告**：使用第 7 步的固定格式。原问题逐条写明“已修复 / 未修复 / 部分修复”及依据；正式问题仅保留未解决项和修复引入的新问题。
 
+复审同样按第 2 步校验并加载适用的 Overlay 补充规范，只用于原问题核验和修复 diff，不扩大复审范围。
+
 首审记第 0 轮，复审轮次在上一轮基础上加 1；没有上一轮报告的验证类修复从第 1 轮起。新问题沿用 `F-{seq}` 续号，标题加“（新增）”，如 `#### P1-2（新增）: ...`。
 
 ### 复审结束条件
@@ -81,7 +83,11 @@ description: 代码审查。用户要求审查变更或开发流程进入 Review
 - 在 `openspec/changes/` 下搜索相关 `proposal.md`、`design.md`、Delta 和 `tasks.md`
 - 确定审查文件、上下文文件（caller/callee/接口定义）
 - 根据文件类型和目录确定适用 skill；若改动涉及架构边界 / 模块划分或组件接口 / 数据模型设计，相应将 `bp-architecture-design` / `bp-component-design` 加入 `{skill_list}`
+- 按 [Overlay 规范发现](../workflow-code-generation/reference/execution-setup.md#overlay-规范发现) 从当前 Skill 的真实路径定位受信框架根并校验扩展。校验失败时报告失败，不加载未通过校验的 Overlay，也不得宣称已完成其补充审核。
+- 对校验成功且 `skills[].files` 匹配本次审查文件后缀的当前 client Skill，先只读取 frontmatter 的 `name` / `description`；仅在其适用于本次代码审核（含作为审核依据的编码规范、最佳实践或领域约束）时加载正文并加入 `{skill_list}`，记录规范来源及适用文件。纯实现、部署等操作技能不加载；描述不足以判断时跳过该候选技能并记录原因，继续核心审核，不等待用户确认，也不因后缀匹配就加载全部候选技能。
 - 提炼与本次 review 相关的 spec/task 摘要
+
+Overlay 仅补充审核内容，不覆盖核心流程、档位、严重度、独立性和通过门槛，也不自动执行其中的命令。
 
 ### 3. 并行分派 reviewer
 
@@ -90,6 +96,8 @@ description: 代码审查。用户要求审查变更或开发流程进入 Review
 **跳过 / 追加列表**：调用方可在请求中通过 `skip_reviewers: [name1, name2]` 跳过某些 reviewer，或通过 `extra_reviewers: [name1]` 给当前档位追加 reviewer。未指定时按 `review_profile` 调用。
 
 派发前读取 [Reviewer 提示模板](reference/reviewer-prompts.md#reviewer-提示模板)，提供范围、上下文、严重度定义和报告要求。
+
+将适用的 Overlay 规范来源、审核条目和文件范围随 `{skill_list}` 传给对应维度的 Reviewer；`lightweight` / `standard` 由综合 Reviewer 覆盖。基于补充规范提出 finding 时，同时引用规范条目和代码证据；将相关规范上下文继续传给 Critic 与最终裁决方，沿用第 4-7 步处理，不另设裁决或报告格式。
 
 ### 4. 汇总审查意见
 
