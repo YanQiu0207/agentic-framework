@@ -57,9 +57,9 @@ Task 1 → Task 2 → Task 3 → Task 4
   - `skills/workflow-system-design/SKILL.md`
   - `skills/workflow-test-generation/SKILL.md`
 
-### 任务 3：[ ] 只读架构改善入口与安装
-- 状态：需人工
-- 原因：实现及无权限依赖的回归通过；真实安装、刷新、卸载测试因 Windows 符号链接权限跳过，待补环境复验。
+### 任务 3：[x] 只读架构改善入口与安装
+- 状态：完成
+- 结果：补齐环境后，新增安装回归 3 项全部通过，包含两 Profile／两客户端真实安装、刷新、卸载及用户文件保护。
 - 文件：`skills/workflow-architecture-improvement/SKILL.md`、`commands/architecture-improvement.md`、`scripts/install_agentic_framework.py`、`README.md`
 - depends_on: Task 2
 - review_profile: standard
@@ -70,7 +70,7 @@ Task 1 → Task 2 → Task 3 → Task 4
   - `scripts/install_agentic_framework.py`
 - verification:
   - [x] `python scripts/lint_skill_graph.py` 通过
-  - [ ] 两 Profile 安装、刷新、卸载及失败保护回归通过
+  - [x] 两 Profile 安装、刷新、卸载及失败保护回归通过
 - artifacts:
   - `skills/workflow-architecture-improvement/SKILL.md`
   - `commands/architecture-improvement.md`
@@ -78,7 +78,7 @@ Task 1 → Task 2 → Task 3 → Task 4
 
 ### 任务 4：[ ] 验证、知识与最终审查
 - 状态：需人工
-- 原因：全量检查因 SVN 工具缺失与符号链接权限失败；保留原检查，不归档。详见 validation.md，独立 Review 证据在 `.agentic-framework/review/`。
+- 原因：原环境限制已解除，独立全量测试 836 项通过；待用户批准的 600 秒正式 Verify 与归档交付收口。详见 validation.md，独立 Review 证据在 `.agentic-framework/review/`。
 - 文件：`scripts/test_architecture_improvement_installation.py`、`skills/workflow-architecture-improvement/evaluation/trigger-cases.md`、`openspec/specs/backend/engineering/tech/architecture-improvement.md`、`openspec/index.md`
 - depends_on: Task 3
 - review_profile: standard
@@ -88,7 +88,7 @@ Task 1 → Task 2 → Task 3 → Task 4
   - `scripts/test_install_agentic_framework.py`
   - `skills/workflow-code-review/SKILL.md`
 - verification:
-  - [ ] `python -m pytest scripts -q` 通过
+  - [x] `python -m pytest scripts -q` 通过
   - [x] `python scripts/lint_skill_graph.py` 通过
   - [x] 独立行为演练与最终 standard Review 完成
   - [ ] 原基线机器验证、状态一致性及交付门完成
@@ -119,4 +119,4 @@ Task 1 → Task 2 → Task 3 → Task 4
 
 ## 实际 Diff 核对
 
-已通过 `git diff --check`、定向安装测试与引用图核对，实际改动与批准范围一致；完整执行证据及未完成项见 validation.md。全量门禁失败，不归档、不宣称正式交付完成。
+已通过 `git diff --check`、定向安装测试与引用图核对，实际改动与批准范围一致；恢复阶段另含用户明确批准的全量测试超时调整。完整执行证据及未完成项见 validation.md，正式交付以归档后的机器门原始输出为准。

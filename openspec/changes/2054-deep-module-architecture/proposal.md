@@ -42,6 +42,8 @@
 
 Native Delivery，串行任务，一次 standard integration Review。使用现有 `verify.config.json`，不修改检查或基线。Windows 检查命令依赖 Git `usr/bin` 的 `grep` 和 `true`，仅为当前进程补充 PATH。行为演练与结构检查分别报告，前者不冒充确定性保证。
 
+恢复阶段的配置维护例外：2026-10-25 用户明确批准仅将 `verify.config.json` 中全量测试的 `timeout_seconds` 从 300 改为 600。依据为原 Verify 的 300 秒超时与独立全量测试 836 项通过；不改测试范围、断言、其他检查或原基线。该修改与验证收口一并定向复审，不重新启动全量首审。
+
 ## 5. 参考资料
 
 - 本次对话批准的三项补充方案与四项任务。

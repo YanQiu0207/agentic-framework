@@ -6,7 +6,7 @@
 - Native Delivery，现有 `verify.config.json` 未修改。初次采基线缺少 `grep`／`true`；仅当前进程 PATH 加入 Git `usr/bin` 后成功采集原基线。
 - Overlay 查询返回 `Overlay validation requires a v3 installation manifest`：框架源码 worktree 无安装 Manifest，未加载 Overlay，未按目标 Manifest 执行任何外部路径。
 
-## 确定性检查
+## 首次阶段的确定性检查（历史记录）
 
 | 检查 | 实际结果 |
 | --- | --- |
@@ -34,7 +34,7 @@ python -m pytest scripts -q --tb=short --lf
 
 所有正常 Python 调用设置 `PYTHONUTF8=1`、`PYTHONIOENCODING=utf-8`；CP936 演练特意以 GBK 父进程启动，子进程恢复两项 UTF-8 设置，并以 `encoding="utf-8"` 捕获。
 
-## 环境限制与未完成项
+## 首次阶段的环境限制（历史记录）
 
 - `where.exe svn`、`where.exe svnadmin` 均未找到命令。失败复跑中 SVN fixtures 调用 `svnadmin create` 报 `FileNotFoundError: [WinError 2]`。
 - `scripts/test_native_subject.py::test_symlink_content_and_external_limitations` 报 `WinError 1314`，当前进程无符号链接创建权限。
@@ -69,3 +69,13 @@ python -m pytest scripts -q --tb=short --lf
 - 放弃方案：命中，未建立平行方法 Skill、HTML 报告与平行知识目录；理由已写入 proposal.md §2.2 及长期知识「维护决策」。
 - 新增约束：命中，只读调查、选择不等于授权、不绕过既有批准与交付；已写入新 Skill 和长期知识。
 - 长期知识已从根索引接线；历史 Matt 研究保留为候选记录，不伪装为当前实现。无已发现且未裁决的知识冲突。
+
+## 恢复验证（2026-10-25）
+
+- 用户授权补装现有 TortoiseSVN 的 CLI 组件，未升级原软件；`svn`、`svnadmin`、`svnserve` 实测均为 1.14.3。当前进程 PATH 显式加入 TortoiseSVN 和 Git 的工具目录。
+- PowerShell 与 Python 符号链接探针均通过；新增安装回归 3 passed，真实安装—刷新—卸载不再跳过。初始环境失败保留为历史，不代表恢复后的现状。
+- 使用原 300 秒配置的恢复 Verify 超时，报告为 ERROR，不能当作测试通过；日志还报告清理不完整，随后进程查询未发现仍在运行的 pytest／svnserve。未修改清理代码或隐藏该信号。
+- 独立执行 `python -m pytest scripts -q --tb=short --durations=12`：836 passed in 257.36s，退出码为 0。此项是完整测试结果，不等于正式交付门结果。
+- 用户明确批准配置维护：仅将全量测试 `timeout_seconds` 从 300 调为 600；其余配置保持不变。未删测试、改断言、扩大排除或重采基线。
+- 原基线 SHA256 为 `343CA73E8994BBD28D02EAC5B3735F756BEBA3BBA10EB43E3412102803F5BFDD`，恢复期间继续使用该文件。
+- 恢复日志：`.agentic-framework/verify/resume-verify.log`、`resume-full-pytest.log`。接下来以更新后的配置执行正式 Verify，未完成前不归档或宣称交付通过。
