@@ -16,6 +16,9 @@
 - review_profile: strict
 - 文件：`scripts/agent_eval.py`、`scripts/test_agent_eval.py`、`scripts/test_knowledge_management_e2e.py`、`scripts/test_workflow_control.py`、`evaluation/review/`、`openspec/specs/backend/engineering/tech/agent-evaluation.md`
 - 文档映射：review-first-amendment.md、verification-notes.md、原首审 review-run.md。
+- context_files:
+  - `scripts/agent_eval.py`
+  - `scripts/test_agent_eval.py`
 - verification:
   - [x] 原配置全量 Verify 与 Spec Drift 通过。
   - [x] 独立 Judge 对 F-1 修复与修复 diff 定向复审通过。
