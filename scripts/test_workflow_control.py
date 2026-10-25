@@ -105,6 +105,34 @@ def tasks_text(
 
 
 class WorkflowControlTest(unittest.TestCase):
+    def test_runtime_retry_events_survive_task_write_interruption(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "tasks.md"
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            (root / "verify.config.json").write_text("{}", encoding="utf-8")
+            run_dir, report_path = runtime_verify_fixture(root)
+            def command(event):
+                return [str(path), "--governance-profile", "tooling", "event", "1",
+                        event, "--write", "--run-dir", str(run_dir)]
+            self.assertEqual(0, workflow_control.main(command("start")))
+            with mock.patch.object(workflow_control, "_write_decisions", side_effect=OSError("stop")):
+                self.assertEqual(2, workflow_control.main(command("failure")))
+            self.assertEqual(0, workflow_control.main(command("failure")))
+            self.assertEqual(0, workflow_control.main(command("failure")))
+            runtime = workflow_control.runtime_workflow
+            replay = runtime.run_journal.replay_journal(run_dir / "events.jsonl")
+            self.assertEqual({"state": "running", "attempts": 2}, replay.tasks["1"])
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report.update(artifact_id="verify-1-3", attempt=3)
+            third = report_path.with_name("verify-1-3.json")
+            third.write_text(json.dumps(report), encoding="utf-8")
+            self.assertEqual(0, workflow_control.main(
+                command("quality_passed") + ["--verify-report", str(third)]
+            ))
+            replay = runtime.run_journal.replay_journal(run_dir / "events.jsonl")
+            self.assertEqual({"state": "quality_passed", "attempts": 2}, replay.tasks["1"])
+
     """Cover deterministic scheduling, transitions, persistence, and recovery."""
 
     def test_build_waves_is_stable(self) -> None:

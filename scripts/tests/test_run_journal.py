@@ -175,6 +175,19 @@ class RunJournalTest(unittest.TestCase):
         replay = run_journal.replay_journal(self.journal)
         self.assertEqual({"state": "running", "attempts": 1}, replay.tasks["1"])
 
+    def test_invalid_append_does_not_poison_valid_prefix(self) -> None:
+        run_journal.append_event(self.journal, event(1))
+        previous = self.journal.read_bytes()
+        invalid = event(2, "task-quality-passed", attempt=3)
+        with self.assertRaisesRegex(run_journal.JournalError, "attempt_mismatch"):
+            run_journal.append_event(self.journal, invalid)
+        self.assertEqual(previous, self.journal.read_bytes())
+        invalid = event(2)
+        invalid["commit_sha"] = "c" * 40
+        with self.assertRaisesRegex(run_journal.JournalError, "event_binding_conflict"):
+            run_journal.append_event(self.journal, invalid)
+        self.assertEqual(previous, self.journal.read_bytes())
+
     def test_checkpoint_allows_later_events_and_detects_tampering(self) -> None:
         run_journal.append_event(self.journal, event(1))
         checkpoint = run_journal.write_checkpoint(self.root, self.journal)

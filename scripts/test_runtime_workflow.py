@@ -49,6 +49,12 @@ class RuntimeWorkflowTest(unittest.TestCase):
         ).strip()
 
     def test_complete_workflow_produces_reachable_trusted_evidence(self) -> None:
+        self._complete_workflow(0)
+
+    def test_retried_workflow_retains_failed_attempt_evidence(self) -> None:
+        self._complete_workflow(2)
+
+    def _complete_workflow(self, failures: int) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo = Path(temp_dir)
             subprocess.run(["git", "init", "-q", str(repo)], check=True)
@@ -62,7 +68,7 @@ class RuntimeWorkflowTest(unittest.TestCase):
             tasks.write_text(
                 "### 任务 1：实现\n"
                 "- 状态：完成\n"
-                "- attempts：0\n"
+                f"- attempts：{failures}\n"
                 "- depends_on：[]\n"
                 "- review_profile：strict\n"
                 "- context_files：`spec.md`\n"
@@ -107,7 +113,7 @@ class RuntimeWorkflowTest(unittest.TestCase):
             verify = runtime_workflow.envelope(
                 context,
                 "verify-report",
-                "verify-1-1",
+                f"verify-1-{failures + 1}",
                 {
                     "verdict": "PASS",
                     "total": 1,
@@ -119,10 +125,16 @@ class RuntimeWorkflowTest(unittest.TestCase):
                 },
                 "workflow-verification",
                 task_id="1",
-                attempt=1,
+                attempt=failures + 1,
             )
+            for attempt in range(1, failures + 1):
+                runtime_workflow.record_task_control(run_dir, "1", attempt, "start", "", "running")
+                failed = dict(verify, artifact_id=f"verify-1-{attempt}", attempt=attempt,
+                              payload={**verify["payload"], "verdict": "FAIL", "errors": 1})
+                runtime_workflow._write_artifact(run_dir, failed)
+                runtime_workflow.record_task_control(run_dir, "1", attempt, "failure", "test failure", "running")
             verify_path = runtime_workflow._write_artifact(run_dir, verify)
-            runtime_workflow.record_quality_passed(run_dir, verify_path, "1", 1)
+            runtime_workflow.record_quality_passed(run_dir, verify_path, "1", failures + 1)
             run_verify = runtime_workflow.envelope(
                 context,
                 "verify-report",
@@ -186,6 +198,32 @@ class RuntimeWorkflowTest(unittest.TestCase):
                 {item["artifact_type"] for item in manifest["payload"]["artifacts"]},
             )
             self.assertTrue((run_dir / "events.jsonl").is_file())
+
+            states = [{"task_id": "1", "state": "completed", "attempts": failures}]
+            artifacts_before = {
+                path.name: path.read_bytes()
+                for path in (run_dir / "artifacts").glob("*.json")
+            }
+            journal_before = (run_dir / "events.jsonl").read_bytes()
+            # A failed downstream gate must not prevent retrying the same inputs.
+            with mock.patch.object(
+                runtime_workflow.runtime_trust, "validate_run",
+                side_effect=RuntimeError("injected gate interruption"),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "injected gate"):
+                    runtime_workflow.finalize_run(repo, run_dir, review_path, states)
+            self.assertEqual("PASS", runtime_workflow.finalize_run(
+                repo, run_dir, review_path, states
+            )["verdict"])
+            self.assertEqual(journal_before, (run_dir / "events.jsonl").read_bytes())
+            self.assertEqual(artifacts_before, {
+                path.name: path.read_bytes()
+                for path in (run_dir / "artifacts").glob("*.json")
+            })
+            with self.assertRaisesRegex(runtime_workflow.RuntimeWorkflowError, "conflict"):
+                runtime_workflow.finalize_run(repo, run_dir, review_path, [
+                    {"task_id": "1", "state": "manual", "attempts": failures}
+                ])
 
     def test_finalize_rejects_non_terminal_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
