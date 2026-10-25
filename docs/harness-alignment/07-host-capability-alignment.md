@@ -2,7 +2,7 @@
 
 > 本专题的第三次对齐：前两次对标外部 Harness Engineering 方法论文章（来源一、来源二），本次对标宿主（Claude Code）2026 年原生新增能力。属于「调研 + 规划」，不是 feature spec；实施时按本目录「后续约定」走 `docs/design-docs/`。
 
-**更新日期**：2026-09-12（change 2047 当天二次修订：修正 3 处被 change 2046 漂移的行号引用，行号引用改为「函数名 + 行号」格式；解除第 5 节 P1 的 Codex hooks 未核实项）
+**更新日期**：2026-09-12（change 2047 当天二次修订：修正 3 处被 change 2046 漂移的行号引用，行号引用改为「函数名 + 行号」格式；解除第 5 节 P1 的 Codex hooks 未核实项）；2026-10-25（change 2049：更正 §4.6 观察项措辞——「逐 Task 批准」为过时表述，批准语义以 `workflow_control.py` `approval_mode()` 缺省 `risk-triggered` 为准）
 
 ## 1. 背景
 
@@ -81,7 +81,7 @@
 
 ### 4.6 权限治理：平行，观察
 
-框架侧对应物是自建批准门（workflow_control.py `approval_gate_errors` :551-567）与治理守卫（`_event_governance_errors` :1125 + `governance_guards.py`），与宿主 auto mode 无调用关系，属平行实现。语义不同：auto mode 治理「权限提示」，框架批准门治理「变更契约」。观察项：auto mode 默认化改变了「用户在权限提示处把关」的交互模式，需留意对 Production 逐 Task 批准假设的影响。
+框架侧对应物是自建批准门（workflow_control.py `approval_gate_errors` :551-567）与治理守卫（`_event_governance_errors` :1125 + `governance_guards.py`），与宿主 auto mode 无调用关系，属平行实现。语义不同：auto mode 治理「权限提示」，框架批准门治理「变更契约」。观察项：auto mode 默认化改变了「用户在权限提示处把关」的交互模式，需留意对 Production 风险触发的暂停批准（尤其 irreversible 任务）假设的影响。
 
 ## 5. 优先级动作清单
 
