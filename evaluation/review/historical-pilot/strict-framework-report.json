@@ -1,0 +1,137 @@
+{
+    "plan_digest": "32f48703b0ab18fc190b91bd7233170579a6774f47e61bedc17d2f653cfe492a",
+    "scenario": "review",
+    "evidence": "Imported declarations and supplied adjudication; isolation, reviewer identity and reviewer independence are unverified.",
+    "cells": [
+        {
+            "id": "r01--STRICT--1",
+            "task": "r01",
+            "treatment": "STRICT",
+            "repeat": 1,
+            "status": "scored",
+            "score": {
+                "detected": 1,
+                "missed": 0,
+                "false_positives": 0,
+                "recall": 1.0,
+                "precision": 1.0,
+                "severity_accuracy": 1.0,
+                "categories": {
+                    "business": {
+                        "expected": 0,
+                        "detected": 0,
+                        "recall": null
+                    },
+                    "architecture": {
+                        "expected": 1,
+                        "detected": 1,
+                        "recall": 1.0
+                    },
+                    "conventions": {
+                        "expected": 0,
+                        "detected": 0,
+                        "recall": null
+                    }
+                }
+            },
+            "usage": {
+                "tokens": null,
+                "cost_usd": null
+            }
+        },
+        {
+            "id": "r02--STRICT--1",
+            "task": "r02",
+            "treatment": "STRICT",
+            "repeat": 1,
+            "status": "pending",
+            "score": null,
+            "usage": {
+                "tokens": null,
+                "cost_usd": null
+            }
+        },
+        {
+            "id": "r03--STRICT--1",
+            "task": "r03",
+            "treatment": "STRICT",
+            "repeat": 1,
+            "status": "pending",
+            "score": null,
+            "usage": {
+                "tokens": null,
+                "cost_usd": null
+            }
+        },
+        {
+            "id": "r04--STRICT--1",
+            "task": "r04",
+            "treatment": "STRICT",
+            "repeat": 1,
+            "status": "pending",
+            "score": null,
+            "usage": {
+                "tokens": null,
+                "cost_usd": null
+            }
+        }
+    ],
+    "pairs": [
+        {
+            "task": "r01",
+            "repeat": 1,
+            "reference_treatment": "STRICT",
+            "metric_deltas": {},
+            "complete": true,
+            "cells": {
+                "STRICT": "r01--STRICT--1"
+            }
+        },
+        {
+            "task": "r02",
+            "repeat": 1,
+            "reference_treatment": "STRICT",
+            "metric_deltas": {},
+            "complete": false,
+            "cells": {
+                "STRICT": "r02--STRICT--1"
+            }
+        },
+        {
+            "task": "r03",
+            "repeat": 1,
+            "reference_treatment": "STRICT",
+            "metric_deltas": {},
+            "complete": false,
+            "cells": {
+                "STRICT": "r03--STRICT--1"
+            }
+        },
+        {
+            "task": "r04",
+            "repeat": 1,
+            "reference_treatment": "STRICT",
+            "metric_deltas": {},
+            "complete": false,
+            "cells": {
+                "STRICT": "r04--STRICT--1"
+            }
+        }
+    ],
+    "treatments": {
+        "STRICT": {
+            "expected_cells": 4,
+            "scored_cells": 1,
+            "cost_coverage": 0.0,
+            "observed_cost_usd": null,
+            "status_counts": {
+                "missing": 0,
+                "pending": 3,
+                "scored": 1,
+                "error": 0,
+                "timeout": 0,
+                "cancelled": 0
+            }
+        }
+    }
+}

@@ -1,0 +1,483 @@
+{
+    "schema_version": 1,
+    "actor": {
+        "task_name": "/root/strict_blind_adjudicator",
+        "role": "独立效果评测静态盲评裁判，非代码 Review 流程 Judge",
+        "model": "继承父 agent；未通过外部信息确认具体模型标识"
+    },
+    "input_file": "C:/Users/YanQi/.codex/worktrees/7abd/agentic-engineering-framework/.agentic-framework/evaluation/historical-review-strict-blinded-v1.json",
+    "method": {
+        "blind": true,
+        "group_mapping_read": false,
+        "previous_judgments_read": false,
+        "external_search": false,
+        "reviewed_code_executed": false,
+        "upstream_tests_executed": false,
+        "matching": "逐项比较底层根因、触发和影响；位置相近不算命中；每样本每目标最多一对一；未命中不自动归为误报。",
+        "supported_extra_definition": "仅可见静态证据支持，不表示上游确认或运行验证。",
+        "false_positive_rule": "需具体反证；证据不足则 uncertain。",
+        "severity_used_for_matching": false
+    },
+    "samples": [
+        {
+            "sample_id": "sample_01",
+            "task": "r01",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "a",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r01/astropy/modeling/separable.py:243-247：矩阵分支将右下块设为 1，而非 right。",
+                        "r01/astropy/modeling/separable.py:305-313：默认 CompoundModel 路径递归计算左右矩阵，再分派运算符。",
+                        "r01/astropy/modeling/separable.py:60-63,100-102：行和决定可分离性，非零值决定相关性。"
+                    ],
+                    "reason": "右侧嵌套并行分支含零元素时，填 1 丢失独立轴结构，产生虚假依赖；根因、触发和影响与冻结目标及上游一行修复一致。",
+                    "limitations": "依赖默认递归路径；自定义 separability hook 可绕过。上游回归测试只读，未运行。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_02",
+            "task": "r01",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "a",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r01/astropy/modeling/separable.py:243-247：矩阵分支将右下块设为 1，而非 right。",
+                        "r01/astropy/modeling/separable.py:305-313：默认 CompoundModel 路径递归计算左右矩阵，再分派运算符。",
+                        "r01/astropy/modeling/separable.py:60-63,100-102：行和决定可分离性，非零值决定相关性。"
+                    ],
+                    "reason": "右侧嵌套并行分支含零元素时，填 1 丢失独立轴结构，产生虚假依赖；根因、触发和影响与冻结目标及上游一行修复一致。",
+                    "limitations": "依赖默认递归路径；自定义 separability hook 可绕过。上游回归测试只读，未运行。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_03",
+            "task": "r04",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "b",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r04/sklearn/mixture/base.py:255-263：保存最佳参数后，循环结束仍用当前末轮参数执行最终 E-step。",
+                        "r04/sklearn/mixture/base.py:272-276：随后恢复 best_params，却返回之前责任度的 argmax。",
+                        "r04/sklearn/mixture/base.py:358-374,503-507：predict 使用当前模型，责任度由当前加权概率计算。"
+                    ],
+                    "reason": "n_init > 1、最佳轮不是末轮且标签分配有差异时，返回标签来自末轮而保留模型来自最佳轮；与目标及上游移动 E-step 的修复完全对应。",
+                    "limitations": "非每次多初始化都导致可观察标签差异；上游两种混合模型测试未执行。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "c",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r04/sklearn/mixture/base.py:177-179：fit 文档明确 warm_start=True 时忽略 n_init，首次只初始化一次。",
+                        "r04/sklearn/mixture/base.py:191,220-234：fit 委托 fit_predict；首次没有 converged_，do_init=True，循环 n_init 次且每次初始化。"
+                    ],
+                    "reason": "首次 warm_start=True 且 n_init>1 的可见控制流与本文件明确契约矛盾；它是初始化次数/工作量问题，不是最终参数恢复顺序问题。",
+                    "limitations": "仅确认文档与实现不一致；材料不能决定应修正文档还是实现，未证明上游承认它为独立缺陷。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_04",
+            "task": "r01",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "a",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r01/astropy/modeling/separable.py:243-247：矩阵分支将右下块设为 1，而非 right。",
+                        "r01/astropy/modeling/separable.py:305-313：默认 CompoundModel 路径递归计算左右矩阵，再分派运算符。",
+                        "r01/astropy/modeling/separable.py:60-63,100-102：行和决定可分离性，非零值决定相关性。"
+                    ],
+                    "reason": "右侧嵌套并行分支含零元素时，填 1 丢失独立轴结构，产生虚假依赖；根因、触发和影响与冻结目标及上游一行修复一致。",
+                    "limitations": "依赖默认递归路径；自定义 separability hook 可绕过。上游回归测试只读，未运行。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_05",
+            "task": "r04",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "b",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r04/sklearn/mixture/base.py:255-263：保存最佳参数后，循环结束仍用当前末轮参数执行最终 E-step。",
+                        "r04/sklearn/mixture/base.py:272-276：随后恢复 best_params，却返回之前责任度的 argmax。",
+                        "r04/sklearn/mixture/base.py:358-374,503-507：predict 使用当前模型，责任度由当前加权概率计算。"
+                    ],
+                    "reason": "n_init > 1、最佳轮不是末轮且标签分配有差异时，返回标签来自末轮而保留模型来自最佳轮；与目标及上游移动 E-step 的修复完全对应。",
+                    "limitations": "非每次多初始化都导致可观察标签差异；上游两种混合模型测试未执行。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "c",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r04/sklearn/mixture/base.py:177-179：fit 文档明确 warm_start=True 时忽略 n_init，首次只初始化一次。",
+                        "r04/sklearn/mixture/base.py:191,220-234：fit 委托 fit_predict；首次没有 converged_，do_init=True，循环 n_init 次且每次初始化。"
+                    ],
+                    "reason": "首次 warm_start=True 且 n_init>1 的可见控制流与本文件明确契约矛盾；它是初始化次数/工作量问题，不是最终参数恢复顺序问题。",
+                    "limitations": "仅确认文档与实现不一致；材料不能决定应修正文档还是实现，未证明上游承认它为独立缺陷。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_06",
+            "task": "r02",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "d",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:412-415：无条件滤掉 is_empty() 操作数。",
+                        "r02/django/db/models/sql/compiler.py:446-459：只有编译时抛 EmptyResultSet 的分支才按 union/difference 分别处理，剩余 parts 直接连接。",
+                        "r02/django/db/models/sql/query.py:1716-1720：set_empty 添加 NothingNode，is_empty 检测该节点。"
+                    ],
+                    "reason": "在进入此编译器的 combined_queries 含显式空项时，交集 A∩∅ 或差集 ∅−A 被缩成 A；过滤先于语义分支，后面的异常处理无法补救。不是未选中排序列的冻结目标。",
+                    "limitations": "限定到提供的 Query/SQLCompiler 路径；未提供高层 QuerySet 实现，不能声称每种公开 API 组合都能绕过其可能的提前简化。无执行验证或对应上游修复。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "e",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:702-710：拆出 pieces 后，仍将 field.attname 与完整 name 比较。",
+                        "r02/django/db/models/sql/compiler.py:707-724：注释要求显式属性名不展开默认排序，但条件成立就递归目标 opts.ordering。",
+                        "r02/django/db/models/sql/query.py:1468-1472,1505-1515：关系路径返回最终关系字段与目标 opts/targets。"
+                    ],
+                    "reason": "如 author__country_id 的末段属性名 country_id 不等于完整路径，目标默认排序被错误展开；与注释契约和后续直接字段排序分支冲突。虽同属排序，根因和触发均不同于组合投影缺少排序列。",
+                    "limitations": "需最终字段确为关系字段且目标 opts.ordering 非空；具体模型字段实现未提供，未运行该模型实例。"
+                },
+                {
+                    "finding_id": "finding_03",
+                    "claim_family": "f",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:280-291：顶层 ordering 明确支持 resolve_expression 表达式。",
+                        "r02/django/db/models/sql/compiler.py:702-704,719-721：关系默认 ordering 项直接递归到字符串解析函数。",
+                        "r02/django/db/models/sql/query.py:2192-2203：get_order_dir 直接执行 field[0]。"
+                    ],
+                    "reason": "关系模型的默认排序若含不可下标的合法排序表达式，递归路径不做顶层表达式分支而进入 field[0]，产生类型错误。与组合查询投影匹配目标无关。",
+                    "limitations": "TypeError 取决于所用表达式不可下标；表达式类实现未随材料提供。源码支持表达式处理不一致，但无对应上游确认或运行。"
+                },
+                {
+                    "finding_id": "finding_04",
+                    "claim_family": "g",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:893-910：循环更新 name/f，local_setter 捕获 f，remote_setter 捕获 name，未绑定默认参数。",
+                        "r02/django/db/models/sql/compiler.py:911-919：回调保存在各 klass_info 中，而非当场调用。"
+                    ],
+                    "reason": "多个 FilteredRelation 回调在循环后使用共享闭包单元，早先 remote_setter 读取最后 name；local_setter 也可能读取最后 f。写属性别名和缓存字段会串到后一个关系。不是排序列投影目标。",
+                    "limitations": "延后执行时的 Python 闭包结论可由源码确定；回调消费者未提供，最终 ORM 对象构建未实测。仅 name 主张与同时提到 f 的主张归为同类根因，后者证据范围更宽。"
+                },
+                {
+                    "finding_id": "finding_05",
+                    "claim_family": "h",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/query.py:300-305：alias_refcount 独立复制，table_map 仅复制外层字典。",
+                        "r02/django/db/models/sql/query.py:840-853：change_aliases 原地修改 table_map 值列表中的别名。",
+                        "r02/django/db/models/sql/query.py:735-738,902-905,1015-1018：原查询复用列表首别名并索引独立计数字典；表达式解析会 clone 后 bump_prefix。"
+                    ],
+                    "reason": "克隆别名变更共享到原 table_map 列表，但原 alias_refcount 没有新别名；随后 table_alias 复用它可触发 KeyError。可见调用路径支持污染链，与冻结排序目标独立。",
+                    "limitations": "需 clone 后实际发生别名变更，并再次对原查询复用该表别名；未运行 ORM。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_07",
+            "task": "r03",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "i",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r03/src/_pytest/logging.py:72-89：各级别名称被替换成模板字面量，format 先改共享 _style._fmt 再格式化。",
+                        "r03/src/_pytest/logging.py:520-529：caplog_handler 与 report_handler 共用同一 formatter。",
+                        "r03/src/_pytest/logging.py:573-584,674-680：彩色模板启用路径与两个捕获 handler 同时使用路径可见。"
+                    ],
+                    "reason": "不同线程分别处于不同 handler 的格式化路径时，修改模板和读取模板之间可交错，前一记录使用后一记录的级别字面量。单 handler 的锁不等于跨 handler 的 formatter 锁。与阈值恢复泄漏目标无关。",
+                    "limitations": "基于 Python logging 每 handler 锁的常规语义及可见共享状态；标准库源码未随材料提供，未执行并发调度，发生概率与环境未验证。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "j",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r03/src/_pytest/logging.py:323-330：emit append 当前 records，而 reset 替换成新列表。",
+                        "r03/src/_pytest/logging.py:367-379,418-420：get_records 读阶段 store，clear 只调用 handler.reset。",
+                        "r03/src/_pytest/logging.py:681-686：阶段开始保存 records 列表引用，此后 yield 不重新绑定。"
+                    ],
+                    "reason": "阶段内 clear 更换 handler 列表，阶段 store 仍指旧列表；旧记录未清且新日志进入另一个列表。属于列表引用失效，非 handler 日志阈值恢复目标。",
+                    "limitations": "限定同一阶段内 clear 后读取 get_records；不宣称此前阶段的记录也应被清空。无上游补丁或执行验证。"
+                },
+                {
+                    "finding_id": "finding_03",
+                    "claim_family": "k",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r03/src/_pytest/logging.py:433-437：set_level 同时改变 logger 和 handler 阈值。",
+                        "r03/src/_pytest/logging.py:350-358,473-475：fixture 收尾仅恢复 logger。",
+                        "r03/src/_pytest/logging.py:298-310,525-529,674-684：复用会话 handler，未配置 level 时上下文不重设阈值，reset 仅清内容。"
+                    ],
+                    "reason": "未配置 log_level 且前一个测试将共享 handler 阈值调高时，其阈值在 fixture 完成后保留，后续测试漏捕较低等级；与冻结目标及上游保存/恢复 handler 阈值补丁一致。",
+                    "limitations": "需下一测试未主动重新设置较低阈值；上游 handler-level 回归测试只读未运行。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_08",
+            "task": "r03",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "k",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r03/src/_pytest/logging.py:433-437：set_level 同时改变 logger 和 handler 阈值。",
+                        "r03/src/_pytest/logging.py:350-358,473-475：fixture 收尾仅恢复 logger。",
+                        "r03/src/_pytest/logging.py:298-310,525-529,674-684：复用会话 handler，未配置 level 时上下文不重设阈值，reset 仅清内容。"
+                    ],
+                    "reason": "未配置 log_level 且前一个测试将共享 handler 阈值调高时，其阈值在 fixture 完成后保留，后续测试漏捕较低等级；与冻结目标及上游保存/恢复 handler 阈值补丁一致。",
+                    "limitations": "需下一测试未主动重新设置较低阈值；上游 handler-level 回归测试只读未运行。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "j",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r03/src/_pytest/logging.py:323-330：emit append 当前 records，而 reset 替换成新列表。",
+                        "r03/src/_pytest/logging.py:367-379,418-420：get_records 读阶段 store，clear 只调用 handler.reset。",
+                        "r03/src/_pytest/logging.py:681-686：阶段开始保存 records 列表引用，此后 yield 不重新绑定。"
+                    ],
+                    "reason": "阶段内 clear 更换 handler 列表，阶段 store 仍指旧列表；旧记录未清且新日志进入另一个列表。属于列表引用失效，非 handler 日志阈值恢复目标。",
+                    "limitations": "限定同一阶段内 clear 后读取 get_records；不宣称此前阶段的记录也应被清空。无上游补丁或执行验证。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_09",
+            "task": "r04",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "b",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r04/sklearn/mixture/base.py:255-263：保存最佳参数后，循环结束仍用当前末轮参数执行最终 E-step。",
+                        "r04/sklearn/mixture/base.py:272-276：随后恢复 best_params，却返回之前责任度的 argmax。",
+                        "r04/sklearn/mixture/base.py:358-374,503-507：predict 使用当前模型，责任度由当前加权概率计算。"
+                    ],
+                    "reason": "n_init > 1、最佳轮不是末轮且标签分配有差异时，返回标签来自末轮而保留模型来自最佳轮；与目标及上游移动 E-step 的修复完全对应。",
+                    "limitations": "非每次多初始化都导致可观察标签差异；上游两种混合模型测试未执行。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_10",
+            "task": "r02",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "d",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:412-415：无条件滤掉 is_empty() 操作数。",
+                        "r02/django/db/models/sql/compiler.py:446-459：只有编译时抛 EmptyResultSet 的分支才按 union/difference 分别处理，剩余 parts 直接连接。",
+                        "r02/django/db/models/sql/query.py:1716-1720：set_empty 添加 NothingNode，is_empty 检测该节点。"
+                    ],
+                    "reason": "在进入此编译器的 combined_queries 含显式空项时，交集 A∩∅ 或差集 ∅−A 被缩成 A；过滤先于语义分支，后面的异常处理无法补救。不是未选中排序列的冻结目标。",
+                    "limitations": "限定到提供的 Query/SQLCompiler 路径；未提供高层 QuerySet 实现，不能声称每种公开 API 组合都能绕过其可能的提前简化。无执行验证或对应上游修复。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "h",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/query.py:300-305：alias_refcount 独立复制，table_map 仅复制外层字典。",
+                        "r02/django/db/models/sql/query.py:840-853：change_aliases 原地修改 table_map 值列表中的别名。",
+                        "r02/django/db/models/sql/query.py:735-738,902-905,1015-1018：原查询复用列表首别名并索引独立计数字典；表达式解析会 clone 后 bump_prefix。"
+                    ],
+                    "reason": "克隆别名变更共享到原 table_map 列表，但原 alias_refcount 没有新别名；随后 table_alias 复用它可触发 KeyError。可见调用路径支持污染链，与冻结排序目标独立。",
+                    "limitations": "需 clone 后实际发生别名变更，并再次对原查询复用该表别名；未运行 ORM。"
+                },
+                {
+                    "finding_id": "finding_03",
+                    "claim_family": "g",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:893-910：循环更新 name/f，local_setter 捕获 f，remote_setter 捕获 name，未绑定默认参数。",
+                        "r02/django/db/models/sql/compiler.py:911-919：回调保存在各 klass_info 中，而非当场调用。"
+                    ],
+                    "reason": "多个 FilteredRelation 回调在循环后使用共享闭包单元，早先 remote_setter 读取最后 name；local_setter 也可能读取最后 f。写属性别名和缓存字段会串到后一个关系。不是排序列投影目标。",
+                    "limitations": "延后执行时的 Python 闭包结论可由源码确定；回调消费者未提供，最终 ORM 对象构建未实测。仅 name 主张与同时提到 f 的主张归为同类根因，后者证据范围更宽。"
+                },
+                {
+                    "finding_id": "finding_04",
+                    "claim_family": "l",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/query.py:1505-1510,1547-1558：setup_joins 返回包装合法 transform 的表达式函数。",
+                        "r02/django/db/models/sql/query.py:1637-1643：调用 transform_function 仅做验证，丢弃返回值，另行 _get_col。",
+                        "r02/django/db/models/sql/query.py:71-74：_get_col 返回原字段列而不附带 transform。"
+                    ],
+                    "reason": "合法且改变值的变换通过验证后被丢弃，resolve_ref 返回原列；静态数据流足以支持变换被静默忽略。不是组合投影排序目标。",
+                    "limitations": "需存在合法、非恒等变换且路径允许 joins；具体 transform 类型及其执行结果未验证。"
+                },
+                {
+                    "finding_id": "finding_05",
+                    "claim_family": "m",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/query.py:865-876：文档承诺 Z 后进入多字母序列，实际先 yield chr(ord(alias_prefix)+1)。",
+                        "r02/django/db/models/sql/query.py:883-905：同为 Z 时可选中 [，生成 [0 等别名。",
+                        "r02/django/db/models/sql/compiler.py:383-398：普通内部 alias_map 别名跳过引用。"
+                    ],
+                    "reason": "Z 同前缀路径先产出 [ 而不是 AA，随后构造以 [ 开头的内部别名；无引号路径将其暴露给 SQL，支持非法别名导致编译/执行失败的主张。与排序目标独立。",
+                    "limitations": "具体 SQL 失败信息依赖数据库后端；需 [ 不在 subq_aliases 才走所述首个 yield 路径。未执行数据库，未提供后端源码。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_11",
+            "task": "r03",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "k",
+                    "category": "target_match",
+                    "expected_id": "target",
+                    "evidence": [
+                        "r03/src/_pytest/logging.py:433-437：set_level 同时改变 logger 和 handler 阈值。",
+                        "r03/src/_pytest/logging.py:350-358,473-475：fixture 收尾仅恢复 logger。",
+                        "r03/src/_pytest/logging.py:298-310,525-529,674-684：复用会话 handler，未配置 level 时上下文不重设阈值，reset 仅清内容。"
+                    ],
+                    "reason": "未配置 log_level 且前一个测试将共享 handler 阈值调高时，其阈值在 fixture 完成后保留，后续测试漏捕较低等级；与冻结目标及上游保存/恢复 handler 阈值补丁一致。",
+                    "limitations": "需下一测试未主动重新设置较低阈值；上游 handler-level 回归测试只读未运行。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "j",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r03/src/_pytest/logging.py:323-330：emit append 当前 records，而 reset 替换成新列表。",
+                        "r03/src/_pytest/logging.py:367-379,418-420：get_records 读阶段 store，clear 只调用 handler.reset。",
+                        "r03/src/_pytest/logging.py:681-686：阶段开始保存 records 列表引用，此后 yield 不重新绑定。"
+                    ],
+                    "reason": "阶段内 clear 更换 handler 列表，阶段 store 仍指旧列表；旧记录未清且新日志进入另一个列表。属于列表引用失效，非 handler 日志阈值恢复目标。",
+                    "limitations": "限定同一阶段内 clear 后读取 get_records；不宣称此前阶段的记录也应被清空。无上游补丁或执行验证。"
+                }
+            ]
+        },
+        {
+            "sample_id": "sample_12",
+            "task": "r02",
+            "findings": [
+                {
+                    "finding_id": "finding_01",
+                    "claim_family": "d",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:412-415：无条件滤掉 is_empty() 操作数。",
+                        "r02/django/db/models/sql/compiler.py:446-459：只有编译时抛 EmptyResultSet 的分支才按 union/difference 分别处理，剩余 parts 直接连接。",
+                        "r02/django/db/models/sql/query.py:1716-1720：set_empty 添加 NothingNode，is_empty 检测该节点。"
+                    ],
+                    "reason": "在进入此编译器的 combined_queries 含显式空项时，交集 A∩∅ 或差集 ∅−A 被缩成 A；过滤先于语义分支，后面的异常处理无法补救。不是未选中排序列的冻结目标。",
+                    "limitations": "限定到提供的 Query/SQLCompiler 路径；未提供高层 QuerySet 实现，不能声称每种公开 API 组合都能绕过其可能的提前简化。无执行验证或对应上游修复。"
+                },
+                {
+                    "finding_id": "finding_02",
+                    "claim_family": "n",
+                    "category": "supported_extra",
+                    "expected_id": null,
+                    "evidence": [
+                        "r02/django/db/models/sql/compiler.py:1075-1084：as_sql 抛 EmptyResultSet 时默认 MULTI 返回空迭代器。",
+                        "r02/django/db/models/sql/compiler.py:1142-1146：list 转换后无检查读取 result[0]。",
+                        "r02/django/db/models/sql/query.py:532-538：explain 委托并消费 compiler.explain_query。"
+                    ],
+                    "reason": "静态空查询走 EmptyResultSet 分支时，result=[]，消费 explain_query 必然在 result[0] 抛 IndexError。它是空结果处理缺失，不是冻结的组合查询排序目标。",
+                    "limitations": "仅针对编译阶段判空，不包括数据库执行后没有业务行但仍返回执行计划的普通查询；未运行后端。"
+                }
+            ]
+        }
+    ],
+    "target_hits": {
+        "r01": [
+            "sample_01",
+            "sample_02",
+            "sample_04"
+        ],
+        "r02": [],
+        "r03": [
+            "sample_07",
+            "sample_08",
+            "sample_11"
+        ],
+        "r04": [
+            "sample_03",
+            "sample_05",
+            "sample_09"
+        ]
+    },
+    "target_miss_explanation": {
+        "r02": "冻结目标是 compiler.py:345-359 对组合查询未选中排序列直接抛 DatabaseError；匿名报告涉及集合空操作数、关系排序、闭包、别名、变换和 explain 判空，均不是这个底层根因。上游 patch/test_patch 明确增加排序列与位置解析，不支持将相邻排序问题当命中。"
+    },
+    "consistency": "相同 claim_family 在所有样本使用同一分类和判据；严重度差异不改变裁定。g 家族一个样本只提 name、另一个兼提 f，两者均由相同延迟绑定代码支持，不构成分类差异。",
+    "limitations": [
+        "仅独立裁定这 12 份匿名最终输出，不能评估完整审查流程、真实生产质量或总体准确率。",
+        "匿名样式可能暴露来源，未据此猜测分组。",
+        "人工冻结清单不完备；18 项 supported_extra 是逐项静态证据裁定，不能重命名成已确认真阳性。",
+        "未读依赖源码、未执行待审代码或上游测试；外部调用者、并发时序与数据库后端限制逐项列明。"
+    ],
+    "validation": {
+        "sample_count": 12,
+        "finding_count": 27,
+        "duplicate_count": 0,
+        "missing_count": 0,
+        "category_counts": {
+            "target_match": 9,
+            "supported_extra": 18,
+            "false_positive": 0,
+            "uncertain": 0
+        },
+        "one_to_one_targets": true
+    }
+}

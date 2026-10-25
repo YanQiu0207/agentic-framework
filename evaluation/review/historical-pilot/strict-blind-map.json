@@ -1,0 +1,89 @@
+{
+    "sample_01": {
+        "cell_id": "r01--CONTROL--1",
+        "finding_map": {
+            "finding_01": "F1"
+        }
+    },
+    "sample_02": {
+        "cell_id": "r01--SKILL--1",
+        "finding_map": {
+            "finding_01": "F_1"
+        }
+    },
+    "sample_03": {
+        "cell_id": "r04--SKILL--1",
+        "finding_map": {
+            "finding_01": "F_1",
+            "finding_02": "F_2"
+        }
+    },
+    "sample_04": {
+        "cell_id": "r01--STRICT--1",
+        "finding_map": {
+            "finding_01": "F_1"
+        }
+    },
+    "sample_05": {
+        "cell_id": "r04--STRICT--1",
+        "finding_map": {
+            "finding_01": "F_2",
+            "finding_02": "F_3"
+        }
+    },
+    "sample_06": {
+        "cell_id": "r02--CONTROL--1",
+        "finding_map": {
+            "finding_01": "F1",
+            "finding_02": "F2",
+            "finding_03": "F3",
+            "finding_04": "F4",
+            "finding_05": "F5"
+        }
+    },
+    "sample_07": {
+        "cell_id": "r03--STRICT--1",
+        "finding_map": {
+            "finding_01": "F_2",
+            "finding_02": "F_3",
+            "finding_03": "F_1"
+        }
+    },
+    "sample_08": {
+        "cell_id": "r03--CONTROL--1",
+        "finding_map": {
+            "finding_01": "F1",
+            "finding_02": "F2"
+        }
+    },
+    "sample_09": {
+        "cell_id": "r04--CONTROL--1",
+        "finding_map": {
+            "finding_01": "F1"
+        }
+    },
+    "sample_10": {
+        "cell_id": "r02--SKILL--1",
+        "finding_map": {
+            "finding_01": "F_1",
+            "finding_02": "F_2",
+            "finding_03": "F_3",
+            "finding_04": "F_4",
+            "finding_05": "F_5"
+        }
+    },
+    "sample_11": {
+        "cell_id": "r03--SKILL--1",
+        "finding_map": {
+            "finding_01": "F_1",
+            "finding_02": "F_2"
+        }
+    },
+    "sample_12": {
+        "cell_id": "r02--STRICT--1",
+        "finding_map": {
+            "finding_01": "F_1",
+            "finding_02": "F_2"
+        }
+    }
+}

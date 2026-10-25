@@ -1,0 +1,75 @@
+{
+    "status": "passed",
+    "cases": [
+        {
+            "case": "r01",
+            "source_hashes": {
+                "r01/astropy/modeling/separable.py": "cac38fe9744203c720d50d6c88dcdcb0d93a7b2326fe89911e83640ad5676b0f"
+            },
+            "findings": 1,
+            "run_id": "2050-strict-r01",
+            "judge_actor": "/root/strict_r01_judge",
+            "checks": [
+                "source_identical_to_control",
+                "requirement_identical_to_control",
+                "export_top_level_allowlist",
+                "submission_binding",
+                "runtime_binding",
+                "counts_and_selection"
+            ]
+        },
+        {
+            "case": "r02",
+            "source_hashes": {
+                "r02/django/db/models/sql/compiler.py": "8346b2e8d5b645a0ceb5fff3e4e0271e0f53573902b6e9cdc951d91bb9b86f3b",
+                "r02/django/db/models/sql/query.py": "c650a22763e510c9dadf8fd95ed801f95a9bb533070f5a0fa3db91bdb67e40b8"
+            },
+            "findings": 2,
+            "run_id": "2050-strict-r02",
+            "judge_actor": "/root/strict_r02_judge",
+            "checks": [
+                "source_identical_to_control",
+                "requirement_identical_to_control",
+                "export_top_level_allowlist",
+                "submission_binding",
+                "runtime_binding",
+                "counts_and_selection"
+            ]
+        },
+        {
+            "case": "r03",
+            "source_hashes": {
+                "r03/src/_pytest/logging.py": "0df6b074700388ef4fea72a36a10ef9fc97680e46dc66ce8bdd73a39d93928af"
+            },
+            "findings": 3,
+            "run_id": "2050-strict-r03",
+            "judge_actor": "/root/strict_r03_judge",
+            "checks": [
+                "source_identical_to_control",
+                "requirement_identical_to_control",
+                "export_top_level_allowlist",
+                "submission_binding",
+                "runtime_binding",
+                "counts_and_selection"
+            ]
+        },
+        {
+            "case": "r04",
+            "source_hashes": {
+                "r04/sklearn/mixture/base.py": "0d24ba0f9a12e8dca935c2423009120853aa8e1db488981ebd5c631134fcfb5d"
+            },
+            "findings": 2,
+            "run_id": "2050-strict-r04",
+            "judge_actor": "/root/strict_r04_judge",
+            "checks": [
+                "source_identical_to_control",
+                "requirement_identical_to_control",
+                "export_top_level_allowlist",
+                "submission_binding",
+                "runtime_binding",
+                "counts_and_selection"
+            ]
+        }
+    ],
+    "limits": "Structural and content checks only; actor separation is declared metadata plus host dispatch evidence, not sandbox attestation. Not Review efficacy proof or Runtime delivery acceptance."
+}

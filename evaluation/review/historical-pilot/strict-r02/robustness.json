@@ -1,0 +1,39 @@
+{
+    "reviewer": "robustness-reviewer",
+    "status": "completed",
+    "read_only_tool_calls": 7,
+    "write_tool_calls": 1,
+    "candidates": [
+        {
+            "id": "ROB_EMPTY_COMPOUND",
+            "title": "空操作数被无条件删除，导致 INTERSECTION 和左侧为空的 DIFFERENCE 返回非空数据",
+            "file": "r02/django/db/models/sql/compiler.py",
+            "line": 414,
+            "severity": "P1",
+            "evidence": "SQLCompiler.as_sql() 第 481–484 行进入 get_combinator_sql()。第 412–415 行在得知运算符处理语义之前删除所有 query.is_empty() 操作数。对于 combined_queries=[A, E]、combinator='intersection'，其中 A 返回至少一行、E.is_empty() 为真，仅 A 的 compiler 留下；第 423–445 行生成 A，第 452 行因 parts 非空不抛 EmptyResultSet，第 459 行单元素 join 返回 A 的 SQL，交集错误返回 A。对于 [E, A]、combinator='difference' 同样返回 A，尽管空集减 A 应为空。第 446–451 行已经针对编译时 EmptyResultSet 实现了正确的按运算符处理策略，但预先过滤使这些操作数绕过该保护。",
+            "assumptions": [
+                "组合查询到达此编译器时包含 is_empty() 为真的操作数；这一输入形态由第 414 行本身显式处理。",
+                "A 的 compiler.as_sql() 正常产生非空查询，数据库支持相应集合运算；不假设未提供的 QuerySet 层会构造或拦截所有这种输入。"
+            ]
+        },
+        {
+            "id": "ROB_EXPLAIN_EMPTY",
+            "title": "解释可静态判空的查询时，explain_query() 直接索引空结果而抛出 IndexError",
+            "file": "r02/django/db/models/sql/compiler.py",
+            "line": 1146,
+            "severity": "P1",
+            "evidence": "explain_query() 第 1143 行调用默认 MULTI 模式的 execute_sql()。当 as_sql() 抛出 EmptyResultSet（例如第 452–453 行的无组合结果路径）时，第 1080–1082 行明确返回 iter([])，因此第 1143 行得到 result=[]，第 1146 行 result[0] 必定抛出 IndexError。该结果不是数据库错误，而是模块自身定义的合法无查询执行状态；本函数没有任何空结果分支。",
+            "assumptions": [
+                "调用 SQLCompiler.explain_query() 并迭代返回的生成器，且对应 as_sql() 判定为空集。",
+                "未提供外部 QuerySet.explain() 的实现，因此不声称所有公开 QuerySet 调用都会到达该路径。"
+            ]
+        }
+    ],
+    "report": "Using workflow-code-review\nUsing bp-coding-best-practices\n\n健壮性原始审查报告（strict，首审）\n\n结论：提交 2 条 P1 候选，供独立 Judge 和 Critic 裁决；本报告不是最终放行 Artifact。\n\n范围：input.files 中 r02/django/db/models/sql/compiler.py 完整模块，共 1517 行有效编号内容及尾部空行。依据为同案例 tasks.md、scope.md、input.knowledge.conventions 的 workflow-code-review、robustness-reviewer、bp-coding-best-practices，以及全局 AGENTS.md、RTK.md。未执行待审代码，未联网，未读取其他案例、其他 reviewer 或历史输出。\n\n候选 ROB_EMPTY_COMPOUND [P1]：空集合边界语义被提前过滤破坏。定位第 414 行；具体见 candidates。最小建议是保留所有 compiler，让第 446–451 行已有的按运算符处理 EmptyResultSet 逻辑生效，或在提前过滤处显式区分 UNION、INTERSECTION 与 DIFFERENCE 的首操作数。\n\n候选 ROB_EXPLAIN_EMPTY [P1]：解释空查询时越界。定位第 1146 行；具体见 candidates。最小建议是对 execute_sql() 的空结果做显式处理，避免将内部空集状态转成 IndexError。\n\n覆盖：阅读全文并重点追踪空结果与集合运算、select_related 递归与缺省信息、FOR UPDATE 能力与事务检查、游标获取和移交、SINGLE/NO_RESULTS/MULTI 各返回分支、fetch 异常及 cursor_iter 的 finally、INSERT 上下文管理、UPDATE 部分执行及引用计数恢复。SINGLE 分支和 cursor_iter 含 finally 关闭，INSERT 使用游标上下文，SELECT 编译使用 finally 恢复引用计数，故未把这些路径报为资源泄漏。UPDATE 预选失败后的对象状态可能值得进一步研究，但未提供重用该对象的恢复 caller，不提升为候选。游标多次关闭的风险依赖未提供的后端契约，不报告。\n\n限制：无 diff、历史、Query/QuerySet 实现、表达式实现、数据库后端及测试，不能认定缺陷何时引入或证明公开 API 的所有可达前提；本次属于提供源码范围内的静态审核，不是集成验收。bp-coding-best-practices 的 safety 附录内容未在 conventions 中提供，未越界读取；已使用提供的资源安全正文。初次完整 JSON 输出被截断，随后按字段重新读取全部适用规则及分段完整源码；一次属性索引读取未取得源码，已计入 7 次只读调用。未使用额外 agent，未与其他 reviewer 通信。\n\n分级依据：遵循提供 workflow 的 P1 定义——特定空集条件触发、风险明确且影响可控；未使用通常的外部优先级定义。",
+    "coverage_limits": [
+        "完整模块静态阅读，无历史或 diff，不能分类 introduced / widened。",
+        "缺少外部 caller、后端及运行证据；候选前提明确保留，不声称已复现。",
+        "初次输出截断后已按字段和源码行段补读；一次无效属性索引调用纳入计数。",
+        "仅写入本 reviewer 的 UTF-8 JSON 报告；未修改源码。"
+    ]
+}

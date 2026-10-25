@@ -1,0 +1,38 @@
+{
+    "status":  "passed",
+    "checks":  [
+                   "binding_exact",
+                   "runtime_context_exact",
+                   "findings_contract",
+                   "unique_ids",
+                   "severity_file_line_sort",
+                   "all_keep_preserved",
+                   "six_raw_reports_present",
+                   "verdict_counts_consistent"
+               ],
+    "reviewer_agents":  [
+                            "/root/strict_r03_judge/performance",
+                            "/root/strict_r03_judge/robustness",
+                            "/root/strict_r03_judge/standards",
+                            "/root/strict_r03_judge/magical",
+                            "/root/strict_r03_judge/spec"
+                        ],
+    "critic_actor":  "/root/strict_r03_judge/critic",
+    "judge_actor":  "/root/strict_r03_judge",
+    "raw_candidate_count":  6,
+    "deduplicated_count":  3,
+    "keep_count":  3,
+    "drop_count":  0,
+    "follow_up_count":  0,
+    "judge_source_inspection_calls":  2,
+    "critic_source_inspection_calls":  2,
+    "exact_model_version":  null,
+    "tokens":  null,
+    "cost_usd":  null,
+    "executed_reviewed_code":  false,
+    "network_used":  false,
+    "hard_sandbox":  false,
+    "runtime_commit_binds":  "evaluation-worktree-only",
+    "upstream_change_attribution":  "unknown-no-diff-or-history",
+    "codepage_note":  "PowerShell output encoding explicitly UTF-8; initial default Get-Content showed mojibake in global instructions, canonical instructions were already supplied; no Python subprocess used"
+}

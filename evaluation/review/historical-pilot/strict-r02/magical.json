@@ -1,0 +1,319 @@
+{
+    "role": "magical-prompt-reviewer",
+    "status": "completed",
+    "candidates": [],
+    "report": {
+        "skill_notices": [
+            "Using workflow-code-review",
+            "Using bp-coding-best-practices"
+        ],
+        "scope": "strict magical-prompt-reviewer；只读冻结 source，不是 diff；两个 input.files 均已阅读。tasks 仅列 compiler 为 context，input.files 另含 query，后者作为所供调用链证据。未执行被审代码、未读历史、未联网、未联系其他 reviewer。",
+        "phase1": {
+            "contract_changes": "delta unavailable。所有函数 Before 的五个契约维度均未知；下列为当前快照契约而非 After 变化。不能输出 No contract changes，因为没有证据比较。",
+            "functions": [
+                {
+                    "function": "SQLCompiler.get_combinator_sql()",
+                    "source": "r02/django/db/models/sql/compiler.py:410-463",
+                    "pre": "combined_queries 提供 Query；后端声明复合查询能力。",
+                    "post": "返回复合 SQL 和按子查询顺序拼接的参数；可能过滤空子查询。",
+                    "error": "能力不支持时抛 DatabaseError；编译时 EmptyResultSet 仅在 union 或已有左项的 difference 分支被吞并。",
+                    "ownership": "局部 compiler；values_select 不同情况下克隆 Query 后设置字段。",
+                    "invariant": "子查询顺序、集合运算身份元和编译器与 Query 的对应关系必须保持；未提供并发共享契约。",
+                    "before": {
+                        "pre": "unknown",
+                        "post": "unknown",
+                        "error": "unknown",
+                        "ownership": "unknown",
+                        "invariant": "unknown"
+                    },
+                    "after_label": "当前 source 快照，不代表已经证实发生变更"
+                },
+                {
+                    "function": "Query.resolve_lookup_value()",
+                    "source": "r02/django/db/models/sql/query.py:1049-1067",
+                    "pre": "单个表达式或普通值、list / tuple；传入复用和连接限制。",
+                    "post": "返回用于 build_lookup 的 RHS；单个表达式接收 resolve_expression 返回值，容器分支仅调用元素解析。",
+                    "error": "解析异常直接传播。",
+                    "ownership": "没有复制容器或赋回元素；表达式是否就地变更需外部实现确认。",
+                    "invariant": "标量和容器中的表达式解析结果应满足下游 lookup 的输入契约。",
+                    "before": {
+                        "pre": "unknown",
+                        "post": "unknown",
+                        "error": "unknown",
+                        "ownership": "unknown",
+                        "invariant": "unknown"
+                    },
+                    "after_label": "当前 source 快照，不代表已经证实发生变更"
+                },
+                {
+                    "function": "Query.resolve_ref()",
+                    "source": "r02/django/db/models/sql/query.py:1616-1643",
+                    "pre": "字段 / annotation 名称、allow_joins、summarize、simple_col。",
+                    "post": "annotation 返回 Ref 或既有表达式；字段路径验证 transform_function，最后返回 _get_col。",
+                    "error": "不允许连接、多列目标或无效 transform 抛 FieldError。",
+                    "ownership": "setup_joins 增加连接；reuse 可原地更新。",
+                    "invariant": "字段与 transform 结果不可在表达式消费边界被混淆；外部 F.resolve_expression 未提供。",
+                    "before": {
+                        "pre": "unknown",
+                        "post": "unknown",
+                        "error": "unknown",
+                        "ownership": "unknown",
+                        "invariant": "unknown"
+                    },
+                    "after_label": "当前 source 快照，不代表已经证实发生变更"
+                },
+                {
+                    "function": "SQLCompiler.execute_sql()",
+                    "source": "r02/django/db/models/sql/compiler.py:1062-1127",
+                    "pre": "合法结果类型、connection 和可编译 Query。",
+                    "post": "CURSOR 转交 cursor；SINGLE 返回行切片；MULTI 返回块迭代器或列表；空查询早退。",
+                    "error": "SQL 执行错误关闭 cursor 后重抛；空结果编译信号按结果类型转换。",
+                    "ownership": "CURSOR 归 caller；SINGLE / NO_RESULTS 在本函数关闭；MULTI 由 cursor_iter finally 关闭，非分块路径另有 finally。",
+                    "invariant": "结果形状和额外选择列截断保持；无新增线程安全或事务提交承诺。",
+                    "before": {
+                        "pre": "unknown",
+                        "post": "unknown",
+                        "error": "unknown",
+                        "ownership": "unknown",
+                        "invariant": "unknown"
+                    },
+                    "after_label": "当前 source 快照，不代表已经证实发生变更"
+                }
+            ],
+            "remaining_source_scan": "其余函数已做顺序 source 阅读，覆盖 SELECT / GROUP BY / ORDER BY、关联加载、游标结果转换、insert / update / delete、聚合、连接复用与提升、过滤、exclude、deferred loading、annotation mask 与 values 投影。未凭完整文件存在把每个函数当作 modified function。"
+        },
+        "phase1_5": {
+            "method": "changed-branch 集合不可识别。以下 7 项是源代码级补充义务，不声称是完整 changed-branch ledger；O1 与 O2 是同一证明针对不同集合语义的独立信任义务。O5 两个 sibling 的返回值保存检查分别记在 grid 中。无父版本情况下，不伪造完整差量覆盖。",
+            "ledger": [
+                {
+                    "id": "O1",
+                    "function": "SQLCompiler.get_combinator_sql()",
+                    "branch": "r02/django/db/models/sql/compiler.py:412-415 的 if not query.is_empty()",
+                    "type": "allow-path",
+                    "property": "空查询可从操作数序列删除；只证明该操作数为空，未证明任意集合操作删除它都等价。",
+                    "alternate": "union 的身份元与 intersection 的吸收元不同。",
+                    "consumer": "get_combinator_sql():454-459 组装运算；as_sql():484；execute_sql():1090。",
+                    "witness": "combinator='intersection'，combined_queries=(A 非空, E 已 set_empty())。",
+                    "seeds": "Query.set_empty, Query.is_empty, combined_queries, set_operators"
+                },
+                {
+                    "id": "O2",
+                    "function": "SQLCompiler.get_combinator_sql()",
+                    "branch": "r02/django/db/models/sql/compiler.py:412-415 的同一过滤 proof 对顺序敏感 difference 的独立义务",
+                    "type": "downstream-trust",
+                    "property": "删除空操作数仍保留第一操作数语义；集合为空不能证明它能从差集左边移除。",
+                    "alternate": "空左操作数和空右操作数不是同一表示。",
+                    "consumer": "get_combinator_sql():449 与 :459。",
+                    "witness": "combinator='difference'，combined_queries=(E 已 set_empty(), A 非空)。",
+                    "seeds": "difference, parts, is_empty"
+                },
+                {
+                    "id": "O3",
+                    "function": "SQLCompiler.get_combinator_sql()",
+                    "branch": "r02/django/db/models/sql/compiler.py:416-419 的 zip(self.query.combined_queries, compilers) / limit guard",
+                    "type": "metadata-shape",
+                    "property": "zip 中 query 与 compiler 描述同一子查询；压缩列表不能证明该对应关系。",
+                    "alternate": "combined_queries 保留空元素；compilers 已过滤空元素。",
+                    "consumer": "get_combinator_sql():418 检查切片，:420 检查排序，:435 编译。",
+                    "witness": "不支持复合子查询切片的后端，combined_queries=(E, A 切片)，过滤后 compilers=(compiler_A)。",
+                    "seeds": "supports_slicing_ordering_in_compound, low_mark, high_mark"
+                },
+                {
+                    "id": "O4",
+                    "function": "Query.resolve_lookup_value()",
+                    "branch": "r02/django/db/models/sql/query.py:1050-1054 标量表达式分支",
+                    "type": "type-proof",
+                    "property": "resolve_expression 的返回值作为已解析 RHS 传给 build_lookup；仅证明单个表达式路径。",
+                    "alternate": "F 特殊 simple_col 参数；返回新对象与就地解析。",
+                    "consumer": "build_filter():1231 → build_lookup():1236 或 :1280。",
+                    "witness": "标量表达式 resolve_expression 返回一个新的 Col 而不是修改自身。",
+                    "seeds": "resolve_expression, simple_col, build_filter"
+                },
+                {
+                    "id": "O5",
+                    "function": "Query.resolve_lookup_value()",
+                    "branch": "r02/django/db/models/sql/query.py:1055-1066 list / tuple 分支及元素解析",
+                    "type": "downstream-trust",
+                    "property": "元素解析后的容器可交给 lookup；调用解析并未证明返回的新元素已被保留。",
+                    "alternate": "单个表达式与 list / tuple 元素；F 子分支、非 F 子分支均未保存返回值。",
+                    "consumer": "build_filter():1231 → build_lookup():1280 → lookup_class(lhs, rhs):1145。",
+                    "witness": "RHS=[一个返回新表达式的对象]；静态上 value 仍为原容器。F 和普通表达式的具体执行影响需未提供的类。",
+                    "seeds": "list, tuple, F, lookup_class"
+                },
+                {
+                    "id": "O6",
+                    "function": "Query.resolve_ref()",
+                    "branch": "r02/django/db/models/sql/query.py:1639 验证 transform 与 :1642-1643 导出 _get_col",
+                    "type": "downstream-trust",
+                    "property": "路径通过 transform 验证后导出实际对应表达式；验证可用不等于应用 transform。",
+                    "alternate": "普通字段与字段__transform；SimpleCol 与完整 Col。",
+                    "consumer": "Query.resolve_lookup_value():1054 经外部表达式解析；compiler.get_group_by():108 直接 resolve_ref；compiler.compile():405。",
+                    "witness": "name='created__year' 且 year 是有效 transform，transform_function 返回包装表达式，但返回值来自 _get_col。",
+                    "seeds": "setup_joins.final_transformer, resolve_ref, _get_col, add_fields"
+                },
+                {
+                    "id": "O7",
+                    "function": "SQLCompiler.execute_sql()",
+                    "branch": "r02/django/db/models/sql/compiler.py:1096-1098 CURSOR 早退",
+                    "type": "lifecycle",
+                    "property": "cursor 所有权明确转交 caller，而不是漏关。",
+                    "alternate": "CURSOR / SINGLE / MULTI / NO_RESULTS / EmptyResultSet。",
+                    "consumer": "SQLUpdateCompiler.execute_sql():1431-1437。",
+                    "witness": "SQLUpdateCompiler 取得非空 cursor，读取 rowcount 后关闭；空结果返回 None。",
+                    "seeds": "CURSOR, cursor.close, SQLUpdateCompiler.execute_sql"
+                }
+            ]
+        },
+        "phase2": {
+            "order": "O1 到 O7 逐项完成验证后才考虑晋升。所有结论均为静态 source 证据；无运行见证。",
+            "grid": [
+                {
+                    "id": "O1",
+                    "callers": "SQLCompiler.as_sql():484",
+                    "entry": "SQLCompiler.execute_sql():1077；Query.sql_with_params():269",
+                    "consumers": "get_combinator_sql():459 与 cursor.execute():1090",
+                    "trace": "execute_sql → as_sql → get_combinator_sql → 删除 E → 拼接仅 A 的 SQL",
+                    "attempt": "静态推演 A={1}, E=∅：过滤后只输出 A，与交集 ∅ 不同。Query.set_empty():1716-1720 证实 E 的可表示性。",
+                    "witness_verdict": "accepted-but-unsafe（模块层集合语义见证；未执行）",
+                    "representation": "空集吸收元在统一过滤中未区别；mishandled。",
+                    "invariant": "非空项仍可编译；非异常错误结果路径不被后续 EmptyResultSet 分支修复。",
+                    "delta_classification": "unavailable：无 parent / diff；不能分类 introduced、widened、incomplete-fix-in-modified-logic，也不能分类 pre-existing-unchanged。",
+                    "current_status": "closed-no-defect（仅指本角色未晋升；不是源码无缺陷证明）"
+                },
+                {
+                    "id": "O2",
+                    "callers": "SQLCompiler.as_sql():484",
+                    "entry": "同 O1，但按差集配置直接审查，不假设外部 QuerySet 的前置简化。",
+                    "consumers": "get_combinator_sql():449,459",
+                    "trace": "execute_sql → as_sql → get_combinator_sql → 删除左侧 E → 仅 A",
+                    "attempt": "静态推演 E−A=∅，过滤后 SQL 选择 A；:449 仅处理编译过程中抛出的 EmptyResultSet，不能恢复已过滤项。",
+                    "witness_verdict": "accepted-but-unsafe（模块层见证；公共 QuerySet 是否前置简化未知）",
+                    "representation": "空左项与空右项区别丢失；mishandled。",
+                    "invariant": "顺序敏感集合运算身份不保留；不主张生产公共 API 已复现。",
+                    "delta_classification": "unavailable：无 parent / diff；不能分类 introduced、widened、incomplete-fix-in-modified-logic，也不能分类 pre-existing-unchanged。",
+                    "current_status": "closed-no-defect（仅指本角色未晋升；不是源码无缺陷证明）"
+                },
+                {
+                    "id": "O3",
+                    "callers": "SQLCompiler.as_sql():484",
+                    "entry": "execute_sql → as_sql",
+                    "consumers": "get_combinator_sql():435",
+                    "trace": "get_combinator_sql → compilers 过滤 E → zip(E, compiler_A) → 读取 E.low_mark → 编译 A",
+                    "attempt": "E 为无切片空查询，A 有切片；zip 长度变为 1，读取的是 E 的限制，A 的限制未被显式检查。",
+                    "witness_verdict": "accepted-but-unsafe（guard 覆盖不足的静态见证；数据库最终错误类型未知）",
+                    "representation": "不同长度、不同位置的两个序列；mishandled。",
+                    "invariant": "ORDER BY 检查读 compiler_A，但 LIMIT 检查读 E；不能因另一项检查存在就关闭本义务。",
+                    "delta_classification": "unavailable：无 parent / diff；不能分类 introduced、widened、incomplete-fix-in-modified-logic，也不能分类 pre-existing-unchanged。",
+                    "current_status": "closed-no-defect（仅指本角色未晋升；不是源码无缺陷证明）"
+                },
+                {
+                    "id": "O4",
+                    "callers": "Query.build_filter():1231",
+                    "entry": "Query.add_filter():1305 → add_q():1319 → _add_q():1344",
+                    "consumers": "Query.build_lookup():1145",
+                    "trace": "add_filter → build_filter → resolve_lookup_value 标量分支 → value=resolved → build_lookup",
+                    "attempt": "令表达式返回新对象，分支赋值接住新对象，因此没有建立 unsafe witness。",
+                    "witness_verdict": "none established",
+                    "representation": "新对象返回与就地修改均可通过赋值保存；not relevant（无表示错配）。",
+                    "invariant": "解析异常自然传播；未吞掉 allow_joins 限制。",
+                    "delta_classification": "unavailable：无 parent / diff；不能分类 introduced、widened、incomplete-fix-in-modified-logic，也不能分类 pre-existing-unchanged。",
+                    "current_status": "closed-no-defect（仅指本角色未晋升；不是源码无缺陷证明）"
+                },
+                {
+                    "id": "O5",
+                    "callers": "Query.build_filter():1231",
+                    "entry": "Query.add_filter → add_q → _add_q",
+                    "consumers": "Query.build_lookup():1145",
+                    "trace": "build_filter → resolve_lookup_value 容器分支 → 原 value → lookup_class(lhs,rhs)",
+                    "attempt": "新返回对象未赋回是静态可见；但 lookup 的后续解析可能补偿，外部 Lookup / F 实现不在输入中，无法证明最终 SQL 一定错误。",
+                    "witness_verdict": "none established（仅返回值丢弃成立，端到端 unsafe 尚未建立）",
+                    "representation": "list / tuple 对比标量；mishandled 在本地返回值层面，外部修复未知。",
+                    "invariant": "F / 非 F 两个 sibling 均检查：:1061 与 :1066 都丢弃返回值；并未因一个分支止步。",
+                    "delta_classification": "unavailable：无 parent / diff；不能分类 introduced、widened、incomplete-fix-in-modified-logic，也不能分类 pre-existing-unchanged。",
+                    "current_status": "closed-no-defect（仅指本角色未晋升；不是源码无缺陷证明）"
+                },
+                {
+                    "id": "O6",
+                    "callers": "SQLCompiler.get_group_by():108；表达式 resolve_expression 的具体调用实现未提供",
+                    "entry": "SQLCompiler.execute_sql → as_sql → pre_sql_setup → get_group_by",
+                    "consumers": "get_group_by():131 compile；另一路表达式 consumer 不能完整证明",
+                    "trace": "get_group_by 中字符串 group_by 项 → Query.resolve_ref → setup_joins 生成 transform → 调用但丢弃 transform → _get_col → compile",
+                    "attempt": "提供已有注册 transform 的字段路径；setup_joins():1547-1558 明确包装 transform，add_fields():1808 保留该返回，而 resolve_ref 不保留。具体 transform 注册与运行 SQL 未提供。",
+                    "witness_verdict": "none established（表达式表示不一致可见，但合法外部具体模型未提供）",
+                    "representation": "普通列与包装后表达式；本地结果被替换为基础列，mishandled；具体后端影响未验证。",
+                    "invariant": "FieldError 验证存在，无法证明语义转换已执行到最终输出。",
+                    "delta_classification": "unavailable：无 parent / diff；不能分类 introduced、widened、incomplete-fix-in-modified-logic，也不能分类 pre-existing-unchanged。",
+                    "current_status": "closed-no-defect（仅指本角色未晋升；不是源码无缺陷证明）"
+                },
+                {
+                    "id": "O7",
+                    "callers": "SQLUpdateCompiler.execute_sql():1431",
+                    "entry": "SQLUpdateCompiler.execute_sql(result_type)",
+                    "consumers": "rowcount():1433 与 cursor.close():1437",
+                    "trace": "SQLUpdateCompiler.execute_sql → super.execute_sql(CURSOR) → cursor 返回 → try/finally close",
+                    "attempt": "非空 cursor 在 finally 关闭；EmptyResultSet 返回 None 不产生游标，分支用 cursor is None 判定空。",
+                    "witness_verdict": "none established",
+                    "representation": "None 表示无查询结果而非延迟 cursor；现有 caller 显式处理；not relevant。",
+                    "invariant": "该直接 caller 的归还责任闭合；不据此声称所有未提供 caller 都正确。",
+                    "delta_classification": "unavailable：无 parent / diff；不能分类 introduced、widened、incomplete-fix-in-modified-logic，也不能分类 pre-existing-unchanged。",
+                    "current_status": "closed-no-defect（仅指本角色未晋升；不是源码无缺陷证明）"
+                }
+            ]
+        },
+        "phase3": {
+            "result": "No call-chain defects found based on contract changes, obligation ledger, and verified evidence-gating.",
+            "meaning": "该固定语句仅表示没有满足角色全部晋升门槛的正式 finding。O1-O3 的当前快照静态疑点仍在原始网格保留，不因没有 delta 而声称已证安全。没有候选可追溯到 introduced / widened / incomplete-fix，因此 candidates=[]。缺历史仅是限制，不是缺陷。",
+            "promoted": []
+        },
+        "coverage": {
+            "total_modified_functions": null,
+            "total_changed_branches_proofs_identified": null,
+            "total_obligations_created": 7,
+            "obligations_fully_verified": 0,
+            "source_grids_completed": 7,
+            "delta_unavailable_obligations": [
+                "O1",
+                "O2",
+                "O3",
+                "O4",
+                "O5",
+                "O6",
+                "O7"
+            ],
+            "candidate_defect_obligations": [],
+            "closed_no_defect_obligations": [
+                "O1",
+                "O2",
+                "O3",
+                "O4",
+                "O5",
+                "O6",
+                "O7"
+            ],
+            "unreviewed_changed_branches": "unknown：没有 diff，无法识别任何 changed-branch 集合；不能写 none。",
+            "source_read": [
+                "compiler.py:1-1518（初次分段工具截断的 374-464 已单独重读）",
+                "query.py:1-2308"
+            ],
+            "limits": [
+                "完整模块阅读不等于逐分支穷尽证明。",
+                "未提供 QuerySet、Lookup / F / Transform、模型 metadata、数据库 backend；仅追踪 supplied 模块内可见调用。",
+                "没有父版本 / 历史，严格角色 delta gate 无法完成。",
+                "未执行代码、测试或网络搜索；所有 witness 均是静态形状。",
+                "未调用 CodeGraph，因为仅允许冻结 input 与明确元资料，当前工作树代码不属于证据。"
+            ]
+        }
+    },
+    "tool_usage": {
+        "read_only_shell_calls": 9,
+        "report_write_calls": 1,
+        "read_only_limit": 12,
+        "tokens": null,
+        "cost_usd": null
+    },
+    "provenance": {
+        "producer": "strict magical-prompt-reviewer",
+        "session": "/root/strict_r02_judge/magical",
+        "isolation": "独立子 agent；未实现待审 source，未读其他 reviewer 输出；只使用允许冻结 input 与全局规则。"
+    }
+}

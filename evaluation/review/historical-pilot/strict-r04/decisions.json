@@ -1,0 +1,111 @@
+{
+    "judge_actor": "/root/strict_r04_judge",
+    "reviewers": [
+        {
+            "role": "performance",
+            "actor": "/root/strict_r04_judge/performance",
+            "raw_report": "performance.md",
+            "fork_turns": "none"
+        },
+        {
+            "role": "robustness",
+            "actor": "/root/strict_r04_judge/robustness",
+            "raw_report": "robustness.md",
+            "fork_turns": "none"
+        },
+        {
+            "role": "standards",
+            "actor": "/root/strict_r04_judge/standards",
+            "raw_report": "standards.md",
+            "fork_turns": "none"
+        },
+        {
+            "role": "magical",
+            "actor": "/root/strict_r04_judge/magical",
+            "raw_report": "magical.md",
+            "fork_turns": "none"
+        },
+        {
+            "role": "spec",
+            "actor": "/root/strict_r04_judge/spec",
+            "raw_report": "spec.md",
+            "fork_turns": "none"
+        }
+    ],
+    "critic_actor": "/root/strict_r04_judge/critic",
+    "sequence": "All five reviewers finally returned before deduplication; critic returned before judge source adjudication.",
+    "decisions": [
+        {
+            "id": "F-1",
+            "sources": [
+                "robustness:ROB-1"
+            ],
+            "original_severity": "P1",
+            "critic": "not_rebutted",
+            "decision": "follow-up note",
+            "file": "r04/sklearn/mixture/base.py",
+            "line": 221,
+            "reason": "221 使用 converged_ 存在性，225 提前建立该属性，266 警告转异常早于 274 提交 lower_bound_，因此重试在 236 访问缺失状态的静态路径成立。但 177–179 没有明确承诺失败拟合后的复用，派生类及真实恢复调用方未提供；在仅按文档行为报告高置信缺陷的范围内保留提醒，不作为正式 finding。"
+        },
+        {
+            "id": "F-2",
+            "sources": [
+                "spec:SPEC_R04_01"
+            ],
+            "original_severity": "P1",
+            "severity": "P1",
+            "critic": "not_rebutted",
+            "decision": "keep",
+            "file": "r04/sklearn/mixture/base.py",
+            "line": 263,
+            "title": "多次初始化中最佳轮不是末轮且标签不同时，恢复最佳参数前计算责任度，导致 fit_predict 标签与最终模型不一致",
+            "reason": "255–258 只保存最佳参数，263 用末轮状态计算 log_resp，272 恢复最佳参数后 276 仍返回旧标签；374 predict 使用恢复后的状态。两轮下界 -1/-2 且同一样本标签 0/1 的静态见证产生返回 1、最终预测 0，违反 197–202 和 260–262。"
+        },
+        {
+            "id": "F-3",
+            "sources": [
+                "spec:SPEC_R04_02"
+            ],
+            "original_severity": "P2",
+            "severity": "P2",
+            "critic": "not_rebutted",
+            "decision": "keep",
+            "file": "r04/sklearn/mixture/base.py",
+            "line": 222,
+            "title": "首次 warm_start=True 且 n_init>1 时按 n_init 执行多次初始化，违反忽略 n_init 并只初始化一次的契约",
+            "reason": "177–179 明确承诺首次只初始化一次；191 委托 fit_predict，新对象在 221 得到 do_init=True，222 仍取 self.n_init，230 与 233–234 执行多轮初始化。属于确定的正常路径契约不符，保留原 P2，不将附加性能猜测升级。"
+        }
+    ],
+    "handoffs": [
+        {
+            "source": "performance",
+            "merged_into": "F-2"
+        },
+        {
+            "source": "robustness",
+            "merged_into": "F-2"
+        },
+        {
+            "source": "magical:H1",
+            "merged_into": "F-2",
+            "formal_finding": false
+        }
+    ],
+    "limits": {
+        "reviewer_read_calls": {
+            "performance": 3,
+            "robustness": 5,
+            "standards": 4,
+            "magical": 3,
+            "spec": 3
+        },
+        "critic_read_calls": 4,
+        "judge_source_inspection_calls": 2,
+        "judge_metadata_orchestration_calls": 5
+    },
+    "model_exact_version": null,
+    "usage": {
+        "tokens": null,
+        "cost_usd": null
+    }
+}

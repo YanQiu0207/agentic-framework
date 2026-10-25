@@ -1,0 +1,72 @@
+{
+    "judge_actor": "/root/strict_r03_judge",
+    "reviewer_count": 5,
+    "raw_candidate_count": 6,
+    "deduplicated_count": 3,
+    "decisions": [
+        {
+            "id": "F-1",
+            "sources": [
+                {
+                    "actor": "/root/strict_r03_judge/robustness",
+                    "id": "R03_ROB_01"
+                },
+                {
+                    "actor": "/root/strict_r03_judge/spec",
+                    "id": "SPEC-1"
+                },
+                {
+                    "actor": "/root/strict_r03_judge/magical",
+                    "id": "MP-2"
+                }
+            ],
+            "severity": "P1",
+            "file": "r03/src/_pytest/logging.py",
+            "line": 437,
+            "critic": "not_rebutted",
+            "decision": "keep",
+            "title": "未配置日志级别时，caplog.set_level() 未恢复共享 handler 阈值，导致后续测试漏捕 WARNING",
+            "reason": "435–437 同时修改 logger 与 handler 但只保存 logger；350–358 finalize 仅恢复 logger。525–529 与 676–684 证明 handler 跨测试复用，298–299 在 level=None 时不重置阈值；423–424 承诺测试结束恢复。"
+        },
+        {
+            "id": "F-2",
+            "sources": [
+                {
+                    "actor": "/root/strict_r03_judge/robustness",
+                    "id": "R03_ROB_02"
+                }
+            ],
+            "severity": "P1",
+            "file": "r03/src/_pytest/logging.py",
+            "line": 88,
+            "critic": "not_rebutted",
+            "decision": "keep",
+            "title": "启用彩色日志且并发记录不同级别时，两个 handler 共享可变格式模板，导致输出错误的级别名称",
+            "reason": "72–84 将级别名写入模板，88–89 修改共享 style 后再格式化；526–529 两个 handler 共用 formatter，573–584 为可达配置路径。B 已进入 report 时 A 可进入 caplog，二者覆盖同一模板。基于标准 logging handler 独立锁语义的静态推导，未运行且未读取标准库实现；514–515 的安全共享注释不是同步保护。"
+        },
+        {
+            "id": "F-3",
+            "sources": [
+                {
+                    "actor": "/root/strict_r03_judge/spec",
+                    "id": "SPEC-2"
+                },
+                {
+                    "actor": "/root/strict_r03_judge/magical",
+                    "id": "MP-1"
+                }
+            ],
+            "severity": "P1",
+            "file": "r03/src/_pytest/logging.py",
+            "line": 420,
+            "critic": "not_rebutted",
+            "decision": "keep",
+            "title": "同阶段调用 caplog.clear() 后替换列表却未更新阶段存储，导致 get_records() 返回旧记录并遗漏后续日志",
+            "reason": "683 在阶段运行前保存列表引用；420 调用 reset，329 换新列表，325 将后续日志追加至新列表；379 仍返回旧列表。367–375 没有限定仅结束阶段，且 688–689 阶段结束未重新发布列表，因此即使视为历史查询也遗漏后续日志。"
+        }
+    ],
+    "follow_up": [],
+    "source_inspection_calls": 2,
+    "all_reviewers_returned_before_dedup": true,
+    "critic_returned_before_judge_inspection": true
+}

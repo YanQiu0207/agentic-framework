@@ -1,0 +1,45 @@
+{
+    "framework_commit": "4eb6f91718dee2cb6ae905472f125363e1ad0955",
+    "plan_digest": "32f48703b0ab18fc190b91bd7233170579a6774f47e61bedc17d2f653cfe492a",
+    "execution_digest": "78b9faa18e261383aedaa460875ec5a80eec18d95280466a9d3e3e9cd0a79cfb",
+    "materials": [
+        {
+            "path": "materials/agents/magical-prompt-reviewer.md",
+            "sha256": "6c595f55bd3237243be88635cfbbd4361c1602ad847b69d780ffd0db9b9a728d"
+        },
+        {
+            "path": "materials/agents/performance-reviewer.md",
+            "sha256": "de33b468f167c6bd4408fadc571565ad2fbedb43f1b7a13bd3571be697aa6c56"
+        },
+        {
+            "path": "materials/agents/review-critic.md",
+            "sha256": "c6d98af9008c277beb8b088830320afc355ee071b7c67de2142b223ab918bb15"
+        },
+        {
+            "path": "materials/agents/robustness-reviewer.md",
+            "sha256": "d0d29f17207fa8c4094fe5954c1341a49214f0f872c4d64c67bbf31b1aa05c42"
+        },
+        {
+            "path": "materials/agents/spec-compliance-reviewer.md",
+            "sha256": "5e6360fb43d0e5b39164d4ebe20a7ab2851d57324669ce3f672885c115963a58"
+        },
+        {
+            "path": "materials/agents/standards-reviewer.md",
+            "sha256": "cc1a8814c844309a7bdd97024e6fb96b8d3fc98d669cc965f5b33c8d44073b60"
+        },
+        {
+            "path": "materials/skills/bp-coding-best-practices/SKILL.md",
+            "sha256": "68a8abaafb9e0125b8e07101a34cda5b9adb3b302ff4f6da86759ad5bb4e8c33"
+        },
+        {
+            "path": "materials/skills/bp-performance-optimization/SKILL.md",
+            "sha256": "2a1ec71a90925abfde7d7179f67db5bf35ab7f6829aea28b600abdbaeb048271"
+        },
+        {
+            "path": "materials/skills/workflow-code-review/SKILL.md",
+            "sha256": "58d12b32a555c7ccf21276ce4f170bff5b6c17901356387921be893d43c31bae"
+        }
+    ],
+    "source_provenance": "sources.json and provenance.json from historical pilot; strict-evidence-validation.json confirms identical source and requirement",
+    "reconstruction": "Materialize source paths from sources.json, copy materials from framework_commit preserving paths, verify hashes, then plan strict-experiment.json into a NEW directory. Do not give this private definition to reviewing agents."
+}

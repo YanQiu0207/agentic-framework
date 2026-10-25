@@ -1,0 +1,25 @@
+{
+    "schema_version": 1,
+    "artifact_type": "review-report",
+    "artifact_id": "review-run",
+    "run_id": "2050-strict-r03",
+    "profile": "tooling",
+    "harness": "codex",
+    "commit_sha": "4eb6f91718dee2cb6ae905472f125363e1ad0955",
+    "config_digest": "sha256:2b03062f70ae7d3ea6b058bc6a424bd82ac1551c29ed14e7087d024daf9a8058",
+    "task_id": null,
+    "attempt": null,
+    "producer": "workflow-code-review",
+    "created_at": "2026-10-25T04:37:18Z",
+    "payload": {
+        "verdict": "NEEDS_CHANGES",
+        "p0_count": 0,
+        "p1_count": 3,
+        "scope": "run",
+        "review_profile": "strict",
+        "round": 0,
+        "implementer_actor": "/root",
+        "judge_actor": "/root/strict_r03_judge",
+        "independence_basis": "process-separated-agent"
+    }
+}

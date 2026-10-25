@@ -1,0 +1,169 @@
+{
+    "summary": {
+        "CONTROL": {
+            "tasks": 4,
+            "target_hits": 3,
+            "categories": {
+                "target_match": 3,
+                "supported_extra": 6
+            },
+            "findings": 9
+        },
+        "SKILL": {
+            "tasks": 4,
+            "target_hits": 3,
+            "categories": {
+                "target_match": 3,
+                "supported_extra": 7
+            },
+            "findings": 10
+        },
+        "STRICT": {
+            "tasks": 4,
+            "target_hits": 3,
+            "categories": {
+                "target_match": 3,
+                "supported_extra": 5
+            },
+            "findings": 8
+        }
+    },
+    "cells": [
+        {
+            "cell_id": "r01--CONTROL--1",
+            "sample_id": "sample_01",
+            "task": "r01",
+            "treatment": "CONTROL",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1
+            }
+        },
+        {
+            "cell_id": "r01--SKILL--1",
+            "sample_id": "sample_02",
+            "task": "r01",
+            "treatment": "SKILL",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1
+            }
+        },
+        {
+            "cell_id": "r04--SKILL--1",
+            "sample_id": "sample_03",
+            "task": "r04",
+            "treatment": "SKILL",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1,
+                "supported_extra": 1
+            }
+        },
+        {
+            "cell_id": "r01--STRICT--1",
+            "sample_id": "sample_04",
+            "task": "r01",
+            "treatment": "STRICT",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1
+            }
+        },
+        {
+            "cell_id": "r04--STRICT--1",
+            "sample_id": "sample_05",
+            "task": "r04",
+            "treatment": "STRICT",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1,
+                "supported_extra": 1
+            }
+        },
+        {
+            "cell_id": "r02--CONTROL--1",
+            "sample_id": "sample_06",
+            "task": "r02",
+            "treatment": "CONTROL",
+            "target_hit": false,
+            "categories": {
+                "supported_extra": 5
+            }
+        },
+        {
+            "cell_id": "r03--STRICT--1",
+            "sample_id": "sample_07",
+            "task": "r03",
+            "treatment": "STRICT",
+            "target_hit": true,
+            "categories": {
+                "supported_extra": 2,
+                "target_match": 1
+            }
+        },
+        {
+            "cell_id": "r03--CONTROL--1",
+            "sample_id": "sample_08",
+            "task": "r03",
+            "treatment": "CONTROL",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1,
+                "supported_extra": 1
+            }
+        },
+        {
+            "cell_id": "r04--CONTROL--1",
+            "sample_id": "sample_09",
+            "task": "r04",
+            "treatment": "CONTROL",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1
+            }
+        },
+        {
+            "cell_id": "r02--SKILL--1",
+            "sample_id": "sample_10",
+            "task": "r02",
+            "treatment": "SKILL",
+            "target_hit": false,
+            "categories": {
+                "supported_extra": 5
+            }
+        },
+        {
+            "cell_id": "r03--SKILL--1",
+            "sample_id": "sample_11",
+            "task": "r03",
+            "treatment": "SKILL",
+            "target_hit": true,
+            "categories": {
+                "target_match": 1,
+                "supported_extra": 1
+            }
+        },
+        {
+            "cell_id": "r02--STRICT--1",
+            "sample_id": "sample_12",
+            "task": "r02",
+            "treatment": "STRICT",
+            "target_hit": false,
+            "categories": {
+                "supported_extra": 2
+            }
+        }
+    ],
+    "adjudicator": {
+        "task_name": "/root/strict_blind_adjudicator",
+        "role": "独立效果评测静态盲评裁判，非代码 Review 流程 Judge",
+        "model": "继承父 agent；未通过外部信息确认具体模型标识"
+    },
+    "limitations": [
+        "AI static assessment, not human or runtime verification",
+        "Historical controls, not equal compute",
+        "No global precision or false-positive-rate claim",
+        "Single trial per case, public historical source, training contamination possible"
+    ]
+}

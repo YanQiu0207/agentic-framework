@@ -1,0 +1,48 @@
+{
+    "role": "review-critic",
+    "actor": "/root/strict_r02_judge/critic",
+    "status": "completed",
+    "source_inspection_calls": 4,
+    "read_only_tool_calls": 5,
+    "write_tool_calls": 1,
+    "verdicts": [
+        {
+            "id": "F-1",
+            "candidate_ids": ["ROB_EMPTY_COMPOUND", "SPEC_1"],
+            "verdict": "not_rebutted",
+            "file": "r02/django/db/models/sql/compiler.py",
+            "line": 414,
+            "rebuttal_attempts": [
+                "检查 caller 是否拒绝空操作数：query.py:264–269 的 sql_with_params() 直接调用编译器；277–282 的 get_compiler() 只要求 using 或 connection，不检查集合操作数。",
+                "检查后端及排序分页保护：compiler.py:481–484 只拒绝不支持该集合运算的后端；416–421 只检查分页和排序。候选明确限定支持对应运算且无排序分页，所以这些保护无法反驳。",
+                "检查运算符专用空集保护：compiler.py:446–451 的确会对 intersection 或首项为空的 difference 重新抛出 EmptyResultSet，但 412–415 已删除显式空项，故其 compiler 根本不会进入该异常分支。",
+                "检查输入空表示是否凭空构造：query.py:1716–1720 明确提供 set_empty()/is_empty()，213–215 明确初始化 combinator/combined_queries；缺少 QuerySet 构造层不能证明该层总会阻断此状态。"
+            ],
+            "basis": "在候选限定状态下，intersection(A,E) 与 difference(E,A) 都只剩 A 的 compiler。compiler.py:435、445 产生一个 part，452 不触发，459 对单个 part 的 join 不保留任何集合运算。因此静默返回 A 的模块内结论未被反驳。",
+            "limits": "未提供 QuerySet 层，公开 API 的完整可达范围仍不确定；本 verdict 只评价提供源码的集合运算契约，不推断新增回归或生产影响。"
+        },
+        {
+            "id": "F-2",
+            "candidate_ids": ["ROB_EXPLAIN_EMPTY"],
+            "verdict": "not_rebutted",
+            "file": "r02/django/db/models/sql/compiler.py",
+            "line": 1146,
+            "rebuttal_attempts": [
+                "检查直接 caller 是否在解释前处理空查询：query.py:532–538 的 explain() 克隆查询、设置解释参数后直接 join(compiler.explain_query())；无空集检查或 IndexError 捕获，join 会实际消费生成器。",
+                "检查 clone 是否清除触发状态：query.py:299–306 保留属性并克隆 where，292–336 未清除 combinator/combined_queries。",
+                "检查 EXPLAIN 模式是否抑制判空：compiler.py:576–580 仅在生成查询后添加解释前缀；get_combinator_sql() 的 452–453 可先抛 EmptyResultSet，不能被该前缀转成数据库计划行。",
+                "检查 execute_sql() 是否改用 SINGLE 或保留哨兵：1062 默认 MULTI，1080–1082 在 EmptyResultSet 时返回 iter([])，1143 将它转为 []，1146 未检查即索引。"
+            ],
+            "basis": "可用同一 supplied 模块的所有组合项均为显式空查询作为静态见证：412–415 后 compilers=[]，452–453 抛 EmptyResultSet，1082 返回空迭代器，1143 得到空列表，1146 索引越界。query.py:532–538 提供未保护的直接 caller，因此不只是假想外部调用。",
+            "limits": "没有执行源码、数据库测试或外部 QuerySet 实现；不声称所有公开 explain 调用均可触发，也不以缺失材料宣称已有上层保护。"
+        }
+    ],
+    "coverage": "已读取 tasks.md、scope.md、全局 AGENTS.md/RTK.md、input 中 review-critic 角色全文、两份完整原始候选报告；对 compiler.py:400–490、1060–1155 及全部 explain 命中上下文、query.py 相关入口和 clone/set_empty/is_empty 定点复核。没有全量重审或新增问题。",
+    "limitations": [
+        "初次完整 input 输出被截断；随后按字段定点读取角色和需要的源码，不声称已完整阅读全部源码或 conventions。",
+        "4 次读取包含源码的调用，加 1 次全局指令读取，总计 5 次只读调用；持久化另计 1 次。",
+        "所有 shell 均以 rtk 开头，Get-Content 显式 UTF8；未启动 Python 子进程。",
+        "只使用本次授权材料，未读取其他案例、旧输出、diff/history，未联网或执行待审源码。",
+        "not_rebutted 不是最终裁决；优先级与发布结论由 Judge 决定。"
+    ]
+}

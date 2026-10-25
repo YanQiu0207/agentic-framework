@@ -1,0 +1,31 @@
+{
+    "plan_digest":  "32f48703b0ab18fc190b91bd7233170579a6774f47e61bedc17d2f653cfe492a",
+    "cell_id":  "r02--STRICT--1",
+    "execution_digest":  "78b9faa18e261383aedaa460875ec5a80eec18d95280466a9d3e3e9cd0a79cfb",
+    "status":  "completed",
+    "findings":  [
+                     {
+                         "id":  "F_1",
+                         "title":  "交集含空项或差集首项为空时，无条件删除空操作数使本应为空的结果返回其他查询的数据",
+                         "file":  "r02/django/db/models/sql/compiler.py",
+                         "line":  414,
+                         "severity":  "P1"
+                     },
+                     {
+                         "id":  "F_2",
+                         "title":  "解释静态空查询时，execute_sql 返回空迭代器但 explain_query 直接索引首项，导致 IndexError",
+                         "file":  "r02/django/db/models/sql/compiler.py",
+                         "line":  1146,
+                         "severity":  "P1"
+                     }
+                 ],
+    "provenance":  {
+                       "producer":  "workflow-code-review strict independent Judge",
+                       "session":  "/root/strict_r02_judge",
+                       "isolation":  "Five real independent reviewers with fork_turns=none; no candidate exchange; independent Critic then Judge source verification. Allowlist is procedural, not a hard sandbox. Source-only; no history, execution or network. Exact model version unknown."
+                   },
+    "usage":  {
+                  "cost_usd":  null,
+                  "tokens":  null
+              }
+}

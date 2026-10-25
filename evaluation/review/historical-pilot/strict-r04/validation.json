@@ -1,0 +1,24 @@
+﻿{
+    "status":  "passed",
+    "checks":  [
+                   "response binding",
+                   "runtime context binding",
+                   "five raw reviewer reports and critic",
+                   "finding locations and maximum count",
+                   "verdict counts",
+                   "UTF-8 JSON parsing"
+               ],
+    "source_execution":  false,
+    "network_used":  false,
+    "upstream_approval":  false,
+    "exact_model_version":  null,
+    "tokens":  null,
+    "cost_usd":  null,
+    "hard_sandbox":  false,
+    "limitations":  [
+                        "Static review only",
+                        "No parent version or historical delta",
+                        "No upstream checkout binding",
+                        "CP936-specific execution not tested; UTF-8 files explicitly parsed"
+                    ]
+}
