@@ -54,6 +54,7 @@
 | `skills/bp-domain-modeling/SKILL.md` | 修改 | 「记录边界」加 rules.md 判据一句 |
 | `skills/bp-domain-modeling/reference/glossary-format.md` | 修改 | 「结构规则」加分节-目录映射登记一条 |
 | `openspec/changes/2059-.../specs/backend/engineering/tech/knowledge-management.md` | 新建 | MODIFIED Delta 三处（§4 树、§5.2 职责、§9.1 指针「§5、§7.1」→「§5、§7.1、§7.3」） |
+| `openspec/changes/2059-.../specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | 新建 | MODIFIED Delta 一处（§9.1 指针补 §7.3；review P2-3 连带同步） |
 | `openspec/specs/backend/framework/knowledge-management/overview.md` | 修改 | 速查节三处缺口标「已由 change 2059 补全」+ §7.3 摘要；`source_ref` 归档时更新为实施后 HEAD |
 | `docs/framework-features-status-and-comparison.md` | 修改 | §4.6 知识管理 bullet 补退役语义一条 |
 

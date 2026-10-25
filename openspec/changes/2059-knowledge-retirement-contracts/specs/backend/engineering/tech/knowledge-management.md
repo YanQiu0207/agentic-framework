@@ -24,7 +24,7 @@
 在 §5.2 列表首行（`glossary.md` 之前）加入：
 
 ```markdown
-- `index.md`：业务域清单与定位映射——每个 `<domain>/` 目录一行（名称、一句范围、指向 `overview.md`），及 glossary 分节名与 domain 目录名的映射；新增、改名或退役 domain 时同轮更新。小项目不建该文件时，映射写在 `specs/index.md` 对应条目旁。
+- `index.md`：业务域清单与定位映射——每个 `<domain>/` 目录一行（名称、一句范围、指向 `overview.md`），以及 `glossary.md` 分节名与 domain 目录名的映射；新增、改名或退役 domain 时同轮更新。小项目不建该文件时，映射写在 `specs/index.md` 对应条目旁。
 ```
 
 ### 3. §9.1 双轨更新指针扩展

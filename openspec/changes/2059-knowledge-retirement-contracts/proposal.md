@@ -68,6 +68,7 @@
 ## 4. 知识影响
 
 - Delta：`specs/backend/engineering/tech/knowledge-management.md` → `openspec/specs/backend/engineering/tech/knowledge-management.md`（MODIFIED：§4 树、§5.2 职责、§9.1 指针）。
+- Delta：`specs/backend/engineering/tech/external-reference-mattpocock-skills.md` → `openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md`（MODIFIED：§9.1 指针补 §7.3，review P2-3 连带同步）。
 - 直接维护（2057/2058 先例：行为合同直接维护在技能与状态文档）：`skills/project-knowledge/SKILL.md`、`skills/bp-domain-modeling/SKILL.md`、`skills/bp-domain-modeling/reference/glossary-format.md`、`openspec/specs/backend/framework/knowledge-management/overview.md`、`docs/framework-features-status-and-comparison.md` §4.6。
 - 无跨项目候选：全部为本框架内部合同事实，不满足公共库晋升的泛化前提。
 

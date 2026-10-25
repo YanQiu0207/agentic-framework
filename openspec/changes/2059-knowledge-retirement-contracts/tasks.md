@@ -102,8 +102,8 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
 - artifacts:
   - Delta 文件、两个修改后文档
 
-### 任务 4：[ ] 定向核验、全量 Verify 与独立 Review
-- 状态：进行中（定向校验已过，等全量 Verify 与独立 Review）
+### 任务 4：[x] 定向核验、全量 Verify 与独立 Review
+- 状态：完成（全量 Verify PASS，独立 Review 无 P0/P1；P2-1/2/3 已修，P2-4 记录不修）
 - 文件：无新增修改（只读核验；发现问题时回到对应任务修复后重跑本任务）
 - depends_on: Task 1, Task 2, Task 3
 - review_profile: standard
@@ -120,8 +120,9 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
   - [x] ⑥ git diff --check 通过；diff 范围 5 文件 +27/−6 + Delta 新建，全部在声明目标内
   - [x] 行号锚定抽查：specs 下唯一 `SKILL.md:行号` 引用指向未改动文件（workflow-code-review:65，其真实锚点在 :67），系既有漂移非本次引入
   - [x] ⑦ md-zh 自检：新增行半角标点紧邻中文零命中；括号均为全角或行内代码包裹
-  - [ ] ⑧ verify.py 退出 0（进行中）
-  - [ ] ⑨ 独立 Review 无未解决 P0/P1（进行中）
+  - [x] ⑧ verify.py 退出 0：PASS 4/4，0 errors；13 条 source_freshness WARN 为既有非阻塞项（涉及文件不在本 Change 范围）
+  - [x] ⑨ 独立 Review：无 P0/P1，4 条 P2——P2-1 §7.3 引语改判据句（事实性失效→直写标记；未生效放弃→Delta REMOVED）、P2-2 Delta §5.2 行与 SKILL.md §3.4 职责句逐字对齐、P2-3 补第二份 Delta 镜像同步 external-reference §9.1 指针、P2-4 长期文档 :605「根索引」歧义不在本 Change 范围，记录不修
+  - [x] ⑩ P2 修复后复跑：proposal（design/code 两相）0/0、design（design-code 相）0/0；lint_skill_graph 0/0；lint_task_deps（tooling Profile）0/0；md-zh 抽查新增行零命中（Delta 文件非 lint_spec 目标，格式由镜像路径与主 Delta 模板保证）
 - artifacts:
   - 本任务勾选记录与核验输出（写在勾选项与最终报告，机器运行报告不提交进源码）
 
@@ -130,6 +131,7 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
 | `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | Delta 已创建（Synced 于归档前核对） | 归档前登记 `openspec/index.md` 近期变更 |
+| `specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | `openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | MODIFIED | Delta 已创建（review P2-3 连带同步；Synced 于归档前核对） | 归档前登记 `openspec/index.md` 近期变更 |
 直接维护轨（不经 Delta）：`skills/project-knowledge/SKILL.md`、`skills/bp-domain-modeling/*`、`overview.md` 速查节、features 文档 §4.6——行为合同直接维护在技能与状态文档（2057/2058 先例）。
 
 ## 知识冲突
