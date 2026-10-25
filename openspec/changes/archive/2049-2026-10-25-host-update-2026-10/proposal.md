@@ -3,7 +3,7 @@
 **作者**：YanQiu0207（AI 辅助）
 **日期**：2026-10-25
 **变更**：host-update-2026-10
-**状态**：Quick Draft
+**状态**：Archived
 
 ---
 
