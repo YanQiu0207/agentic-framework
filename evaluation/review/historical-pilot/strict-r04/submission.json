@@ -1,0 +1,31 @@
+{
+    "plan_digest": "32f48703b0ab18fc190b91bd7233170579a6774f47e61bedc17d2f653cfe492a",
+    "cell_id": "r04--STRICT--1",
+    "execution_digest": "78b9faa18e261383aedaa460875ec5a80eec18d95280466a9d3e3e9cd0a79cfb",
+    "status": "completed",
+    "findings": [
+        {
+            "id": "F_2",
+            "title": "多次初始化中最佳轮不是末轮且标签不同时，恢复最佳参数前计算责任度，导致 fit_predict 标签与最终模型不一致",
+            "file": "r04/sklearn/mixture/base.py",
+            "line": 263,
+            "severity": "P1"
+        },
+        {
+            "id": "F_3",
+            "title": "首次 warm_start=True 且 n_init>1 时按 n_init 执行多次初始化，违反忽略 n_init 并只初始化一次的契约",
+            "file": "r04/sklearn/mixture/base.py",
+            "line": 222,
+            "severity": "P2"
+        }
+    ],
+    "provenance": {
+        "producer": "/root/strict_r04_judge",
+        "session": "2050-strict-r04; actual agent /root/strict_r04_judge",
+        "isolation": "Five fork_turns=none reviewer agents, then independent critic, then judge; behavior-enforced allowlist, not a hard sandbox; no target execution/network/history. Exact model version unknown."
+    },
+    "usage": {
+        "tokens": null,
+        "cost_usd": null
+    }
+}

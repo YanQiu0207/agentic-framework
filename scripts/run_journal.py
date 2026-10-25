@@ -165,6 +165,8 @@ def append_event(path: Path, event: dict[str, Any]) -> tuple[dict[str, Any], boo
             existing_ids = {item["payload"]["event_id"] for item in events}
             if event["payload"]["event_id"] in existing_ids:
                 raise JournalError("duplicate_event_id")
+            # Validate the new prefix before committing bytes, not at checkpoint time.
+            replay_events([*events, event])
             previous = path.read_bytes() if path.exists() else b""
             _atomic_write(path, previous + _canonical(event) + b"\n")
             return event, True

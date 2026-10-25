@@ -1,0 +1,32 @@
+{
+    "reviewer": "spec-compliance-reviewer",
+    "status": "completed",
+    "read_only_call_count": 5,
+    "report": "Using workflow-code-review\n\n# 需求／设计符合度原始报告\n\n## 范围与基线\n- strict 首审；当前任务为 tasks.md 的任务 1：只读审核冻结源码。\n- 已读取 scope.md、tasks.md、input.json 中的 workflow 与本角色定义，以及全局 AGENTS.md、RTK.md。\n- 没有上游产品 spec，采用角色 Level 1 降级：以 scope requirement 和源码注释／接口为行为基线，不作产品功能遗漏或架构符合度推断。\n- compiler.py 为完整模块而非 diff；已完整分段阅读其 1–1518 行。query.py 用于调用入口和空查询表示的定点验证，并未逐行完整审查。\n\n## 当前任务验收对照\n- 未修改或执行待审代码，未联网，未读取其他案例或旧报告。\n- 本角色只提交独立候选；五维审查、条件 Critic 和最终 Judge 的整体验收由编排方确认，本报告不代替最终裁决或集成放行。\n- 候选 1 条，低于最多 5 条上限。\n\n## 候选 SPEC_1［P1］\n当交集含显式空查询，或差集的首项为空时，编译器预先删除该操作数，导致本应为空的结果返回后续查询的数据。位置：r02/django/db/models/sql/compiler.py:414。\n\n证据：get_combinator_sql() 在 412–415 行对所有集合运算无条件过滤 is_empty() 查询；但 446–451 行的既有行为说明，仅 UNION 或已存在非空首项的 DIFFERENCE 才可以省略空操作数。query.py:1716–1720 提供 set_empty()/is_empty() 的显式空表示。令 A 为能返回一行的同模型查询，E 为调用 set_empty() 的查询；外层查询的 combined_queries=(A,E)、combinator='intersection' 时，过滤后只编译 A，459 行输出 A 的 SQL，而不是空集。combined_queries=(E,A)、combinator='difference' 同样错误地只返回 A。由于 E 根本没有 compiler，446–451 行的 EmptyResultSet 分支无法纠正这个语义。\n\n调用链：Query.sql_with_params()［query.py:264–269］→ SQLCompiler.as_sql()［compiler.py:481–484］→ get_combinator_sql()［412–415、423–459］；执行路径 execute_sql()［1077、1090］会使用生成 SQL。这里验证的是完整模块的正常集合运算结果契约，不声称由某次提交引入。\n\n影响与分级：仅含显式空操作数的特定集合运算触发，但会静默返回错误行，按 workflow 的特定条件、风险明确分类为 P1。\n\n建议：不要在创建 compilers 时无条件过滤空查询；保留操作数顺序，让已有的按 combinator 区分的 EmptyResultSet 逻辑处理，或实现语义等价的按运算类型处理。\n\n## 限制\n- 这是静态源码证据，不是执行验证；没有数据库后端、模型实例、QuerySet 层、测试或历史，不能确认完整应用影响范围，也不声称实际生产环境已发生。\n- 见证使用本模块明确支持的 combined_queries／combinator 状态和 query.py 的 set_empty()，不推断未提供的 QuerySet 公共 API 是否提前优化了某一种组合。\n- 第 1 次批量读取输出发生截断；后续调用重新完整读取 workflow、分段读取 compiler.py，并定点读取 query.py，未以被截断内容宣称完整覆盖 query.py。\n- 只读调用共 5 次；报告持久化另计 1 次写入。未与其他 reviewer 通信，未创建子 agent。",
+    "candidates": [
+        {
+            "id": "SPEC_1",
+            "title": "交集含空项或差集首项为空时，无条件删去空操作数使本应为空的结果返回其他查询的数据",
+            "file": "r02/django/db/models/sql/compiler.py",
+            "line": 414,
+            "severity": "P1",
+            "evidence": [
+                "compiler.py:412–415 在创建 compilers 时对所有 combinator 过滤 query.is_empty()。",
+                "compiler.py:446–451 明确仅允许 UNION 或已有非空首项的 DIFFERENCE 省略空操作数；提前过滤绕过了该分支。",
+                "query.py:1716–1720 的 set_empty()/is_empty() 提供显式空查询表示。",
+                "见证：A 返回一行，E.set_empty()；intersection(A,E) 或 difference(E,A) 过滤后仅剩 A，compiler.py:459 输出 A 的 SQL。",
+                "query.py:264–269 → compiler.py:481–484 → compiler.py:412–459；compiler.py:1077、1090 消费并执行生成 SQL。"
+            ],
+            "assumptions": [
+                "使用支持对应集合运算的数据库后端，操作数具有相同投影且无排序、分页，避免无关后端约束。",
+                "A 为具有至少一行结果的正常查询，外层 combined_queries/combinator 保留给定操作数状态；未提供的 QuerySet 层是否提前化简某些输入不确定。",
+                "完整源码审核无 diff/history，不主张这是新引入的回归；没有执行待审代码。"
+            ]
+        }
+    ],
+    "coverage_limits": [
+        "完整阅读 compiler.py；query.py 仅扫描函数入口及定点验证 253–285、1716–1760 行。",
+        "没有上游产品 spec、历史、外部调用者或数据库运行证据。",
+        "本报告为 reviewer 原始候选，不是 Judge 的最终裁决。"
+    ]
+}

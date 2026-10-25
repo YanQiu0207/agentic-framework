@@ -1,0 +1,111 @@
+{
+    "status":  "passed",
+    "actors":  [
+                   {
+                       "role":  "performance",
+                       "actor":  "/root/strict_r02_judge/performance"
+                   },
+                   {
+                       "role":  "robustness",
+                       "actor":  "/root/strict_r02_judge/robustness"
+                   },
+                   {
+                       "role":  "standards",
+                       "actor":  "/root/strict_r02_judge/standards"
+                   },
+                   {
+                       "role":  "magical",
+                       "actor":  "/root/strict_r02_judge/magical"
+                   },
+                   {
+                       "role":  "spec",
+                       "actor":  "/root/strict_r02_judge/spec"
+                   },
+                   {
+                       "role":  "critic",
+                       "actor":  "/root/strict_r02_judge/critic"
+                   }
+               ],
+    "judge_actor":  "/root/strict_r02_judge",
+    "preparer_actor":  "/root",
+    "checks":  [
+                   "Five real reviewers completed before dedup",
+                   "Independent Critic completed before Judge verification",
+                   "All 3 raw candidates mapped into 2 decisions",
+                   "Both kept findings in full report and submission",
+                   "Submission severity/file/line order",
+                   "Binding and Runtime context equality",
+                   "Artifact/Markdown verdict and counts agree"
+               ],
+    "counts":  {
+                   "reviewers":  5,
+                   "raw_candidates":  3,
+                   "deduplicated_candidates":  2,
+                   "keep":  2,
+                   "drop":  0,
+                   "follow_up_candidates":  0,
+                   "submitted":  2,
+                   "p0":  0,
+                   "p1":  2
+               },
+    "call_budgets":  {
+                         "judge_source_inspections":  3,
+                         "critic_source_inspections":  4,
+                         "performance_read_calls":  5,
+                         "robustness_read_calls":  7,
+                         "standards_read_calls":  7,
+                         "magical_read_calls":  9,
+                         "spec_read_calls":  5,
+                         "limit":  12
+                     },
+    "limitations":  [
+                        "Static source-only review, no execution, network, history or diff.",
+                        "Runtime commit binds evaluation worktree, not upstream checkout; no framework delivery approval.",
+                        "/root is evaluation preparer, not upstream author.",
+                        "Allowlist is procedural, not a hard sandbox.",
+                        "Exact model version unknown; usage unknown.",
+                        "Magical delta gate cannot be completed without historical source.",
+                        "No fix or re-review.",
+                        "UTF8 file I/O verified; GBK/CP936 terminal compatibility not exercised; no Python launched.",
+                        "Initial global rules read had mojibake; user supplied identical readable global instructions; subsequent reads explicitly UTF8.",
+                        "Initial input output truncated; workflow then separately read and adjudication source ranges directly inspected.",
+                        "Initial validation attempt failed because Get-FileHash unavailable; validation retried with .NET SHA256, without altering decisions."
+                    ],
+    "usage":  {
+                  "tokens":  null,
+                  "cost_usd":  null
+              },
+    "model_exact_version":  null,
+    "raw_reports":  [
+                        {
+                            "path":  ".agentic-framework/evaluation/historical-review-strict-raw-v1/r02/performance.json",
+                            "sha256":  "3677db566cd4bdcab3638c1a245ca4ce1743fd5f71bed3e6e798d39681db5919",
+                            "role":  "performance"
+                        },
+                        {
+                            "path":  ".agentic-framework/evaluation/historical-review-strict-raw-v1/r02/robustness.json",
+                            "sha256":  "48a3c4b5fef3ece945f2fd77080745c7d18c389aba45da5c54ed4e275484d0df",
+                            "role":  "robustness"
+                        },
+                        {
+                            "path":  ".agentic-framework/evaluation/historical-review-strict-raw-v1/r02/standards.json",
+                            "sha256":  "dda7494d493913c8a45c1bda2b0788e9ab7b4a45172f4fa58db041e5cdf45b92",
+                            "role":  "standards"
+                        },
+                        {
+                            "path":  ".agentic-framework/evaluation/historical-review-strict-raw-v1/r02/magical.json",
+                            "sha256":  "ea290400b9347edd12f075d3d522dfd5b2ff395c9259441625c9b87e762c6d73",
+                            "role":  "magical"
+                        },
+                        {
+                            "path":  ".agentic-framework/evaluation/historical-review-strict-raw-v1/r02/spec.json",
+                            "sha256":  "03f81737a406372884e3dbe7c91a601f837d94f93b4490f2ea079dd7aa270661",
+                            "role":  "spec"
+                        },
+                        {
+                            "path":  ".agentic-framework/evaluation/historical-review-strict-raw-v1/r02/critic.json",
+                            "sha256":  "26bda6d36a500b3247d37fddd1ba1b6a95583df1edf69440b8af02fb6e1c9872",
+                            "role":  "critic"
+                        }
+                    ]
+}

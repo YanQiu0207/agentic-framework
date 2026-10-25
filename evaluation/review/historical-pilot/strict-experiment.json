@@ -1,0 +1,94 @@
+{
+    "id": "historical_review_strict_v1",
+    "repeats": 1,
+    "execution": {
+        "model": "same inherited current-agent configuration; exact provider model revision not observable",
+        "mode": "offline source review; no repository code execution or network",
+        "reviewer_budget": "Each reviewer <=12 read-only calls and <=5 candidates; critic and judge <=12 source-inspection calls each. Preserve all candidates and decisions; evaluation output <=5 keep findings, ordered severity then file then line.",
+        "design": "Historical CONTROL and standard comparisons only; strict five reviewers then critic and independent judge. Not equal compute.",
+        "isolation": "fresh fork_turns=none actors; explicit input allowlist; no enforced filesystem sandbox",
+        "cost": "unknown; do not substitute zero",
+        "scope_limit": "Complete supplied modules, not PR diff. Missing delta/history must be declared, never fabricated. Runtime commit binds evaluation worktree, not upstream repository."
+    },
+    "tasks": [
+        {
+            "id": "r01",
+            "requirement": "Review the supplied complete source files for actionable correctness defects under their documented behavior. This is a scoped source review, not a change diff. Findings may be absent. Do not report style-only preferences or speculative unsupported requirements. For each finding, explain the trigger, root cause and concrete impact in the title, citing the exact supplied file path and line. Return at most five high-confidence findings. Do not execute code or search external sources.",
+            "files": [
+                "r01/astropy/modeling/separable.py"
+            ],
+            "expected": [
+                {
+                    "id": "target",
+                    "description": "When the right branch is already a dependency matrix for a compound model, _cstack replaces its entries by ones instead of preserving them, spuriously making independent inputs dependent.",
+                    "severity": "P1",
+                    "category": "architecture"
+                }
+            ]
+        },
+        {
+            "id": "r02",
+            "requirement": "Review the supplied complete source files for actionable correctness defects under their documented behavior. This is a scoped source review, not a change diff. Findings may be absent. Do not report style-only preferences or speculative unsupported requirements. For each finding, explain the trigger, root cause and concrete impact in the title, citing the exact supplied file path and line. Return at most five high-confidence findings. Do not execute code or search external sources.",
+            "files": [
+                "r02/django/db/models/sql/compiler.py",
+                "r02/django/db/models/sql/query.py"
+            ],
+            "expected": [
+                {
+                    "id": "target",
+                    "description": "Combined querysets projected with values/values_list cannot order by an unselected unaliased column: SQLCompiler.get_order_by raises rather than adding the needed select column and resolving the ordering position.",
+                    "severity": "P1",
+                    "category": "architecture"
+                }
+            ]
+        },
+        {
+            "id": "r03",
+            "requirement": "Review the supplied complete source files for actionable correctness defects under their documented behavior. This is a scoped source review, not a change diff. Findings may be absent. Do not report style-only preferences or speculative unsupported requirements. For each finding, explain the trigger, root cause and concrete impact in the title, citing the exact supplied file path and line. Return at most five high-confidence findings. Do not execute code or search external sources.",
+            "files": [
+                "r03/src/_pytest/logging.py"
+            ],
+            "expected": [
+                {
+                    "id": "target",
+                    "description": "LogCaptureFixture.set_level changes both logger and capture-handler levels but _finalize restores only logger levels; the handler state leaks into subsequent tests.",
+                    "severity": "P1",
+                    "category": "architecture"
+                }
+            ]
+        },
+        {
+            "id": "r04",
+            "requirement": "Review the supplied complete source files for actionable correctness defects under their documented behavior. This is a scoped source review, not a change diff. Findings may be absent. Do not report style-only preferences or speculative unsupported requirements. For each finding, explain the trigger, root cause and concrete impact in the title, citing the exact supplied file path and line. Return at most five high-confidence findings. Do not execute code or search external sources.",
+            "files": [
+                "r04/sklearn/mixture/base.py"
+            ],
+            "expected": [
+                {
+                    "id": "target",
+                    "description": "BaseMixture.fit_predict computes its final E-step before restoring best_params, so labels come from the last initialization rather than the selected best model when n_init > 1.",
+                    "severity": "P1",
+                    "category": "architecture"
+                }
+            ]
+        }
+    ],
+    "treatments": [
+        {
+            "id": "STRICT",
+            "knowledge": {
+                "conventions": [
+                    "materials/skills/workflow-code-review/SKILL.md",
+                    "materials/skills/bp-coding-best-practices/SKILL.md",
+                    "materials/skills/bp-performance-optimization/SKILL.md",
+                    "materials/agents/performance-reviewer.md",
+                    "materials/agents/robustness-reviewer.md",
+                    "materials/agents/standards-reviewer.md",
+                    "materials/agents/magical-prompt-reviewer.md",
+                    "materials/agents/spec-compliance-reviewer.md",
+                    "materials/agents/review-critic.md"
+                ]
+            }
+        }
+    ]
+}

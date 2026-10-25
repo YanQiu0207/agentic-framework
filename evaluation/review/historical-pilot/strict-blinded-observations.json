@@ -1,0 +1,263 @@
+[
+    {
+        "sample_id": "sample_01",
+        "task": "r01",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "当 & 的右侧包含多个独立输入时，_cstack 将右侧依赖矩阵覆盖为全 1，导致错误报告输入相关性；例如 Shift(1) & (Shift(2) & Shift(3)) 的后两个输出被误判为不可分离，应保留 right 矩阵而非填入常量 1",
+                "file": "r01/astropy/modeling/separable.py",
+                "line": 245,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_02",
+        "task": "r01",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "当 & 的右侧子树矩阵含独立轴时，常量 1 覆盖原依赖矩阵，导致 separability_matrix 虚报相关性且 is_separable 将独立输出误判为不可分离",
+                "file": "r01/astropy/modeling/separable.py",
+                "line": 245,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_03",
+        "task": "r04",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "多次初始化选中非末次模型时，最终 E-step 在恢复最佳参数前执行，导致返回标签与拟合后模型预测不一致",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 263,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_02",
+                "title": "首次使用 warm_start=True 且 n_init>1 时，初始化次数仍取 self.n_init，导致未按契约忽略多次初始化并增加拟合工作量",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 222,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_04",
+        "task": "r01",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "右侧嵌套并行模型走默认递归路径时，_cstack 用全 1 覆盖右依赖矩阵，误报独立输出相关且不可分离",
+                "file": "r01/astropy/modeling/separable.py",
+                "line": 245,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_05",
+        "task": "r04",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "多次初始化中最佳轮不是末轮且标签不同时，恢复最佳参数前计算责任度，导致 fit_predict 标签与最终模型不一致",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 263,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_02",
+                "title": "首次 warm_start=True 且 n_init>1 时按 n_init 执行多次初始化，违反忽略 n_init 并只初始化一次的契约",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 222,
+                "severity": "P2"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_06",
+        "task": "r02",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "INTERSECTION 含空查询或 DIFFERENCE 首项为空时，提前过滤所有 is_empty() 分支破坏集合语义，使本应为空的结果返回其余查询的数据",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 414,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_02",
+                "title": "按嵌套外键属性（如 author__country_id）排序且目标模型设置默认排序时，将 field.attname 与完整路径比较会错误展开目标模型排序，导致未按指定外键 ID 排序",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 710,
+                "severity": "P2"
+            },
+            {
+                "id": "finding_03",
+                "title": "通过关联字段使用目标模型的表达式 Meta.ordering 时，将表达式直接递归传入仅处理字符串的 find_ordering_name，随后 get_order_dir 对表达式执行 field[0]，导致查询编译抛出 TypeError",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 720,
+                "severity": "P2"
+            },
+            {
+                "id": "finding_04",
+                "title": "同时 select_related 多个 FilteredRelation 别名时，remote_setter 闭包共享循环变量 name，延后调用全部使用最后一个别名，导致关联对象写入错误属性并相互覆盖",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 910,
+                "severity": "P2"
+            },
+            {
+                "id": "finding_05",
+                "title": "克隆查询经 bump_prefix 重命名别名时，table_map 浅复制仍共享内部列表，change_aliases 会同步改坏原查询映射，使原查询后续 table_alias 复用不存在的别名并触发 KeyError",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 305,
+                "severity": "P2"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_07",
+        "task": "r03",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "启用彩色日志且并发记录不同级别时，两个 handler 共享可变格式模板，导致输出错误的级别名称",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 88,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_02",
+                "title": "同阶段调用 caplog.clear() 后替换列表却未更新阶段存储，导致 get_records() 返回旧记录并遗漏后续日志",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 420,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_03",
+                "title": "未配置日志级别时，caplog.set_level() 未恢复共享 handler 阈值，导致后续测试漏捕 WARNING",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 437,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_08",
+        "task": "r03",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "未配置 log_level 时，测试调用 caplog.set_level(ERROR) 会修改共享 handler，却在结束时只恢复 logger 级别；后续测试仍沿用 ERROR 捕获阈值，导致 WARNING 日志丢失并产生测试顺序依赖",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 437,
+                "severity": "P2"
+            },
+            {
+                "id": "finding_02",
+                "title": "测试阶段内调用 caplog.clear() 时，reset() 替换 records 列表，但阶段记录表仍引用旧列表，导致 get_records(当前阶段) 返回清除前的日志且遗漏清除后产生的日志",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 420,
+                "severity": "P2"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_09",
+        "task": "r04",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "当 n_init > 1 且最佳初始化不是最后一次时，最终 E-step 在恢复 best_params 前执行，导致 fit_predict 返回最后一次初始化的标签，而非最终保留模型的标签，与 predict(X) 不一致；应先恢复最佳参数再计算标签",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 263,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_10",
+        "task": "r02",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "组合查询包含显式空操作数时，无条件过滤 is_empty() 查询改变集合语义，使交集或空集作为左操作数的差集错误返回非空结果",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 414,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_02",
+                "title": "克隆查询执行 bump_prefix() 时，table_map 仅浅拷贝导致共享别名列表被原地改写，污染原查询并使其后续 table_alias() 访问不存在的引用计数而抛出 KeyError",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 305,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_03",
+                "title": "同时选择多个 FilteredRelation 时，回调闭包延迟绑定循环变量 name 和 f，导致早先关系使用最后一个关系名及字段写入属性和缓存",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 909,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_04",
+                "title": "resolve_ref() 解析包含合法字段变换的引用时，丢弃 transform_function() 的返回表达式并返回原始列，使引用静默忽略变换而产生错误查询结果",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 1639,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_05",
+                "title": "内外查询别名前缀均为 Z 时，bump_prefix() 直接递增字符得到 [ 而非 AA，生成未引用的非法 SQL 别名并导致嵌套查询执行失败",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 875,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_11",
+        "task": "r03",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "未配置全局日志级别时，set_level() 未恢复共享 handler 级别，导致后续测试漏捕日志",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 437,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_02",
+                "title": "阶段内调用 clear() 时，reset() 替换列表使阶段引用失效，导致 get_records() 返回旧日志并遗漏新日志",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 329,
+                "severity": "P1"
+            }
+        ]
+    },
+    {
+        "sample_id": "sample_12",
+        "task": "r02",
+        "findings": [
+            {
+                "id": "finding_01",
+                "title": "交集含空项或差集首项为空时，无条件删除空操作数使本应为空的结果返回其他查询的数据",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 414,
+                "severity": "P1"
+            },
+            {
+                "id": "finding_02",
+                "title": "解释静态空查询时，execute_sql 返回空迭代器但 explain_query 直接索引首项，导致 IndexError",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 1146,
+                "severity": "P1"
+            }
+        ]
+    }
+]

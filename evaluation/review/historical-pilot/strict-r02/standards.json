@@ -1,0 +1,21 @@
+{
+    "reviewer": "standards-reviewer",
+    "status": "completed",
+    "plan_digest": "32f48703b0ab18fc190b91bd7233170579a6774f47e61bedc17d2f653cfe492a",
+    "cell_id": "r02--STRICT--1",
+    "execution_digest": "78b9faa18e261383aedaa460875ec5a80eec18d95280466a9d3e3e9cd0a79cfb",
+    "candidates": [],
+    "findings": [],
+    "report": "Using workflow-code-review\nUsing bp-coding-best-practices\n\n# 工程规则专项原始报告\n\n## 结论\n无发现。此结论仅表示在本次提供的规则和范围内，没有证成可报告的工程规则违规，不表示源文件没有其他维度的缺陷，也不是最终集成放行。\n\n## 依据与审查范围\n已阅读 input.json 内的完整 workflow-code-review、bp-coding-best-practices 和 standards-reviewer 定义，以及 r02/tasks.md、r02/scope.md。按 standards-reviewer 的「无规则不立案」「其他维度的问题不报」执行；按 scope.md 排除纯风格偏好与无依据的需求。完整阅读了 r02/django/db/models/sql/compiler.py 第 1—1517 行（末尾空行为第 1518 行）。\n\n## 规则驱动核验\n- 命名、函数设计与控制流：通用 skill 中的短名称、参数数量、提前返回等建议，不能单独证明上游 Django 的项目规则违规；没有将本评测仓库的偏好作为 Django 的工程约束。\n- 目录、依赖、禁止 API 与成熟库复用：输入未提供 Django 专属的分层、禁止 API 或强制库复用规则，因此没有依据仅凭导入或实现选择立案。已查看模块导入（第 1—18 行）及各编译器实现。\n- 所有权表达：第 1096—1098 行明确将游标处理和关闭责任交给调用者；第 1329 行采用上下文管理器；第 1513—1517 行提供迭代结束清理。仅据这些静态事实，没有证成工程规则违规；异常路径是否正确属于其他 reviewer 维度。\n- 日志与注释：未将通用 skill 的日志覆盖建议直接当作上游 SQL 编译器必须新增日志的要求。函数长度、注释格式或局部命名偏好也不作为本任务要求的可操作正确性 finding。\n\n## 覆盖限制\n这是完整文件静态审查而非 diff；没有父版本、提交历史、Django 专属工程规范、依赖模块或运行证据，无法确认新增分支或回归归属。未执行待审代码，未搜索网络，未阅读其他案例或旧报告，未与其他 reviewer 交换发现。bp-coding-best-practices 引用的独立 reference 文件未包含在允许输入中，未将其未见内容作为依据。首次整体读取输出被截断，随后分别完整读取角色与必要 skill，并分三段读取全部源文件，未依赖截断部分推断。\n\n## 候选\n空数组；不提出跨维度 handoff finding。",
+    "read_only_call_count": 7,
+    "write_call_count": 1,
+    "coverage": {
+        "file": "r02/django/db/models/sql/compiler.py",
+        "lines_read": "1-1518",
+        "executed_reviewed_code": false,
+        "external_search": false,
+        "history_available": false,
+        "upstream_project_specific_standards_available": false,
+        "independence": "独立 standards 子 agent；未派发子 agent，未与其他 reviewer 互传信息。"
+    }
+}

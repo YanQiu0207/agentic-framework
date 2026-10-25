@@ -42,3 +42,6 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 - Matt Pocock Skills 的工程理念、使用方式、访谈来源与框架适配候选：[`external-reference-mattpocock-skills.md`](specs/backend/engineering/tech/external-reference-mattpocock-skills.md)
 
 - Comet 流程编排状态机（rpamis/comet）的双工作流、源码核验机制、三层扩展模型、与本框架 27 skills 的迁移对照及共存策略：[`external-reference-comet.md`](specs/backend/engineering/tech/external-reference-comet.md)
+
+- Agent 实验评测与 Review 首例（含四个经典 Bug 的普通组、standard 与 strict 实评）：[agent-evaluation](specs/backend/engineering/tech/agent-evaluation.md)
+- Review 效果评测方法：[SWR-Bench 与 SWE-PRBench](specs/backend/engineering/tech/external-reference-review-evaluation-methods.md)

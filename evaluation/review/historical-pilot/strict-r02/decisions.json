@@ -1,0 +1,49 @@
+{
+    "judge_actor": "/root/strict_r02_judge",
+    "status": "completed",
+    "verdict": "NEEDS_CHANGES",
+    "p0_count": 0,
+    "p1_count": 2,
+    "round": 0,
+    "review_profile": "strict",
+    "source_inspection_calls": 3,
+    "decisions": [
+        {
+            "id": "F-1",
+            "sources": [
+                "robustness:ROB_EMPTY_COMPOUND",
+                "spec:SPEC_1"
+            ],
+            "critic": "not_rebutted",
+            "disposition": "keep",
+            "finding": {
+                "id": "F_1",
+                "title": "交集含空项或差集首项为空时，无条件删除空操作数使本应为空的结果返回其他查询的数据",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 414,
+                "severity": "P1"
+            },
+            "basis": "亲读 compiler.py:410–463、481–484 及 query.py:264–282、1716–1720：is_empty 为真即被统一删除；446–451 的按运算符保护无法处理已删除项。A 非空且 E.set_empty() 时，intersection(A,E) 和 difference(E,A) 只生成 A 的 SQL。限定后端支持运算、同投影、无排序分页。模块契约错误成立；公开 QuerySet 层可达范围仍不确定。"
+        },
+        {
+            "id": "F-2",
+            "sources": [
+                "robustness:ROB_EXPLAIN_EMPTY"
+            ],
+            "critic": "not_rebutted",
+            "disposition": "keep",
+            "finding": {
+                "id": "F_2",
+                "title": "解释静态空查询时，execute_sql 返回空迭代器但 explain_query 直接索引首项，导致 IndexError",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 1146,
+                "severity": "P1"
+            },
+            "basis": "亲读 query.py:292–336、532–538：clone 保留状态，explain 直接消费生成器。compiler.py:452–453 的全空组合抛 EmptyResultSet，1080–1082 转为空迭代器，1143 转成 []，1146 无保护索引。576–580 的 EXPLAIN 前缀晚于判空，不能补救。异常在所供直接 caller 中可达，未执行验证。"
+        }
+    ],
+    "follow_up_notes": [
+        "magical 无历史导致 delta gate 不可完成，保留其原始义务网格，不将未晋升观察转为 Judge 新 finding。",
+        "无上游 spec、QuerySet 构造层、后端及运行证据；不声明变更归因、完整产品影响或框架交付批准。"
+    ]
+}

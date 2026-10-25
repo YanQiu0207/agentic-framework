@@ -1,0 +1,29 @@
+{
+    "reviewer": "performance-reviewer",
+    "status": "completed",
+    "candidates": [],
+    "report": "结论：在限定的完整源码静态审查范围内，未发现达到高置信度门槛的性能缺陷候选。这不是性能基线通过或集成批准。已读取提供的 workflow-code-review、performance-reviewer、bp-performance-optimization 和 bp-coding-best-practices 定义，按 workflow 的 P0／P1／P2 口径审核，仅负责性能维度。审查覆盖 SQLCompiler 的查询准备、分组与排序、组合查询、关联选择、结果转换与游标读取，以及插入、删除、更新、聚合编译器。证据核查：results_iter 第 1041—1049 行连接 execute_sql 与流式转换；execute_sql 第 1112—1127 行在 chunked_fetch 且后端支持分块读取时返回迭代器，其他分支按明确注释进行物化，不能单凭 list(result) 认定性能缺陷。cursor_iter 第 1513—1517 行使用 fetchmany 分块。插入第 1285—1320 行依据后端能力和返回 ID 的约束选择批量 SQL，未证成无条件逐行往返。更新第 1450—1452、1468—1484 行明确说明预取主键用于跨表更新稳定性或后端限制，并保留单条查询快速路径，不能将其必要物化成本直接定性为缺陷。组合查询第 422—445 行的元组累加具有随子查询数增长的重复拷贝成本，但缺少足以证明实际规模、热度或性能基线破坏的证据；本次要求排除仅优化建议，因此不提升为候选。分组、排序和关联选择中的重复遍历同样未获得足以确认不合理运行时代价的实际负载证据。无跨维度 finding，无 reviewer 互传。",
+    "coverage": {
+        "file": "r02/django/db/models/sql/compiler.py",
+        "lines_read": "1-1518",
+        "source_kind": "完整模块，非 diff",
+        "limitations": [
+            "未提供历史版本，无法认定缺陷引入或回归。",
+            "仅允许读取冻结输入及指定上下文，未读取依赖模块、后端实现、外部调用方或测试。",
+            "禁止执行待审代码，未执行测试、基准或 profiling，也未访问网络。",
+            "没有真实负载、数据规模、延迟和内存基线，不能认定实际热点或量化端到端影响。",
+            "首次读取 input.json 的输出被截断；随后独立完整读取适用约定并分段读取全部源码，消除了本维度所需材料的截断缺口。"
+        ]
+    },
+    "tool_calls": {
+        "read_only_shell_calls": 5,
+        "report_write_calls": 1,
+        "total": 6,
+        "read_only_limit": 12
+    },
+    "provenance": {
+        "producer": "performance-reviewer",
+        "session": "/root/strict_r02_judge/performance",
+        "isolation": "独立子 Agent；只读指定冻结输入、tasks.md、scope.md、全局 AGENTS.md 和 RTK.md；未读取其他案例或旧输出；只创建本报告。"
+    }
+}

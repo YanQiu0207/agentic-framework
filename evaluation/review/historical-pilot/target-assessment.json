@@ -1,0 +1,165 @@
+{
+    "reviewer": "/root/pilot_adjudicator，AI 初评非人工，静态证据未执行回归",
+    "note": "Supplemental known-target analysis, not closed-catalog precision; no human verification or local upstream test execution.",
+    "rows": [
+        {
+            "cell_id": "r01--CONTROL--1",
+            "target_detected": true,
+            "matched_finding_id": "F1",
+            "catalog_complete_for_submission": true,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F1",
+                    "verdict": "target_match",
+                    "evidence": "r01/astropy/modeling/separable.py:243-245 将右侧矩阵块全部赋值为 1；307-309 递归计算复合模型后将矩阵传给对应运算，因此右侧独立轴会失去零元素；60-62 根据行和判断可分离性。private-provenance.json 的 r01 patch 将 1 改为 right，并增加 rot & (sh1 & sh2) 等回归案例，根因、触发及影响一致。"
+                }
+            ]
+        },
+        {
+            "cell_id": "r01--SKILL--1",
+            "target_detected": true,
+            "matched_finding_id": "F_1",
+            "catalog_complete_for_submission": true,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F_1",
+                    "verdict": "target_match",
+                    "evidence": "r01/astropy/modeling/separable.py:243-245 将已经计算好的右侧依赖矩阵替换为全 1；100-101 将非零项转为相关性，60-62 将行和不为 1 的输出判为不可分离。private-provenance.json 的 r01 patch 恰将该赋值改为 right，嵌套右侧复合模型回归案例对应同一触发与影响。"
+                }
+            ]
+        },
+        {
+            "cell_id": "r02--CONTROL--1",
+            "target_detected": false,
+            "matched_finding_id": null,
+            "catalog_complete_for_submission": false,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F1",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/compiler.py:412-415 在区分 combinator 前过滤空操作数，423-459 仅用余下操作数组装 SQL；447-451 的异常分支反而明确要求仅 UNION 或已有非空左操作数的 DIFFERENCE 可忽略空集。给定包含显式空操作数的 combined_queries，此处确实破坏交集或左空差集语义。公开 QuerySet API 是否预先短路不在提供源码内，故结论限于该编译器输入条件；不匹配官方未选中排序列 target。"
+                },
+                {
+                    "id": "F2",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/compiler.py:702-705 将完整 name 分割后解析最终关系字段，710 却将最终字段 attname 与完整 name 比较；对 author__country_id，country_id 不等于完整路径，718-722 因而递归使用目标模型默认排序。707-709 明确说明显式指定属性名应跳过默认关系排序，此处违反该规则。"
+                },
+                {
+                    "id": "F3",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/compiler.py:281 显式识别支持 resolve_expression 的排序项，说明排序表达式并非无依据的要求；718-721 处理关联模型默认排序时却把所有 item 直接交给 find_ordering_name，702-704 走 get_order_dir 和字符串 split 路径。缺少表达式分支导致合法表达式无法按该路径编译的根因成立；get_order_dir 的定义不在已提供文件内，故具体由 field[0] 抛出 TypeError 的细节未独立确认。"
+                },
+                {
+                    "id": "F4",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/compiler.py:893-910 在同一循环作用域内创建引用 name 的 remote_setter，911-919 将回调保存到各关系信息中，而未绑定各次 name。循环结束后执行这些回调会使用最后的 name，导致多个关系写入同一属性；这是可静态确认的延迟绑定缺陷。"
+                },
+                {
+                    "id": "F5",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/query.py:302-305 独立复制 alias_refcount，却仅浅复制 table_map；850-853 原地修改共享别名列表，902-905 表明 bump_prefix 会调用该重命名路径。原查询在735-738 复用被改写的列表项时，原 alias_refcount 没有新别名，因而可抛出 KeyError。"
+                }
+            ]
+        },
+        {
+            "cell_id": "r02--SKILL--1",
+            "target_detected": false,
+            "matched_finding_id": null,
+            "catalog_complete_for_submission": false,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F_1",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/compiler.py:412-415 无条件丢弃 is_empty 操作数，423-459 用剩余项组装集合运算，违反447-451 对空集省略条件的明确区分。给定含显式空项的 combined_queries，可错误计算交集或左空差集；公开 QuerySet 入口是否提前短路未由所供文件确认。此缺陷不涉及官方 target 的未选中排序列。"
+                },
+                {
+                    "id": "F_2",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/query.py:302-305 的浅复制使 table_map 内部列表共享，但引用计数字典不共享；850-853 重命名时原地改列表，902-905 是 bump_prefix 的调用位置。原查询735-738 随后可用新别名访问旧引用计数字典并抛出 KeyError，根因与影响闭合。"
+                },
+                {
+                    "id": "F_3",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/compiler.py:893-910 的循环回调同时闭包捕获 f 和 name，local_setter 在907 使用 f.remote_field，remote_setter 在910 使用 name；915-919 保存这些回调而未绑定各轮变量。因此早先关系的回调使用最后一轮字段和关系名，错误缓存及属性写入均有静态依据。"
+                },
+                {
+                    "id": "F_4",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/query.py:1505-1510 明确说明 transform_function 返回包装字段变换后的表达式，1547-1558 实际构造该变换；1637-1639 只调用它检查合法性并丢弃结果，1642-1643 返回未经该变换包装的列。合法变换被接受却未进入返回表达式，支持静默忽略变换这一缺陷。"
+                },
+                {
+                    "id": "F_5",
+                    "verdict": "supported_extra",
+                    "evidence": "r02/django/db/models/sql/query.py:865-875 承诺字母用尽后进入 AA 等组合，但 alias_prefix 为 Z 时875-876 先产生并返回 [；883-895 在内外前缀一致且该前缀未占用时接受它，902-905 构造 [0 等别名。r02/django/db/models/sql/compiler.py:391-395 对 alias_map 中的非表名别名不加引号。因而存在生成非法 SQL 标识符的静态路径；具体数据库报错未执行验证。"
+                }
+            ]
+        },
+        {
+            "cell_id": "r03--CONTROL--1",
+            "target_detected": true,
+            "matched_finding_id": "F1",
+            "catalog_complete_for_submission": false,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F1",
+                    "verdict": "target_match",
+                    "evidence": "r03/src/_pytest/logging.py:433-437 修改 logger 和 handler 级别，350-358 仅恢复 logger；296-299 在未配置 level 时不重置 handler，674-684 复用插件 handler。private-provenance.json 的 r03 patch 增加 handler 级别保存与恢复，test_change_level_undos_handler_level 检查后续测试的 handler 级别恢复为 0，与发现的泄漏根因一致。"
+                },
+                {
+                    "id": "F2",
+                    "verdict": "supported_extra",
+                    "evidence": "r03/src/_pytest/logging.py:683 将当前 records 列表保存到阶段记录表；418-420 的 clear 调用 reset，328-330 将 records 替换成新列表；323-325 后续日志追加到新列表。367-375 的 get_records 契约是读取指定阶段记录，因此旧阶段引用既保留清除前记录，又不再接收新记录。该缺陷独立于 handler 级别泄漏。"
+                }
+            ]
+        },
+        {
+            "cell_id": "r03--SKILL--1",
+            "target_detected": true,
+            "matched_finding_id": "F_1",
+            "catalog_complete_for_submission": false,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F_1",
+                    "verdict": "target_match",
+                    "evidence": "r03/src/_pytest/logging.py:433-437 同时改变 logger 与 handler，而350-358 只恢复 logger；296-299 在全局 level 为 None 时不覆盖 handler 阈值，674-684 复用 handler。private-provenance.json 的 r03 patch 和 test_change_level_undos_handler_level 直接针对这一跨测试 handler 状态泄漏。"
+                },
+                {
+                    "id": "F_2",
+                    "verdict": "supported_extra",
+                    "evidence": "r03/src/_pytest/logging.py:683 在阶段开始时保存 records 引用；418-420 调用 reset 后，329 用新列表替换 handler.records，325 将后续记录写入新列表。原阶段记录表没有同步更新，导致指定阶段读取仍面对旧列表；这与367-375 所述获取该阶段记录的用途不符，且独立于官方级别恢复 target。"
+                }
+            ]
+        },
+        {
+            "cell_id": "r04--CONTROL--1",
+            "target_detected": true,
+            "matched_finding_id": "F1",
+            "catalog_complete_for_submission": true,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F1",
+                    "verdict": "target_match",
+                    "evidence": "r04/sklearn/mixture/base.py:255-258 选择最佳参数，但263 在272 恢复这些参数之前计算标签，276 直接返回该结果。private-provenance.json 的 r04 patch 将最终 E-step 移到恢复最佳参数之后，并新增 n_init > 1 的 fit_predict/predict 一致性回归案例；根因、条件与影响全部匹配。"
+                }
+            ]
+        },
+        {
+            "cell_id": "r04--SKILL--1",
+            "target_detected": true,
+            "matched_finding_id": "F_1",
+            "catalog_complete_for_submission": false,
+            "supplemental_finding_verdicts": [
+                {
+                    "id": "F_1",
+                    "verdict": "target_match",
+                    "evidence": "r04/sklearn/mixture/base.py:255-258 保存最佳初始化参数，263 在当前即末次初始化参数上计算 log_resp，272 才恢复 best_params，276 返回此前标签。private-provenance.json 的 r04 patch 将最终 E-step 移到参数恢复之后，回归案例分别检查两种混合模型在 n_init > 1 时 fit_predict 与 predict 相同。"
+                },
+                {
+                    "id": "F_2",
+                    "verdict": "supported_extra",
+                    "evidence": "r04/sklearn/mixture/base.py:177-179 明确写明 warm_start=True 时忽略 n_init，首次调用只初始化一次；191 将 fit 委托给 fit_predict，但221-222 在首次没有 converged_ 时仍取 self.n_init，230、233-234 据此反复初始化。文档契约与实现确实不符，并非主观性能偏好；但静态证据不能确定应修改实现还是修正文档，也不能支持将其严重性直接等同于标签错误。此项与官方 target 不同。"
+                }
+            ]
+        }
+    ]
+}

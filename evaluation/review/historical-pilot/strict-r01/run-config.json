@@ -1,0 +1,11 @@
+{
+    "harness": "codex",
+    "max_attempts": 2,
+    "profile": "tooling",
+    "required_capabilities": [],
+    "optional_capabilities": [],
+    "verify_config": {
+        "checks": []
+    },
+    "workflow": "workflow-code-generation"
+}

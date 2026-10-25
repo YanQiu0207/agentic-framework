@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "artifact_type": "verify-report",
+  "artifact_id": "verify-1-1",
+  "run_id": "2051-runtime-replay-fix-r1",
+  "task_id": "1",
+  "attempt": 1,
+  "profile": "tooling",
+  "harness": "codex",
+  "producer": "workflow-verification",
+  "commit_sha": "4f322a74854379af2631ff14811118a6109955a9",
+  "config_digest": "sha256:a0245b770035268ab4dc8fcdafd2895903ee08a0f5a4f22ab28ab851623a968e",
+  "created_at": "2026-10-25T06:00:19.429456Z",
+  "payload": {
+    "verdict": "PASS",
+    "total": 4,
+    "errors": 0,
+    "violations": 0,
+    "spec_drift": {
+      "name": "Z-spec-drift",
+      "type": "spec_drift",
+      "status": "pass",
+      "detail": "代码变更 6 个，相关规格类文件已更新 1 个",
+      "value": {
+        "diff_base": "4026684",
+        "code_files": [
+          "scripts/run_journal.py",
+          "scripts/runtime_workflow.py",
+          "scripts/test_runtime_workflow.py",
+          "scripts/test_workflow_control.py",
+          "scripts/tests/test_run_journal.py",
+          "skills/workflow-code-generation/scripts/workflow_control.py"
+        ],
+        "spec_files": [
+          "openspec/changes/archive/2051-2026-10-25-runtime-replay-fix/spec.md",
+          "openspec/changes/archive/2051-2026-10-25-runtime-replay-fix/tasks.md"
+        ],
+        "untracked_spec_files": [],
+        "related_spec_files": [
+          "openspec/changes/archive/2051-2026-10-25-runtime-replay-fix/tasks.md"
+        ],
+        "reason": "",
+        "ignored_files": [],
+        "refused_ignores": [],
+        "ignore_sources": {},
+        "ignore_patterns": {
+          "cli": [],
+          "config": [],
+          "baseline": []
+        }
+      },
+      "new_items": []
+    },
+    "warnings": [
+      "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:ae9010ba2c2fa2d3c96d3628fa8e8cee0f65905a：skills/workflow-code-generation/scripts/（最新 d4bfdbfd9d15）",
+      "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:ae9010ba2c2fa2d3c96d3628fa8e8cee0f65905a：scripts/test_workflow_control.py（最新 d4bfdbfd9d15）",
+      "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:ae9010ba2c2fa2d3c96d3628fa8e8cee0f65905a：scripts/test_knowledge_management_e2e.py（最新 4a67c833b060）",
+      "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/analyze_session_metrics.py（最新 18f46f10b278）",
+      "openspec/specs/backend/framework/meta.yaml 来源已晚于 git:767cf8111e6f8959861fa77e373f2c0a71557307：scripts/test_analyze_session_metrics.py（最新 18f46f10b278）"
+    ],
+    "results": [
+      {
+        "name": "Z-spec-drift",
+        "type": "spec_drift",
+        "status": "pass",
+        "detail": "代码变更 6 个，相关规格类文件已更新 1 个",
+        "value": {
+          "diff_base": "4026684",
+          "code_files": [
+            "scripts/run_journal.py",
+            "scripts/runtime_workflow.py",
+            "scripts/test_runtime_workflow.py",
+            "scripts/test_workflow_control.py",
+            "scripts/tests/test_run_journal.py",
+            "skills/workflow-code-generation/scripts/workflow_control.py"
+          ],
+          "spec_files": [
+            "openspec/changes/archive/2051-2026-10-25-runtime-replay-fix/spec.md",
+            "openspec/changes/archive/2051-2026-10-25-runtime-replay-fix/tasks.md"
+          ],
+          "untracked_spec_files": [],
+          "related_spec_files": [
+            "openspec/changes/archive/2051-2026-10-25-runtime-replay-fix/tasks.md"
+          ],
+          "reason": "",
+          "ignored_files": [],
+          "refused_ignores": [],
+          "ignore_sources": {},
+          "ignore_patterns": {
+            "cli": [],
+            "config": [],
+            "baseline": []
+          }
+        },
+        "new_items": []
+      },
+      {
+        "name": "B-tests-pass",
+        "type": "exit_code",
+        "status": "pass",
+        "detail": "exit=0",
+        "value": null,
+        "new_items": []
+      },
+      {
+        "name": "B-test-count-not-decrease",
+        "type": "count",
+        "status": "pass",
+        "detail": "632（基线 609）",
+        "value": 632,
+        "new_items": []
+      },
+      {
+        "name": "C-skill-graph-lint",
+        "type": "exit_code",
+        "status": "pass",
+        "detail": "exit=0",
+        "value": null,
+        "new_items": []
+      }
+    ]
+  }
+}

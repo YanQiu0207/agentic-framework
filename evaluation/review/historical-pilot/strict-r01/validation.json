@@ -1,0 +1,28 @@
+{
+    "status": "validated",
+    "checks": [
+        "Submission binding copied unchanged from frozen input",
+        "Submission exact response-contract keys; one finding <=5",
+        "Finding file is exact supplied path",
+        "Envelope run_id/profile/harness/commit_sha/config_digest copied from actual run-context",
+        "Markdown raw report and Runtime Markdown byte-identical",
+        "All eight worker attempt raw reports present, including both stopped attempts",
+        "All five completed role reports received before Critic dispatch",
+        "No reviewed source executed or modified"
+    ],
+    "verdict": "NEEDS_CHANGES",
+    "p0_count": 0,
+    "p1_count": 1,
+    "round": 0,
+    "tool_accounting": {
+        "worker_read_calls_including_failed_attempts": 25,
+        "judge_shell_calls_before_final_persistence_validation": 8,
+        "judge_independent_source_checks": 1,
+        "final_persistence_validation_shell_calls": 1,
+        "note": "Tool errors are included. apply_patch persistence and orchestration excluded from source-check budgets. Magical persistence follow-up is excluded from read-only reviewer counts. Aggregate token/cost unknown; retries not claimed within original planned aggregate budget."
+    },
+    "usage": {
+        "tokens": null,
+        "cost_usd": null
+    }
+}

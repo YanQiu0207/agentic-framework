@@ -1279,6 +1279,11 @@ def main(argv: list[str]) -> int:
                             str(args.task_id),
                             attempt,
                         )
+                    if args.event in {"start", "failure"} and args.run_dir is not None:
+                        runtime_workflow.record_task_control(
+                            args.run_dir, str(args.task_id), attempt, args.event,
+                            args.reason, decision.control_stage,
+                        )
                     _write_decisions(args.tasks_md, text, [decision])
                     if args.event == "merge_success" and args.run_dir is None:
                         # change 2048：本地集成语义——正式交付由交付门另行核验。

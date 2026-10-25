@@ -104,6 +104,20 @@ def _write_artifact(run_dir: Path, value: dict[str, Any]) -> Path:
     return path
 
 
+def _ensure_artifact(run_dir: Path, value: dict[str, Any]) -> Path:
+    """Reuse identical evidence on retry; never replace conflicting evidence."""
+    path = run_dir / "artifacts" / f"{value['artifact_id']}.json"
+    if not path.exists():
+        return _write_artifact(run_dir, value)
+    existing = json.loads(path.read_text(encoding="utf-8"))
+    runtime_schema.validate_document(existing)
+    if {k: v for k, v in existing.items() if k != "created_at"} != {
+        k: v for k, v in value.items() if k != "created_at"
+    }:
+        raise RuntimeWorkflowError(f"artifact_conflict:{value['artifact_id']}")
+    return path
+
+
 def _snapshot_input(
     run_dir: Path,
     context: dict[str, Any],
@@ -338,19 +352,43 @@ def record_quality_passed(
     """Bind one successful task Verification to the append-only Journal."""
     report = validate_verify_artifact(run_dir, report_path, task_id, attempt)
     journal = run_dir / "events.jsonl"
-    events = run_journal.read_events(journal)
-    run_journal.append_event(
-        journal,
-        _event(
-            load_context(run_dir),
-            len(events) + 1,
-            "task-quality-passed",
-            inputs=[report["artifact_id"]],
-            task_id=task_id,
-            attempt=attempt,
-        ),
+    _record_event_once(
+        run_dir, "task-quality-passed", inputs=[report["artifact_id"]],
+        task_id=task_id, attempt=attempt,
     )
     run_journal.write_checkpoint(run_dir, journal)
+
+
+def _record_event_once(run_dir: Path, event_type: str, **fields: Any) -> None:
+    journal = run_dir / "events.jsonl"
+    events = run_journal.read_events(journal)
+    event = _event(load_context(run_dir), len(events) + 1, event_type, **fields)
+    # Also recognize pre-fix events without an idempotency key.
+    if any(run_journal._same_effect(previous, event) for previous in events):
+        run_journal.replay_events(events)
+        return
+    run_journal.append_event(journal, event)
+
+
+def record_task_control(
+    run_dir: Path, task_id: str, attempt: int, event: str,
+    reason: str, next_state: str,
+) -> None:
+    """Persist start/failure before updating tasks.md, safely retryable after a crash."""
+    if event == "failure":
+        # Preserve the consumed attempt for manifests containing its Verify report.
+        _ensure_artifact(run_dir, envelope(
+            load_context(run_dir), "task-state", f"task-{task_id}-attempt-{attempt}-state",
+            {"state": "running", "attempts": attempt - 1}, "workflow-control",
+            task_id=task_id, attempt=attempt,
+        ))
+        _record_event_once(run_dir, "task-failed", task_id=task_id, attempt=attempt,
+                           details={"reason": reason})
+        _record_event_once(run_dir, "task-manual" if next_state == "manual" else "task-started",
+                           task_id=task_id, attempt=attempt + 1)
+    elif event == "start":
+        _record_event_once(run_dir, "task-started", task_id=task_id, attempt=attempt)
+    run_journal.write_checkpoint(run_dir, run_dir / "events.jsonl")
 
 
 def load_bound_report(
@@ -383,8 +421,22 @@ def finalize_run(
     review_path: Path,
     task_states: Sequence[dict[str, Any]],
 ) -> dict[str, Any]:
+    """Serialize finalization so concurrent retries cannot replace evidence."""
+    with run_journal.workflow_control._task_write_lock(run_dir / "finalization", timeout=10.0):
+        return _finalize_run(repo, run_dir, review_path, task_states)
+
+
+def _finalize_run(
+    repo: Path, run_dir: Path, review_path: Path,
+    task_states: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
     """Create final evidence, validate the Manifest, then execute the Trust Gate."""
     context = load_context(run_dir)
+    for state in task_states:
+        if state["state"] not in {"completed", "manual", "blocked"}:
+            raise RuntimeWorkflowError(
+                f"non_terminal_task_state:{state['task_id']}:{state['state']}"
+            )
     review = load_bound_report(run_dir, review_path, "review-report")
     payload = review["payload"]
     if (
@@ -414,7 +466,7 @@ def finalize_run(
             task_id=state["task_id"],
             attempt=runtime_schema.attempt_for_attempts(state["attempts"]),
         )
-        _write_artifact(run_dir, value)
+        _ensure_artifact(run_dir, value)
     diff = subprocess_result(
         [
             "git",
@@ -438,7 +490,11 @@ def finalize_run(
         ]
     ).decode("utf-8", errors="replace").splitlines()
     code_path = run_dir / "snapshots" / "code.diff"
-    code_path.write_bytes(diff)
+    if code_path.exists():
+        if code_path.read_bytes() != diff:
+            raise RuntimeWorkflowError("code_snapshot_conflict")
+    else:
+        run_journal._atomic_write(code_path, diff)
     code = envelope(
         context,
         "code-result",
@@ -452,7 +508,7 @@ def finalize_run(
         },
         "runtime-workflow",
     )
-    _write_artifact(run_dir, code)
+    _ensure_artifact(run_dir, code)
     final = envelope(
         context,
         "final-report",
@@ -460,10 +516,10 @@ def finalize_run(
         {"verdict": "PASS", "summary": "Evidence is present and context-bound."},
         "runtime-trust",
     )
-    _write_artifact(run_dir, final)
+    _ensure_artifact(run_dir, final)
     all_documents = [
         json.loads(path.read_text(encoding="utf-8"))
-        for path in (run_dir / "artifacts").glob("*.json")
+        for path in sorted((run_dir / "artifacts").glob("*.json"))
     ]
     spec_ids = [
         item["artifact_id"]
@@ -505,39 +561,25 @@ def finalize_run(
             raise RuntimeWorkflowError(
                 f"non_terminal_task_state:{state['task_id']}:{state['state']}"
             )
-        events = run_journal.read_events(journal)
-        run_journal.append_event(
-            journal,
-            _event(
-                context,
-                len(events) + 1,
-                event_type,
-                task_id=state["task_id"],
-                attempt=runtime_schema.attempt_for_attempts(state["attempts"]),
-            ),
+        _record_event_once(
+            run_dir, event_type, task_id=state["task_id"],
+            attempt=runtime_schema.attempt_for_attempts(state["attempts"]),
         )
-    events = run_journal.read_events(journal)
-    run_journal.append_event(
-        journal,
-        _event(
-            context,
-            len(events) + 1,
-            "run-finalized",
-            inputs=[item["artifact_id"] for item in all_documents if item != final],
-            outputs=["final-report"],
-        ),
+    _record_event_once(
+        run_dir, "run-finalized",
+        inputs=[item["artifact_id"] for item in all_documents
+                if item["artifact_id"] != "final-report"],
+        outputs=["final-report"],
     )
     run_journal.write_checkpoint(run_dir, journal)
-    run_manifest.generate_manifest(
-        run_dir,
-        {
+    if not (run_dir / "run-manifest.json").exists():
+        run_manifest.generate_manifest(run_dir, {
             **context,
             "schema_version": 1,
             "artifact_id": "run-manifest",
             "producer": "runtime-workflow",
             "relations": relations,
-        },
-    )
+        })
     return runtime_trust.validate_run(run_dir)
 
 

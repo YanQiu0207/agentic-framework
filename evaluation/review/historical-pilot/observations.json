@@ -1,0 +1,271 @@
+[
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r01--CONTROL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F1",
+                "title": "当 & 的右侧包含多个独立输入时，_cstack 将右侧依赖矩阵覆盖为全 1，导致错误报告输入相关性；例如 Shift(1) & (Shift(2) & Shift(3)) 的后两个输出被误判为不可分离，应保留 right 矩阵而非填入常量 1",
+                "file": "r01/astropy/modeling/separable.py",
+                "line": 245,
+                "severity": "P1"
+            }
+        ],
+        "provenance": {
+            "producer": "Codex CONTROL 审查员；模型精确版本未知",
+            "session": "/root/pilot_r01_control；仅读取指定输入 JSON，通过两次只读工具调用读取源码及核对行号，未运行待审代码",
+            "isolation": "仅提示级隔离，无技术强制隔离；未读取其他文件、历史记录或外部来源，未加载 Review 技能，未派发子 Agent"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    },
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r01--SKILL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F_1",
+                "title": "当 & 的右侧子树矩阵含独立轴时，常量 1 覆盖原依赖矩阵，导致 separability_matrix 虚报相关性且 is_separable 将独立输出误判为不可分离",
+                "file": "r01/astropy/modeling/separable.py",
+                "line": 245,
+                "severity": "P1"
+            }
+        ],
+        "provenance": {
+            "producer": "workflow-code-review 编排者；finding 与 Artifact 由 comprehensive-reviewer 生成并原样转交",
+            "session": "实际子 Agent id：/root/pilot_r01_skill/comprehensive_reviewer；fork_turns=none；Using workflow-code-review；Using bp-coding-best-practices。审查员生成的原始 6 字段 Artifact：\n{\n    \"verdict\": \"NEEDS_CHANGES\",\n    \"p0_count\": 0,\n    \"p1_count\": 1,\n    \"scope\": \"integration\",\n    \"review_profile\": \"standard\",\n    \"round\": 0\n}",
+            "isolation": "独立性仅为提示级，不宣称硬隔离。编排者只读指定输入，未自行产生或筛掉 finding；审查员报告 3 次只读工具调用，未执行源码、联网或写文件。standard 阶段由审查员自证，无 critic。审查员识别公共 API 返回值风险并要求升级 strict；未执行 strict、独立 Judge 或 Runtime Run。completed 仅表示限定源码审查完成，不表示 standard 完整治理流程或所需 strict 升档已完成；Artifact 仅记录 standard 阶段阻断结果。模型精确版本未知。"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    },
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r02--CONTROL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F1",
+                "title": "INTERSECTION 含空查询或 DIFFERENCE 首项为空时，提前过滤所有 is_empty() 分支破坏集合语义，使本应为空的结果返回其余查询的数据",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 414,
+                "severity": "P1"
+            },
+            {
+                "id": "F2",
+                "title": "按嵌套外键属性（如 author__country_id）排序且目标模型设置默认排序时，将 field.attname 与完整路径比较会错误展开目标模型排序，导致未按指定外键 ID 排序",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 710,
+                "severity": "P2"
+            },
+            {
+                "id": "F3",
+                "title": "通过关联字段使用目标模型的表达式 Meta.ordering 时，将表达式直接递归传入仅处理字符串的 find_ordering_name，随后 get_order_dir 对表达式执行 field[0]，导致查询编译抛出 TypeError",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 720,
+                "severity": "P2"
+            },
+            {
+                "id": "F4",
+                "title": "同时 select_related 多个 FilteredRelation 别名时，remote_setter 闭包共享循环变量 name，延后调用全部使用最后一个别名，导致关联对象写入错误属性并相互覆盖",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 910,
+                "severity": "P2"
+            },
+            {
+                "id": "F5",
+                "title": "克隆查询经 bump_prefix 重命名别名时，table_map 浅复制仍共享内部列表，change_aliases 会同步改坏原查询映射，使原查询后续 table_alias 复用不存在的别名并触发 KeyError",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 305,
+                "severity": "P2"
+            }
+        ],
+        "provenance": {
+            "producer": "Codex CONTROL 审查员；模型精确版本未知",
+            "session": "/root/pilot_r02_control；r02--CONTROL--1",
+            "isolation": "仅提示级隔离，无独立技术沙箱保证；只读取指定 JSON 中的任务、源码及输出协议，未读取其他文件、历史记录或答案，未联网、未运行待审代码、未写文件、未派发子 Agent。使用 10 次只读 shell 调用，其中一次因引号解析失败。"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    },
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r02--SKILL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F_1",
+                "title": "组合查询包含显式空操作数时，无条件过滤 is_empty() 查询改变集合语义，使交集或空集作为左操作数的差集错误返回非空结果",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 414,
+                "severity": "P1"
+            },
+            {
+                "id": "F_2",
+                "title": "克隆查询执行 bump_prefix() 时，table_map 仅浅拷贝导致共享别名列表被原地改写，污染原查询并使其后续 table_alias() 访问不存在的引用计数而抛出 KeyError",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 305,
+                "severity": "P1"
+            },
+            {
+                "id": "F_3",
+                "title": "同时选择多个 FilteredRelation 时，回调闭包延迟绑定循环变量 name 和 f，导致早先关系使用最后一个关系名及字段写入属性和缓存",
+                "file": "r02/django/db/models/sql/compiler.py",
+                "line": 909,
+                "severity": "P1"
+            },
+            {
+                "id": "F_4",
+                "title": "resolve_ref() 解析包含合法字段变换的引用时，丢弃 transform_function() 的返回表达式并返回原始列，使引用静默忽略变换而产生错误查询结果",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 1639,
+                "severity": "P1"
+            },
+            {
+                "id": "F_5",
+                "title": "内外查询别名前缀均为 Z 时，bump_prefix() 直接递增字符得到 [ 而非 AA，生成未引用的非法 SQL 别名并导致嵌套查询执行失败",
+                "file": "r02/django/db/models/sql/query.py",
+                "line": 875,
+                "severity": "P1"
+            }
+        ],
+        "provenance": {
+            "producer": "workflow-code-review 编排者 /root/pilot_r02_skill；finding 与 Artifact 均由独立 comprehensive-reviewer 生成并原样转交；模型精确版本未知",
+            "session": "Using workflow-code-review；真实子 Agent id：/root/pilot_r02_skill/comprehensive_reviewer；fork_turns=none；standard/integration 首审，自证完成，无 critic；Reviewer 报告 9 次只读调用。Workflow Artifact 原文：\n{\n    \"verdict\": \"NEEDS_CHANGES\",\n    \"p0_count\": 0,\n    \"p1_count\": 5,\n    \"scope\": \"integration\",\n    \"review_profile\": \"standard\",\n    \"round\": 0\n}",
+            "isolation": "仅提示级材料限制，不是硬隔离。编排者与 reviewer 只读取指定输入 JSON，未联网、读取历史或其他文件、执行被审源码或写文件。仅静态 source review，无运行时验证；未取得必须升级 strict 的具体风险上下文，不声明 Runtime 或独立 Judge 证据。"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    },
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r03--CONTROL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F1",
+                "title": "未配置 log_level 时，测试调用 caplog.set_level(ERROR) 会修改共享 handler，却在结束时只恢复 logger 级别；后续测试仍沿用 ERROR 捕获阈值，导致 WARNING 日志丢失并产生测试顺序依赖",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 437,
+                "severity": "P2"
+            },
+            {
+                "id": "F2",
+                "title": "测试阶段内调用 caplog.clear() 时，reset() 替换 records 列表，但阶段记录表仍引用旧列表，导致 get_records(当前阶段) 返回清除前的日志且遗漏清除后产生的日志",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 420,
+                "severity": "P2"
+            }
+        ],
+        "provenance": {
+            "producer": "CONTROL 独立代码审查 Agent；模型精确版本未知",
+            "session": "/root/pilot_r03_control；仅依据指定输入 JSON 内的完整源码进行静态审查，使用 2 次只读 shell 调用，未执行待审代码",
+            "isolation": "仅提示级隔离，不具备独立文件系统或进程隔离保证；本次仅读取指定 JSON，未读取其他文件、历史记录或答案，未联网、未加载 Review 技能、未派发子 Agent、未写入文件"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    },
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r03--SKILL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F_1",
+                "title": "未配置全局日志级别时，set_level() 未恢复共享 handler 级别，导致后续测试漏捕日志",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 437,
+                "severity": "P1"
+            },
+            {
+                "id": "F_2",
+                "title": "阶段内调用 clear() 时，reset() 替换列表使阶段引用失效，导致 get_records() 返回旧日志并遗漏新日志",
+                "file": "r03/src/_pytest/logging.py",
+                "line": 329,
+                "severity": "P1"
+            }
+        ],
+        "provenance": {
+            "producer": "workflow-code-review 编排；comprehensive-reviewer 独立审查和自证；模型精确版本未知",
+            "session": "编排：/root/pilot_r03_skill；真实子 Agent id：/root/pilot_r03_skill/comprehensive_reviewer；已执行 standard/integration 首审，无 critic，findings 原样转交。Reviewer 原始 6 字段 Artifact：\n{\n    \"verdict\": \"NEEDS_CHANGES\",\n    \"p0_count\": 0,\n    \"p1_count\": 2,\n    \"scope\": \"integration\",\n    \"review_profile\": \"standard\",\n    \"round\": 0\n}",
+            "isolation": "子 Agent 使用 fork_turns=none；独立性仅为提示级，非硬隔离。仅读取指定输入文件，未执行源码、写文件或联网。Reviewer 未识别必须升 strict 的实际高风险证据。"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    },
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r04--CONTROL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F1",
+                "title": "当 n_init > 1 且最佳初始化不是最后一次时，最终 E-step 在恢复 best_params 前执行，导致 fit_predict 返回最后一次初始化的标签，而非最终保留模型的标签，与 predict(X) 不一致；应先恢复最佳参数再计算标签",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 263,
+                "severity": "P1"
+            }
+        ],
+        "provenance": {
+            "producer": "CONTROL 独立代码审查 Agent；模型精确版本未知",
+            "session": "/root/pilot_r04_control；仅读取指定输入 JSON，使用 2 次只读工具调用，未执行待审代码",
+            "isolation": "仅提示级隔离，无强制文件访问隔离；未读取其它文件、历史记录或答案，未联网，未加载 Review 技能，未派发子 Agent"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    },
+    {
+        "plan_digest": "4752e074040e362ebbab13a2a56d4f689e99229c2675adb5ae1dab218cad3035",
+        "cell_id": "r04--SKILL--1",
+        "execution_digest": "27c835ab665788353c2103657b50a7229faebc89a246bac1963d4c7b6fc27c37",
+        "status": "completed",
+        "findings": [
+            {
+                "id": "F_1",
+                "title": "多次初始化选中非末次模型时，最终 E-step 在恢复最佳参数前执行，导致返回标签与拟合后模型预测不一致",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 263,
+                "severity": "P1"
+            },
+            {
+                "id": "F_2",
+                "title": "首次使用 warm_start=True 且 n_init>1 时，初始化次数仍取 self.n_init，导致未按契约忽略多次初始化并增加拟合工作量",
+                "file": "r04/sklearn/mixture/base.py",
+                "line": 222,
+                "severity": "P1"
+            }
+        ],
+        "provenance": {
+            "producer": "workflow-code-review standard/integration 编排者；finding 与 Artifact 由独立 comprehensive-reviewer 生成并原样转交；模型精确版本未知",
+            "session": "编排者：/root/pilot_r04_skill；真实子 Agent id：/root/pilot_r04_skill/comprehensive_reviewer；fork_turns=none；未调用 critic；reviewer 自证并判断保持 standard；workflow Artifact 原文：\n{\n    \"verdict\": \"NEEDS_CHANGES\",\n    \"p0_count\": 0,\n    \"p1_count\": 2,\n    \"scope\": \"integration\",\n    \"review_profile\": \"standard\",\n    \"round\": 0\n}",
+            "isolation": "提示级独立性，不是硬隔离。编排者仅读取指定输入 JSON；子 Agent 被明确限制为仅读取同一 JSON、最多 12 次只读调用、不得读取其他文件或历史、联网、执行源码或写文件。子 Agent 报告遵守限制；未进行运行验证。"
+        },
+        "usage": {
+            "tokens": null,
+            "cost_usd": null
+        }
+    }
+]
