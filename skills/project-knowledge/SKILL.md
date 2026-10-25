@@ -37,7 +37,8 @@ openspec/
 │   │   ├── proposal.md
 │   │   ├── specs/
 │   │   ├── design.md
-│   │   └── tasks.md
+│   │   ├── tasks.md
+│   │   └── research.md
 │   └── archive/
 └── issues/
     ├── index.md
@@ -88,7 +89,8 @@ openspec/
 
 领域模型属于项目，不属于某个 Change。解释领域需求、开展工程访谈或决定相关设计前，必须先由 `openspec/index.md` 定位并读取相关共享模型，再叠加当前 Change 已批准的差异。实现、测试与 Review 涉及领域语义时沿同一路由读取。
 
-- 默认通过 `openspec/specs/business/index.md` 定位术语及相关业务域；小项目允许根索引直接链接条目，不创建空层级。
+- 默认通过 `openspec/specs/business/index.md` 定位术语及相关业务域；小项目允许 `openspec/specs/index.md` 直接链接条目，不创建空层级。
+- `business/index.md` 登记业务域清单与定位映射：每个 `<domain>/` 目录一行（名称、一句范围、指向 `overview.md`），以及 `glossary.md` 分节名与 domain 目录名的映射；新增、改名或退役 domain 时同轮更新。小项目不建该文件时，映射写在 `specs/index.md` 对应条目旁。
 - 模型包括术语、概念职责与关系、规则与不变量、跨模块流程，位置见第 5 节。不能只读当前 Change 或把术语表当作整个模型。
 - 同会话已加载且内容未变时复用，新会话或模型变化后重新读取相关条目。索引未命中按 §3.1 定向查找，确无定义才询问，不重复让用户解释已有术语，也不扫描全部历史 Change。
 - 同名概念按业务上下文区分，无法判定所属上下文时先询问。业务定义辅助理解，不代表实现已满足；涉及当前行为仍按第 4 节核对证据。
@@ -223,6 +225,23 @@ Delta 使用 `ADDED`、`MODIFIED`、`REMOVED` 和 `RENAMED` 表达变化。临�
 7. 确认知识同步任务完成后，再将 Change 移入 `changes/archive/`。
 
 不合并到长期 Specs 的内容：临时实现细节、一次性迁移步骤、被最终实现推翻的草案、未确认故障猜测和执行中间状态。
+
+### 7.3 共享条目的退役与删除
+
+作废一条已生效的共享知识时，用状态标记替代物理删除，正文保留为历史证据；本节与 §7.1 双轨分类衔接——分类为「退役既有条目」且用户已确认、授权目标条目时按本节执行。
+
+- Change 路径：删除走 Delta `REMOVED`（§7.1），归档时按 §7.2 合并，无额外规则。
+- 直写路径不物理删除，按下表加状态标记：
+
+| 位置 | 作废写法 | 索引义务 |
+| --- | --- | --- |
+| `specs/business/glossary.md` 条目 | 行尾追加 `_已废弃（YYYY-MM-DD，原因或替代条目）_`，不删行 | 同轮更新 `business/index.md`（或小项目的 `specs/index.md`）与引用方 |
+| `rules.md` / `flows.md` / `overview.md` 条目 | 条目前加状态行：`**状态**：已废弃（YYYY-MM-DD，原因；替代：<路径或「无」>）` | 同上 |
+| `issues/<issue>.md` | 头部状态行标注已失效或已被修复版本取代，正文不动 | 同步 `issues/index.md` |
+| `custom/` | 仍走 §6.2 人工确认门，确认后加状态标注；`decisions.md` 条目沿用 `bp-domain-modeling/reference/adr-format.md` 的 Status 枚举（`deprecated` / `superseded by <编号>`） | 同上 |
+
+- 自动流程（代码派生、生成类任务）禁止物理删除任何知识文件；物理删除仅限用户对具体文件的明确授权，授权不外推到同类文件。
+- 第 4 节冲突报告的「下一步：更新知识」包含「标记废弃」这一处置；§6.2 所述「更新内容、适用范围或状态」的「状态」即本表操作。
 
 ## 8. 高级知识操作（按需）
 

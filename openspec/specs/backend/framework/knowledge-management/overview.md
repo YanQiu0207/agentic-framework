@@ -48,7 +48,7 @@ generated_at: 2026-10-26
 - 四目录是两条轴，不是业务包含实现：`business/` 是领域语义轴（与实现无关的「是什么」，人工维护）；`frontend/`、`backend/` 是实现轴（代码派生事实 + `meta.yaml` 版本元数据 + 人工 `custom/`）；`common/` 是共享契约轴（protocols、data-models、error-codes）。同一条知识选一个主位置，禁止复制多份正文。
 - `business/` 文件分工：`glossary.md`（全项目唯一术语表，按业务上下文分节，同名概念不合并，格式见 `bp-domain-modeling/reference/glossary-format.md`）；`<domain>/overview.md`（概念职责、关系、边界）；`rules.md`（规则与不变量）；`flows.md`（跨模块流程）；`custom/` 三件套 `constraints.md`／`decisions.md`／`pitfalls.md`（§6.2，自动流程不可覆盖）。
 - 读取路由：根索引 → `business/index.md` 定位共享领域模型 → 叠加当前 Change 已批准差异；按任务类型的路由表见 `project-knowledge/SKILL.md` §3.2，公共知识库仅 §3.3 五条件下查询。
-- Change 目录含 `research.md`（追加式调研中间产物，随 Change 归档；定义在 `knowledge-management.md` §5.5 与 `workflow-requirements-clarification`，`project-knowledge/SKILL.md` §2 目录树尚未列入——已知差异）。
+- Change 目录含 `research.md`（追加式调研中间产物，随 Change 归档；`project-knowledge/SKILL.md` §2 目录树与 `knowledge-management.md` §5.5 均已列入，change 2059 对齐）。
 - 公共库完整结构：`index.md`、`domains/`、`issues/`、`sources/`（允许跨项目消费的原始资料索引）、`changes/`（仅公共库自身治理）、`archives/`（整体退役主题，首版非日常重点）；`projects/` 已停止新增。
 - 端内工程规范在 `specs/<端>/engineering/`（conventions、lib-usage、tech）；`engineering/tech/adr/` 是本仓库 ADR 现行落点，不再新建平行 ADR 目录（`adr-format.md`「本框架落点」）。
 
@@ -57,8 +57,8 @@ generated_at: 2026-10-26
 - 写入前置：每条知识按 `project-knowledge/SKILL.md` §5 唯一位置表归位；业务域、端或模块判断不了时不得猜目录，候选留当前 Change 待确认。
 - 双轨更新（§7.1）：既有知识澄清（确认 + 授权 + 事实核实 + 无未决冲突）可直写共享位置并记录来源日期；未来业务变化走 Change Delta（`ADDED`/`MODIFIED`/`REMOVED`/`RENAMED`），归档验证后同步。用户确认含义不等于允许写入。
 - 交付前强制做 §9 intent 沉淀检查；机器参数 `--knowledge-impact` 与理由字段见本文件「实现入口」。
-- 退役/删除现状（2026-10-26 通读结论，属已知待补缺口而非已定合同）：四种状态机制各管一段——ADR Status 枚举含 `deprecated`/`superseded by`（`adr-format.md`）、公共库证据等级含 `deprecated`（`knowledge-management.md` §11.1）、`meta.yaml` 有 `status` 字段、Change Delta 有 `REMOVED`；但直写路径的 glossary/rules 条目与 `custom/`、`issues/` 条目暂无作废 SOP，只能改写或保留。修复走 Change，不在此处预写规则。
-- 其他已知缺口（同上，待 Change 处理）：`business/index.md` 无职责定义；glossary 分节名与 `<domain>` 目录名的对应未约定。
+- 退役/删除：操作合同见 `project-knowledge/SKILL.md` §7.3（change 2059 补全）——直写路径状态标记替代物理删除（glossary 行内标注、rules/flows/overview 状态行、`issues/` 头部状态行、`custom/` 沿用 §6.2 + decisions 沿用 adr-format Status 枚举），自动流程禁止物理删除，物理删除仅限用户明确授权；Change 路径删除沿用 Delta `REMOVED`。既有四种状态机制（ADR Status、公共库证据等级、`meta.yaml` status、`REMOVED`）与其衔接。
+- 定位链（change 2059 补全）：`business/index.md` 职责为业务域清单 + glossary 分节-目录映射登记（`project-knowledge/SKILL.md` §3.4）；小项目不建空层级，映射写在 `specs/index.md` 对应条目旁；glossary 分节创建时同轮登记映射（`glossary-format.md` 结构规则）。
 
 ## 数据流
 

@@ -234,6 +234,7 @@ python scripts/install_agentic_framework.py <project> \
 - 长期 Specs 只辅助理解；当前实现仍以代码、Schema、配置、测试和运行证据核实，冲突必须显式报告。
 - Change 使用镜像路径记录 Delta；Archive 前必须完成知识影响、同步状态、实际 Diff 和冲突门禁。
 - `project-knowledge` 为 Shared Core，统一需求、设计、编码、测试、Review、排障和归档的读写路由。
+- 共享条目退役（change 2059）：直写路径用状态标记替代物理删除（glossary 行内标注、rules/flows/overview 状态行、`issues/` 头部状态行、`custom/` 沿用人工确认门），自动流程禁止物理删除；`business/index.md` 承担业务域清单与 glossary 分节-目录映射登记。
 - 公共知识候选必须留在项目内或交付报告，经用户确认、泛化和脱敏后才能进入公共库。
 - 框架提供公共库只读校验器和迁移指南；真实公共库已在自身仓库独立提交结构治理、元数据修复和首条知识晋升，当前确定性校验为 0 项违规。
 

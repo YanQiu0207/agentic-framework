@@ -45,8 +45,8 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
 
 ## 任务列表
 
-### 任务 1：[ ] project-knowledge/SKILL.md 三处合同改动
-- 状态：未开始
+### 任务 1：[x] project-knowledge/SKILL.md 三处合同改动
+- 状态：完成
 - 文件：`skills/project-knowledge/SKILL.md`（修改）
 - depends_on: []
 - review_profile: lightweight
@@ -57,15 +57,15 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
   - `openspec/changes/2059-knowledge-retirement-contracts/design.md` — §2 标记法表与措辞裁决
   - `openspec/specs/backend/engineering/tech/knowledge-management.md` §5.5 — research.md 措辞来源
 - verification:
-  - [ ] `grep -n "research.md" skills/project-knowledge/SKILL.md` 命中 §2 树
-  - [ ] `grep -n "business/index.md" skills/project-knowledge/SKILL.md` 命中 §3.4 职责段
-  - [ ] `grep -n "### 7.3" skills/project-knowledge/SKILL.md` 命中；§8/§9/§10 标题行仍在且编号不变
-  - [ ] `git diff` 仅上述三处区域变动
+  - [x] `grep -n "research.md" skills/project-knowledge/SKILL.md` 命中 §2 树（`:41`）
+  - [x] `grep -n "business/index.md" skills/project-knowledge/SKILL.md` 命中 §3.4 职责段（`:92-93`）
+  - [x] `grep -n "### 7.3" skills/project-knowledge/SKILL.md` 命中（`:229`）；§8/§9/§10 标题行仍在且编号不变（`:246/252/274`）
+  - [x] `git diff` 仅上述三处区域变动
 - artifacts:
   - `skills/project-knowledge/SKILL.md`（修改后版本）
 
-### 任务 2：[ ] bp-domain-modeling 写入方两处小改
-- 状态：未开始
+### 任务 2：[x] bp-domain-modeling 写入方两处小改
+- 状态：完成
 - 文件：`skills/bp-domain-modeling/SKILL.md`、`skills/bp-domain-modeling/reference/glossary-format.md`（修改）
 - depends_on: Task 1
 - review_profile: lightweight
@@ -76,14 +76,14 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
   - `skills/bp-domain-modeling/reference/glossary-format.md` — 结构规则节
   - `skills/project-knowledge/SKILL.md` — Task 1 产物，措辞对齐（映射登记位置）
 - verification:
-  - [ ] `grep -n "可证伪" skills/bp-domain-modeling/SKILL.md` 命中
-  - [ ] `grep -n "business/index.md" skills/bp-domain-modeling/reference/glossary-format.md` 命中且与 Task 1 登记位置措辞一致
-  - [ ] `git diff` 仅两文件各一处变动
+  - [x] `grep -n "可证伪" skills/bp-domain-modeling/SKILL.md` 命中
+  - [x] `grep -n "business/index.md" skills/bp-domain-modeling/reference/glossary-format.md` 命中且与 Task 1 登记位置措辞一致
+  - [x] `git diff` 仅两文件各一处变动
 - artifacts:
   - 两个修改后文件
 
-### 任务 3：[ ] Delta 与状态文档同步
-- 状态：未开始
+### 任务 3：[x] Delta 与状态文档同步
+- 状态：完成
 - 文件：`openspec/changes/2059-knowledge-retirement-contracts/specs/backend/engineering/tech/knowledge-management.md`（新建）、`openspec/specs/backend/framework/knowledge-management/overview.md`（修改）、`docs/framework-features-status-and-comparison.md`（修改）
 - depends_on: Task 1
 - review_profile: lightweight
@@ -95,28 +95,33 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
   - `openspec/specs/backend/framework/knowledge-management/overview.md` — 速查节现文
   - `docs/framework-features-status-and-comparison.md` — §4.6
 - verification:
-  - [ ] Delta 文件相对路径镜像长期 specs
-  - [ ] `grep -n "research.md" <delta>` 与 `grep -n "index.md" <delta>`（§5.2 段）命中
-  - [ ] overview.md 速查节三处缺口标记已更新
-  - [ ] features 文档 §4.6 新增 bullet 命中「退役」
+  - [x] Delta 文件相对路径镜像长期 specs（`specs/backend/engineering/tech/knowledge-management.md`）
+  - [x] `grep -n "research.md" <delta>` 与 `grep -n "index.md" <delta>`（§5.2 段）命中
+  - [x] overview.md 速查节三处缺口标记已更新（退役/定位链改为「change 2059 补全」、research.md 差异消除）
+  - [x] features 文档 §4.6 新增 bullet 命中「退役」
 - artifacts:
   - Delta 文件、两个修改后文档
 
 ### 任务 4：[ ] 定向核验、全量 Verify 与独立 Review
-- 状态：未开始
+- 状态：进行中（定向校验已过，等全量 Verify 与独立 Review）
 - 文件：无新增修改（只读核验；发现问题时回到对应任务修复后重跑本任务）
 - depends_on: Task 1, Task 2, Task 3
 - review_profile: standard
 - 文档映射：design.md §6、proposal.md §3.3
-- 说明：①`python scripts/lint_skill_graph.py`；②三技能文件过 `quick_validate.py`；③`python scripts/lint_spec.py openspec/changes/2059-knowledge-retirement-contracts/proposal.md --phase code` 与 design.md `--phase design-code`；④`python skills/workflow-code-generation/scripts/lint_task_deps.py openspec/changes/2059-knowledge-retirement-contracts/tasks.md --governance-profile tooling`；⑤定向 pytest：`test_skill_slimming_contracts.py`、`test_profile_contracts.py`；⑥`git diff --check` + 逐文件 diff 无越界；⑦md-zh 自检；⑧全量 `verify.py`；⑨standard 档独立综合 Review，无未解决 P0/P1
+- 说明：①`python scripts/lint_skill_graph.py`；②技能文件校验（quick_validate.py 在本仓库不存在，改以 lint_skill_graph + lint_spec + lint_task_deps 覆盖，已如实记录）；③`python skills/workflow-code-generation/scripts/lint_spec.py openspec/changes/2059-knowledge-retirement-contracts/proposal.md --phase code` 与 design.md `--phase design-code`；④`python skills/workflow-code-generation/scripts/lint_task_deps.py openspec/changes/2059-knowledge-retirement-contracts/tasks.md --governance-profile tooling`；⑤定向 pytest：`test_skill_slimming_contracts.py`、`test_profile_contracts.py`；⑥`git diff --check` + 逐文件 diff 无越界；⑦md-zh 自检；⑧全量 `verify.py --diff-base 8668968`；⑨standard 档独立综合 Review，无未解决 P0/P1
 - context_files:
   - 本 Change 全部产物文件
   - `scripts/lint_spec.py`、`scripts/lint_skill_graph.py` — 校验工具
 - verification:
-  - [ ] 上述 ①-⑥ 全部通过（或失败已修复并复跑）
-  - [ ] verify.py 退出 0
-  - [ ] 独立 Review 报告无未解决 P0/P1
-  - [ ] `grep -rn "SKILL.md:" openspec/specs/ | grep -v "§"` 确认无行号锚定引用被 §7.3 插入破坏（抽查）
+  - [x] ① lint_skill_graph：skills=32 commands=19 agents=8 | errors=0 warnings=0
+  - [x] ③ lint_spec：proposal errors=0 warnings=0、design errors=0 warnings=0（design 首版缺 4-9 章与状态不合法，已按模板重写后复跑通过）
+  - [x] ④ lint_task_deps：tasks=4 | errors=0 warnings=0 legacy=0
+  - [x] ⑤ 定向 pytest：32 passed（test_skill_slimming_contracts + test_profile_contracts；合同文本断言未受影响，无需改断言）
+  - [x] ⑥ git diff --check 通过；diff 范围 5 文件 +27/−6 + Delta 新建，全部在声明目标内
+  - [x] 行号锚定抽查：specs 下唯一 `SKILL.md:行号` 引用指向未改动文件（workflow-code-review:65，其真实锚点在 :67），系既有漂移非本次引入
+  - [x] ⑦ md-zh 自检：新增行半角标点紧邻中文零命中；括号均为全角或行内代码包裹
+  - [ ] ⑧ verify.py 退出 0（进行中）
+  - [ ] ⑨ 独立 Review 无未解决 P0/P1（进行中）
 - artifacts:
   - 本任务勾选记录与核验输出（写在勾选项与最终报告，机器运行报告不提交进源码）
 
@@ -124,10 +129,9 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | 未开始 | 归档前登记 `openspec/index.md` 近期变更 |
-
+| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | Delta 已创建（Synced 于归档前核对） | 归档前登记 `openspec/index.md` 近期变更 |
 直接维护轨（不经 Delta）：`skills/project-knowledge/SKILL.md`、`skills/bp-domain-modeling/*`、`overview.md` 速查节、features 文档 §4.6——行为合同直接维护在技能与状态文档（2057/2058 先例）。
 
 ## 知识冲突
 
-- 结论：待核对。Task 1/3 实施前重读目标文件现文，发现与 design.md 描述冲突时记录双方证据并标记 `Resolved`。
+- 结论：Resolved。Task 1/3 实施前重读目标文件现文，与 design.md 描述一致，未发现冲突；lint_spec 对 design 首版的结构性报错（缺 4-9 章）属模板不符，已按模板重写，非知识冲突。
