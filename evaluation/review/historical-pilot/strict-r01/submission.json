@@ -1,0 +1,24 @@
+{
+    "plan_digest": "32f48703b0ab18fc190b91bd7233170579a6774f47e61bedc17d2f653cfe492a",
+    "cell_id": "r01--STRICT--1",
+    "execution_digest": "78b9faa18e261383aedaa460875ec5a80eec18d95280466a9d3e3e9cd0a79cfb",
+    "status": "completed",
+    "findings": [
+        {
+            "id": "F_1",
+            "title": "右侧嵌套并行模型走默认递归路径时，_cstack 用全 1 覆盖右依赖矩阵，误报独立输出相关且不可分离",
+            "file": "r01/astropy/modeling/separable.py",
+            "line": 245,
+            "severity": "P1"
+        }
+    ],
+    "provenance": {
+        "producer": "workflow-code-review strict independent Judge",
+        "session": "/root/strict_r01_judge",
+        "isolation": "Fresh fork_turns=none role workers; instruction allowlist, not hard isolation. Two stopped attempts and extra costs retained. No upstream checkout/history or code execution. Exact model version unknown."
+    },
+    "usage": {
+        "tokens": null,
+        "cost_usd": null
+    }
+}

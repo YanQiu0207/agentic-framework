@@ -1,0 +1,162 @@
+{
+    "schema_version": 1,
+    "cell_id": "r01--STRICT--1",
+    "judge_actor": "/root/strict_r01_judge",
+    "implementer_actor": "/root",
+    "implementer_role": "evaluation-material preparer only; not upstream implementer",
+    "process_order": [
+        "Five role reviewers dispatched with fork_turns=none in batches",
+        "All five final reports received, including magical's 40-obligation report",
+        "Reviewer summary emitted and F-1 deduplicated",
+        "Critic dispatched; magical reactivated only for verbatim persistence after its final report",
+        "Critic final received: not_rebutted",
+        "Critic summary emitted",
+        "Judge independently read all 317 source lines in one source-check call",
+        "Judge adjudicated and generated artifacts; no repairs or re-review"
+    ],
+    "attempts": [
+        {
+            "actor": "/root/strict_r01_judge/performance",
+            "role": "performance-reviewer",
+            "status": "error",
+            "read_tool_calls": 1,
+            "raw": "performance-error.raw.md"
+        },
+        {
+            "actor": "/root/strict_r01_judge/robustness",
+            "role": "robustness-reviewer",
+            "status": "error",
+            "read_tool_calls": 3,
+            "raw": "robustness-error.raw.md"
+        },
+        {
+            "actor": "/root/strict_r01_judge/performance_retry",
+            "role": "performance-reviewer",
+            "status": "completed",
+            "read_tool_calls": 4,
+            "formal_candidates": 0,
+            "raw": "performance.raw.md"
+        },
+        {
+            "actor": "/root/strict_r01_judge/robustness_retry",
+            "role": "robustness-reviewer",
+            "status": "completed",
+            "read_tool_calls": 3,
+            "formal_candidates": 1,
+            "raw": "robustness.raw.md"
+        },
+        {
+            "actor": "/root/strict_r01_judge/standards",
+            "role": "standards-reviewer",
+            "status": "completed",
+            "read_tool_calls": 5,
+            "formal_candidates": 0,
+            "raw": "standards.raw.md"
+        },
+        {
+            "actor": "/root/strict_r01_judge/magical",
+            "role": "magical-prompt-reviewer",
+            "status": "completed",
+            "read_tool_calls": 3,
+            "formal_candidates": 0,
+            "source_candidates": 1,
+            "raw": "magical.raw.md"
+        },
+        {
+            "actor": "/root/strict_r01_judge/spec",
+            "role": "spec-compliance-reviewer",
+            "status": "completed",
+            "read_tool_calls": 3,
+            "formal_candidates": 1,
+            "raw": "spec.raw.md"
+        },
+        {
+            "actor": "/root/strict_r01_judge/critic",
+            "role": "review-critic",
+            "status": "completed",
+            "read_tool_calls": 3,
+            "source_check_calls": 2,
+            "raw": "critic.raw.md"
+        }
+    ],
+    "raw_candidate_dispositions": [
+        {
+            "id": "robustness_C1",
+            "original_severity": "P2",
+            "decision": "keep",
+            "merged_into": "F_1"
+        },
+        {
+            "id": "spec_C1",
+            "original_severity": "P2",
+            "decision": "keep",
+            "merged_into": "F_1"
+        },
+        {
+            "id": "magical_C1",
+            "original_severity": "P2",
+            "original_status": "source-only; delta gate unmet",
+            "decision": "follow-up note",
+            "merged_evidence_into": "F_1",
+            "reason": "No parent/diff/history: do not promote magical's change-based claim. Its source evidence supports the independently originated robustness/spec source finding."
+        },
+        {
+            "id": "performance_handoff",
+            "decision": "follow-up note",
+            "merged_evidence_into": "F_1",
+            "reason": "Cross-dimensional pointer at line 245; not a performance finding."
+        }
+    ],
+    "decisions": [
+        {
+            "id": "F_1",
+            "title": "右侧嵌套并行模型走默认递归路径时，_cstack 用全 1 覆盖右依赖矩阵，误报独立输出相关且不可分离",
+            "file": "r01/astropy/modeling/separable.py",
+            "line": 245,
+            "severity": "P1",
+            "decision": "keep",
+            "critic_verdict": "not_rebutted",
+            "critic_severity": "P2",
+            "judge_severity_change": "P2 -> P1",
+            "reason": "Frozen workflow defines P1 as definite, condition-specific correctness risk and P2 as suggestions not affecting correctness/stability/performance baseline. Lines 225-226 admit coordinate arrays; line 240 preserves left while 245 replaces right values; 307-309 and 316 route nested & matrices here; 78-81 require independent-output off-diagonal False. This is an incorrect result, not a style or defensive suggestion. No evidence for P0-wide/systemic impact.",
+            "independent_evidence": "For accepted coordinate arrays left=[[1]], right=[[1,0],[0,1]], _compute_n_outputs produces 3; _cstack allocates 3x1 and 3x2 arrays; line 245 makes right rows 2 and 3 all ones, so line 247 yields [[1,0,0],[0,1,1],[0,1,1]]. Lines 100-101 retain spurious dependencies; 60-62 yield [True,False,False]. Static deduction only, not execution.",
+            "trigger_limit": "Nested right parallel model must use default recursive path; concrete Shift implementation/tree retention not supplied.",
+            "history_classification": "unknown; no regression/introduction claim"
+        }
+    ],
+    "verdict": "NEEDS_CHANGES",
+    "p0_count": 0,
+    "p1_count": 1,
+    "round": 0,
+    "all_keep_findings": [
+        {
+            "id": "F_1",
+            "title": "右侧嵌套并行模型走默认递归路径时，_cstack 用全 1 覆盖右依赖矩阵，误报独立输出相关且不可分离",
+            "file": "r01/astropy/modeling/separable.py",
+            "line": 245,
+            "severity": "P1"
+        }
+    ],
+    "submission_selection": "Sort all keep findings by severity P0/P1/P2/P3, then exact file ascending, then line ascending; take first 5. One keep, no truncation.",
+    "limitations": [
+        "Only supplied source; no upstream checkout or Model/CompoundModel implementation",
+        "No parent/diff/history; no delta classification",
+        "No execution of reviewed code or external search",
+        "Allowlist instruction-based, not hard sandbox isolation",
+        "Runtime commit binds evaluation worktree only, not upstream checkout",
+        "Not framework delivery approval",
+        "Exact model version unknown; tokens and fees unknown"
+    ],
+    "protocol_deviations": [
+        "Two early workers stopped and retried due to overstrict role-text isolation/order instructions imposed by Judge. Parent clarified all frozen roles inside input.json are allowed public treatment material; no answer leakage established. Failed attempts and extra costs retained; not claimed within originally planned aggregate budget.",
+        "Judge first global PowerShell read displayed mojibake; later commands used UTF-8. Two initial quoting commands failed. One metadata-only Python command used -X utf8 without required environment variables; corrected to EncodedCommand setting both variables for subsequent Python launches.",
+        "Standards worker self-reported initial GBK output failure and unavailable env command before UTF-8 correction. See raw report; not hidden."
+    ],
+    "usage": {
+        "tokens": null,
+        "cost_usd": null,
+        "exact_model_version": null
+    },
+    "judge_source_check_calls": 1,
+    "judge_shell_calls_before_persistence": 8
+}
