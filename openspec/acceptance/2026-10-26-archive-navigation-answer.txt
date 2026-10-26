@@ -1,0 +1,216 @@
+老板，以下只报告当前知识导航与源码事实，不作验收结论。
+
+## 实际索引导航路径
+
+1. `openspec/index.md`
+2. `openspec/specs/backend/engineering/tech/framework-unification.md`
+3. `openspec/specs/backend/framework/workflow-control/overview.md`
+4. `openspec/specs/backend/framework/quality-gates/overview.md`
+5. `openspec/specs/backend/framework/knowledge-management/overview.md`
+6. 由上述文件的 `source_paths` 和归档导航继续定位：
+    - `commands/code-generation.md`
+    - `skills/workflow-code-generation/SKILL.md`
+    - `skills/workflow-code-generation/reference/delivery-guide.md`
+    - `skills/project-knowledge/SKILL.md`
+    - `scripts/validate_change.py`
+    - `scripts/knowledge_sync.py`
+    - `skills/workflow-code-generation/scripts/lint_task_deps.py`
+    - `skills/workflow-code-generation/scripts/check_delivery.py`
+    - `README.md`
+
+索引明确要求：历史 Change 仅作当时证据，当前行为要回到实现源核实。[openspec/index.md:40-45](openspec/index.md#L40-L45)
+
+## 1. 当前入口及 Command、Skill 接线
+
+### 当前入口
+
+用户要归档完成的 Change，当前用户入口是 `/code-generation`，而不是独立的 `/archive` 或 `opsx:archive`：
+
+- 当前知识导航表明确写明：归档请求进入 `commands/code-generation.md`，再路由至 `workflow-code-generation`。[openspec/specs/backend/framework/knowledge-management/overview.md:65-76](openspec/specs/backend/framework/knowledge-management/overview.md#L65-L76)
+- README 的当前命令映射也是 `/code-generation` → `workflow-code-generation`。[README.md:423-425](README.md#L423-L425)
+- `commands/code-generation.md` 只有一行，职责是调用 `workflow-code-generation` Skill。[commands/code-generation.md:1](commands/code-generation.md#L1)
+
+### Skill 内部接线
+
+`workflow-code-generation` 负责把完成后的交付接到归档：
+
+1. 完成统一集成 Review。
+2. 执行知识影响检查、知识同步和状态一致性检查。
+3. 归档 Change。
+4. 按 Native 或 Runtime 路径运行最终 `check_delivery.py`。[skills/workflow-code-generation/SKILL.md:152-154](skills/workflow-code-generation/SKILL.md#L152-L154)
+
+具体归档步骤由 `delivery-guide.md` 定义：
+
+- 调用 `project-knowledge` 核对实现 Diff、验证证据、Delta、Issues 和冲突。
+- 移动前执行 `lint_task_deps.py <tasks.md> --state-consistency`。
+- 通过后把 `proposal.md` 状态改为 `Archived`，再移动到 `openspec/changes/archive/<ticket>-YYYY-MM-DD-<change-name>/`。
+- 随后按 Runtime 或 Native 参数调用 `check_delivery.py`。[skills/workflow-code-generation/reference/delivery-guide.md:67-82](skills/workflow-code-generation/reference/delivery-guide.md#L67-L82)
+
+**源码边界：** Command 本身没有归档实现；状态修改、目录移动和调用顺序目前主要由 Skill 文本规定。确定性源码负责检查，不会替 Command 自动完成完整归档。
+
+---
+
+## 2. 归档与交付检查及各路线差异
+
+## 2.1 所有路线共有的检查
+
+### 归档移动前
+
+- Change 的 Proposal、Tasks、标准 Change 的 Delta 与 Design 等基本 Artifact 必须存在；源码检查入口见 `_validate_artifacts()`。[scripts/validate_change.py:851-940](scripts/validate_change.py#L851-L940)
+- Delta 只能映射到 `business`、`frontend`、`backend`、`common` 四类长期 Specs。[scripts/knowledge_sync.py:13-14](scripts/knowledge_sync.py#L13-L14) [scripts/knowledge_sync.py:43-64](scripts/knowledge_sync.py#L43-L64)
+- Tasks 的复选框和可选「状态」字段必须一致；移动前显式运行 `--state-consistency`。[skills/workflow-code-generation/reference/delivery-guide.md:68-72](skills/workflow-code-generation/reference/delivery-guide.md#L68-L72)
+- 知识影响必须有明确结论；存在 Delta 时不能声明「无长期知识影响」。[scripts/validate_change.py:960-993](scripts/validate_change.py#L960-L993)
+- 每个 Delta 必须有唯一、准确的目标映射，动作只能是 `ADDED`、`MODIFIED`、`REMOVED`、`RENAMED`，同步状态必须完成，并记录索引更新结果。[scripts/validate_change.py:995-1057](scripts/validate_change.py#L995-L1057)
+- 知识冲突必须记录为无冲突或已解决；必须存在实现 Diff 与 Change/验证证据的 PASS 核对记录。[scripts/validate_change.py:1071-1099](scripts/validate_change.py#L1071-L1099)
+- 项目至少应存在 `openspec/index.md`、`openspec/specs/index.md`、`openspec/issues/index.md`；索引链接必须可达；生成型知识应具有来源元数据。[scripts/validate_change.py:780-848](scripts/validate_change.py#L780-L848)
+- Archive 目标必须直接位于 `openspec/changes/archive/` 下、不得已存在，且名称满足 `<ticket>-YYYY-MM-DD-<change-name>`。[scripts/validate_change.py:2290-2347](scripts/validate_change.py#L2290-L2347)
+
+### 移动后的交付门禁
+
+`check_delivery.py` 共同检查：
+
+- `--knowledge-impact hit|none`；`none` 必须给原因。[skills/workflow-code-generation/scripts/check_delivery.py:510-518](skills/workflow-code-generation/scripts/check_delivery.py#L510-L518)
+- 知识同步、冲突、Delta 与目标文件存在性。[skills/workflow-code-generation/scripts/check_delivery.py:519-572](skills/workflow-code-generation/scripts/check_delivery.py#L519-L572)
+- Tasks 全部完成且状态一致。
+- Proposal 状态必须为 `Archived`。[skills/workflow-code-generation/scripts/check_delivery.py:60-92](skills/workflow-code-generation/scripts/check_delivery.py#L60-L92)
+- Review Profile 不低于治理 Profile 要求。[skills/workflow-code-generation/scripts/check_delivery.py:762-806](skills/workflow-code-generation/scripts/check_delivery.py#L762-L806)
+- Git 默认要求工作区干净；SVN Native 使用其待提交或 revision 证据规则。[skills/workflow-code-generation/scripts/check_delivery.py:808-845](skills/workflow-code-generation/scripts/check_delivery.py#L808-L845)
+- 任一累计错误使最终退出码为 `1`。[skills/workflow-code-generation/scripts/check_delivery.py:1292-1293](skills/workflow-code-generation/scripts/check_delivery.py#L1292-L1293)
+
+## 2.2 Production 与 Tooling
+
+### Production
+
+- Production 与 Tooling 使用相同 `/code-generation` 入口，但 Production 在运行时额外通过 `governance_guards.py` 接入 `validate_change.py`。[README.md:102-115](README.md#L102-L115)
+- `validate_change.py --phase archive` 会重新执行共同、Artifact、Delta、Plan 检查，然后要求 Delivery 为 PASS，检查归档知识和项目知识骨架，再检查 Archive 目标。[scripts/validate_change.py:2270-2299](scripts/validate_change.py#L2270-L2299)
+- Archive 阶段必须提供 `--archive-target`。[scripts/validate_change.py:2249-2252](scripts/validate_change.py#L2249-L2252)
+- Production 安装该阶段门禁；Tooling Profile 安装不包含它。[README.md:104-115](README.md#L104-L115)
+
+### Tooling
+
+- Tooling 默认采用 Native Delivery，并保留 DAG、状态恢复和失败隔离；Runtime 仅显式启用。[README.md:119-136](README.md#L119-L136)
+- Tooling 的知识检查复用 `scripts/knowledge_sync.py`，但入口在 `check_delivery.py`；源码注释明确区分 Production Archive 核对与 Tooling 交付门禁。[scripts/knowledge_sync.py:1-6](scripts/knowledge_sync.py#L1-L6)
+- Tooling 不应为了归档而假定存在 Production 的 `validate_change.py`；其确定性路径是状态一致性检查加 `check_delivery.py`。知识导航也明确把 Production Archive Gate 单列。[openspec/specs/backend/framework/knowledge-management/overview.md:69-76](openspec/specs/backend/framework/knowledge-management/overview.md#L69-L76)
+
+## 2.3 Native 与 Runtime
+
+### Native Delivery
+
+必须提供：
+
+- `--native-delivery`
+- `--native-delivery-verdict`
+- 已归档的 `--tasks` 与 `--spec`
+- Native v2 integration Review
+- Native v2 Verify
+- `--knowledge-impact` 及必要原因。[skills/workflow-code-generation/reference/delivery-guide.md:80-82](skills/workflow-code-generation/reference/delivery-guide.md#L80-L82)
+
+源码会核对：
+
+- Native Review、Verify 的 v2 合同。
+- Review 与 Verify 的 `subject_id` 一致。
+- strict 路线的独立 Judge 信息。
+- 最终 Native Delivery Verdict。[skills/workflow-code-generation/scripts/check_delivery.py:861-981](skills/workflow-code-generation/scripts/check_delivery.py#L861-L981)
+
+### Runtime Run
+
+必须提供：
+
+- `--run-dir`
+- 已归档的 Tasks、Proposal
+- Run 内的 Review Artifact
+- 知识影响结论。[skills/workflow-code-generation/reference/delivery-guide.md:76-78](skills/workflow-code-generation/reference/delivery-guide.md#L76-L78)
+
+Runtime 路径检查：
+
+- Run Manifest 可达。
+- Journal、Harness、Verify Artifact。
+- Trust Gate。
+- Run 状态。
+- Runtime Review。
+- 归档状态、Git 状态和知识影响。[skills/workflow-code-generation/reference/delivery-guide.md:76-82](skills/workflow-code-generation/reference/delivery-guide.md#L76-L82)
+
+Native 与 Runtime 参数互斥；`--run-dir` 和 `--native-delivery` 同时存在直接返回调用错误 `2`。[skills/workflow-code-generation/scripts/check_delivery.py:673-704](skills/workflow-code-generation/scripts/check_delivery.py#L673-L704)
+
+---
+
+## 3. 要同步或变化的知识文件和目录
+
+### 必须核对或按实际影响同步
+
+1. Change-local Delta：
+    - `openspec/changes/<ticket>-<change>/specs/**`
+2. 长期 Specs：
+    - `openspec/specs/business/**`
+    - `openspec/specs/frontend/**`
+    - `openspec/specs/backend/**`
+    - `openspec/specs/common/**`
+
+Delta 相对路径映射到 `openspec/specs/` 下的同路径目标。[scripts/knowledge_sync.py:43-64](scripts/knowledge_sync.py#L43-L64)
+
+3. 已验证问题：
+    - `openspec/issues/<issue>.md`
+    - 必要时同步 `openspec/issues/index.md`
+4. 自动生成型长期知识的版本元数据：
+    - `source_ref`
+    - `source_paths`
+    - `generated_at`
+    [scripts/validate_change.py:821-847](scripts/validate_change.py#L821-L847)
+5. 导航索引：
+    - `openspec/index.md`
+    - `openspec/specs/index.md`
+    - 相关领域或模块 `index.md`
+    - `openspec/issues/index.md`
+    归档门禁至少检查前三个固定索引及所有 `openspec/**/index.md` 链接。[scripts/validate_change.py:783-819](scripts/validate_change.py#L783-L819)
+6. Change 自身：
+    - `proposal.md` 状态改为 `Archived`
+    - 整个目录从 `openspec/changes/<ticket>-<change>/`
+    - 移至 `openspec/changes/archive/<ticket>-YYYY-MM-DD-<change>/`
+    [skills/workflow-code-generation/reference/delivery-guide.md:72-75](skills/workflow-code-generation/reference/delivery-guide.md#L72-L75)
+
+### 知识合同要求但非源码自动完成
+
+归档前应：
+
+- 用实现 Diff、测试和验证证据核对 Change。
+- 解决代码、Change 与长期知识之间的冲突。
+- 只把经过验证、值得长期保存的 Delta 合并到长期 Specs。
+- 更新生成知识及代码知识的版本元数据。
+- 把已验证问题写入 Issues。
+- 完成同步后才移动 Change。[skills/project-knowledge/SKILL.md:215-225](skills/project-knowledge/SKILL.md#L215-L225)
+
+`validate_change.py` 的源码说明明确限定为「验证归档知识记账，不执行语义合并」，因此它不会替代人工判断或实际同步。[scripts/validate_change.py:960-963](scripts/validate_change.py#L960-L963)
+
+---
+
+## 4. 失败停止位置
+
+| 失败类型 | 停止位置 |
+| --- | --- |
+| 实现 Diff、验证证据与 Change 不一致 | 知识同步前停止；不得把未经核实的 Delta 合入长期 Specs。[skills/project-knowledge/SKILL.md:217-225](skills/project-knowledge/SKILL.md#L217-L225) |
+| 知识冲突未解决 | 归档移动前停止；源码 OPSX047 失败。[scripts/validate_change.py:1071-1085](scripts/validate_change.py#L1071-L1085) |
+| 知识影响缺失、Delta 与「无影响」矛盾 | 归档移动前停止；OPSX043。[scripts/validate_change.py:969-993](scripts/validate_change.py#L969-L993) |
+| Delta 路径非法、映射缺失或重复 | 归档移动前停止；OPSX042/044。[scripts/validate_change.py:943-957](scripts/validate_change.py#L943-L957) [scripts/validate_change.py:995-1057](scripts/validate_change.py#L995-L1057) |
+| 知识同步状态未完成 | 归档移动前停止；OPSX045。[scripts/validate_change.py:1023-1032](scripts/validate_change.py#L1023-L1032) |
+| Tasks 状态与复选框不一致 | `lint_task_deps.py --state-consistency` 处停止，不修改 Proposal 状态、不移动目录；退出 `1`。[skills/workflow-code-generation/scripts/lint_task_deps.py:393-401](skills/workflow-code-generation/scripts/lint_task_deps.py#L393-L401) |
+| Production Archive Gate 失败 | 移动前停止；确定性违规退出 `1`，调用、路径或内部校验错误退出 `2`。[README.md:161-171](README.md#L161-L171) [scripts/validate_change.py:2434-2475](scripts/validate_change.py#L2434-L2475) |
+| Archive 目标已存在、位置或名称非法 | 移动前停止，禁止覆盖；OPSX040/041。[scripts/validate_change.py:2298-2347](scripts/validate_change.py#L2298-L2347) |
+| 移动后 Proposal 不是 `Archived` 或归档文件路径缺失 | 最终 `check_delivery.py` 处停止，不得报告交付 PASS。[skills/workflow-code-generation/scripts/check_delivery.py:794-806](skills/workflow-code-generation/scripts/check_delivery.py#L794-L806) |
+| Review/Verify 非 PASS、P0/P1 非零、Profile 不合规 | 最终交付门禁停止。[skills/workflow-code-generation/scripts/check_delivery.py:120-147](skills/workflow-code-generation/scripts/check_delivery.py#L120-L147) |
+| Git 不干净或 SVN 交付证据不符合路径要求 | 最终交付门禁停止。[skills/workflow-code-generation/scripts/check_delivery.py:808-845](skills/workflow-code-generation/scripts/check_delivery.py#L808-L845) |
+| Native/Runtime 参数缺失、互斥或文件不存在 | 调用层停止并返回 `2`。[skills/workflow-code-generation/scripts/check_delivery.py:673-733](skills/workflow-code-generation/scripts/check_delivery.py#L673-L733) |
+| Runtime Manifest、Journal、Harness、Trust Gate 或 Artifact 失败 | Runtime 最终门禁停止；不得改报 Native PASS。[skills/workflow-code-generation/reference/delivery-guide.md:76-82](skills/workflow-code-generation/reference/delivery-guide.md#L76-L82) |
+| Native v2 Review、Verify、subject 或 Verdict 失败 | Native 最终门禁停止。[skills/workflow-code-generation/scripts/check_delivery.py:861-981](skills/workflow-code-generation/scripts/check_delivery.py#L861-L981) |
+| 最终 `check_delivery.py` 有任一累计错误 | 返回 `1`；不得声称「交付 PASS」。[skills/workflow-code-generation/scripts/check_delivery.py:1292-1293](skills/workflow-code-generation/scripts/check_delivery.py#L1292-L1293) |
+
+## 未知项与冲突
+
+1. **没有独立 Archive Command 的源码实现。** 当前 `commands/code-generation.md` 只委派 Skill；实际修改 Proposal 状态和移动目录依靠 Skill 执行约定，未发现独立的确定性归档程序。[commands/code-generation.md:1](commands/code-generation.md#L1)
+2. **语义知识合并无法由门禁保证。** `validate_change.py` 只验证结构、映射和记录，不执行或判断 Delta 内容是否被正确语义合并。[scripts/validate_change.py:960-963](scripts/validate_change.py#L960-L963)
+3. **Production 与 Tooling 的门禁不完全等价。** Production 有 `validate_change.py archive`；Tooling 安装不包含该脚本，主要依靠 `lint_task_deps.py` 和 `check_delivery.py`。[README.md:104-115](README.md#L104-L115)
+4. **Archive Gate 与最终 Delivery Gate 分处移动前后。** `validate_change.py archive` 检查尚不存在的目标目录；`check_delivery.py` 又要求 Proposal 已为 `Archived`、并接收已归档路径。这是两阶段顺序，不是同一次检查。[scripts/validate_change.py:2294-2319](scripts/validate_change.py#L2294-L2319) [skills/workflow-code-generation/reference/delivery-guide.md:72-82](skills/workflow-code-generation/reference/delivery-guide.md#L72-L82)
+5. **知识文档不能证明实际交付成功。** 是否已有合格 Review、Verify、Native Verdict 或 Runtime Run Artifact，必须针对具体 Change 检查；本问题未提供目标 Change，因此这些项未知。
+6. **文档表述「知识同步完成」不等于源码验证了内容正确。** 当前源码能验证目标路径、状态、索引和记录，但无法证明知识文本语义完整。
+
+未执行任何门禁、归档、提交、发布或写文件操作；也未检查某个具体 Change 的 Artifact，因此其实际可归档状态未知。
+Using project-knowledge

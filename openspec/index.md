@@ -46,7 +46,7 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 外部参考
 
-- 知识库三篇实践文章的内容分类、操作流程、治理注意点与框架借鉴候选（未实施）：[`external-reference-knowledge-base-practices.md`](specs/backend/engineering/tech/external-reference-knowledge-base-practices.md)
+- 知识库三篇实践文章的内容分类、操作流程、治理注意点与框架借鉴候选（归档导航已试点，严格验收未通过，其余候选未实施）：[`external-reference-knowledge-base-practices.md`](specs/backend/engineering/tech/external-reference-knowledge-base-practices.md)
 - 同类框架对比、近两个月模型与平台动态、项目证据缺口及候选路线（2026-10-25 快照）：[`external-reference-agentic-landscape-2026-10.md`](specs/backend/engineering/tech/external-reference-agentic-landscape-2026-10.md)
 - 多 Agent 协作样例（AWS sample-codex-agent-team）协议设计逐文件解读、维度级对比与补强点候选：[`external-reference-sample-codex-agent-team.md`](specs/backend/engineering/tech/external-reference-sample-codex-agent-team.md)
 - HarnessX Agent Harness Foundry 的组合模型、轨迹驱动演化、模型共演化、证据边界及适配候选：[`external-reference-harnessx.md`](specs/backend/engineering/tech/external-reference-harnessx.md)

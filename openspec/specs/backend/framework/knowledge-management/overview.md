@@ -62,6 +62,27 @@ generated_at: 2026-10-26
 
 ## 数据流
 
+### 场景导航：归档 Change
+
+本节是既有流程的定位导航，不新增规则。2026-10-26 经用户授权补充；来源为下列当前合同与源码，读取时仍需核实最新版本。
+
+| 场景步骤 | 操作与入口 | 权威依据／实现 |
+| --- | --- | --- |
+| 启动归档 | 用户要求继续已完成 Change 的交付归档；`commands/code-generation.md` 路由至 `workflow-code-generation`，不是独立的 `opsx:archive` 命令 | [Command](../../../../../commands/code-generation.md)、[Skill](../../../../../skills/workflow-code-generation/SKILL.md)、[标准交付](../../../../../skills/workflow-code-generation/reference/delivery-guide.md#标准交付) |
+| 确认前置 | 核对本次任务契约、实际 Diff、Verify、Review 与知识影响；区分 Native Delivery 和显式 Runtime，不把某个历史 Change 的完成记录当作本次证据 | 标准交付步骤 1～5；[知识同步合同](../../../../../skills/project-knowledge/SKILL.md#72-归档前知识同步) |
+| 同步知识 | 将已验证且值得保留的 Delta 同步长期 Specs，更新相关索引与来源元数据、已验证 Issues；公共候选只留项目，不自动晋升 | 知识同步合同 §7.2；[Delta 解析](../../../../../scripts/knowledge_sync.py) 的 `delta_map()`、`sync_rows()` |
+| 移动前检查 | 先运行 `lint_task_deps.py <tasks.md> --state-consistency`；Production 另有 `validate_change.py --phase archive --archive-target <目标>` 阶段门，不能把它当作自动移动器，也不要求 Tooling 安装 Production 脚本 | [任务检查](../../../../../skills/workflow-code-generation/scripts/lint_task_deps.py)、[Production 门禁说明](../../../../../README.md#双-profile-路由)、[阶段校验](../../../../../scripts/validate_change.py) 的 `validate_change()` archive 分支 |
+| 更新与移动 | 状态一致性通过后将 proposal 状态改为 `Archived`，整个 Change 移至 `openspec/changes/archive/<ticket>-YYYY-MM-DD-<change-name>/`；不得覆盖已有目标 | 标准交付步骤 6；阶段校验 archive 分支检查目标父目录、命名及目标不存在 |
+| 提交与交付判定 | 按批准范围处理本地提交；使用归档后的 spec/tasks 路径运行 `check_delivery.py`，按 Native／Runtime 路径传对应证据。push 仍由用户决定 | 标准交付步骤 7～9；[交付门实现](../../../../../skills/workflow-code-generation/scripts/check_delivery.py) |
+
+数据变化包括长期 Specs、相关索引／元数据／Issues、proposal 状态及 Change 目录位置；运行形态适用时还涉及其 Review、Verify 与 Verdict 产物。本地知识归档不要求外部平台 API 或消息事件，亦不自动授权公共库写入、push 或发布。
+
+失败停止点：未解决冲突、知识同步未完成或状态检查非 0 时不移动；Production 阶段门违规或调用错误时先修正，不绕过；目标已存在时不覆盖；最终交付门非 0 或证据缺失时如实报告，不宣称交付通过。移动后若内容改变受验证主体，按交付指南重新验证，不能复用失效报告。
+
+边界：状态检查与同步表只能检查记录和结构，不能证明知识正文语义正确。导航验收不执行真实归档，协议与记录见 [归档场景导航验收](../../../../acceptance/2026-10-26-archive-navigation.md)。
+
+### 数据流概要
+
 ```text
 项目任务
     → openspec/index.md 渐进路由
