@@ -47,7 +47,7 @@ npx skills@latest add mattpocock/skills
 - `/grill-me` 与 `/grill-with-docs` 作为薄入口，分别复用 `bp-decision-interview`，以及该方法加 `bp-domain-modeling`；新增资产进入安装与受管清单，两个 Profile 共用。
 - 追问按决策依赖适量分组，不提前夹带条件式下游问题；章节只负责内容归位与覆盖检查。需求与设计边界、已有审批及最终 Review 不变。
 - 领域模型不止术语，概念职责、关系、规则及流程位于项目级长期业务 Specs，跨 Change 共享；领域讨论前由项目索引定向读取，不依赖旧会话。
-- 既有知识澄清在明确写入授权等条件满足后及时沉淀；未来业务变化先留 Change Delta。唯一读写规则由 `skills/project-knowledge/SKILL.md` §3.4、§5、§7.1 维护，不另建根目录术语表或 ADR 系统。
+- 既有知识澄清在明确写入授权等条件满足后及时沉淀；未来业务变化先留 Change Delta。唯一读写规则由 `skills/project-knowledge/SKILL.md` §3.4、§5、§7.1、§7.3 维护，不另建根目录术语表或 ADR 系统。
 - 两个方法技能分别保留上游 MIT 许可。适配增加有界收敛、分离授权及宿主中立，不将上游强制子 Agent 调查照搬为通用要求。
 
 验证结果与已知限制以 Change 2053 的 `validation.md` 为准；结构检查不证明实际加载，有限行为试验也不能证明普遍效率提升。

@@ -1,6 +1,6 @@
 # 知识管理实现概览
 
-source_ref: git:c5dd8c28a8111c05553a3b77e4613fd270db418d
+source_ref: git:3df3cae43c1d9fcaf6bc0c0ba31c3c43a07300a2
 source_paths:
     - skills/project-knowledge/SKILL.md
     - skills/project-init/SKILL.md

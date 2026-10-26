@@ -1,6 +1,6 @@
 # Delta：§9.1 读写规则指针补 §7.3
 
-**状态**：Created（归档前按实际 Diff 核对后更新为 Synced）
+**状态**：Synced（已按实际 Diff 核对并同步长期方案，2026-10-26）
 **动作**：MODIFIED
 **长期目标**：`openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md`
 

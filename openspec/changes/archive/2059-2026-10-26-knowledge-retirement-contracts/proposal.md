@@ -3,7 +3,9 @@
 **作者**：Claude（default-agent-admin）
 **日期**：2026-10-26
 **变更**：knowledge-retirement-contracts
-**状态**：Draft
+**状态**：Archived
+
+> 归档说明（2026-10-26）：已实施、验证、独立 Review 通过并同步长期方案。
 
 ---
 

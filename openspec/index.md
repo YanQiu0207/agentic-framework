@@ -15,6 +15,8 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 近期变更
 
+- [2059：共享条目退役语义与定位链补全](changes/archive/2059-2026-10-26-knowledge-retirement-contracts/proposal.md)（§7.3 退役标记替代物理删除、`business/index.md` 职责与分节-目录映射登记；已实施、Review 通过并同步长期方案）
+
 - [2054：变更调研结论落盘与实现参考传递](changes/2054-research-note-persistence/proposal.md)（调研落盘 `research.md`、任务级「实现参考」字段与编码入口通读接线；进行中）
 
 - [2054：深模块、测试接点与只读架构改善](changes/archive/2054-2026-10-25-deep-module-architecture/proposal.md)（方法、设计／测试接线与存量调查入口；完整测试及安装生命周期已复验）
@@ -44,6 +46,7 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 外部参考
 
+- 知识库三篇实践文章的内容分类、操作流程、治理注意点与框架借鉴候选（未实施）：[`external-reference-knowledge-base-practices.md`](specs/backend/engineering/tech/external-reference-knowledge-base-practices.md)
 - 同类框架对比、近两个月模型与平台动态、项目证据缺口及候选路线（2026-10-25 快照）：[`external-reference-agentic-landscape-2026-10.md`](specs/backend/engineering/tech/external-reference-agentic-landscape-2026-10.md)
 - 多 Agent 协作样例（AWS sample-codex-agent-team）协议设计逐文件解读、维度级对比与补强点候选：[`external-reference-sample-codex-agent-team.md`](specs/backend/engineering/tech/external-reference-sample-codex-agent-team.md)
 - HarnessX Agent Harness Foundry 的组合模型、轨迹驱动演化、模型共演化、证据边界及适配候选：[`external-reference-harnessx.md`](specs/backend/engineering/tech/external-reference-harnessx.md)

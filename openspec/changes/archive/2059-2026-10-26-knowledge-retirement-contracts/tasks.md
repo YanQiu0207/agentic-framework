@@ -130,8 +130,8 @@ Task 4 (定向核验 + 全量 Verify + 独立 Review) ← 依赖 Task 1, 2, 3
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | Delta 已创建（Synced 于归档前核对） | 归档前登记 `openspec/index.md` 近期变更 |
-| `specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | `openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | MODIFIED | Delta 已创建（review P2-3 连带同步；Synced 于归档前核对） | 归档前登记 `openspec/index.md` 近期变更 |
+| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | 已 Synced（2026-10-26 归档，按实际 Diff 核对） | 归档同轮登记 `openspec/index.md` 近期变更 |
+| `specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | `openspec/specs/backend/engineering/tech/external-reference-mattpocock-skills.md` | MODIFIED | 已 Synced（review P2-3 连带同步；2026-10-26 归档，按实际 Diff 核对） | 归档同轮登记 `openspec/index.md` 近期变更 |
 直接维护轨（不经 Delta）：`skills/project-knowledge/SKILL.md`、`skills/bp-domain-modeling/*`、`overview.md` 速查节、features 文档 §4.6——行为合同直接维护在技能与状态文档（2057/2058 先例）。
 
 ## 知识冲突

@@ -144,7 +144,8 @@ openspec/
 │   │   ├── proposal.md
 │   │   ├── specs/
 │   │   ├── design.md
-│   │   └── tasks.md
+│   │   ├── tasks.md
+│   │   └── research.md
 │   └── archive/
 └── issues/
     ├── index.md
@@ -184,6 +185,7 @@ openspec/
 
 保存与具体前后端实现无关的项目业务上下文：
 
+- `index.md`：业务域清单与定位映射——每个 `<domain>/` 目录一行（名称、一句范围、指向 `overview.md`），以及 `glossary.md` 分节名与 domain 目录名的映射；新增、改名或退役 domain 时同轮更新。小项目不建该文件时，映射写在 `specs/index.md` 对应条目旁。
 - `glossary.md`：业务术语。
 - `<domain>/overview.md`：业务域范围、能力、概念职责与关系。
 - `<domain>/rules.md`：业务规则和不变量。
@@ -338,7 +340,7 @@ openspec/specs/common/protocols/refund-api/
 
 Delta 使用 `ADDED`、`MODIFIED`、`REMOVED` 和 `RENAMED` 表达变化。
 
-领域模型采用双轨更新（change 2053），具体前置条件和唯一写入位置统一见 `skills/project-knowledge/SKILL.md` §5、§7.1：既有知识澄清在语义确认、相关事实核实、无未决冲突及明确写入授权后，可及时最小更新共享模型和索引；未来业务变化仍先保留 Change Delta，验证归档后同步。分类不明或未授权时只保留候选，不以「澄清」发布未来规则。纯业务定义标明用户确认来源，不冒充实现已验证；人工知识及公共知识保护不变。
+领域模型采用双轨更新（change 2053），具体前置条件和唯一写入位置统一见 `skills/project-knowledge/SKILL.md` §5、§7.1、§7.3：既有知识澄清在语义确认、相关事实核实、无未决冲突及明确写入授权后，可及时最小更新共享模型和索引；未来业务变化仍先保留 Change Delta，验证归档后同步。分类不明或未授权时只保留候选，不以「澄清」发布未来规则。纯业务定义标明用户确认来源，不冒充实现已验证；人工知识及公共知识保护不变。
 
 ### 9.2 归档门禁
 
