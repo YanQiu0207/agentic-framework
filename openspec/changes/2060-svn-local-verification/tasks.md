@@ -42,10 +42,10 @@ Task 1 → Task 2
 - artifacts:
     - 上述实现及测试文件。
 
-### 任务 2：[ ] 集成验证与合同同步
-- 状态：进行中
+### 任务 2：[x] 集成验证与合同同步
+- 状态：完成
 - attempts：0
-- control_stage：quality_passed
+- control_stage：completed
 - depends_on: Task 1
 - review_profile: strict
 - 文档映射：proposal.md §3、§4
@@ -56,9 +56,9 @@ Task 1 → Task 2
     - `openspec/specs/backend/framework/quality-gates/overview.md`。
     - Task 1 的实现及回归证据。
 - verification:
-    - [ ] 使用说明与真实实现一致，中文 Markdown 按 md-zh 自检。
-    - [ ] 集成完整 Verify 通过。
-    - [ ] `git diff --check` 及任务依赖校验通过，交付级 Review 和交付门由主会话随后执行。
+    - [x] 使用说明与真实实现一致，中文 Markdown 按 md-zh 自检。
+    - [x] 集成完整 Verify 通过。
+    - [x] `git diff --check` 及任务依赖校验通过，交付级 Review 和交付门由主会话随后执行。
 - artifacts:
     - 更新后的指南、长期知识及验证／审查报告。
 
@@ -71,8 +71,8 @@ Task 1 → Task 2
 
 ## 知识同步
 
-质量门长期合同及 Verify 配置／范围指南需同步，当前 Pending。
+质量门长期合同及 Verify 配置／范围指南已同步（Completed）；同时更新 Skill 入口和配置维护规则的冻结名单，未改变配置维护批准流程。
 
 ## 知识冲突
 
-现有指南声称核验 SVN revision 存在；本次经用户批准改为本地新鲜度核对，实施后同步更新，不把旧声明继续当作当前事实。
+Resolved：原指南声称核验 SVN revision 存在；本次经用户批准改为本地新鲜度核对，已同步指南和长期合同，不把旧声明继续当作当前事实。
