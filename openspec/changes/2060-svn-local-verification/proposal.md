@@ -16,6 +16,7 @@
 
 - SVN 内容主体及知识来源检查不使用 URL、远程目录树、数字 revision 查询；远程不可用时仍能完成本地验证。
 - 未版本化的默认目录和配置目录在枚举时剪枝；目录内已版本化文件与显式必需输入仍影响指纹。
+- Spec Drift 的未跟踪项采用同一目录规则，并记录忽略来源；已跟踪项及受保护规格不因本地目录规则被忽略。
 - `verify.config.json` 的 `local_exclude_dirs` 为项目根相对目录列表，不支持通配符或越界路径；与默认排除取并集，配置和生效策略纳入指纹。
 - Verify、Review、交付门调用共享的 `scripts/native_subject.py`，不能由报告自选排除规则。
 - 本地知识来源仅作本地新鲜度核对，无法本地确认时明确告警，不再声称已证明远程 revision 存在。
@@ -28,7 +29,7 @@
 
 `scripts/native_subject.py` 从实际配置读取 `local_exclude_dirs`，与默认 `.codex`、`.claude` 根相对路径合并；枚举未版本化目录时剪枝，并保留 tracked、固定基准及显式输入。配置非法时失败关闭。生效策略进入主体，旧报告不能自动沿用新指纹。
 
-`skills/workflow-verification/scripts/verify.py` 的 SVN 知识来源检查改用工作副本本地修订范围和来源节点最后修订号；不证明远程 revision 的存在。排除策略不复用仅供 Spec Drift 的 `ignore_paths`。
+`skills/workflow-verification/scripts/verify.py` 的 SVN 知识来源检查改用工作副本本地修订范围和来源节点最后修订号；不证明远程 revision 的存在。目录策略只接入 Spec Drift 的未跟踪项，保留已跟踪项和规格保护；不将目录策略并入可能影响已跟踪项的 `ignore_paths`。
 
 测试接点为真实临时 Git／SVN 仓库和现有捕获／Verify 接口；拦截外部命令拒绝远程调用，观察目录遍历及主体变化。保留现有远程正式验收回归，不用 Mock 代替全部集成证据。
 
