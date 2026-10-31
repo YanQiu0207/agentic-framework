@@ -73,7 +73,7 @@ Task 1 → Task 2
 
 质量门长期合同及 Verify 配置／范围指南已同步（Completed）；同时更新 Skill 入口和配置维护规则的冻结名单，未改变配置维护批准流程。
 
-| 来源 | 长期目标 | 动作 | 状态 | 索引更新 |
+| Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
 | proposal.md | openspec/specs/backend/framework/quality-gates/overview.md | MODIFIED | Completed | 复用既有质量门索引，无新增入口 |
 
