@@ -14,6 +14,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 import verify
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -1372,12 +1374,13 @@ class SvnSupportTest(unittest.TestCase):
             source.parent.mkdir(parents=True)
             source.write_text("print('v1')\n", encoding="utf-8")
             responses = {
-                ("info", "--show-item", "revision", "-r", "10"): (0, "10"),
+                ("info", "--show-item", "revision", "--", ".@"): (0, "20"),
                 (
                     "info",
                     "--show-item",
                     "last-changed-revision",
-                    "src/tool.py",
+                    "--",
+                    "src/tool.py@",
                 ): (0, "5"),
             }
 
@@ -1397,12 +1400,13 @@ class SvnSupportTest(unittest.TestCase):
             source.parent.mkdir(parents=True)
             source.write_text("print('v1')\n", encoding="utf-8")
             responses = {
-                ("info", "--show-item", "revision", "-r", "10"): (0, "10"),
+                ("info", "--show-item", "revision", "--", ".@"): (0, "20"),
                 (
                     "info",
                     "--show-item",
                     "last-changed-revision",
-                    "src/tool.py",
+                    "--",
+                    "src/tool.py@",
                 ): (0, "15"),
             }
 
@@ -1428,7 +1432,7 @@ class SvnSupportTest(unittest.TestCase):
                 {},
             )
         self.assertEqual(1, len(warnings))
-        self.assertIn("不存在", warnings[0])
+        self.assertIn("无法在本地确认", warnings[0])
 
     def test_knowledge_source_warnings_routes_svn_prefix(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1446,12 +1450,13 @@ class SvnSupportTest(unittest.TestCase):
                 encoding="utf-8",
             )
             responses = {
-                ("info", "--show-item", "revision", "-r", "10"): (0, "10"),
+                ("info", "--show-item", "revision", "--", ".@"): (0, "20"),
                 (
                     "info",
                     "--show-item",
                     "last-changed-revision",
-                    "scripts/tool.py",
+                    "--",
+                    "scripts/tool.py@",
                 ): (0, "5"),
             }
 
@@ -1548,6 +1553,265 @@ def _minimal_config() -> str:
             ]
         }
     )
+
+
+@pytest.mark.parametrize(
+    "value", [None, "cache", ["../cache"], ["cache/*"], ["."]]
+)
+def test_config_rejects_unsafe_local_exclude_dirs(value):
+    config = json.loads(_minimal_config())
+    config["local_exclude_dirs"] = value
+    with pytest.raises(SystemExit) as error:
+        verify._validate_config(config, Path("verify.config.json"))
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("revision", ["0", "-1", "HEAD", "BASE", "bad"])
+def test_svn_source_invalid_revision_does_not_query(revision):
+    with mock.patch.object(verify, "_svn_result") as query:
+        warnings = verify._svn_source_warnings(
+            "meta.yaml",
+            "svn:" + revision,
+            ["source.txt"],
+            Path.cwd(),
+            {},
+            {},
+            {},
+        )
+    query.assert_not_called()
+    assert len(warnings) == 1 and "非正整数" in warnings[0]
+
+
+def test_svn_source_future_revision_is_unknown_locally():
+    with mock.patch.object(
+        verify, "_svn_result", return_value=(0, "5")
+    ) as query:
+        warnings = verify._svn_source_warnings(
+            "meta.yaml", "svn:10", ["source.txt"], Path.cwd(), {}, {}, {}
+        )
+    query.assert_called_once_with(
+        Path.cwd(), ["info", "--show-item", "revision", "--", ".@"]
+    )
+    assert len(warnings) == 1 and "无法在本地确认" in warnings[0]
+
+
+def test_standalone_verify_svn_and_knowledge_work_without_server(svn_pair):
+    first, _, server = svn_pair
+    (first / "verify.config.json").write_text(
+        _minimal_config(), encoding="utf-8"
+    )
+    meta = first / "openspec" / "specs" / "demo" / "meta.yaml"
+    meta.parent.mkdir(parents=True)
+    meta.write_text(
+        "service:\n    source_ref: svn:1\n    source_paths:\n        - source.txt\n",
+        encoding="utf-8",
+    )
+    _svn_change_referencing(first, "source.txt")
+    offline = server.with_name("server-offline")
+    server.rename(offline)
+    try:
+        code, report = _run_in_repo(first, [])
+        payload = json.loads(report.read_text(encoding="utf-8"))
+        assert code == 0, payload
+        assert payload["verdict"] == "PASS"
+        assert verify.knowledge_source_warnings(first) == []
+    finally:
+        offline.rename(server)
+
+
+def test_svn_source_paths_are_literal_offline_targets(svn_pair):
+    first, _, server = svn_pair
+    names = ["-rHEAD", "source.txt@HEAD"]
+    for name in names:
+        (first / name).write_text("literal project input", encoding="utf-8")
+    subprocess.run(
+        [
+            "svn",
+            "add",
+            "--non-interactive",
+            "--",
+            *(name + "@" for name in names),
+        ],
+        cwd=first,
+        capture_output=True,
+        check=True,
+        timeout=30,
+    )
+    command(first, "svn", "commit", "-m", "literal names")
+    command(first, "svn", "update")
+    offline = server.with_name("server-offline")
+    server.rename(offline)
+    try:
+        warnings = verify._svn_source_warnings(
+            "meta.yaml", "svn:2", names, first, {}, {}, {}
+        )
+        assert warnings == []
+    finally:
+        offline.rename(server)
+
+
+@pytest.mark.parametrize("backend", ["git", "svn"])
+def test_local_exclusions_skip_only_untracked_spec_drift(request, backend):
+    if backend == "svn":
+        root, _, _ = request.getfixturevalue("svn_pair")
+        argv = []
+    else:
+        root = request.getfixturevalue("repository")
+        argv = ["--diff-base", head(root)]
+    config = json.loads(_minimal_config())
+    config["local_exclude_dirs"] = ["cache"]
+    (root / "verify.config.json").write_text(
+        json.dumps(config), encoding="utf-8"
+    )
+    for directory in (".codex", ".claude", "cache"):
+        (root / directory).mkdir()
+        (root / directory / "local.py").write_text(
+            "local state", encoding="utf-8"
+        )
+    code, report = _run_in_repo(root, argv)
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert code == 0, payload
+    ignored = payload["spec_drift"]["value"]["ignore_sources"]
+    for directory in (".codex", ".claude", "cache"):
+        name = directory if backend == "svn" else directory + "/local.py"
+        assert ignored[name] == ["local_exclude_dirs"]
+    if backend == "svn":
+        command(root, "svn", "add", ".codex")
+    else:
+        command(root, "git", "add", "-f", ".codex/local.py")
+    code, report = _run_in_repo(root, argv)
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert code == 1, payload
+    assert ".codex/local.py" in payload["spec_drift"]["value"]["code_files"]
+    assert (
+        ".codex/local.py" not in payload["spec_drift"]["value"]["ignored_files"]
+    )
+
+
+def test_local_exclusions_keep_spec_drift_refusal(repository, monkeypatch):
+    spec = repository / ".codex" / "proposal.md"
+    spec.parent.mkdir(parents=True)
+    spec.write_text("preserve untracked spec", encoding="utf-8")
+    monkeypatch.chdir(repository)
+    result = verify.evaluate_spec_drift(head(repository), "")
+    assert result.status == "pass"
+    assert ".codex/proposal.md" in result.value["refused_ignores"]
+
+
+@pytest.mark.parametrize(
+    "directory", ["openspec", "OpenSpec/cache", "docs/ADR", "adrs"]
+)
+def test_local_exclusions_cannot_cover_project_specs(repository, directory):
+    config = json.loads(_minimal_config())
+    config["local_exclude_dirs"] = [directory]
+    (repository / "verify.config.json").write_text(
+        json.dumps(config), encoding="utf-8"
+    )
+    with pytest.raises(SystemExit) as error:
+        _run_in_repo(repository, ["--diff-base", head(repository)])
+    assert error.value.code == 2
+
+
+def test_local_directory_exclusion_does_not_hide_regular_code_file(repository):
+    config = json.loads(_minimal_config())
+    config["local_exclude_dirs"] = ["cache.py"]
+    (repository / "verify.config.json").write_text(
+        json.dumps(config), encoding="utf-8"
+    )
+    (repository / "cache.py").write_text("project input", encoding="utf-8")
+    code, report = _run_in_repo(repository, ["--diff-base", head(repository)])
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert code == 1
+    assert "cache.py" in payload["spec_drift"]["value"]["code_files"]
+    assert "cache.py" not in payload["spec_drift"]["value"]["ignored_files"]
+
+
+def test_standalone_verify_rejects_policy_edits_during_checks(repository):
+    config = {
+        "checks": [
+            {
+                "name": "mutate-policy",
+                "type": "exit_code",
+                "command": _python_command(
+                    "import json; from pathlib import Path; "
+                    "p=Path('verify.config.json'); "
+                    "v=json.loads(p.read_text(encoding='utf-8')); "
+                    "v['local_exclude_dirs']=['cache']; "
+                    "p.write_text(json.dumps(v), encoding='utf-8')"
+                ),
+            }
+        ],
+    }
+    (repository / "verify.config.json").write_text(
+        json.dumps(config), encoding="utf-8"
+    )
+    code, report = _run_in_repo(repository, ["--diff-base", head(repository)])
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert code == 2 and payload["verdict"] == "ERROR"
+    assert payload["results"][-1]["name"] == "native-subject"
+    assert "发生变化" in payload["results"][-1]["detail"]
+
+
+def test_local_exclusions_are_frozen_in_baseline(repository):
+    config = json.loads(_minimal_config())
+    config["local_exclude_dirs"] = ["cache"]
+    path = repository / "verify.config.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    baseline = repository / ".agentic-framework" / "verify" / "baseline.json"
+    code, _ = _run_in_repo(repository, ["--save-baseline", str(baseline)])
+    assert code == 0
+    saved = json.loads(baseline.read_text(encoding="utf-8"))
+    assert saved["local_exclude_dirs_snapshot"] == ["cache"]
+    config["local_exclude_dirs"].append("other")
+    path.write_text(json.dumps(config), encoding="utf-8")
+    code, _ = _run_in_repo(repository, ["--baseline", str(baseline)])
+    assert code == 2
+
+
+def test_old_baseline_means_no_custom_local_exclusions(repository):
+    config = json.loads(_minimal_config())
+    path = repository / "verify.config.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    baseline = repository / ".agentic-framework" / "verify" / "baseline.json"
+    code, _ = _run_in_repo(repository, ["--save-baseline", str(baseline)])
+    assert code == 0
+    saved = json.loads(baseline.read_text(encoding="utf-8"))
+    saved.pop("local_exclude_dirs_snapshot")
+    baseline.write_text(json.dumps(saved), encoding="utf-8")
+    code, _ = _run_in_repo(repository, ["--baseline", str(baseline)])
+    assert code == 0
+    config["local_exclude_dirs"] = ["cache"]
+    path.write_text(json.dumps(config), encoding="utf-8")
+    code, _ = _run_in_repo(repository, ["--baseline", str(baseline)])
+    assert code == 2
+
+
+def test_local_exclude_error_utf8_child_under_cp936_parent(repository):
+    config = json.loads(_minimal_config())
+    config["local_exclude_dirs"] = ["../outside"]
+    (repository / "verify.config.json").write_text(
+        json.dumps(config), encoding="utf-8"
+    )
+    source = (
+        "import os, subprocess, sys; "
+        "assert sys.stdout.encoding.lower() in ('cp936', 'gbk'); "
+        "env=os.environ.copy(); "
+        "env.update(PYTHONUTF8='1', PYTHONIOENCODING='utf-8'); "
+        f"r=subprocess.run([sys.executable, {str(Path(verify.__file__).resolve())!r}], "
+        "env=env, capture_output=True, encoding='utf-8', timeout=30); "
+        "assert r.returncode == 2; "
+        "assert 'local_exclude_dirs' in r.stderr and '\u9879\u76ee\u6839' in r.stderr"
+    )
+    env = {**os.environ, "PYTHONUTF8": "0", "PYTHONIOENCODING": "cp936"}
+    result = subprocess.run(
+        [sys.executable, "-c", source],
+        cwd=repository,
+        env=env,
+        capture_output=True,
+        encoding="utf-8",
+        timeout=40,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_standalone_verify_binds_v2_subject(repository):
