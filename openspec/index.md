@@ -15,6 +15,8 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 ## 近期变更
 
+- [2060：SVN 本地验证与本地目录排除](changes/archive/2060-2026-10-31-svn-local-verification/proposal.md)（本地工作副本取证、未版本化工具目录剪枝、配置冻结及未绑定规格拒绝放行；实现和知识已同步）
+
 - [2059：共享条目退役语义与定位链补全](changes/archive/2059-2026-10-26-knowledge-retirement-contracts/proposal.md)（§7.3 退役标记替代物理删除、`business/index.md` 职责与分节-目录映射登记；已实施、Review 通过并同步长期方案）
 
 - [2054：变更调研结论落盘与实现参考传递](changes/2054-research-note-persistence/proposal.md)（调研落盘 `research.md`、任务级「实现参考」字段与编码入口通读接线；进行中）
