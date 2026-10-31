@@ -38,6 +38,7 @@ GENERATED_PREFIXES = (
 )
 CACHE_DIRECTORY_NAMES = ("__pycache__", ".pytest_cache")
 VCS_DIRECTORY_NAMES = (".git", ".svn")
+LOCAL_EXCLUDE_DIRS = (".codex", ".claude")
 TASK_METADATA_FIELDS = ("状态", "attempts", "control_stage")
 
 
@@ -76,6 +77,46 @@ def _path(value: str) -> str:
 
 def _under(value: str, prefix: str) -> bool:
     return value == prefix or value.startswith(prefix + "/")
+
+
+def validate_local_exclude_dirs(value: Any) -> list[str]:
+    """Return root-relative local directories, rejecting unsafe configuration."""
+    if not isinstance(value, list):
+        raise SubjectError("invalid_local_exclude_dirs")
+    paths = set()
+    for item in value:
+        if (
+            not isinstance(item, str)
+            or item != item.strip()
+            or any(char in item for char in "*?[]()")
+        ):
+            raise SubjectError("invalid_local_exclude_dirs")
+        try:
+            path = _path(item)
+        except SubjectError:
+            raise SubjectError("invalid_local_exclude_dirs") from None
+        parts = tuple(part.lower() for part in PurePosixPath(path).parts)
+        if parts[0] == "openspec" or {"adr", "adrs"}.intersection(parts):
+            raise SubjectError("invalid_local_exclude_dirs")
+        paths.add(path)
+    return sorted(paths)
+
+
+def local_directory_prefixes(root: Path, value: Any) -> tuple[str, ...]:
+    """Resolve default/configured local directories, not same-named files."""
+    directories = set(LOCAL_EXCLUDE_DIRS) | set(
+        validate_local_exclude_dirs(value)
+    )
+    return tuple(path for path in sorted(directories) if (root / path).is_dir())
+
+
+def _config_bytes(config: Path) -> Optional[bytes]:
+    try:
+        return config.read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        raise SubjectError("verify_config_read_failed") from None
 
 
 def _classify(value: str) -> str:
@@ -235,6 +276,7 @@ def _entry(
     index_mode: Optional[str],
     limitations: set[str],
     backend: str = "git",
+    local_prefixes: Sequence[str] = (),
 ) -> dict[str, Any]:
     path = root / value
     if backend == "svn" and any(
@@ -259,7 +301,10 @@ def _entry(
             limitations.add("external_symlink:" + value)
         elif not resolved.exists():
             limitations.add("missing_symlink_target:" + value)
-        elif _classify(resolved.relative_to(root).as_posix()) != "input":
+        elif _classify(resolved.relative_to(root).as_posix()) != "input" or any(
+            _under(resolved.relative_to(root).as_posix(), prefix)
+            for prefix in local_prefixes
+        ):
             limitations.add("excluded_symlink_target:" + value)
     elif getattr(info, "st_file_attributes", 0) & 0x400:
         entry["type"] = "reparse-point"
@@ -385,21 +430,41 @@ def capture_subject(
         pass
     if config_relative:
         explicit.add(config_relative)
+    config_content = _config_bytes(config)
+    local_dirs = list(LOCAL_EXCLUDE_DIRS)
+    if config_content is not None:
+        try:
+            configuration = json.loads(config_content.decode("utf-8"))
+        except (UnicodeError, ValueError):
+            raise SubjectError("invalid_verify_config") from None
+        if not isinstance(configuration, dict):
+            raise SubjectError("invalid_verify_config")
+        local_dirs = sorted(
+            set(local_dirs)
+            | set(
+                validate_local_exclude_dirs(
+                    configuration.get("local_exclude_dirs", [])
+                )
+            )
+        )
+    local_prefixes = local_directory_prefixes(root, local_dirs)
+    excluded_prefixes = REPORT_PREFIXES + GENERATED_PREFIXES + local_prefixes
     if workspace["backend"] == "svn":
         # Root/properties/nodes were queried above. Reuse this capture's facts;
         # querying the entire WC twice adds latency and no atomicity guarantee.
         facts = vcs._svn_capture(
             workspace,
             base,
-            REPORT_PREFIXES + GENERATED_PREFIXES,
+            excluded_prefixes,
             CACHE_DIRECTORY_NAMES + VCS_DIRECTORY_NAMES,
+            local_only=True,
         )
     else:
         facts = vcs.capture_subject(
             path,
             base,
             backend,
-            excluded_prefixes=REPORT_PREFIXES + GENERATED_PREFIXES,
+            excluded_prefixes=excluded_prefixes,
             excluded_directory_names=CACHE_DIRECTORY_NAMES
             + VCS_DIRECTORY_NAMES,
             additional_paths=sorted(explicit),
@@ -472,6 +537,7 @@ def capture_subject(
             modes.get(value),
             limitations,
             facts["backend"],
+            local_prefixes,
         )
         if facts["backend"] == "svn" and "svn:special" in entry["properties"]:
             limitations.add("svn_special_representation_unsupported")
@@ -498,6 +564,8 @@ def capture_subject(
         ):
             limitations.add("verify_config_missing")
         entries.append(entry)
+    if _config_bytes(config) != config_content:
+        raise SubjectError("inputs_changed_during_capture")
     # HEAD/index records are intentionally absent; base union keeps deletion
     # tombstones stable through git add/rm/commit under the same fixed base.
     policy = {
@@ -510,6 +578,15 @@ def capture_subject(
         "required_inputs": required,
         "external_inputs": sorted(set(external_inputs)),
         "config_path": config_relative,
+        "config_sha256": (
+            hashlib.sha256(config_content).hexdigest()
+            if config_content is not None
+            else None
+        ),
+        "local_exclude_dirs": sorted(local_dirs),
+        "base_source": (
+            "working_copy" if facts["backend"] == "svn" else "fixed_commit"
+        ),
         "coverage": "conservative_project_inputs",
     }
     payload = {

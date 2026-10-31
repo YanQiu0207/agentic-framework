@@ -396,10 +396,23 @@ def _svn_capture(
     base: str,
     prefixes: Sequence[str],
     directory_names: Sequence[str],
+    *,
+    local_only: bool = False,
 ) -> dict[str, Any]:
     root = Path(facts["root"])
     revision = _svn_revision(base)
-    base_files, base_properties = _svn_tree(root, facts, revision)
+    if local_only:
+        if facts["base"] != "svn:r" + str(revision):
+            raise VcsError("revision_mismatch", "svn_local_subject")
+        # WC nodes retain scheduled deletions without a remote tree query.
+        base_files = [
+            {"path": node["path"], "kind": node["kind"], "mode": node["kind"]}
+            for node in facts["nodes"]
+            if node["revision"] is not None and node["schedule"] != "add"
+        ]
+        base_properties = {}
+    else:
+        base_files, base_properties = _svn_tree(root, facts, revision)
     facts["base"] = "svn:r" + str(revision)
     if any(
         node["revision"] != revision

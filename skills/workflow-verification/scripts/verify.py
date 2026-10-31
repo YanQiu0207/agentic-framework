@@ -32,8 +32,10 @@ from __future__ import annotations
 import argparse
 import datetime
 import fnmatch
+import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -53,6 +55,8 @@ from native_delivery import validate_verify_report as validate_native_verify_rep
 from native_subject import SubjectError
 from native_subject import capture_subject as capture_native_subject
 from native_subject import compare_subjects as compare_native_subjects
+from native_subject import local_directory_prefixes
+from native_subject import validate_local_exclude_dirs
 from vcs import VcsError
 from vcs import collect_changes
 from vcs import inspect_workspace
@@ -492,6 +496,7 @@ def evaluate_spec_drift(
     config_patterns: Sequence[str] = (),
     baseline_paths: Sequence[str] = (),
     vcs_backend: str | None = None,
+    local_directories: list[str] | None = None,
 ) -> CheckResult:
     """Require an explicit reason when code changed but specs/tasks/ADR did not.
 
@@ -501,6 +506,7 @@ def evaluate_spec_drift(
     - ``baseline_paths``: exact file paths from the baseline changed-files
       snapshot (S0 — pre-existing local changes), matched by set membership
       (NOT glob, so file names containing ``*?[`` are handled literally).
+    - ``local_directories``: local directory exclusions, untracked files only.
 
     ``openspec/`` spec/tasks files are never ignored — doing so would let spec
     drift be silently bypassed; they are recorded in ``refused_ignores`` and
@@ -521,7 +527,20 @@ def evaluate_spec_drift(
     refused_ignores: list[str] = []
     ignore_sources: dict[str, list[str]] = {}
     baseline_set = set(baseline_paths)
-    if cli_patterns or config_patterns or baseline_set:
+    root = Path(
+        _WORKSPACE_FACTS_CACHE[0].get("root", Path.cwd())
+        if _WORKSPACE_FACTS_CACHE else Path.cwd()
+    )
+    try:
+        local_prefixes = local_directory_prefixes(
+            root, [] if local_directories is None else local_directories
+        )
+    except SubjectError:
+        return CheckResult(
+            "Z-spec-drift", "spec_drift", "error", "local_exclude_dirs 配置非法"
+        )
+    untracked_set = set(untracked) - set(tracked)
+    if cli_patterns or config_patterns or baseline_set or local_prefixes:
         effective: list[str] = []
         for path in changed:
             sources: list[str] = []
@@ -531,6 +550,8 @@ def evaluate_spec_drift(
                 sources.append("cli")
             if _glob_match(path, config_patterns):
                 sources.append("config")
+            if path in untracked_set and _glob_match(path, local_prefixes):
+                sources.append("local_exclude_dirs")
             if sources:
                 if _is_spec_file(path):
                     # Safety rail: never ignore openspec/ spec/tasks files.
@@ -567,6 +588,7 @@ def evaluate_spec_drift(
             "cli": list(cli_patterns),
             "config": list(config_patterns),
             "baseline": list(baseline_paths),
+            "local_exclude_dirs": list(local_prefixes),
         },
     }
     if not code_files:
@@ -673,8 +695,8 @@ def _git_result(repo: Path, args: list[str]) -> tuple[int, str]:
 def _svn_result(repo: Path, args: list[str]) -> tuple[int, str]:
     """Run svn in the working copy rooted at repo; return (returncode, stdout).
 
-    带超时：`svn info -r <rev>` 等查询可触网，防止网络抖动永久阻塞；
-    超时 fail-closed 返回 exit=1 + 空 stdout，走「来源路径没有可核对的 SVN 修订号」告警。
+    本地查询仍带超时；失败返回 exit=1 + 空 stdout，
+    由调用方报告本地修订信息无法核对，不查询远程 revision。
     """
     try:
         result = subprocess.run(
@@ -751,30 +773,38 @@ def _svn_source_warnings(
     latest_revs: dict[str, tuple[int, str]],
     ancestry: dict[tuple[str, str], bool],
 ) -> list[str]:
-    """Validate an `svn:<rev>` source_ref: revision exists and each source_path's
-    last-changed revision is <= the ref revision.
+    """Check SVN source freshness against locally available WC revisions only.
 
     Uses `svn info --show-item last-changed-revision` (SVN 1.9+), consistent with
     the framework's vcs_ref convention for SVN knowledge meta files.
 
-    `rev` 必须为正整数 revision；symbolic revision（如 `HEAD`/`BASE`）不是合法 vcs_ref
-    值，`int()` 失败时 fail-closed 报「非数字 revision」。
+    `rev` 必须为正整数 revision；超过本地可见修订时告警，
+    不用远程存在性查询把本地 Verify 变为联网操作。
     """
     warnings: list[str] = []
     rev = source_ref.removeprefix("svn:").strip()
-    if rev not in valid_revs:
-        code, _ = _svn_result(repo, ["info", "--show-item", "revision", "-r", rev])
-        valid_revs[rev] = code == 0
-    if not valid_revs[rev]:
-        warnings.append(f"{relative_meta} 的 source_ref 不存在：{source_ref}")
-        return warnings
-    if not source_paths:
-        warnings.append(f"{relative_meta} 的 {source_ref} 缺少 source_paths")
-        return warnings
+    if not re.fullmatch(r"[1-9][0-9]*", rev):
+        return [
+            f"{relative_meta} 的 source_ref 非正整数 revision：{source_ref}"
+        ]
     try:
         ref_rev_num = int(rev)
     except ValueError:
-        warnings.append(f"{relative_meta} 的 source_ref 非数字 revision：{source_ref}")
+        return [f"{relative_meta} 的 source_ref 无法在本地确认：{source_ref}"]
+    if rev not in valid_revs:
+        code, local_rev = _svn_result(
+            repo, ["info", "--show-item", "revision", "--", ".@"]
+        )
+        valid_revs[rev] = (
+            code == 0 and local_rev.isdigit() and ref_rev_num <= int(local_rev)
+        )
+    if not valid_revs[rev]:
+        warnings.append(
+            f"{relative_meta} 的 source_ref 无法在本地确认：{source_ref}"
+        )
+        return warnings
+    if not source_paths:
+        warnings.append(f"{relative_meta} 的 {source_ref} 缺少 source_paths")
         return warnings
     for source_path in source_paths:
         candidate = (repo / source_path).resolve()
@@ -783,7 +813,14 @@ def _svn_source_warnings(
             continue
         if source_path not in latest_revs:
             latest_revs[source_path] = _svn_result(
-                repo, ["info", "--show-item", "last-changed-revision", source_path]
+                repo,
+                [
+                    "info",
+                    "--show-item",
+                    "last-changed-revision",
+                    "--",
+                    source_path + "@",
+                ],
             )
         code, latest = latest_revs[source_path]
         if code != 0 or not latest:
@@ -1116,6 +1153,16 @@ def _validate_config(config: dict, path: Path) -> None:
         )
         sys.exit(2)
 
+    try:
+        validate_local_exclude_dirs(config.get("local_exclude_dirs", []))
+    except SubjectError:
+        print(
+            f"[verify] local_exclude_dirs 必须为项目根相对目录列表，"
+            f"不能含根路径、越界路径、通配符或规格目录（{path}）。",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
 
 _ALLOWED_TYPES = {"exit_code", "forbid_pattern", "count"}
 _ALLOWED_METRICS = {"line_count", "stdout_int"}
@@ -1220,6 +1267,9 @@ def cmd_save_baseline(
         "checks": {},
         "config_snapshot": _config_snapshot(config),
         "ignore_paths_snapshot": list(config.get("ignore_paths", [])),
+        "local_exclude_dirs_snapshot": validate_local_exclude_dirs(
+            config.get("local_exclude_dirs", [])
+        ),
     }
     _, tracked_s0, untracked_s0, s0_error = _changed_files(diff_base, vcs_backend)
     if s0_error:
@@ -1335,6 +1385,34 @@ def _capture_verify_subject(
         config_path=config_path,
         backend=facts["backend"],
     )
+
+
+def _config_matches_subject(
+    config: dict, config_path: Path | None, subject: dict[str, Any]
+) -> bool:
+    """Require executed configuration and captured policy to describe one file."""
+    path = (
+        config_path if config_path is not None else Path("verify.config.json")
+    )
+    try:
+        try:
+            content = path.read_bytes()
+        except FileNotFoundError:
+            content = None
+        digest = (
+            hashlib.sha256(content).hexdigest() if content is not None else None
+        )
+        loaded = (
+            json.loads(content.decode("utf-8"))
+            if content is not None
+            else {"checks": []}
+        )
+        return (
+            digest == subject["coverage_policy"]["config_sha256"]
+            and loaded == config
+        )
+    except (KeyError, OSError, UnicodeError, ValueError, TypeError):
+        return False
 
 
 def _subject_consistency_result(
@@ -1503,6 +1581,26 @@ def cmd_verify(
             )
             return 2
 
+        # Older baselines predate configurable local exclusions and mean [].
+        try:
+            stored_local_dirs = validate_local_exclude_dirs(
+                raw.get("local_exclude_dirs_snapshot", [])
+            )
+            current_local_dirs = validate_local_exclude_dirs(
+                config.get("local_exclude_dirs", [])
+            )
+        except SubjectError:
+            print(
+                "[verify] local_exclude_dirs 基线或配置非法。", file=sys.stderr
+            )
+            return 2
+        if current_local_dirs != stored_local_dirs:
+            print(
+                "[verify] local_exclude_dirs 配置与基线不一致，不能改变验证范围。",
+                file=sys.stderr,
+            )
+            return 2
+
         # changed_files_snapshot (S0)：基线快照差集忽略源的依据。旧基线缺字段 →
         # fail-closed，要求重采基线，不静默放过。
         baseline_snapshot = raw.get("changed_files_snapshot")
@@ -1533,6 +1631,13 @@ def cmd_verify(
             )
             return 2
 
+        if not _config_matches_subject(config, config_path, subject):
+            print(
+                "[verify] 配置在加载与主体捕获之间发生变化，拒绝执行检查。",
+                file=sys.stderr,
+            )
+            return 2
+
     config_paths = config.get("ignore_paths", [])
     results: list[CheckResult] = [
         evaluate_spec_drift(
@@ -1542,6 +1647,7 @@ def cmd_verify(
             config_paths,
             baseline_snapshot,
             vcs_backend,
+            local_directories=config.get("local_exclude_dirs", []),
         )
     ]
     for check in config.get("checks", []):

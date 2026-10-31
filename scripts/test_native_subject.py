@@ -1,6 +1,7 @@
 """Real repository coverage, content changes and fixed-base stability tests."""
 
 import copy
+import json
 import os
 from pathlib import Path
 
@@ -19,6 +20,236 @@ def write(root, name, text):
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(text, encoding="utf-8")
     return target
+
+
+@pytest.fixture(params=["git", "svn"])
+def local_workspace(request):
+    if request.param == "svn":
+        root, _, _ = request.getfixturevalue("svn_pair")
+        return root, "svn:r1", {"backend": "svn"}
+    root = request.getfixturevalue("repository")
+    return root, head(root), {}
+
+
+def test_local_directories_pruned_but_other_dot_inputs_survive(
+    local_workspace, monkeypatch
+):
+    root, base, kwargs = local_workspace
+    write(
+        root,
+        "verify.config.json",
+        json.dumps(
+            {
+                "local_exclude_dirs": ["local/cache/", "local\\cache"],
+            }
+        ),
+    )
+    for name in (".codex/a.py", ".claude/a.py", "local/cache/a.py"):
+        write(root, name, "local state")
+    keep = write(root, ".github/workflow.yml", "project input")
+    walked = []
+    original = os.walk
+
+    def walk(*args, **options):
+        for directory, names, files in original(*args, **options):
+            walked.append(Path(directory).relative_to(root).as_posix())
+            yield directory, names, files
+
+    monkeypatch.setattr(os, "walk", walk)
+    before = capture(root, base, **kwargs)
+    assert before["complete"], before["limitations"]
+    assert before["coverage_policy"]["local_exclude_dirs"] == [
+        ".claude",
+        ".codex",
+        "local/cache",
+    ]
+    assert not {".codex", ".claude", "local/cache"}.intersection(walked)
+    for name in (".codex/a.py", ".claude/a.py", "local/cache/a.py"):
+        write(root, name, "changed state")
+    assert capture(root, base, **kwargs)["subject_id"] == before["subject_id"]
+    keep.write_text("changed input", encoding="utf-8")
+    assert capture(root, base, **kwargs)["subject_id"] != before["subject_id"]
+
+
+@pytest.mark.parametrize("directory", [".codex", "local-cache"])
+def test_local_directory_tracked_files_remain_inputs(
+    local_workspace, directory
+):
+    root, base, kwargs = local_workspace
+    write(root, "verify.config.json", '{"local_exclude_dirs":["local-cache"]}')
+    target = write(root, directory + "/input.py", "tracked input")
+    if kwargs:
+        command(root, "svn", "add", directory)
+    else:
+        command(root, "git", "add", "-f", directory)
+    before = capture(root, base, **kwargs)
+    assert before["complete"], before["limitations"]
+    assert directory + "/input.py" in {e["path"] for e in before["entries"]}
+    target.write_text("changed tracked input", encoding="utf-8")
+    assert capture(root, base, **kwargs)["subject_id"] != before["subject_id"]
+
+
+def test_local_directory_explicit_tree_remains_input(local_workspace):
+    root, base, kwargs = local_workspace
+    target = write(root, ".claude/tree/input.py", "required input")
+    required = [".claude"]
+    before = capture(root, base, required_inputs=required, **kwargs)
+    assert before["complete"], before["limitations"]
+    assert ".claude/tree/input.py" in {e["path"] for e in before["entries"]}
+    target.write_text("changed required input", encoding="utf-8")
+    after = capture(root, base, required_inputs=required, **kwargs)
+    assert after["subject_id"] != before["subject_id"]
+
+
+def test_local_directory_policy_does_not_hide_same_named_file(local_workspace):
+    root, base, kwargs = local_workspace
+    target = write(root, ".codex", "ordinary file")
+    before = capture(root, base, **kwargs)
+    assert ".codex" in {e["path"] for e in before["entries"]}
+    target.write_text("changed ordinary file", encoding="utf-8")
+    assert capture(root, base, **kwargs)["subject_id"] != before["subject_id"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        ".codex",
+        [None],
+        [""],
+        ["."],
+        ["/outside"],
+        ["../outside"],
+        ["C:/outside"],
+        ["cache/**"],
+        ["a\\..\\b"],
+        [" a"],
+        ["openspec"],
+        ["OpenSpec/cache"],
+        ["docs/ADR"],
+    ],
+)
+def test_local_exclude_dirs_reject_invalid_config(repository, value):
+    write(
+        root=repository,
+        name="verify.config.json",
+        text=json.dumps(
+            {
+                "local_exclude_dirs": value,
+            }
+        ),
+    )
+    with pytest.raises(
+        native_subject.SubjectError, match="invalid_local_exclude_dirs"
+    ):
+        capture(repository)
+
+
+def test_local_policy_and_config_inside_excluded_directory_are_bound(
+    repository,
+):
+    config = write(
+        repository, ".codex/verify.json", '{"local_exclude_dirs":[]}'
+    )
+    before = capture(repository, config_path=config)
+    assert before["complete"]
+    config.write_text('{"local_exclude_dirs":["other"]}', encoding="utf-8")
+    after = capture(repository, config_path=config)
+    assert after["subject_id"] != before["subject_id"]
+    assert after["coverage_policy"]["local_exclude_dirs"] == [
+        ".claude",
+        ".codex",
+        "other",
+    ]
+
+
+def test_config_cannot_change_between_policy_read_and_capture(
+    repository, monkeypatch
+):
+    config = write(
+        repository, "verify.config.json", '{"local_exclude_dirs":[]}'
+    )
+    original = native_subject._entry
+
+    def changing_entry(*args, **kwargs):
+        config.write_text('{"local_exclude_dirs":["source"]}', encoding="utf-8")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(native_subject, "_entry", changing_entry)
+    with pytest.raises(
+        native_subject.SubjectError, match="inputs_changed_during_capture"
+    ):
+        capture(repository)
+
+
+def test_symlink_into_local_excluded_directory_is_not_complete(repository):
+    write(repository, ".codex/input.py", "excluded target")
+    try:
+        (repository / "source.py").symlink_to(".codex/input.py")
+    except OSError as error:
+        pytest.fail("Symlink fixture unavailable: " + type(error).__name__)
+    result = capture(repository)
+    assert not result["complete"]
+    assert "excluded_symlink_target:source.py" in result["limitations"]
+
+
+def test_svn_native_capture_uses_only_local_nodes_and_keeps_deletions(
+    svn_pair, monkeypatch
+):
+    first, _, server = svn_pair
+    write(first, "tree/old.py", "base content")
+    command(first, "svn", "add", "tree")
+    command(first, "svn", "commit", "-m", "tree")
+    command(first, "svn", "update")
+    before = capture(first, "svn:r2", backend="svn")
+    command(first, "svn", "delete", "tree")
+    offline = server.with_name("server-offline")
+    server.rename(offline)
+    original = vcs._run
+
+    def local_query(root, args, data=None):
+        if args[0] == "svn":
+            assert args[1] in ("info", "status", "proplist")
+            assert "--revision" not in args and "-r" not in args
+            assert not any("://" in value for value in args)
+        return original(root, args, data)
+
+    monkeypatch.setattr(vcs, "_run", local_query)
+    try:
+        after = capture(first, "svn:r2", backend="svn")
+        assert after["complete"], after["limitations"]
+        assert after["subject_id"] != before["subject_id"]
+        entries = {e["path"]: e for e in after["entries"]}
+        assert (
+            entries["tree"]["type"]
+            == entries["tree/old.py"]["type"]
+            == "missing"
+        )
+        assert after["coverage_policy"]["base_source"] == "working_copy"
+        write(first, "temporary.py", "new content")
+        command(first, "svn", "add", "temporary.py")
+        command(first, "svn", "delete", "--force", "temporary.py")
+        assert (
+            capture(first, "svn:r2", backend="svn")["subject_id"]
+            == after["subject_id"]
+        )
+        with pytest.raises(vcs.VcsError, match="revision_mismatch"):
+            capture(first, "svn:r1", backend="svn")
+    finally:
+        offline.rename(server)
+
+
+def test_svn_replaced_directory_cannot_silently_drop_base_inputs(svn_pair):
+    first, _, _ = svn_pair
+    command(first, "svn", "delete", "empty")
+    write(first, "empty/new.py", "replacement input")
+    command(first, "svn", "add", "empty")
+    try:
+        result = capture(first, "svn:r1", backend="svn")
+    except vcs.VcsError as error:
+        assert error.code == "parse_error"
+    else:
+        assert not result["complete"]
 
 
 def test_actual_content_and_config_changes(repository):
