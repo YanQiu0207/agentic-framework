@@ -45,7 +45,7 @@ Task 1 → Task 2
 ### 任务 2：[ ] 集成验证与合同同步
 - 状态：进行中
 - attempts：0
-- control_stage：running
+- control_stage：quality_passed
 - depends_on: Task 1
 - review_profile: strict
 - 文档映射：proposal.md §3、§4
