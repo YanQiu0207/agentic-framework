@@ -15,9 +15,9 @@
 - 现有 `verify.config.json` 和改动前基线均存在；缺配置或用户已选择跳过时，不得借此创建配置。
 - 新入口来自本次实现的仓库证据；命令在写入前已独立试运行成功，且不访问真实外部资源、不需要凭证、不修改外部状态。
 - 追加的检查使用唯一 `name`，显式设为 `baseline_aware: false`，并提供非空 `_note` 说明新入口及试运行证据；Verify 在执行前校验这两项。
-- 不得修改或删除既有检查、`ignore_paths`，不得重采基线，也不得把任何既有检查改为非基线模式。
+- 不得修改或删除既有检查、`ignore_paths`、`local_exclude_dirs`，不得重采基线，也不得把任何既有检查改为非基线模式。
 
-追加后仍须带原基线运行 Verify。新检查按绝对模式再次执行；新增检查若不是显式 `baseline_aware: false`，或缺少非空 `_note`，Verify 会在执行前报 ERROR，不属于本例外。`ignore_paths` 同样被冻结；旧基线缺少其快照时，必须先在配置维护模式重建基线。
+追加后仍须带原基线运行 Verify。新检查按绝对模式再次执行；新增检查若不是显式 `baseline_aware: false`，或缺少非空 `_note`，Verify 会在执行前报 ERROR，不属于本例外。`ignore_paths` 同样被冻结；旧基线缺少其快照时，必须先在配置维护模式重建基线。`local_exclude_dirs` 的冻结与旧基线兼容规则见 [配置指南](config-guide.md#本地目录排除local_exclude_dirs)。
 
 - 生成只依据仓库证据（CI、项目清单、构建入口、测试与 Lint 配置、`AGENTS.md` / Spec / ADR），无证据不更新，无变化保持字节级不变。
 - 至少包含一项试运行成功的编译（构建）或测试检查；仓库没有可安全执行的入口 → 返回 ERROR，不生成占位命令。
