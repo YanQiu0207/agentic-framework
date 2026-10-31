@@ -56,7 +56,7 @@ Task 1 → Task 2
 - verification:
     - [ ] 使用说明与真实实现一致，中文 Markdown 按 md-zh 自检。
     - [ ] 集成完整 Verify 通过。
-    - [ ] 独立 strict Review 及交付门留存实际结果。
+    - [ ] `git diff --check` 及任务依赖校验通过，交付级 Review 和交付门由主会话随后执行。
 - artifacts:
     - 更新后的指南、长期知识及验证／审查报告。
 
