@@ -24,6 +24,8 @@ Runtime 的路由与初始化必须先通过 `runtime` 能力检查；缺包或�
 
 standalone Verify 顶层必须具有 `schema_version: 2` 和 `subject_id`（`sha256:` 加 64 位小写十六进制）：检查前后核对同一内容主体，检查期间输入变化或覆盖不完整时结果无效（不产生 PASS）。Native Review v2 使用原六字段加版本和 subject；`strict` 额外必填 `implementer_actor`、`judge_actor`、`independence_basis`（非空且两参与者不同），standard/lightweight 不允许独立性字段；PASS 必须 P0/P1=0。声明只核验流程分离，不保证强身份隔离或语义正确性。subject 的固定检查基准由交付门显式 CLI／冻结 baseline 与公共固定分类算法提供；报告不能自选任意排除策略，不能给旧报告补造主体。v1 报告使用旧读路径，新完成证据（`quality_passed`、Native 交付门）不接受 v1；Runtime v1 Schema、字段语义及读取入口保持。
 
+change 2060 起，`scripts/native_subject.py` 的 SVN Native 主体以本地工作副本为边界，不查询远程基准树；`scripts/vcs.py` 的正式 revision 远程验收合同不变。默认本地目录和受信配置 `local_exclude_dirs` 只排除未版本化输入，已跟踪／显式必需输入仍覆盖；`skills/workflow-verification/scripts/verify.py` 的 Spec Drift 仅对未跟踪项应用同一规则。配置原始摘要、目录策略和基准来源进入主体，执行配置必须与捕获配置一致，自定义排除在基线中冻结。旧报告须重新取证，不能沿用旧指纹。规则与边界见 [本地 Verify 与目录排除](../../../../../skills/workflow-verification/reference/spec-drift-and-scope.md#本地-verify-与目录排除)，字段格式见 [配置指南](../../../../../skills/workflow-verification/reference/config-guide.md#本地目录排除local_exclude_dirs)。
+
 Native Verdict v2 由 `native_delivery.build_verdict` 从真实已校验的 Verify/Review 与当前 subject 构造，要求三者一致、两报告 PASS、Review scope=integration；产物保留路径引用及 canonical JSON SHA256 摘要，不内嵌重复报告。四种终态：
 
 - Git `native-delivery-pass` 必填 git_clean=true 和 40 位 commit_sha；SVN 字段不允许混入。

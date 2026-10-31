@@ -21,10 +21,10 @@
 
 1. 先在当前工作区独立试运行新入口并成功。
 2. 只追加唯一名称的新检查，显式写 `baseline_aware: false`，并提供非空 `_note` 记录入口来源和试运行证据；Verify 会在执行前校验这两项。
-3. 不修改或删除既有检查、`ignore_paths`，不重采基线。
+3. 不修改或删除既有检查、`ignore_paths`、`local_exclude_dirs`，不重采基线。
 4. 继续使用改动前基线运行 Verify；新增检查按绝对模式执行。
 
-缺少配置、用户已选择跳过，或新入口需要真实外部资源、凭证或会修改外部状态时，不适用该例外。新增检查不是显式 `baseline_aware: false` 或缺少非空 `_note` 时，Verify 必须在执行前报 ERROR。`ignore_paths` 同样冻结；旧基线缺少其快照时，必须先在本配置维护模式重建基线。
+缺少配置、用户已选择跳过，或新入口需要真实外部资源、凭证或会修改外部状态时，不适用该例外。新增检查不是显式 `baseline_aware: false` 或缺少非空 `_note` 时，Verify 必须在执行前报 ERROR。`ignore_paths` 同样冻结；旧基线缺少其快照时，必须先在本配置维护模式重建基线。`local_exclude_dirs` 的冻结与旧基线兼容规则见 [配置指南](config-guide.md#本地目录排除local_exclude_dirs)。
 
 ## 仓库证据
 

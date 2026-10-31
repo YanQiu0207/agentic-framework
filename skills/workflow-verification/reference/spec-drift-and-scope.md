@@ -16,7 +16,7 @@
 - 改了代码文件，且无法证明相关活跃 Change（`proposal.md` / `design.md` / `ui-spec.md` / `tasks.md` / `specs/` 下 Delta）或长期 `openspec/specs/`、`openspec/issues/`、ADR 已按知识影响更新 → FAIL。
 - 相关性只做机械判定：规格类文件（含 ADR）正文出现改动代码路径；判不出相关时必须传 `--spec-drift-reason "<原因>"`。旧 `docs/design-docs/` 只作为迁移输入，不作为新改动的规格写入目标。
 - 标准 / 下放流程（Git 模式）必须在 Phase 0 记录 `base_sha`，后续验证显式传 `--diff-base <base_sha>`；禁止在已提交 / 已合并后的 clean 工作区裸用默认 `HEAD` 作为基准。SVN 模式无此要求，spec drift 直接读工作副本本地改动。
-- 知识源新鲜度：`meta.yaml` 的 `source_ref` 校验 `git:<sha>`（commit 存在且来源路径最后提交是其祖先）与 `svn:<rev>`（revision 存在且来源路径最后修订号 `<= ref rev`，需 SVN 1.9+ 的 `--show-item`）两种形式，其余前缀报「不可解析」。
+- 知识源新鲜度：`meta.yaml` 的 `source_ref` 支持 `git:<sha>`（commit 存在且来源路径最后提交是其祖先）与 `svn:<rev>`（正整数，不超过工作副本根的本地 revision，且来源路径最后修订号 `<= ref rev`，需 SVN 1.9+ 的 `--show-item`）。SVN 仅核对本地新鲜度，无法本地确认时告警，不查询或证明远程 revision 存在；其余前缀报「不可解析」。
 - 报告写入 `.agentic-framework/verify/report.json` 的 `spec_drift` 字段，交付报告必须引用。
 
 ### 忽略指定路径（不卷入 spec drift）
@@ -38,6 +38,16 @@
 python <skill-dir>/scripts/verify.py \
   --spec-drift-reason "仅修复脚本输出编码，不改变需求、任务拆解或架构决策"
 ```
+
+## 本地 Verify 与目录排除
+
+SVN Native 内容主体由 `scripts/native_subject.py` 使用本地工作副本节点、状态、属性及文件内容生成；不为本地 Verify 查询远程基准目录树或属性。计划删除的基准节点仍被覆盖，传入基准必须与工作副本根 revision 一致；混合修订、switched、sparse、externals 等不完整覆盖仍失败关闭。Git 继续使用固定 commit 基准。
+
+默认本地目录和 `verify.config.json` 的 `local_exclude_dirs` 只剪除未版本化输入，不跳过已跟踪或显式必需输入。配置格式、默认目录及基线冻结规则见 [配置指南](config-guide.md#本地目录排除local_exclude_dirs)。Spec Drift 被剔除的未跟踪路径记入 `ignored_files`，其 `ignore_sources` 包含 `local_exclude_dirs`；已跟踪项不受此规则影响，规格仍受 `refused_ignores` 保护。目录排除不等于仅做 Spec Drift 归类的 `--ignore`／`ignore_paths`，也不改变 Scoped Delivery 的残留快照合同。
+
+共享主体的 `coverage_policy` 记录排除目录、配置原始内容摘要和基准来源（SVN 为 `working_copy`，Git 为 `fixed_commit`）。报告不能自行选择排除规则；策略升级后旧 Verify／Review 报告须按当前主体重新取证。
+
+本地有效输入仍需读取，检查后还要重新捕获以核对一致性；公共 VCS 子命令仍有 30 秒超时，这不是整个 Verify 的耗时上限，也不保证任意大仓库能在 30 秒内完成。项目自定义命令若访问网络，仍按其实际命令执行。正式提交后的 `vcs.verify_delivery` 继续远程核验确切 revision；本地 PASS 不等于远程提交验收。
 
 ## Scoped Delivery 残留快照（显式模式）
 

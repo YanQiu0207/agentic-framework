@@ -80,7 +80,7 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 
 检查仓库证据 → 生成或刷新 → 校验结构 → 试运行 → 确认弱化类变更 → 写入版本控制。
 
-实现期间冻结既有检查、`ignore_paths` 和基线。本次实现产生新检查入口时，追加前先读取 [配置写入规则](reference/config-write-policy.md)，确认入口已独立试运行，并使用唯一 `name`、非空 `_note` 和显式 `baseline_aware: false`。追加后使用原基线验证。
+实现期间冻结既有检查、`ignore_paths`、`local_exclude_dirs` 和基线。本地目录排除的格式、保护与旧基线兼容规则见 [配置指南](reference/config-guide.md#本地目录排除local_exclude_dirs)。本次实现产生新检查入口时，追加前先读取 [配置写入规则](reference/config-write-policy.md)，确认入口已独立试运行，并使用唯一 `name`、非空 `_note` 和显式 `baseline_aware: false`。追加后使用原基线验证。
 
 涉及外部 PR 或不可信分支时，先按信任边界确认配置，不自动进入维护模式。
 
@@ -113,7 +113,7 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 | 文档同步 | 改代码但不改规格 / 任务 / ADR 时，必须写明无需更新原因 |
 | 无侵入 | 无 config 时仅运行内置门禁，不跑项目自定义命令 |
 | 配置保护 | 不得为过门删测试 / 放宽配置 |
-| 写入受限 | 既有检查和 `ignore_paths` 在实现期冻结；只有已试运行、带非空 `_note` 的新入口可追加显式 `baseline_aware: false` 检查，验证失败后不得重采基线 |
+| 写入受限 | 既有检查、`ignore_paths` 和 `local_exclude_dirs` 在实现期冻结；只有已试运行、带非空 `_note` 的新入口可追加显式 `baseline_aware: false` 检查，验证失败后不得重采基线 |
 
 ## 信任边界
 
