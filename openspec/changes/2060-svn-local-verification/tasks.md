@@ -25,7 +25,7 @@ Task 1 → Task 2
 ### 任务 1：[ ] 实现本地捕获与目录排除
 - 状态：进行中
 - attempts：0
-- control_stage：running
+- control_stage：quality_passed
 - depends_on: []
 - review_profile: strict
 - 文档映射：proposal.md §1、§2
