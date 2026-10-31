@@ -819,7 +819,7 @@ def _svn_source_warnings(
                     "--show-item",
                     "last-changed-revision",
                     "--",
-                    source_path + "@",
+                    str(candidate) + "@",
                 ],
             )
         code, latest = latest_revs[source_path]
@@ -1650,6 +1650,20 @@ def cmd_verify(
             local_directories=config.get("local_exclude_dirs", []),
         )
     ]
+    drift = results[0]
+    if subject is not None and isinstance(drift.value, dict):
+        bound_paths = {
+            entry["path"]
+            for entry in subject["entries"]
+            if entry["type"] in ("file", "symlink")
+        }
+        unbound_specs = sorted(
+            set(drift.value.get("related_spec_files", [])) - bound_paths
+        )
+        if unbound_specs:
+            drift.status = "error"
+            drift.detail = "用于放行的规格未纳入内容主体：" + "、".join(unbound_specs)
+            drift.value["unbound_spec_files"] = unbound_specs
     for check in config.get("checks", []):
         name = check.get("name", "<unnamed>")
         base_entry = None

@@ -36,6 +36,7 @@ _STABLE_CAPTURE = {
     "subject_id": "sha256:" + "1" * 64,
     "complete": True,
     "limitations": [],
+    "entries": [],
 }
 _STABLE_COMPARISON = {
     "unchanged": True,
@@ -1381,7 +1382,7 @@ class SvnSupportTest(unittest.TestCase):
                     "--show-item",
                     "last-changed-revision",
                     "--",
-                    "src/tool.py@",
+                    str(source.resolve()) + "@",
                 ): (0, "5"),
             }
 
@@ -1407,7 +1408,7 @@ class SvnSupportTest(unittest.TestCase):
                     "--show-item",
                     "last-changed-revision",
                     "--",
-                    "src/tool.py@",
+                    str(source.resolve()) + "@",
                 ): (0, "15"),
             }
 
@@ -1457,7 +1458,7 @@ class SvnSupportTest(unittest.TestCase):
                     "--show-item",
                     "last-changed-revision",
                     "--",
-                    "scripts/tool.py@",
+                    str(source.resolve()) + "@",
                 ): (0, "5"),
             }
 
@@ -1649,6 +1650,163 @@ def test_svn_source_paths_are_literal_offline_targets(svn_pair):
         assert warnings == []
     finally:
         offline.rename(server)
+
+
+def test_svn_repository_relative_name_uses_verified_local_node(svn_pair):
+    first, _, server = svn_pair
+    target = first / "^" / "source.txt"
+    target.parent.mkdir()
+    target.write_text("local r2 node", encoding="utf-8")
+    command(first, "svn", "add", "^")
+    command(first, "svn", "commit", "-m", "local caret directory")
+    command(first, "svn", "update")
+
+    def warnings():
+        return verify._svn_source_warnings(
+            "meta.yaml", "svn:1", ["^/source.txt"], first, {}, {}, {}
+        )
+
+    online = warnings()
+    assert len(online) == 1 and "最新 r2" in online[0]
+    offline = server.with_name("server-offline")
+    server.rename(offline)
+    try:
+        assert warnings() == online
+    finally:
+        offline.rename(server)
+
+
+def _tracked_python_change(root):
+    source = root / "source.py"
+    source.write_text("print('v1')\n", encoding="utf-8")
+    command(root, "git", "add", "source.py")
+    command(root, "git", "commit", "-m", "source baseline")
+    base = head(root)
+    source.write_text("print('v2')\n", encoding="utf-8")
+    return base
+
+
+@pytest.mark.parametrize("directory", [".codex", "scratch"])
+def test_unbound_local_spec_cannot_release_changed_code(repository, directory):
+    base = _tracked_python_change(repository)
+    relative = directory + "/proposal.md"
+    spec = repository / relative
+    spec.parent.mkdir()
+    spec.write_text("source.py", encoding="utf-8")
+    config = json.loads(_minimal_config())
+    config["local_exclude_dirs"] = [directory]
+    config["checks"][0]["command"] = _python_command(
+        f"from pathlib import Path; Path({relative!r}).write_text('unrelated', encoding='utf-8')"
+    )
+    (repository / "verify.config.json").write_text(
+        json.dumps(config), encoding="utf-8"
+    )
+    code, report = _run_in_repo(repository, ["--diff-base", base])
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    drift = payload["spec_drift"]
+    assert code == 2 and payload["verdict"] == "ERROR"
+    assert drift["status"] == "error"
+    assert drift["value"]["related_spec_files"] == [relative]
+    assert drift["value"]["unbound_spec_files"] == [relative]
+    assert relative in drift["value"]["refused_ignores"]
+    assert spec.read_text(encoding="utf-8") == "unrelated"
+
+
+@pytest.mark.parametrize("coverage", ["tracked", "explicit"])
+def test_bound_local_spec_can_release_changed_code(
+    repository, monkeypatch, coverage
+):
+    base = _tracked_python_change(repository)
+    relative = ".codex/proposal.md"
+    spec = repository / relative
+    spec.parent.mkdir()
+    spec.write_text("source.py", encoding="utf-8")
+    (repository / "verify.config.json").write_text(
+        _minimal_config(), encoding="utf-8"
+    )
+    if coverage == "tracked":
+        command(repository, "git", "add", "-f", relative)
+    else:
+
+        def capture(base, config_path, vcs_backend=None):
+            return verify.capture_native_subject(
+                repository,
+                base,
+                config_path=config_path,
+                backend=vcs_backend,
+                required_inputs=[relative],
+            )
+
+        monkeypatch.setattr(verify, "_capture_verify_subject", capture)
+    code, report = _run_in_repo(repository, ["--diff-base", base])
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert code == 0 and payload["verdict"] == "PASS", payload
+    assert payload["spec_drift"]["value"]["related_spec_files"] == [relative]
+
+
+def test_unrelated_local_template_does_not_block_bound_specs(repository):
+    base = _tracked_python_change(repository)
+    local = repository / ".codex" / "proposal.md"
+    local.parent.mkdir()
+    local.write_text("unrelated local template", encoding="utf-8")
+    relative = "openspec/changes/1-test/tasks.md"
+    spec = repository / relative
+    spec.parent.mkdir(parents=True)
+    spec.write_text("source.py", encoding="utf-8")
+    (repository / "verify.config.json").write_text(
+        _minimal_config(), encoding="utf-8"
+    )
+    code, report = _run_in_repo(repository, ["--diff-base", base])
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert code == 0 and payload["verdict"] == "PASS", payload
+    assert payload["spec_drift"]["value"]["related_spec_files"] == [relative]
+    assert (
+        ".codex/proposal.md"
+        in payload["spec_drift"]["value"]["refused_ignores"]
+    )
+
+
+def test_missing_spec_tombstone_does_not_bind_later_consumed_content(
+    repository, monkeypatch
+):
+    source = repository / "source.py"
+    source.write_text("v1", encoding="utf-8")
+    spec = repository / ".codex" / "proposal.md"
+    spec.parent.mkdir()
+    spec.write_text("source.py baseline", encoding="utf-8")
+    command(repository, "git", "add", "-f", "source.py", ".codex/proposal.md")
+    command(repository, "git", "commit", "-m", "source and spec baseline")
+    base = head(repository)
+    source.write_text("v2", encoding="utf-8")
+    spec.unlink()
+    config = json.loads(_minimal_config())
+    config["checks"][0]["command"] = _python_command(
+        "from pathlib import Path; Path('.codex/proposal.md').unlink()"
+    )
+    (repository / "verify.config.json").write_text(
+        json.dumps(config), encoding="utf-8"
+    )
+    original = verify._capture_verify_subject
+    calls = 0
+
+    def capture(*args, **kwargs):
+        nonlocal calls
+        subject = original(*args, **kwargs)
+        if calls == 0:
+            spec.write_text(
+                "source.py newly consumed content", encoding="utf-8"
+            )
+        calls += 1
+        return subject
+
+    monkeypatch.setattr(verify, "_capture_verify_subject", capture)
+    code, report = _run_in_repo(repository, ["--diff-base", base])
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert code == 2 and payload["verdict"] == "ERROR"
+    assert payload["spec_drift"]["value"]["unbound_spec_files"] == [
+        ".codex/proposal.md"
+    ]
+    assert not spec.exists()
 
 
 @pytest.mark.parametrize("backend", ["git", "svn"])

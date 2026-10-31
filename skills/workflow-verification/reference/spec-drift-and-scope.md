@@ -47,6 +47,8 @@ SVN Native 内容主体由 `scripts/native_subject.py` 使用本地工作副本�
 
 共享主体的 `coverage_policy` 记录排除目录、配置原始内容摘要和基准来源（SVN 为 `working_copy`，Git 为 `fixed_commit`）。报告不能自行选择排除规则；策略升级后旧 Verify／Review 报告须按当前主体重新取证。
 
+用于 Spec Drift 放行的关联规格必须已纳入同一 Native 内容主体；未绑定的规格会产生 ERROR，并保留关联路径和拒绝忽略的审计信息。将该规格移到正常规格目录或纳入版本控制后重验，不得仅凭排除目录中的未绑定规格放行。
+
 本地有效输入仍需读取，检查后还要重新捕获以核对一致性；公共 VCS 子命令仍有 30 秒超时，这不是整个 Verify 的耗时上限，也不保证任意大仓库能在 30 秒内完成。项目自定义命令若访问网络，仍按其实际命令执行。正式提交后的 `vcs.verify_delivery` 继续远程核验确切 revision；本地 PASS 不等于远程提交验收。
 
 ## Scoped Delivery 残留快照（显式模式）
