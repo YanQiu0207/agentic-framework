@@ -22,10 +22,10 @@ Task 1 → Task 2
 
 ## 任务列表
 
-### 任务 1：[ ] 实现本地捕获与目录排除
-- 状态：进行中
+### 任务 1：[x] 实现本地捕获与目录排除
+- 状态：完成
 - attempts：0
-- control_stage：quality_passed
+- control_stage：completed
 - depends_on: []
 - review_profile: strict
 - 文档映射：proposal.md §1、§2
@@ -36,14 +36,16 @@ Task 1 → Task 2
     - `skills/workflow-verification/scripts/verify.py`：知识来源及主体接线。
     - `scripts/test_native_subject.py`、`scripts/test_vcs.py`、`skills/workflow-verification/scripts/test_verify.py`：真实仓库及边界测试。
 - verification:
-    - [ ] SVN 离线捕获、删除节点、排除剪枝及已版本化／显式输入保护测试通过。
-    - [ ] 配置非法、本地知识来源边界及 Git 回归通过。
-    - [ ] 正式完整 Verify 通过并保留报告。
+    - [x] SVN 离线捕获、删除节点、排除剪枝及已版本化／显式输入保护测试通过。
+    - [x] 配置非法、本地知识来源边界及 Git 回归通过。
+    - [x] 正式完整 Verify 通过并保留报告。
 - artifacts:
     - 上述实现及测试文件。
 
 ### 任务 2：[ ] 集成验证与合同同步
-- 状态：未开始
+- 状态：进行中
+- attempts：0
+- control_stage：running
 - depends_on: Task 1
 - review_profile: strict
 - 文档映射：proposal.md §3、§4
