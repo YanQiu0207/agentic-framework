@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import fnmatch
+import hashlib
 import json
 import os
 import re
@@ -1386,6 +1387,34 @@ def _capture_verify_subject(
     )
 
 
+def _config_matches_subject(
+    config: dict, config_path: Path | None, subject: dict[str, Any]
+) -> bool:
+    """Require executed configuration and captured policy to describe one file."""
+    path = (
+        config_path if config_path is not None else Path("verify.config.json")
+    )
+    try:
+        try:
+            content = path.read_bytes()
+        except FileNotFoundError:
+            content = None
+        digest = (
+            hashlib.sha256(content).hexdigest() if content is not None else None
+        )
+        loaded = (
+            json.loads(content.decode("utf-8"))
+            if content is not None
+            else {"checks": []}
+        )
+        return (
+            digest == subject["coverage_policy"]["config_sha256"]
+            and loaded == config
+        )
+    except (KeyError, OSError, UnicodeError, ValueError, TypeError):
+        return False
+
+
 def _subject_consistency_result(
     subject: dict[str, Any],
     base: str,
@@ -1598,6 +1627,13 @@ def cmd_verify(
             print(
                 f"[verify] 无法取得 Native v2 内容主体（{detail}），"
                 "standalone 报告拒绝无主体写出。",
+                file=sys.stderr,
+            )
+            return 2
+
+        if not _config_matches_subject(config, config_path, subject):
+            print(
+                "[verify] 配置在加载与主体捕获之间发生变化，拒绝执行检查。",
                 file=sys.stderr,
             )
             return 2

@@ -56,6 +56,7 @@ def _stable_subject_patches():
             "compare_native_subjects",
             return_value=dict(_STABLE_COMPARISON),
         ),
+        mock.patch.object(verify, "_config_matches_subject", return_value=True),
     )
 
 
@@ -654,14 +655,14 @@ class EvaluateSpecDriftTest(unittest.TestCase):
                 encoding="utf-8",
             )
             config = {"checks": [], "ignore_paths": ["cfg/*.py"]}
-            subject_patch, comparison_patch = _stable_subject_patches()
+            subject_patch, comparison_patch, config_patch = _stable_subject_patches()
             with mock.patch.object(
                 verify,
                 "evaluate_spec_drift",
                 return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
             ) as spy, mock.patch.object(
                 verify, "evaluate_check"
-            ), subject_patch, comparison_patch, mock.patch("builtins.print"):
+            ), subject_patch, comparison_patch, config_patch, mock.patch("builtins.print"):
                 verify.cmd_verify(
                     config,
                     baseline,
@@ -825,14 +826,14 @@ class ConfigSnapshotTest(unittest.TestCase):
                 encoding="utf-8",
             )
             report = Path(temp_dir) / "report.json"
-            subject_patch, comparison_patch = _stable_subject_patches()
+            subject_patch, comparison_patch, config_patch = _stable_subject_patches()
             with mock.patch.object(
                 verify,
                 "evaluate_spec_drift",
                 return_value=verify.CheckResult("Z", "spec_drift", "pass", ""),
             ), mock.patch.object(
                 verify, "knowledge_source_warnings", return_value=[]
-            ), subject_patch, comparison_patch:
+            ), subject_patch, comparison_patch, config_patch:
                 rc = verify.cmd_verify(config_v2, baseline, report, "HEAD", "")
 
             payload = json.loads(report.read_text(encoding="utf-8"))
@@ -1074,7 +1075,7 @@ class KnowledgeSourceFreshnessTest(unittest.TestCase):
 
                 os.chdir(repo)
                 with mock.patch("builtins.print"):
-                    result = verify.cmd_verify({}, None, report, "HEAD", "")
+                    result = verify.cmd_verify({"checks": []}, None, report, "HEAD", "")
             finally:
                 os.chdir(old_cwd)
 
@@ -1750,6 +1751,51 @@ def test_standalone_verify_rejects_policy_edits_during_checks(repository):
     assert code == 2 and payload["verdict"] == "ERROR"
     assert payload["results"][-1]["name"] == "native-subject"
     assert "发生变化" in payload["results"][-1]["detail"]
+
+
+def test_config_loaded_before_policy_capture_must_match(
+    repository, monkeypatch
+):
+    path = repository / "verify.config.json"
+    path.write_text(_minimal_config(), encoding="utf-8")
+    original = verify.load_config
+
+    def changed_after_load(*args, **kwargs):
+        loaded = original(*args, **kwargs)
+        changed = {**loaded, "local_exclude_dirs": ["cache"]}
+        path.write_text(json.dumps(changed), encoding="utf-8")
+        return loaded
+
+    monkeypatch.setattr(verify, "load_config", changed_after_load)
+    with mock.patch.object(verify, "evaluate_check") as check:
+        code, report = _run_in_repo(
+            repository, ["--diff-base", head(repository)]
+        )
+    assert code == 2 and not report.exists()
+    check.assert_not_called()
+
+
+def test_config_bytes_must_still_match_initial_capture(repository, monkeypatch):
+    path = repository / "verify.config.json"
+    path.write_text(_minimal_config(), encoding="utf-8")
+    original = verify._capture_verify_subject
+
+    def changed_after_capture(*args, **kwargs):
+        subject = original(*args, **kwargs)
+        path.write_text(
+            path.read_text(encoding="utf-8") + "\n", encoding="utf-8"
+        )
+        return subject
+
+    monkeypatch.setattr(
+        verify, "_capture_verify_subject", changed_after_capture
+    )
+    with mock.patch.object(verify, "evaluate_check") as check:
+        code, report = _run_in_repo(
+            repository, ["--diff-base", head(repository)]
+        )
+    assert code == 2 and not report.exists()
+    check.assert_not_called()
 
 
 def test_local_exclusions_are_frozen_in_baseline(repository):
