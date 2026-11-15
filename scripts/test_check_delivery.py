@@ -661,6 +661,63 @@ class CheckDeliveryTest(unittest.TestCase):
         self.assertIn("runtime-trust-gate", verdict["unprovable_claims"])
         self.assertFalse((repo / ".agentic-framework" / "runs").exists())
 
+    def test_native_delivery_skips_verify_and_verdict_by_default(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict = self._native_delivery_args(repo)
+        for option in ("--verify-report", "--native-delivery-verdict"):
+            index = args.index(option)
+            del args[index : index + 2]
+        # A stale default report must not opt the user into Verify.
+        default_report = repo / ".agentic-framework" / "verify" / "report.json"
+        default_report.write_text("not json", encoding="utf-8")
+        output = StringIO()
+        with redirect_stdout(output):
+            result = check_delivery.main(args)
+        self.assertEqual(0, result)
+        self.assertIn("SKIP   Verify 未运行", output.getvalue())
+        self.assertIn("Review/当前内容 subject 一致", output.getvalue())
+        self.assertNotIn("机器验证报告 verdict=PASS", output.getvalue())
+        self.assertFalse(verdict.exists())
+        verdict.parent.mkdir(parents=True, exist_ok=True)
+        verdict.write_text("old artifact", encoding="utf-8")
+        with redirect_stdout(StringIO()):
+            repeated = check_delivery.main(
+                args + ["--native-delivery-verdict", str(verdict)]
+            )
+        self.assertEqual(0, repeated)
+        self.assertEqual("old artifact", verdict.read_text(encoding="utf-8"))
+
+    def test_verify_skip_still_rejects_stale_review(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        args, verdict = self._native_delivery_args(
+            repo, review=_native_review(repo, subject_id="sha256:" + "f" * 64)
+        )
+        index = args.index("--verify-report")
+        del args[index : index + 2]
+        output = StringIO()
+        with redirect_stdout(output):
+            result = check_delivery.main(args)
+        self.assertEqual(1, result)
+        self.assertIn("Review 报告与当前内容不一致", output.getvalue())
+        self.assertFalse(verdict.exists())
+
+    def test_fast_path_verify_is_opt_in(self) -> None:
+        repo = self._clean_repo_with_ignore()
+        review, _ = self._fast_path_inputs(repo)
+        args = [
+            "--repo", str(repo), "--review-report", str(review),
+            "--knowledge-impact", "none", "--knowledge-impact-reason", "local",
+        ]
+        output = StringIO()
+        with redirect_stdout(output):
+            result = check_delivery.main(args)
+        self.assertEqual(0, result)
+        self.assertNotIn("fast-path-pass", output.getvalue())
+        self.assertNotIn("machine-verify", output.getvalue())
+        with redirect_stdout(StringIO()):
+            required_result = check_delivery.main(args + ["--require-verify"])
+        self.assertEqual(1, required_result)
+
     def _svn_repo(self) -> Path:
         server = self._shared_svn_server()
         temp_dir = tempfile.TemporaryDirectory()
@@ -1024,8 +1081,8 @@ class CheckDeliveryTest(unittest.TestCase):
             patch.object(
                 check_delivery.runtime_workflow,
                 "finalize_run",
-                return_value={"verdict": "PASS"},
-            ),
+                return_value={"verdict": "SKIPPED"},
+            ) as finalize,
             redirect_stdout(output),
         ):
             result = check_delivery.main(
@@ -1048,6 +1105,9 @@ class CheckDeliveryTest(unittest.TestCase):
             )
         self.assertEqual(0, result)
         self.assertIn("Runtime Run 知识影响：未命中", output.getvalue())
+        self.assertIn("SKIP   Verify 未运行", output.getvalue())
+        self.assertNotIn("Trust Gate：PASS", output.getvalue())
+        self.assertFalse(finalize.call_args.kwargs["require_verify"])
 
     def test_native_delivery_requires_tasks_and_spec(self) -> None:
         repo = self._clean_repo_with_ignore()

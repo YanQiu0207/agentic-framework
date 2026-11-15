@@ -10,8 +10,8 @@
   （本地已验证待提交，不是正式交付 PASS）。
 
 Fast-Path 兼容别名（无 spec / tasks）还必须传 lightweight integration Review、
-独立 Verify 报告与结构化知识影响结论；`none` 必须附理由。
-Native Delivery 使用标准 integration Review 与独立 Verify；只有完整 Runtime Run 使用
+结构化知识影响结论；`none` 必须附理由。Verify 仅在用户明确要求时检查。
+Native Delivery 使用标准 integration Review；启用 Verify 后才生成完整 v2 裁决。只有完整 Runtime Run 使用
 scope=run、strict Review 与 Run-bound Artifact。
 Native 证据为 v2 合同（顶层 schema_version=2 与 subject_id）：交付门重算当前
 内容主体并交叉核对 Review/Verify/当前三方一致（`--subject-base` 须与 Verify 的
@@ -367,8 +367,8 @@ def check_scoped_delivery(
         baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
         snapshot = baseline["workspace_residue_snapshot"]
         stored = workspace_residue.validate_workspace_residue_snapshot(snapshot)
-        vcs = stored["vcs"]
-        if vcs == "git":
+        backend = stored["vcs"]
+        if backend == "git":
             if not delivery_commit or delivery_revision:
                 return ["Git Scoped Delivery 必须提供 --delivery-commit，且不得提供 --delivery-revision"]
             paths = workspace_residue.git_commit_paths(
@@ -386,7 +386,17 @@ def check_scoped_delivery(
         residue_changes = workspace_residue.compare_workspace_residue(repo, stored)
         if residue_changes:
             return ["预存残留与 S0 不一致：" + ", ".join(residue_changes)]
-    except (OSError, UnicodeError, json.JSONDecodeError, KeyError, workspace_residue.WorkspaceResidueError) as error:
+        if backend == "svn":
+            delivery = vcs.verify_delivery(
+                repo, delivery_revision, f"svn:r{stored['base_ref']}", backend="svn"
+            )
+            current, subject_errors = _current_subject(repo, "HEAD")
+            if subject_errors:
+                return subject_errors
+            if delivery["subject_id"] != current["subject_id"]:
+                return ["当前工作副本主体与确切 revision 主体不一致"]
+    except (OSError, UnicodeError, json.JSONDecodeError, KeyError,
+            workspace_residue.WorkspaceResidueError, vcs.VcsError) as error:
         return [f"Scoped Delivery 校验失败：{error}"]
     return []
 
@@ -655,8 +665,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument(
         "--verify-report",
         type=Path,
-        default=Path(".agentic-framework/verify/report.json"),
-        help="workflow-verification 产出的机器验证报告路径（Fast-Path 必传）",
+        help="显式启用 Verify 并校验此机器验证报告",
+    )
+    parser.add_argument(
+        "--require-verify",
+        action="store_true",
+        help="要求 Verify；省略 --verify-report 时使用默认报告路径",
     )
     parser.add_argument(
         "--governance-profile",
@@ -669,6 +683,9 @@ def main(argv: list[str]) -> int:
         help="重算当前内容主体的固定基准；须与 Verify 运行时的 --diff-base 一致",
     )
     args = parser.parse_args(argv)
+    args.require_verify = args.require_verify or args.verify_report is not None
+    if args.verify_report is None:
+        args.verify_report = Path(".agentic-framework/verify/report.json")
 
     if args.run_dir is not None and args.native_delivery:
         print("error: --run-dir 与 --native-delivery 不能同时提供", file=sys.stderr)
@@ -690,7 +707,10 @@ def main(argv: list[str]) -> int:
     if not args.scoped_delivery and any(value is not None for value in scoped_arguments):
         print("error: Scoped Delivery 参数必须与 --scoped-delivery 一起使用", file=sys.stderr)
         return 2
-    if args.native_delivery and args.native_delivery_verdict is None:
+    if (
+        args.native_delivery and args.require_verify
+        and args.native_delivery_verdict is None
+    ):
         print(
             "error: --native-delivery 必须提供 --native-delivery-verdict",
             file=sys.stderr,
@@ -702,7 +722,8 @@ def main(argv: list[str]) -> int:
             file=sys.stderr,
         )
         return 2
-    if args.native_delivery:
+    if (args.native_delivery and args.require_verify
+            and args.native_delivery_verdict is not None):
         found = check_native_delivery_verdict_path(
             args.repo,
             args.native_delivery_verdict,
@@ -884,13 +905,17 @@ def main(argv: list[str]) -> int:
             else f"PASS   Native Delivery {expected_integration_profile} Review：verdict=PASS 且 P0/P1=0"
         )
         checks += 1
-        verify_errors = check_native_delivery_verify(args.verify_report)
-        errors.extend(verify_errors)
-        print(
-            ("ERROR  " + "；".join(verify_errors))
-            if verify_errors
-            else "PASS   Native Delivery 机器验证报告 verdict=PASS"
-        )
+        verify_errors = []
+        if args.require_verify:
+            verify_errors = check_native_delivery_verify(args.verify_report)
+            errors.extend(verify_errors)
+            print(
+                ("ERROR  " + "；".join(verify_errors))
+                if verify_errors
+                else "PASS   Native Delivery 机器验证报告 verdict=PASS"
+            )
+        else:
+            print("SKIP   Verify 未运行（用户未要求启用）")
         # 三方内容一致性（change 2048）：交付门重算当前 subject，与两份
         # v2 报告交叉核对；交付前编辑或检查基准不同都会被拒绝。
         checks += 1
@@ -905,9 +930,10 @@ def main(argv: list[str]) -> int:
                 errors.extend(subject_errors)
                 print("ERROR  " + "；".join(subject_errors))
             else:
-                native_verify_report, _ = _load_native_report(
-                    args.verify_report, "Native Delivery Verify"
-                )
+                if args.require_verify:
+                    native_verify_report, _ = _load_native_report(
+                        args.verify_report, "Native Delivery Verify"
+                    )
                 native_review_report, _ = _load_native_report(
                     args.review_report, "Native Delivery Review"
                 )
@@ -916,7 +942,8 @@ def main(argv: list[str]) -> int:
                     ("Verify", native_verify_report),
                     ("Review", native_review_report),
                 ):
-                    if report["subject_id"] != native_subject_capture["subject_id"]:
+                    if (report is not None and report["subject_id"]
+                            != native_subject_capture["subject_id"]):
                         subject_mismatches.append(
                             f"{label} 报告与当前内容不一致"
                             f"（报告 {report['subject_id'][:19]}…，"
@@ -928,7 +955,11 @@ def main(argv: list[str]) -> int:
                     errors.extend(subject_mismatches)
                     print("ERROR  " + "；".join(subject_mismatches))
                 else:
-                    print("PASS   Review/Verify/当前内容三方 subject 一致")
+                    print(
+                        "PASS   Review/Verify/当前内容三方 subject 一致"
+                        if args.require_verify
+                        else "PASS   Review/当前内容 subject 一致"
+                    )
     else:
         found = check_fast_path_review(args.review_report)
         errors.extend(found)
@@ -938,13 +969,17 @@ def main(argv: list[str]) -> int:
             else "PASS   Fast-Path 兼容别名 lightweight integration Review：verdict=PASS 且 P0/P1=0"
         )
         checks += 1
-        verify_errors = check_native_delivery_verify(args.verify_report)
-        errors.extend(verify_errors)
-        print(
-            ("ERROR  " + "；".join(verify_errors))
-            if verify_errors
-            else "PASS   Fast-Path 机器验证报告 verdict=PASS"
-        )
+        verify_errors = []
+        if args.require_verify:
+            verify_errors = check_native_delivery_verify(args.verify_report)
+            errors.extend(verify_errors)
+            print(
+                ("ERROR  " + "；".join(verify_errors))
+                if verify_errors
+                else "PASS   Fast-Path 机器验证报告 verdict=PASS"
+            )
+        else:
+            print("SKIP   Verify 未运行（用户未要求启用）")
         # 终审 P1 修复：Fast-Path 别名同样重算当前内容主体并核对三方一致，
         # 陈旧的 v2 证据（交付前内容变化）不再被接受。
         checks += 1
@@ -956,18 +991,12 @@ def main(argv: list[str]) -> int:
                 errors.extend(subject_errors)
                 print("ERROR  " + "；".join(subject_errors))
             else:
-                fast_reports = []
-                for _label, path in (
-                    ("Verify", args.verify_report),
-                    ("Review", args.review_report),
-                ):
-                    loaded, _ = _load_native_report(path, "Fast-Path")
-                    fast_reports.append(loaded)
+                report_paths = [("Review", args.review_report)]
+                if args.require_verify:
+                    report_paths.append(("Verify", args.verify_report))
                 subject_mismatches = []
-                for label, report in (
-                    ("Verify", fast_reports[0]),
-                    ("Review", fast_reports[1]),
-                ):
+                for label, path in report_paths:
+                    report, _ = _load_native_report(path, "Fast-Path")
                     if report["subject_id"] != fast_subject["subject_id"]:
                         subject_mismatches.append(
                             f"{label} 报告与当前内容不一致"
@@ -980,7 +1009,11 @@ def main(argv: list[str]) -> int:
                     errors.extend(subject_mismatches)
                     print("ERROR  " + "；".join(subject_mismatches))
                 else:
-                    print("PASS   Fast-Path Review/Verify/当前内容三方 subject 一致")
+                    print(
+                        "PASS   Fast-Path Review/Verify/当前内容三方 subject 一致"
+                        if args.require_verify
+                        else "PASS   Fast-Path Review/当前内容 subject 一致"
+                    )
 
     if not errors and args.run_dir is not None:
         if args.tasks is None:
@@ -1015,16 +1048,22 @@ def main(argv: list[str]) -> int:
                 args.run_dir.resolve(),
                 args.review_report.resolve(),
                 task_states,
+                require_verify=args.require_verify,
             )
             checks += 1
-            print(
-                "PASS   Runtime Manifest、Journal、Harness 与 Trust Gate："
-                f"{trust_report['verdict']}"
-            )
+            if trust_report["verdict"] == "SKIPPED":
+                print("SKIP   Verify 未运行；未生成完整 Runtime Trust Gate 裁决")
+            else:
+                print(
+                    "PASS   Runtime Manifest、Journal、Harness 与 Trust Gate："
+                    f"{trust_report['verdict']}"
+                )
         except Exception as error:
             checks += 1
             errors.append(str(error))
             print(f"ERROR  Runtime 证据链：{error}")
+    elif not errors and not args.require_verify:
+        print("SKIP   未运行 Verify，不生成完整验证交付裁决；其余交付检查通过")
     elif not errors and args.native_delivery:
         if args.scoped_delivery:
             # Scoped Delivery 统一到 v2 合同（change 2048 Task 12）：Git 输出
