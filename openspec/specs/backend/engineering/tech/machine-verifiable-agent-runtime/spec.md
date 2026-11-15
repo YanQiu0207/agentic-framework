@@ -2,6 +2,8 @@
 
 **状态**：Active
 
+Verify 启用策略以 `workflow-code-generation` 步骤 1.5 为准：默认关闭，Runtime／硬性审计不自动启用。未启用时不因缺少 Verify 停止，但不得声明完整 Trust Gate PASS；以下涉及 Verify 的完整证据链要求适用于用户明确启用后的裁决。
+
 ## Requirements
 
 ### Requirement：统一运行身份

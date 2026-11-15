@@ -44,38 +44,25 @@ description: 代码修改的统一入口；新增功能、修复、优化或重�
 
 风险无法判断时使用 `standard`；「需要审计」但未说明证据要求时，先确定所需证据，不自动等同于完整 Runtime。SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被拒绝并说明原因，默认任务直接 Native，不创建 Run Context。
 
-## 步骤 1.5：确认 Verify 配置
+## 步骤 1.5：按用户要求启用 Verify
 
 ### Runtime 能力前置检查
 
 仅在路由确定需要 Runtime 时查询能力：从已加载 Skill 的真实路径（解析目录和文件链接）定位受信框架根，运行 `python <trusted-framework-root>/scripts/install_agentic_framework.py --show-packs <project>`，只消费 JSON 的 `enabled` 数组。不得执行目标 manifest 的 `source`。找不到受信根、查询失败或缺包时停止，提示 `--with runtime`；能力齐备后再读取 [Runtime 指南](reference/runtime-guide.md)。strict 风险本身仍不自动启用 Runtime。普通 SVN Native Delivery 不额外要求高级初始化能力包；SVN 命中 Runtime 升级需求时停止，不降级。
 
-路由确定后，先检查仓库根 `verify.config.json`，再读取或创建任务、委派 Agent、运行代码或测试。已有 `tasks.md` 也执行此检查。
+Verify 默认不启用，只有用户明确要求运行时才启用；Native、Runtime 和硬性审计路径均适用。未启用时不要求或初始化 Verify 配置、不采基线、不询问是否跳过，也不因缺少 Verify 报告停止。保留必要的定向测试，在交付报告注明「未运行 Verify」，不得声称 Verify PASS。
 
-| 配置状态 | 动作 |
-| --- | --- |
-| 已存在 | 继续；改动前按 `workflow-verification` 采基线 |
-| 缺失 | 暂停，等待用户明确选择“初始化”或“跳过” |
-| 用户选择初始化 | 运行 `/verify-config`，确认配置已生成后继续 |
-| 用户选择跳过 | 只运行内置检查，并在最终报告注明 |
-
-任务批准、内置检查或 `event start` 都不能代替配置选择。Standard / Runtime 路径须在任何 `event start` 之前记录已取得的选择：已有 `tasks.md` 时立即写入，否则创建后立即写入。
-
-```bash
-python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-decision --choice initialize|skip --write
-```
-
-没有 `tasks.md` 的 Native Delivery 在最终报告中记录用户选择。步骤 3 只负责持久化已有选择，不重新询问或推断。
+用户明确启用时，加载 `workflow-verification`：有配置按原流程采基线和完整验证；无配置仅执行内置检查，用户要求初始化时才运行 `/verify-config`。调用任务质量门和交付门时追加 `--require-verify`，按对应路径传入真实 Verify 报告；启用后的失败不得当作跳过处理。
 
 ## 开发与修复反馈
 
-实现中及失败修复后，先运行已有相关测试取得快速反馈；两类检查的定义与证据边界以 `workflow-verification` 的「开发反馈与正式验证」为准。完成实现并进入任务质量门、合并前检查、集成验证或最终 Review 前，仍须执行正式完整 Verify。后续流程中的「重验」不得仅凭定向结果申请正式放行。
+实现中、修复后和交付前运行已有相关测试，记录实际命令、退出码和必要输出。正式 Verify 是否执行统一按步骤 1.5；启用时遵循 `workflow-verification` 的完整验证与报告要求，不用定向结果冒充 Verify PASS。
 
 ## 轻量任务执行
 
 进入此路径前，读取 [交付指南的轻量交付流程](reference/delivery-guide.md#轻量交付fast-path-兼容)。
 
-1. 完成步骤 1.5 的配置选择，加载步骤 4 的规范，有配置时在改动前采基线。
+1. 按步骤 1.5 确定是否运行 Verify，由实现者加载步骤 4 的适用规范。
 2. 实现并运行机器验证；超出轻量范围时转标准流程。
 3. 涉及 UI 时完成视觉和浏览器验证；修复后重跑受影响的机器检查。
 4. 调用一次 `workflow-code-review`：兼容路径为 `lightweight`，新的 Native Delivery 为 `standard`，均使用 `scope: integration`。
@@ -100,7 +87,7 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 ### 步骤 3：检查 / 创建 tasks.md
 
-- **已存在** → 若步骤 1.5 时配置缺失，先持久化已作出的「初始化」／「跳过」选择，再进入步骤 4。
+- **已存在** → 进入步骤 4。
 - **不存在** → 先读 [reference/task_planning_guide.md](reference/task_planning_guide.md)，严格按其流程创建。每个 task 须带 `depends_on`、`review_profile`、`context_files`、`verification`、`artifacts`——**`depends_on` 是分波并行的依据，`review_profile` 是分级 review 的依据，均必填**。
 
 若本次改动可能涉及不可逆 / 高影响架构决策、放弃某方案或新增红线约束，预留一个「intent 沉淀」任务（步骤 6 收口）。
@@ -112,11 +99,11 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 创建 `tasks.md` 后，展示任务及依赖并等待用户确认；获批后自主执行，不再逐任务等待。由 `workflow-quick-design` 自动 pipeline 调用时，已确认的 spec 视为任务预授权。
 
-提交任务确认前，先记录步骤 1.5 已取得的配置选择。实现期间冻结既有检查、`ignore_paths` 和基线；新增检查入口须按 `workflow-verification` 的受限追加规则处理。
+启用 Verify 时，实现期间冻结既有检查、`ignore_paths` 和基线；新增检查入口须按 `workflow-verification` 的受限追加规则处理。
 
 ### 步骤 4：加载编码规范
 
-写代码前加载下列适用规范。委派时把规范要点交给 Agent，或要求其先读取对应 Skill。
+谁实现，谁在编码前读取适用的 `AGENTS.md`／`CLAUDE.md` 和下列规范。主 Agent 只编排时不加载编码规范正文；派发时提供适用指令文件和 Skill 的绝对路径，要求实现子 Agent 自行读取。实现子 Agent 只执行分配的 Task，不重新启动整套代码生成流程。
 
 | 规范 | 何时加载 |
 | --- | --- |
@@ -131,17 +118,17 @@ python <本 skill 目录>/scripts/workflow_control.py <tasks.md> verify-config-d
 
 #### Overlay 规范发现
 
-编码或测试前，按 [执行准备](reference/execution-setup.md#overlay-规范发现) 验证扩展规范。通过当前 Skill 的真实路径定位受信框架根，只加载校验成功且匹配目标文件的规范。
+实现者在编码或测试前，按 [执行准备](reference/execution-setup.md#overlay-规范发现) 验证扩展规范。通过当前 Skill 的真实路径定位受信框架根，只加载校验成功且匹配目标文件的规范。
 
 ### 步骤 5：委派执行
 
 任务计划获批后，主会话负责编排，由 Agent 完成实现、测试和任务级机器验证。派发前读取 [执行准备](reference/execution-setup.md) 和 [下放执行指南](reference/delegated-execution-guide.md)。
 
 - 默认 Native Delivery；仅显式 Runtime 需求（execution-mode/audit/cross-host）才路由 `runtime-run`，`strict`、并行与恢复不再自动升级。
-- 单任务或串行依赖同样每 Task 委派新 Agent，Git Task 使用独立分支与 Worktree，不复用其他 Task 的 Agent；不要求波次计算或 Runtime 宿主探测。并行分支、非线性依赖或恢复场景按需使用控制器的 `waves` / `dispatchable`。隔离与能力不足的停止条件见下放执行指南。
+- 派发时明确「只执行 Task X；其他任务仅供理解依赖；完成后返回，不继续执行其他任务，不修改其他任务状态」。单任务或串行依赖同样每 Task 委派新 Agent，Git Task 使用独立分支与 Worktree，不复用其他 Task 的 Agent；不要求波次计算或 Runtime 宿主探测。并行分支、非线性依赖或恢复场景按需使用控制器的 `waves` / `dispatchable`。隔离与能力不足的停止条件见下放执行指南。
 - 每项产物通过测试和机器检查后才合并。失败或冲突标为 `需人工`，依赖它的任务标为 `阻塞`，Git 其他独立任务继续；SVN 共用工作副本须先停止后续写入并处理失败现场，详见下放执行指南。
 - owner / implementer 禁止在 task 内启动 LLM Review；全部可合并任务完成后进行一次最终审核。
-- 完整 Runtime Run 在派发前完成 `init-run` 和必需能力检查；Native Delivery 使用带内容主体的独立 v2 验证报告，不初始化 Run。
+- 完整 Runtime Run 在派发前完成 `init-run` 和必需能力检查；Native Delivery 不初始化 Run；启用 Verify 时使用带内容主体的独立 v2 验证报告。
 
 ### 步骤 6：验证与交付
 

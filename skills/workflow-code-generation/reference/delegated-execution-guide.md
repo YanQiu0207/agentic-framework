@@ -14,12 +14,14 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
 
 | 输出路径 | 条件 | 必须动作 |
 | --- | --- | --- |
-| `native-delivery` | 未显式要求 Runtime（含 `strict`、并行、恢复场景） | 不调用 `init-run`，不创建或伪造 Run Context；使用独立 v2 Verify（含 `subject_id`）、v2 最终 Review 与 Native Delivery Verdict。 |
+| `native-delivery` | 未显式要求 Runtime（含 `strict`、并行、恢复场景） | 不调用 `init-run`，不创建或伪造 Run Context；使用 v2 最终 Review；启用 Verify 时使用独立 v2 Verify（含 `subject_id`）并生成 Native Delivery Verdict。 |
 | `runtime-run` | 显式 `--execution-mode runtime`、`--audit-required` 或跨宿主验证，且环境为受支持的 Git 工作副本 | 在 dispatch 前调用 `init-run`；保留 Manifest、Journal、Capability Probe、Run-bound Artifact 与 Trust Gate。 |
 
 硬性要求与 `--execution-mode native` 冲突、或 Runtime 在 SVN/未知 VCS 下不受支持时，路由以非零退出拒绝并说明原因；不得静默降级或伪造 Run Context。任务文件数、模型版本或仅存在 `tasks.md` 不构成 Runtime 启用条件。「需要审计」但未说明证据要求时，先确定所需证据，不自动等同于完整 Runtime。
 
 ## 核心合同
+
+Verify 是否执行统一按主 Skill 步骤 1.5；下文 Verify 报告及完整重验要求仅在用户明确启用时适用，Runtime／审计不例外。默认保留任务验收与定向测试，不因缺少 Verify 阻塞，也不声称 Verify PASS。
 
 - Task 级质量门：实现、测试、任务级机器检查。
 - 交付级质量门：全部可合并 Task 合并后，全局机器验证，再执行一次首轮 Code Review。
@@ -31,8 +33,8 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
 
 ## Phase 0：准备
 
-1. 确认步骤 1.5 已在路由后无条件完成 Verify 配置选择；配置缺失时，`tasks.md` 中的「初始化」／「跳过」记录必须已在任何 `event start` 前写入。不得在 Phase 0 首次询问或推断该选择。
-2. 记录 `base_sha`，有 `verify.config.json` 时采集基线。
+1. 按主 Skill 步骤 1.5，仅在用户明确要求时启用 Verify；不另行询问配置选择。
+2. 记录 `base_sha`；启用 Verify 且有 `verify.config.json` 时才采集基线。
 3. 按路由合同运行路由命令；只有输出 `runtime-run`（显式 Runtime 需求）时才在后续 Phase 0 初始化 Run，其余情况直接走 Native Delivery。
 4. 存在可并行分支、非线性依赖图或中断恢复需求时，运行：
 
@@ -41,8 +43,8 @@ python scripts/workflow_control.py <tasks.md> route --review-profile <lightweigh
     python scripts/workflow_control.py <tasks.md> dispatchable
     ```
 
-5. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖和 Verify 配置选择。每个 Git Task（含单 Task 和串行链）使用独立分支与 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由可传 `--parallel-worktree-write` 记录执行需求；主编排方串行集成，不因此升级 Runtime。
-6. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`。
+5. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖。每个 Git Task（含单 Task 和串行链）使用独立分支与 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由可传 `--parallel-worktree-write` 记录执行需求；主编排方串行集成，不因此升级 Runtime。
+6. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`，附适用指令文件及编码 Skill 的绝对路径。派发时明确：「只执行 Task X；其他任务仅供理解依赖；完成后返回，不继续执行其他任务，不修改其他任务状态。」
 7. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。先对已加载 Skill 路径执行等价于 Python `Path(skill_path).resolve()` 的解析，再从真实路径逐级向上定位框架根；不要在 `~/.codex/skills/workflow-code-generation/scripts/` 下寻找框架 Adapter。失败时禁止 dispatch。
    - Codex 使用 `<framework-root>/harness/capabilities/codex.json` 与 `python <framework-root>/scripts/codex_adapter.py`。
    - Claude Code 使用 `<framework-root>/harness/capabilities/claude-code.json` 与 `python <framework-root>/scripts/claude_code_adapter.py`。
@@ -63,16 +65,16 @@ SVN Task 失败时停止该工作副本的所有后续写入任务（包括无�
 
 owner / implementer 的固定职责：
 
-1. 只修改 Task 声明的范围；发现范围或依赖错误时停止并报告。
+1. 编码前自行读取适用的 `AGENTS.md`／`CLAUDE.md`、主 Skill 步骤 4 的编码规范及匹配的 Overlay；只修改分配 Task 声明的范围，发现范围或依赖错误时停止并报告。
 2. 实现功能并通过 `workflow-test-generation` 补齐测试。
-3. 内部开发与修复迭代优先运行已有相关测试，按 `workflow-verification` 的「开发反馈与正式验证」返回定向反馈；提交任务质量门前，运行 Task 的 `verification` 和正式完整 Verify，禁止弱化配置绕过失败。
-4. 内部迭代返回摘要、实际定向命令、退出码和必要输出；提交任务质量门时另附完整验证报告路径和 Spec Drift 结论，不返回完整 diff。
+3. 内部开发与修复迭代优先运行已有相关测试，按 `workflow-verification` 的「开发反馈与正式验证」返回定向反馈；提交任务质量门前运行 Task 的 `verification`；启用 Verify 时再执行正式完整 Verify，禁止弱化配置绕过失败。
+4. 内部迭代返回摘要、实际定向命令、退出码和必要输出；启用 Verify 时另附完整验证报告路径和 Spec Drift 结论，不返回完整 diff。
 5. 禁止调用 LLM Reviewer，也不得把「尚未 Review」当作 Task 失败。
 
 主编排方收到结果后：
 
-- 仅收到定向结果 → 作为开发反馈，不写入 `quality_passed`，要求补齐正式完整 Verify 证据。
-- 实现、测试和正式完整 Verify 通过 → 使用 `event <task-id> quality_passed --verify-report <verify-report.json> --write` 写入状态。Native Delivery 只接受独立 JSON 的 `verdict: PASS`，不写 Run Artifact；完整 Runtime Run 还必须传 `--run-dir <run-dir>`，并要求 Verify Artifact 与 Run、Task、Attempt 绑定。
+- 实现、任务验收及定向测试通过 → 使用 `event <task-id> quality_passed --write` 写入状态；Runtime 另传 `--run-dir <run-dir>`。
+- 用户明确启用 Verify 时，质量门追加 `--require-verify --verify-report <verify-report.json>`，必须通过正式完整 Verify；Native Delivery 接受独立 v2 报告，Runtime 要求 Artifact 与 Run、Task、Attempt 绑定。不得将定向结果冒充 Verify PASS。
 - 失败且两轮内可修复 → 优先由原 Agent 在原 worktree 修复并重验；同一 Task 不因每轮修复更换 Agent。原 Agent 无法恢复时，由新 Agent 读取该 Task 的现场与证据接手，保留原 worktree。
 - 仍失败、Agent 未返回或出现范围冲突 → 标 `需人工`，保留 worktree。
 - 上游未合并 → 下游标 `阻塞`，不得 dispatch。
@@ -86,15 +88,15 @@ owner / implementer 的固定职责：
 
 所有 Task 到达「完成 / 需人工 / 阻塞」终态后：
 
-1. 先按交付指南「正式验证前收口」完成结构检查及已知文档准备，再对集成结果执行正式完整 `workflow-verification`。`runtime-run` 生成 Run-bound Verify Artifact；Native Delivery 生成独立 Verify 报告。
-2. 涉及前端时执行 Taste 和浏览器验证；修复后重跑全局机器验证。
+1. 先按交付指南「正式验证前收口」完成结构检查及已知文档准备，再对集成结果运行相关定向测试；启用 Verify 时执行正式完整 `workflow-verification`。`runtime-run` 生成 Run-bound Verify Artifact；Native Delivery 生成独立 Verify 报告。
+2. 涉及前端时执行 Taste 和浏览器验证；修复后重跑相关测试，启用 Verify 时再重跑完整验证。
 3. 取所有已执行 Task 的最高 `review_profile`，对完整 diff 调用一次 `workflow-code-review`，`mode: initial`。
 4. `strict` 必须由未参与实现的独立 Judge 裁决并声明 `implementer_actor` / `judge_actor` / `independence_basis`；该要求在 Native 与 Runtime 同样适用，不因走 Native 降低独立性。
-5. keep 的 P0 / P1 触发修复；先按上述分类取得定向反馈，再重跑正式完整 Verify，并以 `mode: re-review` 只复核原 finding 和修复 diff，最多十轮（与主 Review Skill 一致；任务自身机器修复仍按 attempts 预算，两者不是同一计数）。
+5. keep 的 P0 / P1 触发修复；先运行相关定向测试，启用 Verify 时再重跑正式完整 Verify，并以 `mode: re-review` 只复核原 finding 和修复 diff，最多十轮（与主 Review Skill 一致；任务自身机器修复仍按 attempts 预算，两者不是同一计数）。
 6. P2 和 follow-up 不触发修复循环；仍有 P0 / P1 时整体标 `需人工`。
 7. Review 通过后：
-    - `runtime-run`：由 Judge 写出 Run-bound `review-report.json`，再运行完整 Runtime 的 `check_delivery.py --run-dir ...` 交付门。
-    - `native-delivery`：使用标准无 Run Review、独立 Verify 与 `check_delivery.py --native-delivery --native-delivery-verdict <ignored-path>` 生成有界 Verdict；不得声称 Trust Gate PASS、Harness 能力或完整证据图。
+    - `runtime-run`：由 Judge 写出 Run-bound `review-report.json`，再运行 `check_delivery.py --run-dir ...`；启用 Verify 时追加 `--require-verify`，未启用时不生成完整 Trust Gate PASS。
+    - `native-delivery`：使用标准无 Run Review 和 `check_delivery.py --native-delivery`；启用 Verify 时追加 `--require-verify --verify-report <report> --native-delivery-verdict <ignored-path>` 生成有界 Verdict，未启用时报告跳过状态；不得声称 Trust Gate PASS、Harness 能力或完整证据图。
 
 最终 Review 不回写每个 Task 的 Review 状态，也不改变已经记录的 DAG 和合并事实。
 

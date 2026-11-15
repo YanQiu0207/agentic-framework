@@ -1,10 +1,10 @@
 # 执行准备
 
-加载扩展规范时读取“Overlay 规范发现”；委派任务前读取“任务执行”；完整 Runtime Run 另需执行其中的初始化和 Adapter 检查。
+由实现者加载扩展规范时读取“Overlay 规范发现”；委派任务前读取“任务执行”；完整 Runtime Run 另需执行其中的初始化和 Adapter 检查。
 
 #### Overlay 规范发现
 
-编码或测试前，从当前已加载的核心 workflow `SKILL.md` 真实路径（必须解析目录链接和文件链接）向上定位框架根，再运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`。
+实现者在编码或测试前，从当前已加载的核心 workflow `SKILL.md` 真实路径（必须解析目录链接和文件链接）向上定位框架根，再运行 `python <framework-root>/scripts/install_agentic_framework.py --validate-extensions .`。
 
 框架根以同时存在 `scripts/install_agentic_framework.py` 和 `skills/workflow-code-generation/SKILL.md` 为准；不得把链接入口（如 `~/.codex/skills/workflow-code-generation`）的父目录直接当作框架根。
 
@@ -17,6 +17,8 @@
 Overlay 只补充规范，不自动执行、不覆盖核心 Skill，也不修改 workflow。
 
 ## 任务执行
+
+Verify 是否执行统一按主 Skill 步骤 1.5；本节的报告要求仅在用户明确启用时适用，Runtime／审计不例外。主 Agent 只编排时不加载编码规范正文，派发适用指令文件与 Skill 的绝对路径，由实现者读取。每次派发明确「只执行 Task X，完成后返回，不继续其他任务，不修改其他任务状态」。
 
 `tasks.md` 经用户批准后，执行下放给 Agent：**主会话只编排，不亲自写代码、不逐 task 停等**，全部跑完一次性汇总。标准流程默认使用 Native Delivery，只有显式 Runtime 需求才创建 Run Context（change 2048）；`strict` 风险仍为 Native，只是要求 strict Review 与独立 Judge。**先为每个 task 判定 review 档位**：
 
@@ -36,7 +38,7 @@ SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被路由拒�
 
 仅该路径在每波 dispatch 前运行 `dispatchable`。
 
-单 Task 或纯串行链按 `tasks.md` 顺序执行 `event <id> start --write`，随后为该 Task 委派新 Agent；该命令只校验前置依赖与 Verify 配置选择，不代表主会话亲自实现。每个 Git Task 使用独立分支与 worktree，前序合并后才启动依赖它的 Task。
+单 Task 或纯串行链按 `tasks.md` 顺序执行 `event <id> start --write`，随后为该 Task 委派新 Agent；该命令校验前置依赖，不代表主会话亲自实现。每个 Git Task 使用独立分支与 worktree，前序合并后才启动依赖它的 Task。
 
 缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行。**禁止另写一套手工分波或状态判断**。不同 Task 不复用 Agent；同一 Task 修复与能力不足时的处理统一遵循 [下放执行指南的隔离规则](delegated-execution-guide.md#task-隔离与能力不足)。不要求通过派孙 Agent 探测嵌套能力；根据宿主已知能力选择编排模式：
 - **模式 A（默认，Claude Code 支持嵌套）**：每 task 派 owner 子 agent 执行实现、测试和机器验证。
@@ -48,9 +50,9 @@ SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被路由拒�
 
 该命令在业务副作用前冻结规则输入与完整 Task Plan、生成 Run Context、执行 Harness 启动能力门并创建 Journal；失败时禁止 dispatch。
 
-此路径的每次 `quality_passed --write` 必须同时传 `--run-dir` 和该次执行生成的 Envelope Verify Artifact，旧式无 Run/Task/Attempt 绑定的顶层 `PASS` JSON 不得放行。
+此路径的 `quality_passed --write` 传 `--run-dir`；启用 Verify 时追加 `--require-verify --verify-report <artifact>`，必须使用该次执行生成的 Envelope Verify Artifact，不接受旧式无 Run／Task／Attempt 绑定的顶层 `PASS` JSON。
 
-路由为 `native-delivery` 时，不调用 `init-run`，也不做能力探测；`quality_passed --write --verify-report <standalone-report.json>` 必须是 Native v2 报告（顶层 `schema_version: 2` 与 `subject_id`，`PASS` 结论、零错误／违规、完整 `CheckResult`），旧 v1 报告不能作为新完成证据，不写入任何 Run Artifact。**定位内置 Harness Adapter**：Adapter 只负责 Runtime 启动时的能力探测，不负责启动或下放 Agent。
+路由为 `native-delivery` 时，不调用 `init-run`，也不做能力探测；默认使用 `quality_passed --write`，不要求 Verify 报告；启用 Verify 时追加 `--require-verify --verify-report <standalone-report.json>`，报告必须是 Native v2 报告（顶层 `schema_version: 2` 与 `subject_id`，`PASS` 结论、零错误／违规、完整 `CheckResult`），旧 v1 报告不能作为新完成证据，不写入任何 Run Artifact。**定位内置 Harness Adapter**：Adapter 只负责 Runtime 启动时的能力探测，不负责启动或下放 Agent。
 
 仅 `runtime-run` 执行本段；`native-delivery` 不要求 Adapter，不得因 Adapter 未探测而阻塞实现。
 

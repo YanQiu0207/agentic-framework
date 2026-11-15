@@ -1,18 +1,20 @@
 ---
 name: workflow-verification
-description: 机器验证。代码改动前采集基线，任务合并及最终 Review 前运行检查，或响应用户的验证请求。用户要求初始化、刷新验证配置（/verify-config）时进入配置维护模式。
+description: 用户明确要求 Verify 时运行机器验证；默认不启用。用户要求初始化、刷新验证配置（/verify-config）时进入配置维护模式。
 ---
 
 > 输出一行：`Using workflow-verification`
 
 # 机器验证
 
+仅在用户明确要求运行 Verify 或维护其配置时使用本 Skill；默认策略见 `workflow-code-generation` 步骤 1.5。以下基线、检查、报告和失败处理要求只适用于已启用的 Verify。
+
 **运行项目检查，记录实际结果。** 有配置时比较改动前后的基线；无配置时执行内置检查，并说明验证范围。
 
 ## 开发反馈与正式验证
 
-- **开发定向检查**：用于实现中、定位失败及修复后的快速反馈，不要求每次修改都运行完整 Verify。手动选择项目已有相关测试命令；pytest 项目可使用已有文件路径（如 `python -m pytest scripts/test_check_delivery.py`）或实际存在的用例 nodeid，其他技术栈使用项目已有命令，不新增自动选择器。记录实际命令、退出码和必要输出；失败则继续修复或报告阻塞。定向结果不得生成、覆盖或包装成局部正式 PASS 报告，不得用于 `quality_passed` 或正式交付裁决。
-- **正式完整 Verify**：用于任务质量门、合并前检查、集成验证及最终 Review 前验证，完整执行适用配置与内置检查；无配置时沿用内置门禁并说明范围，不宣称项目全量测试通过。保留基线、配置冻结、Spec Drift、Native／Runtime 报告、内容主体绑定及失败处理合同。定向通过不能替代正式验证；正式失败后可先定向修复，重新申请正式放行前仍须完整验证。
+- **开发定向检查**：用于实现中、定位失败及修复后的快速反馈，不要求每次修改都运行完整 Verify。手动选择项目已有相关测试命令；pytest 项目可使用已有文件路径（如 `python -m pytest scripts/test_check_delivery.py`）或实际存在的用例 nodeid，其他技术栈使用项目已有命令，不新增自动选择器。记录实际命令、退出码和必要输出；失败则继续修复或报告阻塞。定向结果不得生成、覆盖或包装成局部正式 Verify PASS 报告；未启用 Verify 时可按任务验收结果推进，不要求补齐 Verify 报告。
+- **正式完整 Verify**：用户明确启用后，用于任务质量门、合并前检查、集成验证及最终 Review 前验证，完整执行适用配置与内置检查；无配置时沿用内置门禁并说明范围，不宣称项目全量测试通过。保留基线、配置冻结、Spec Drift、Native／Runtime 报告、内容主体绑定及失败处理合同。定向通过不能替代正式验证；正式失败后可先定向修复，重新申请正式放行前仍须完整验证。
 
 ## 两种模式
 
@@ -86,14 +88,16 @@ python <skill-dir>/scripts/verify.py --baseline .agentic-framework/verify/baseli
 
 ## 执行规则
 
-1. 开发及修复循环按上方「开发反馈与正式验证」运行定向检查；实现和测试完成、进入任务质量门时，在改动所在 worktree 运行正式完整 Verify，不等待 LLM Review。
-2. 正式完整 Verify 全过（exit 0）→ 允许 merge；定向检查通过不构成合并凭证。
+1. 开发及修复循环按上方「开发反馈与正式验证」运行定向检查；启用 Verify 后，实现和测试完成、进入任务质量门时，在改动所在 worktree 运行正式完整 Verify，不等待 LLM Review。
+2. 启用 Verify 时，正式完整 Verify 全过（exit 0）→ 允许 merge；未启用时按任务验收和定向测试结果推进，不伪造 Verify 报告。
 3. **exit 1**（检查失败：编译、测试或新增违规）→ 回实现改代码重跑，有限轮次仍 FAIL → 标 `需人工` + 附输出。**不停其他并行 task**。
 4. **exit 2**（验证工具出错：工具缺失、正则非法或基线损坏）→ 标 `需人工`，排查配置或环境。
 5. 无 config → 只跑内置门禁，汇报「未做项目自定义机器验证」，并提示可运行 `/verify-config` 初始化。
 6. `spec_drift` FAIL → 更新对应 Change（`proposal.md` / `design.md` / Delta / `tasks.md`，正文引用改动代码路径）、长期 Specs、Issues 或 ADR，或补 `--spec-drift-reason` 后重跑。
 
 ## 与 workflow-code-generation 集成
+
+仅在用户明确启用 Verify 时执行下表；默认不采基线、不运行 Verify，也不因缺少配置或报告阻塞任务。
 
 | 时机 | 动作 |
 | --- | --- |

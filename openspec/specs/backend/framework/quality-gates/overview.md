@@ -1,5 +1,7 @@
 # 质量门概览
 
+Verify 默认策略以 `workflow-code-generation` 步骤 1.5 为准：只有用户明确要求才启用，Native／Runtime／审计均适用。默认不因缺少 Verify 配置或报告停止；相关定向测试仍保留，未运行不得声称 Verify PASS。下文完整 Verify 与证据链要求只适用于启用后的裁决。
+
 ## 职责划分
 
 框架把确定性质量门、机器 Verification 与语义 Code Review 分开：
@@ -7,14 +9,14 @@
 | 层 | 入口 | 职责 |
 | --- | --- | --- |
 | Production 阶段门 | `scripts/validate_change.py` | 只读校验 Plan、Delivery、Archive 的 Artifact 与证据合同 |
-| Tooling Task 门 | `workflow_control.py quality_passed` | 要求 Task 机器验证报告为 `PASS`（Native 只接受 v2） |
-| Tooling Run 交付门 | `check_delivery.py` | 校验归档、终态、Review JSON、知识影响、工作区状态并输出有界 Verdict |
+| Tooling Task 门 | `workflow_control.py quality_passed` | 默认不要求 Verify；显式启用时报告须为 `PASS`（Native 只接受 v2） |
+| Tooling Run 交付门 | `check_delivery.py` | 校验归档、终态、Review JSON、知识影响、工作区状态；启用 Verify 后输出有界 Verdict |
 | 机器 Verification | `workflow-verification/scripts/verify.py` | 执行项目配置、比较基线、检查 Spec Drift 并生成 JSON 报告 |
 | 语义 Review | `workflow-code-review` 与 `agents/` | 按风险分档审查 Diff；`lightweight` / `standard` 由 `comprehensive-reviewer` 自证并生成 Artifact，`strict` 由独立 Judge 输出最终 Markdown 与结构化 JSON |
 
 这些层相互提供证据，但不能互相替代。
 
-Tooling 的 Native Delivery、Runtime Run 与 Scoped Delivery 都必须声明 `--knowledge-impact hit|none`。`none` 必须附非空理由；缺失、空理由或非法值均失败关闭。Scoped Delivery 因必须同时使用 `--native-delivery` 而沿用同一检查，但输出以 Scoped Delivery 标识，避免混淆交付范围与 Runtime 证据。轻量 Native Delivery 仅在 `none` 且附具体理由时允许同时省略 `--tasks` 与 `--spec`；两参数必须成对，有知识影响但无 Change 时先停止并建立 Change。Fast-Path 保留为 lightweight 兼容别名，仍须通过 v2 Review／Verify 内容主体绑定和知识影响检查，不得声明 Runtime 证据。
+Tooling 的 Native Delivery、Runtime Run 与 Scoped Delivery 都必须声明 `--knowledge-impact hit|none`。`none` 必须附非空理由；缺失、空理由或非法值均失败关闭。Scoped Delivery 因必须同时使用 `--native-delivery` 而沿用同一检查，但输出以 Scoped Delivery 标识，避免混淆交付范围与 Runtime 证据。轻量 Native Delivery 仅在 `none` 且附具体理由时允许同时省略 `--tasks` 与 `--spec`；两参数必须成对，有知识影响但无 Change 时先停止并建立 Change。Fast-Path 保留为 lightweight 兼容别名，仍须通过 v2 Review 内容主体绑定和知识影响检查；启用 Verify 时再核对 Verify 主体，不得声明 Runtime 证据。
 
 Native Delivery 的 integration Review 同时服从治理要求与任务风险：Tooling 默认 `standard`，任务声明 `strict` 时使用 `strict`；Production 为 `strict`。strict 使用独立 Judge 与 v2 三项独立性声明，不自动启用 Runtime。完整 Runtime 只由显式 `--execution-mode runtime`、硬性审计要求或跨宿主能力验证启用；并行 worktree 与长任务恢复本身也不启用 Runtime。
 

@@ -17,7 +17,9 @@
 
 ## 执行与交付
 
-- 每次 `quality_passed --write` 传 `--run-dir` 和本次执行生成、绑定 Run／Task／Attempt 的 Envelope Verify Artifact；顶层 `PASS` 不能替代绑定证据。
-- 全局 Verify 传 `--run-dir`。最终 Review 使用 `scope: run`、`review_profile: strict`，由未参与实现的独立 Judge 生成 Envelope；implementer 不得编写或改写 Artifact。
-- 按主 Skill 完成知识同步、归档和本地提交后，执行 `check_delivery.py --run-dir <run-dir> --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <run-dir>/artifacts/review-run.json --knowledge-impact hit|none`；`none` 时附具体理由。门禁校验 Manifest、Journal、Harness、Trust Gate、终态、归档和工作区。报告只引用原始 stdout。
+Verify 是否执行统一按主 Skill 步骤 1.5；Runtime 和硬性审计不自动启用 Verify。默认不因缺少 Verify 报告停止，不声称 Verify 或完整验证证据链 PASS。
+
+- `quality_passed --write` 传 `--run-dir`；启用 Verify 时追加 `--require-verify --verify-report <artifact>`，使用本次执行生成、绑定 Run／Task／Attempt 的 Envelope Verify Artifact；顶层 `PASS` 不能替代绑定证据。
+- 启用全局 Verify 时传 `--run-dir`。最终 Review 使用 `scope: run`、`review_profile: strict`，由未参与实现的独立 Judge 生成 Envelope；implementer 不得编写或改写 Artifact。
+- 按主 Skill 完成知识同步、归档和本地提交后，执行 `check_delivery.py --run-dir <run-dir> --tasks <archived-tasks.md> --spec <archived-proposal.md> --review-report <run-dir>/artifacts/review-run.json --knowledge-impact hit|none`；`none` 时附具体理由。默认校验终态、Review、归档和工作区；启用 Verify 时追加 `--require-verify`，再校验完整 Manifest、Journal、Harness 与 Trust Gate。未启用时如实输出跳过状态，不生成完整 Trust Gate PASS。报告只引用原始 stdout。
 - 恢复已有 Runtime Run 时传 `--execution-mode runtime --long-task-recovery` 重新确认路由，保留原 Run 绑定，再运行 `workflow_control.py <tasks.md> recover --merged <task-id...>`。`--long-task-recovery` 本身不启用 Runtime。核对 worktree、合并事实和机器证据；已有首轮 Review 时只继续定向复审，不重启首审。

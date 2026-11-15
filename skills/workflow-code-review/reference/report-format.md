@@ -53,7 +53,7 @@
 
 #### 机器可读产物
 
-输出 Markdown 报告的**同一步**，Artifact 生成方额外产出一份机器可读 JSON；两者必须来自同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。`lightweight` / `standard` 的生成方是 `comprehensive-reviewer`，`strict` 的生成方是独立 Judge；owner / implementer 只能原样持久化，不得手写。产物合同由交付路径决定，不能为了放行伪造 Run 字段。Native v2 报告顶层带 `schema_version: 2` 与 `subject_id`（与 Verify 绑定同一内容主体）；旧六字段报告只按旧合同展示历史，不能作为新交付证据（change 2048）：
+输出 Markdown 报告的**同一步**，Artifact 生成方额外产出一份机器可读 JSON；两者必须来自同一次裁决，`verdict`、P0／P1 数量和 `round` 必须一致。`lightweight` / `standard` 的生成方是 `comprehensive-reviewer`，`strict` 的生成方是独立 Judge；owner / implementer 只能原样持久化，不得手写。产物合同由交付路径决定，不能为了放行伪造 Run 字段。Native v2 报告顶层带 `schema_version: 2` 与 `subject_id`（绑定当前被审内容；启用 Verify 时两者主体一致）；旧六字段报告只按旧合同展示历史，不能作为新交付证据（change 2048）：
 
 | 交付路径 | JSON 位置 | 必填裁决字段 | Run Context 与可声明边界 |
 | --- | --- | --- | --- |
