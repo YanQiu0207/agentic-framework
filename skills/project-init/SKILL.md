@@ -137,7 +137,10 @@ Git + SVN 模式额外追加 `.svn/`。
 
 ```markdown
 @AGENTS.md
+@openspec/index.md
 ```
+
+第二行让 Claude Code 每个会话启动时加载知识索引，AI 无需先触发 Skill 就能知道有哪些条目；正文仍由 Skill 按需读取。
 
 `AGENTS.md` 不存在时创建最小骨架；存在时只追加缺失章节。不得覆盖已有同名章节。必须记录：
 
@@ -169,7 +172,7 @@ openspec/
 
 三个索引保持精简：
 
-- `openspec/index.md`：项目概述、读取入口、活跃 Change、写入规则和冲突规则。
+- `openspec/index.md`：项目概述、读取入口、活跃 Change、写入规则和冲突规则。该文件经 `CLAUDE.md` 导入后每个会话都会加载，只放条目和路径，正文放到 `specs/` 或 `issues/`。
 - `openspec/specs/index.md`：长期辅助知识的分类索引，初始可为空。
 - `openspec/issues/index.md`：已验证项目故障的索引，初始可为空。
 
