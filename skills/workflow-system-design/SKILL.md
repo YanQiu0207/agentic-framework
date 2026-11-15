@@ -7,6 +7,8 @@ description: 系统设计。当 proposal.md 的需求章节已完整，需要建
 
 # 系统设计
 
+设计前加载 [project-knowledge](../project-knowledge/SKILL.md)，按 §3.1～§3.2 定向读取相关知识，按 §3.5 输出读取回执并在设计结果中说明采用依据。
+
 ## 核心定位
 
 **AI 负责调研代码背景，用户主导设计决策。**

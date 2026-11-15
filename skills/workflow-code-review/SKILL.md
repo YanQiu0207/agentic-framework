@@ -80,6 +80,7 @@ description: 代码审查。用户要求审查变更或开发流程进入 Review
 
 ### 2. 构建共享上下文
 
+- 加载 [project-knowledge](../project-knowledge/SKILL.md)，按 §3.1～§3.2 从 `openspec/index.md` 定向读取相关长期业务规则、共享契约、模块约束和 Issues，不限于当前 Change；按 §3.5 输出知识读取回执。复审仅补读与原问题及修复 diff 有关的知识，不扩大审查范围。向 Reviewer 传递相关路径和约束，按同一回执规则返回读取与采用依据。
 - 在 `openspec/changes/` 下搜索相关 `proposal.md`、`design.md`、Delta 和 `tasks.md`
 - 确定审查文件、上下文文件（caller/callee/接口定义）
 - 根据文件类型和目录确定适用 skill；若改动涉及架构边界 / 模块划分或组件接口 / 数据模型设计，相应将 `bp-architecture-design` / `bp-component-design` 加入 `{skill_list}`

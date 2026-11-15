@@ -7,6 +7,8 @@ description: 问题排查。当用户遇到编译错误、运行时异常、单�
 
 # 问题排查 (Troubleshooting)
 
+收集信息时加载 [project-knowledge](../project-knowledge/SKILL.md)，按 §3.1～§3.2 定向读取项目知识及适用的公共知识，按 §3.5 输出读取回执；排查结论说明采用依据，不把历史记录当作本次根因证据。
+
 ## Iron Law
 
 ```
