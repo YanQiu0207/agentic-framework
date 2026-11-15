@@ -47,7 +47,7 @@ description: 用户明确要求 Verify 时运行机器验证；默认不启用�
 
 ## Scoped Delivery 残留快照（显式模式）
 
-Native Delivery 若需保留预存的无关改动，必须在改动前用 `--save-baseline --delivery-scope <路径>` 冻结交付范围并采集残留快照。采集前读取 [残留快照规则](reference/spec-drift-and-scope.md#scoped-delivery-残留快照显式模式)。
+Native Delivery 若需保留预存的无关改动，必须在改动前冻结交付范围并采集残留快照。启用 Verify 时使用 `--save-baseline --delivery-scope <路径>`；未启用时按 [交付指南](../workflow-code-generation/reference/delivery-guide.md#scoped-delivery显式例外) 直接调用现有快照 API，不启动 Verify。采集前读取 [残留快照规则](reference/spec-drift-and-scope.md#scoped-delivery-残留快照显式模式)。
 
 `--ignore` 只影响规格漂移归类；独立的残留快照用于检查交付范围和预存内容。完整 Runtime Run 仍使用干净工作区。
 

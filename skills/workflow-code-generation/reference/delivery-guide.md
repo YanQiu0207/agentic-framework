@@ -90,12 +90,12 @@ Verify 是否执行统一按主 Skill 步骤 1.5；本指南完整 Verify、基�
 
 默认交付门保持「工作区干净」（Git）；SVN 原生路径按下方「SVN 原生交付」处理预期本地改动。
 
-只有本次任务已在动代码前冻结允许修改路径／生成目录，并由 `workflow-verification --save-baseline --delivery-scope <路径>` 写入 `workspace_residue_snapshot` 时，Native Delivery 才可显式传 `check_delivery.py --scoped-delivery --workspace-residue-baseline <baseline>`：
+本次任务须在动代码前冻结允许修改路径／生成目录并保存残留快照，Native Delivery 才可显式传 `check_delivery.py --scoped-delivery --workspace-residue-baseline <snapshot.json>`。启用 Verify 时沿用 `workflow-verification --save-baseline --delivery-scope <路径>`；未启用时不运行 Verify，在 Python 中导入 `json`、`pathlib.Path` 及解析后的受信框架根 `scripts/` 中的 `workspace_residue`，调用 `capture_workspace_residue(Path("<repo-root>"), "<base_sha>", ["<允许修改路径>", "<生成目录>"], backend="git")`，将返回值 `snapshot` 用 `Path("<snapshot.json>").write_text(json.dumps({"workspace_residue_snapshot": snapshot}, ensure_ascii=False), encoding="utf-8")` 保存。SVN 传 `backend="svn"`，`diff_base` 可传空字符串；快照文件放在 `.agentic-framework/verify/`，写入前用 `Path("<snapshot.json>").parent.mkdir(parents=True, exist_ok=True)` 确保父目录存在，与 Verify 基线同样仅在改动前采集一次。
 
 - Scoped Delivery 必须与 `--native-delivery` 一起使用，并声明 `--knowledge-impact hit|none`；`none` 时必须追加 `--knowledge-impact-reason "<具体理由>"`。Git 同时传 `--delivery-commit <HEAD>`，SVN 同时传 `--delivery-revision <已提交 revision>`。
 - 交付门比较 S1 与 S0，并拒绝提交 Diff 超出冻结范围的路径；`--ignore`、`ignore_paths` 和 `changed_files_snapshot` 不参与此判定。
 - Scoped Delivery 不适用于完整 Runtime Run；S0 与范围重叠、内容变化、提交证据缺失或无法判定时，切换干净 worktree／工作副本。
-- Git Scoped 成功产出 v2 `git-scoped-delivery-pass`（提交 sha、冻结范围与 S0 残留摘要入证据，不用 `git_clean` 包装脏工作区）；SVN Scoped 按「SVN 原生交付」产出 `svn-revision-verified`。Scoped 成功报告只能逐字引用「本次交付范围干净，预存残留未变化」，不得声称「Git 工作区干净」。
+- 启用 Verify 且证据齐备时，Git Scoped 产出 v2 `git-scoped-delivery-pass`（提交 sha、冻结范围与 S0 残留摘要入证据，不用 `git_clean` 包装脏工作区）；SVN Scoped 按「SVN 原生交付」产出 `svn-revision-verified`。未启用时仅报告范围与残留检查结果，不生成上述 Verdict。Scoped 成功报告只能逐字引用「本次交付范围干净，预存残留未变化」，不得声称「Git 工作区干净」。
 
 ## SVN 原生交付（串行工作流）
 

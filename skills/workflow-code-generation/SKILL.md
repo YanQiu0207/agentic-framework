@@ -143,7 +143,7 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 
 ## Scoped Delivery（显式例外）
 
-存在与任务无关的预存改动时，Native Delivery 可使用 Scoped Delivery。必须在改动前冻结范围并采集残留快照；采基线前读取 [Scoped Delivery](reference/delivery-guide.md#scoped-delivery显式例外)。完整 Runtime Run 仍使用干净工作区。
+存在与任务无关的预存改动时，Native Delivery 可使用 Scoped Delivery。必须在改动前冻结范围并采集残留快照；采残留快照前读取 [Scoped Delivery](reference/delivery-guide.md#scoped-delivery显式例外)。完整 Runtime Run 仍使用干净工作区。
 
 ## 统一交付证据格式
 

@@ -53,10 +53,10 @@ SVN Native 内容主体由 `scripts/native_subject.py` 使用本地工作副本�
 
 ## Scoped Delivery 残留快照（显式模式）
 
-默认交付仍要求工作区绝对干净。只有存量工作区存在与本次任务无关、且可保持不变的残留时，才可在采基线时显式传入重复的 `--delivery-scope <路径>`：
+默认交付仍要求工作区绝对干净。只有存量工作区存在与本次任务无关、且可保持不变的残留时，才使用 Scoped Delivery。启用 Verify 时在采基线时显式传入重复的 `--delivery-scope <路径>`；未启用时按 [交付指南](../../workflow-code-generation/reference/delivery-guide.md#scoped-delivery显式例外) 直接调用现有快照 API，不启动 Verify。
 
 - Verify 把冻结范围、Git／SVN 状态及残留内容指纹写入基线的 `workspace_residue_snapshot`。它与 `changed_files_snapshot` 完全独立；后者以及 `--ignore`／`ignore_paths` **仍只作用于 spec drift**。框架自身的 `.agentic-framework/` 本地运行产物不作为 SVN 残留，以避免基线和 Verdict 反向污染 S1。
 - S0 残留与冻结的任务写入路径或生成目录重叠、状态不可解析、路径无法读取或树摘要失败时，采基线失败关闭且不覆盖既有基线。应切换干净 worktree 或工作副本，不得扩大 ignore 绕过。
 - Git 交付必须提供等于当前 `HEAD` 的交付 commit；SVN 交付必须提供已提交 revision。`check_delivery.py --scoped-delivery` 仅在提交 Diff 均落入冻结范围且 S1 与 S0 完全一致时通过。
 - 成功只能表述为「本次交付范围干净，预存残留未变化」，不得表述为「Git 工作区干净」。完整 Runtime Run 不使用此模式，仍应使用干净 worktree。
-- Scoped 产出 v2 终态（change 2048 Task 12）：Git 为 `git-scoped-delivery-pass`（commit sha、冻结范围与 S0 残留摘要入证据，不用 `git_clean` 包装脏工作区）；SVN 为 `svn-revision-verified`（确切 revision 隔离核验通过）。SVN 的未版本化残留走本快照通道，不混入版本内容比对。
+- 启用 Verify 且证据齐备时，Scoped 产出 v2 终态（change 2048 Task 12）：Git 为 `git-scoped-delivery-pass`（commit sha、冻结范围与 S0 残留摘要入证据，不用 `git_clean` 包装脏工作区）；SVN 为 `svn-revision-verified`（确切 revision 隔离核验通过）。SVN 的未版本化残留走本快照通道，不混入版本内容比对。未启用 Verify 时只报告范围与残留检查结果，不生成依赖 Verify 的 Verdict。
