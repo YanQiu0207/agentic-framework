@@ -179,7 +179,7 @@ class RuntimeWorkflowTest(unittest.TestCase):
                 with self.assertRaisesRegex(OSError, "snapshot publish interrupted"):
                     runtime_workflow.finalize_run(repo, run_dir, review_path, [
                         {"task_id": "1", "state": "completed", "attempts": failures}
-                    ])
+                    ], require_verify=True)
             self.assertFalse((run_dir / "snapshots/code.diff").exists())
 
             result = check_delivery.main(
@@ -188,6 +188,7 @@ class RuntimeWorkflowTest(unittest.TestCase):
                     str(repo),
                     "--run-dir",
                     str(run_dir),
+                    "--require-verify",
                     "--tasks",
                     str(tasks),
                     "--spec",
@@ -223,9 +224,9 @@ class RuntimeWorkflowTest(unittest.TestCase):
                 side_effect=RuntimeError("injected gate interruption"),
             ):
                 with self.assertRaisesRegex(RuntimeError, "injected gate"):
-                    runtime_workflow.finalize_run(repo, run_dir, review_path, states)
+                    runtime_workflow.finalize_run(repo, run_dir, review_path, states, require_verify=True)
             self.assertEqual("PASS", runtime_workflow.finalize_run(
-                repo, run_dir, review_path, states
+                repo, run_dir, review_path, states, require_verify=True
             )["verdict"])
             self.assertEqual(journal_before, (run_dir / "events.jsonl").read_bytes())
             self.assertEqual(artifacts_before, {
@@ -235,7 +236,25 @@ class RuntimeWorkflowTest(unittest.TestCase):
             with self.assertRaisesRegex(runtime_workflow.RuntimeWorkflowError, "conflict"):
                 runtime_workflow.finalize_run(repo, run_dir, review_path, [
                     {"task_id": "1", "state": "manual", "attempts": failures}
-                ])
+                ], require_verify=True)
+
+    def test_finalize_skips_verify_without_fabricating_trust_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            run_dir = Path(temp_dir)
+            (run_dir / "artifacts").mkdir()
+            # A stale malformed Verify must not be consumed by the default path.
+            (run_dir / "artifacts" / "verify.json").write_text("invalid", encoding="utf-8")
+            review = {"payload": {"verdict": "PASS", "p0_count": 0,
+                                  "p1_count": 0, "scope": "run"}}
+            states = [{"task_id": "1", "state": "completed", "attempts": 0}]
+            with mock.patch.object(runtime_workflow, "load_context", return_value={}), \
+                    mock.patch.object(runtime_workflow, "load_bound_report", return_value=review), \
+                    mock.patch.object(runtime_workflow.runtime_trust, "validate_run") as trust:
+                result = runtime_workflow.finalize_run(run_dir, run_dir, run_dir / "review.json", states)
+                self.assertEqual({"verdict": "SKIPPED", "reason": "verify_not_requested"}, result)
+                trust.assert_not_called()
+            self.assertFalse((run_dir / "run-manifest.json").exists())
+            self.assertFalse((run_dir / "artifacts" / "final-report.json").exists())
 
     def test_finalize_rejects_non_terminal_task_state(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

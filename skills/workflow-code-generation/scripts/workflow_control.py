@@ -33,7 +33,6 @@ _LOCK_POLL_INTERVAL_SECONDS = 0.05
 _TASK_DOCUMENT_NAME = "tasks.md"
 _VERIFY_CONFIG_NAME = "verify.config.json"
 _VERIFY_CONFIG_DECISION_FIELD = "verify_config_decision"
-_VERIFY_CONFIG_DECISIONS = {"初始化", "跳过"}
 
 # —— 升级与批准词表（change 2039）——
 # 逐项抄录自 scripts/validate_change.py:40-113，不自行增删；两侧集合相等、
@@ -332,47 +331,9 @@ def _task_preamble(text: str) -> str:
     return text[: first_task.start()] if first_task else text
 
 
-def _verify_config_decision(text: str) -> str | None:
-    """Read the one global Verify configuration decision from ``tasks.md``."""
-    pattern = _field_pattern(_VERIFY_CONFIG_DECISION_FIELD)
-    matches = list(pattern.finditer(_task_preamble(text)))
-    if len(matches) > 1:
-        raise ValueError("verify_config_decision 只能记录一次")
-    if not matches:
-        return None
-    value = lint_task_deps.field(_task_preamble(text), _VERIFY_CONFIG_DECISION_FIELD)
-    if value not in _VERIFY_CONFIG_DECISIONS:
-        allowed = " / ".join(sorted(_VERIFY_CONFIG_DECISIONS))
-        raise ValueError(f"verify_config_decision 必须为 {allowed}：{value!r}")
-    return value
-
-
 def _verify_config_path(tasks_path: Path) -> Path:
     """Return the Verify configuration path for a task document's repository."""
     return _repository_root(tasks_path) / _VERIFY_CONFIG_NAME
-
-
-def _require_verify_config_decision(tasks_path: Path, text: str) -> None:
-    """Fail closed before dispatch when missing Verify configuration lacks consent."""
-    config_path = _verify_config_path(tasks_path)
-    if config_path.is_file():
-        return
-    decision = _verify_config_decision(text)
-    if decision == "跳过":
-        return
-    command = (
-        f'python "{Path(__file__).resolve()}" "{tasks_path}" '
-        "verify-config-decision --choice skip --write"
-    )
-    if decision == "初始化":
-        raise ValueError(
-            f"缺少 {config_path}；「初始化」记录要求该文件已实际存在。"
-            "请先运行 /verify-config 完成初始化，或由用户明确记录「跳过」。"
-        )
-    raise ValueError(
-        f"缺少 {config_path}，禁止 dispatch。请由用户运行 /verify-config 后记录"
-        f"「初始化」，或明确选择「跳过」：{command}"
-    )
 
 
 def _record_verify_config_decision(
@@ -1179,6 +1140,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     event_parser.add_argument("--write", action="store_true")
     event_parser.add_argument("--lock-timeout", type=float, default=10.0)
     event_parser.add_argument("--verify-report", type=Path, default=None)
+    event_parser.add_argument(
+        "--require-verify", action="store_true",
+        help="用户明确要求 Verify 时强制验证报告",
+    )
     event_parser.add_argument("--run-dir", type=Path)
     init_parser = subparsers.add_parser("init-run", help="初始化并探测 Runtime Run")
     init_parser.add_argument("--run-dir", type=Path, required=True)
@@ -1299,10 +1264,11 @@ def main(argv: list[str]) -> int:
                     _atomic_write(args.tasks_md, updated)
                     output = {"verify_config_decision": decision}
                 elif args.command == "event":
-                    if args.event == "start":
-                        _require_verify_config_decision(args.tasks_md, text)
                     attempt = _attempts(tasks[args.task_id]) + 1
-                    if args.event == "quality_passed":
+                    verify_requested = (
+                        args.require_verify or args.verify_report is not None
+                    )
+                    if args.event == "quality_passed" and verify_requested:
                         _load_verify_report(
                             args.verify_report,
                             args.run_dir,
@@ -1320,7 +1286,10 @@ def main(argv: list[str]) -> int:
                         args.max_attempts,
                     )
                     output = asdict(decision)
-                    if args.event == "quality_passed" and args.run_dir is not None:
+                    if (
+                        args.event == "quality_passed" and verify_requested
+                        and args.run_dir is not None
+                    ):
                         runtime_workflow.record_quality_passed(
                             args.run_dir,
                             args.verify_report,
@@ -1333,6 +1302,11 @@ def main(argv: list[str]) -> int:
                             args.reason, decision.control_stage,
                         )
                     _write_decisions(args.tasks_md, text, [decision])
+                    if args.event == "quality_passed" and not verify_requested:
+                        print(
+                            "[workflow-control] SKIP Verify：用户未要求运行；"
+                            "任务检查结果不代表 Verify PASS。", file=sys.stderr,
+                        )
                     if args.event == "merge_success" and args.run_dir is None:
                         # change 2048：本地集成语义——正式交付由交付门另行核验。
                         print(
@@ -1350,7 +1324,6 @@ def main(argv: list[str]) -> int:
             if args.command == "waves":
                 output = build_waves(tasks)
             elif args.command == "dispatchable":
-                _require_verify_config_decision(args.tasks_md, text)
                 output = dispatchable_tasks(tasks)
             elif args.command == "route":
                 detected_vcs = _detect_vcs(
@@ -1391,8 +1364,6 @@ def main(argv: list[str]) -> int:
                     )
                 output = asdict(selected)
             elif args.command == "event":
-                if args.event == "start":
-                    _require_verify_config_decision(args.tasks_md, text)
                 guard_errors = _event_governance_errors(args, text, tasks)
                 if guard_errors:
                     raise ValueError(guard_errors[0])
@@ -1408,7 +1379,6 @@ def main(argv: list[str]) -> int:
                 decisions = propagate_blocked(tasks)
                 output = [asdict(decision) for decision in decisions]
             elif args.command == "recover":
-                _require_verify_config_decision(args.tasks_md, text)
                 detected_vcs = _detect_vcs(
                     _task_project_directory(args.tasks_md), args.vcs_backend
                 )

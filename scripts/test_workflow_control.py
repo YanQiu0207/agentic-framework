@@ -686,13 +686,40 @@ class WorkflowControlTest(unittest.TestCase):
             detect_spy.assert_called_once_with(mock.ANY, "svn")
             self.assertIn('"path": "native-delivery"', stdout.getvalue())
 
-    def test_quality_passed_without_verify_report_fails_closed(self) -> None:
+    def test_quality_passed_without_verify_report_skips_verify(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "tasks.md"
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
+            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
+                result = workflow_control.main(
+                    [str(path), "event", "1", "quality_passed", "--write"]
+                )
+            self.assertEqual(0, result)
+            self.assertIn("SKIP Verify", stderr.getvalue())
+            self.assertIn("- control_stage：quality_passed", path.read_text(encoding="utf-8"))
+
+    def test_runtime_quality_passed_without_verify_does_not_fabricate_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "tasks.md"
+            path.write_text(tasks_text({1: "进行中"}, {1: []}), encoding="utf-8")
+            with mock.patch.object(workflow_control, "runtime_workflow") as runtime:
+                result = workflow_control.main([
+                    str(path), "event", "1", "quality_passed", "--write",
+                    "--run-dir", str(root / "run"),
+                ])
+            self.assertEqual(0, result)
+            runtime.validate_verify_artifact.assert_not_called()
+            runtime.record_quality_passed.assert_not_called()
+            self.assertFalse((root / "run").exists())
+
+    def test_required_verify_without_report_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
             original = tasks_text({1: "进行中"}, {1: []})
             path.write_text(original, encoding="utf-8")
             result = workflow_control.main(
-                [str(path), "event", "1", "quality_passed", "--write"]
+                [str(path), "event", "1", "quality_passed", "--require-verify", "--write"]
             )
             self.assertEqual(2, result)
             self.assertEqual(original, path.read_text(encoding="utf-8"))
@@ -928,26 +955,17 @@ class WorkflowControlTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "尚未全部完成"):
             workflow_control.apply_event(tasks, 2, "start")
 
-    def test_missing_verify_config_blocks_all_dispatch_entry_points(self) -> None:
+    def test_missing_verify_config_does_not_block_dispatch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "tasks.md"
-            original = tasks_text({1: "未开始"}, {1: []})
-            path.write_text(original, encoding="utf-8")
-
-            with mock.patch("sys.stderr", new_callable=io.StringIO) as stderr:
-                self.assertEqual(2, workflow_control.main([str(path), "dispatchable"]))
-            self.assertIn(
-                str(Path(workflow_control.__file__).resolve()), stderr.getvalue()
-            )
-            self.assertEqual(
-                2,
-                workflow_control.main([str(path), "event", "1", "start", "--write"]),
-            )
-            self.assertEqual(
-                2,
-                workflow_control.main([str(path), "recover"]),
-            )
-            self.assertEqual(original, path.read_text(encoding="utf-8"))
+            path.write_text(tasks_text({1: "未开始"}, {1: []}), encoding="utf-8")
+            prefix = ["--governance-profile", "tooling", str(path)]
+            self.assertEqual(0, workflow_control.main(prefix + ["dispatchable"]))
+            self.assertEqual(0, workflow_control.main(prefix + ["event", "1", "start"]))
+            self.assertEqual(0, workflow_control.main(prefix + ["event", "1", "start", "--write"]))
+            with mock.patch.object(workflow_control, "_detect_vcs", return_value="git"):
+                self.assertEqual(0, workflow_control.main(prefix + ["recover"]))
+            self.assertNotIn("verify_config_decision", path.read_text(encoding="utf-8"))
 
     def test_skip_decision_allows_dispatch_without_verify_config(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -420,15 +420,18 @@ def finalize_run(
     run_dir: Path,
     review_path: Path,
     task_states: Sequence[dict[str, Any]],
+    *, require_verify: bool = False,
 ) -> dict[str, Any]:
     """Serialize finalization so concurrent retries cannot replace evidence."""
     with run_journal.workflow_control._task_write_lock(run_dir / "finalization", timeout=10.0):
-        return _finalize_run(repo, run_dir, review_path, task_states)
+        return _finalize_run(repo, run_dir, review_path, task_states,
+                             require_verify=require_verify)
 
 
 def _finalize_run(
     repo: Path, run_dir: Path, review_path: Path,
     task_states: Sequence[dict[str, Any]],
+    *, require_verify: bool = False,
 ) -> dict[str, Any]:
     """Create final evidence, validate the Manifest, then execute the Trust Gate."""
     context = load_context(run_dir)
@@ -446,6 +449,8 @@ def _finalize_run(
         or payload["scope"] != "run"
     ):
         raise RuntimeWorkflowError("review_gate_failed")
+    if not require_verify:
+        return {"verdict": "SKIPPED", "reason": "verify_not_requested"}
     run_verifies = []
     for path in (run_dir / "artifacts").glob("*.json"):
         value = json.loads(path.read_text(encoding="utf-8"))
