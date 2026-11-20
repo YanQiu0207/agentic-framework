@@ -48,6 +48,8 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 
 信息已经足够时直接进入 Step 2，禁止为了走流程重复询问。只有缺失项会影响设计决策时，才一次性询问必要问题；不影响方案的可选信息由 AI 明确假设，不阻塞设计。
 
+涉及项目特有术语时，按 `project-knowledge` §3.4 读取共享模型，并按 `bp-domain-modeling` 的「讨论中的沉淀检查」核对新增定义、歧义与记录状态；有命中时加载该 Skill。需要改变模型时执行其建模与授权规则，不因快速路径省略。
+
 ### Step 2：代码调研（新系统可跳过）
 
 如果是在已有系统上扩展，AI **自主**调研相关代码：
@@ -103,6 +105,8 @@ description: 轻量级系统设计工作流，适用于内部工具、小型服�
 ### Step 5：写入 proposal.md
 
 用户确认后，立即写入文件。
+
+写入前按 `bp-domain-modeling` 的「讨论中的沉淀检查」核对重要取舍；有命中时加载该 Skill，将决定、理由、备选及后果写入下述 Quick Draft 的「关键权衡」，不另建 `design.md`。长期知识仍按 `project-knowledge` 的授权与晋升规则处理。
 
 文档固定写入 `openspec/changes/<ticket>-<change-name>/`。新 Change 禁止写入旧的
 `docs/design-docs/`；旧路径只在迁移任务中读取。

@@ -257,6 +257,7 @@ cp skills/workflow-requirements-clarification/reference/proposal_template.md \
 
 **操作**：
 1. 读取 proposal.md 前三章节内容
+   - 按 `bp-domain-modeling` 的「讨论中的沉淀检查」核对新增或澄清术语；有命中时加载该 Skill，展示定义、歧义及记录状态，按既有授权与知识写入合同处理，不新增设计方案。
 2. 向用户展示摘要，确认无需补充或修改
 3. 如有修改，更新对应章节内容
 
