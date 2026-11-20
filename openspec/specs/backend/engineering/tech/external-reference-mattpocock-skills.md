@@ -52,6 +52,17 @@ npx skills@latest add mattpocock/skills
 
 验证结果与已知限制以 Change 2053 的 `validation.md` 为准；结构检查不证明实际加载，有限行为试验也不能证明普遍效率提升。
 
+### 2026-11-21 增量核查（上游 `abeeaf9`）
+
+上游自 `5beb35b` 起新增 13 个提交（本地阅读包已同步重译）。本次增量适配：
+
+- **接点注记**：上游 `tdd` 给每个候选测试接点附「能捕获什么、漏掉什么」一行注记。已并入 `skills/bp-component-design/reference/deep-modules.md`「选择测试接点」第 6 条；`workflow-test-generation` 与 `workflow-architecture-improvement` 均加载该参考，随加载生效。
+- **接口候选并行探索（design-it-twice）**：上游 `codebase-design` 对高代价边界决定并行派多个子 Agent、各带不同约束产出截然不同的接口。已作为同参考文件的新章节落位，并在 `workflow-system-design`（接口／边界决策）与 `workflow-architecture-improvement`（候选接口形状讨论）接线。
+- **子 Agent 全新上下文窗口**：上游为所有派发子 Agent 的技能补充该要求，防 fork 继承父上下文。本框架 Agent 派发本就全新，且 `delegated-execution-guide.md` 已禁止跨 Task 复用 Agent；无需改动。
+- **`software-factory`（in-progress）**：设计 Agent 流水线的受控词汇——任务／运行／Runner／触发器，加五个服务槽位（工单跟踪工具、工单来源、Git 托管、编排器、可观测性平台）。本框架自身即软件工厂的一种，映射：工单跟踪工具≈Change 与 `tasks.md`、编排器≈`workflow-*` 与控制器、Runner≈Agent 派发与 Worktree、可观测性平台≈session-telemetry。该词汇可用于讨论本框架自身演进，不新增技能。
+
+未吸收的既有项仍适用「不能直接照搬」一节：上游 `implement-spec` 的就绪前沿由本框架 DAG/`depends_on` 承载，共享 Wiki/Procedures 由 `project-knowledge` 与既有 Change 承载，不重复引入工单跟踪工具层。
+
 以下表格保留最初研究时的现状与候选，不代表全部建议仍未实施。决策依赖追问和领域知识的本次落点以上方 Change 2053 专节及其验证记录为准，其他候选不因该 Change 自动转为已实施。
 
 | 借鉴项 | 已核查的框架现状 | 建议适配 |
