@@ -67,7 +67,7 @@ npx skills@latest add mattpocock/skills
 
 | 借鉴项 | 已核查的框架现状 | 建议适配 |
 | --- | --- | --- |
-| 决策依赖追问 | `skills/workflow-requirements-clarification/SKILL.md` 已要求代理查事实、苏格拉底式提问；`workflow-system-design` 独立负责设计 | 提取共同的追问方法，保留需求与设计的职责边界；已有答案直接复用，避免增加重复确认 |
+| 决策依赖追问 | `skills/workflow-requirements-clarification/SKILL.md` 已要求代理查事实、追问到问题本质；`workflow-system-design` 独立负责设计 | 提取共同的追问方法，保留需求与设计的职责边界；已有答案直接复用，避免增加重复确认 |
 | 深模块与测试接口 | `skills/bp-component-design/SKILL.md` 已有最小接口、封装和设计原则 | 增加调用方认知成本、复杂度集中程度、从公共接口可验证性三个具体检查点 |
 | 纵向切片 | `skills/workflow-code-generation/reference/task_planning_guide.md` 已有 DAG、独立验收、渐进编译和迁移策略 | 功能任务优先以可观察行为命名并携带测试；保留独立的最终集成验证，不强迫所有迁移都纵向切片 |
 | 逐行为测试反馈 | `skills/workflow-test-generation/SKILL.md` 已有公共接口分析与 task 内嵌测试路径 | 将失败证据、最小实现、通过证据作为需要 TDD 的任务内循环；可复用已确认的设计测试边界 |

@@ -1,70 +1,29 @@
 ---
 name: bp-coding-best-practices
-description: 通用编码最佳实践。在编写或 review 代码时使用。涵盖可读性、命名、函数设计、控制流、资源安全、注释规范。
+description: 通用编码最佳实践。在编写或 review 代码时使用。涵盖统一的编码取舍、新增返回路径的资源契约检查和日志规范。
 ---
 
 > 输出一行：`Using bp-coding-best-practices`
 
 # 通用编码最佳实践
 
-**设计原则（SOLID、设计模式）**：参见 `bp-component-design` Skill
+**模块、接口与并发设计**：参见 `bp-component-design` Skill
 **特定语言/模块规范**：参见相应的 standards skills
 
 ---
 
-## 命名
+通用的命名、函数拆分和可读性按常识执行，本文不重复；这里只列需要统一的取舍和容易漏掉的检查。
 
-| 原则 | 说明 |
-|------|------|
-| **自解释** | `retryCount` 而非 `n` |
-| **无魔法数字** | `const int SECONDS_IN_DAY = 86400;` |
-| **布尔命名** | `isValid`, `hasAccess`（问题形式） |
-| **作用域匹配** | 小作用域可短（`i`），大作用域要描述性 |
+## 统一取舍
 
----
-
-## 函数设计
-
-| 原则 | 说明 |
-|------|------|
-| **单一职责** | 一个函数做一件事；名字需要 "And" 说明做太多了 |
-| **参数精简** | 超过 3-4 个参数 → 考虑结构体封装 |
-| **const 正确** | 不修改的参数标 `const`，防止意外修改 |
-
----
-
-## 控制流
-
-**Guard Clause**：失败情况先处理并返回，主逻辑保持左对齐
-
-**Early Return**：显式采用 early return 编程范式，尽量将可 early return 的检查前置。
-
-```cpp
-// ❌ 深层嵌套
-if (order != nullptr) {
-    if (order->isValid()) {
-        if (order->hasItems()) {
-            // main logic
-        }
-    }
-}
-
-// ✅ Guard Clause
-if (order == nullptr) return;
-if (!order->isValid()) return;
-if (!order->hasItems()) return;
-// main logic (not nested)
-```
+- **Early Return**：失败和边界情况前置处理并返回，主逻辑保持左对齐，不深层嵌套。
+- **无魔法数字**：用具名常量。
+- **注释写 Why**：仅在意图不明显、算法复杂或公共 API 处写，不复述代码。
+- **TODO**：包含上下文和负责人。
 
 ---
 
 ## 资源安全
-
-| 原则 | 说明 |
-|------|------|
-| **RAII** | 资源生命周期绑定对象生命周期，避免手动清理分散在多条路径 |
-| **所有权显式** | 区分 owner 与 borrower，避免隐式转移所有权 |
-| **窄作用域** | 变量声明靠近首次使用，减少悬空与误用概率 |
 
 跨语言场景统一要求：新增分支/返回路径时，必须检查资源契约是否闭环（释放类资源 + 触发类资源）。
 
@@ -90,26 +49,6 @@ if (!order->hasItems()) return;
 | 新分支只清理了数据结构，忘了 callback 的执行契约 | 对照已有的 early return 路径，发现它调用了 `callback->Run()`，新路径也需要 |
 | 假设"返回成功后调用方会处理 closure" | 检查调用方逻辑，确认 closure 执行责任的真实归属 |
 | 只关注"要释放什么"，忽略"要触发什么" | 同时检查释放类资源（锁、内存）和触发类资源（回调、事件） |
-
----
-
-## 注释
-
-| 场景 | 做法 |
-|------|------|
-| **何时写** | 仅当意图不明显时；复杂算法；公共 API |
-| **写什么** | **Why**（为什么这样做），不是 What（做了什么） |
-| **TODO** | 包含上下文和负责人 |
-
-```cpp
-// ❌ 复述代码
-// Increment i by 1
-++i;
-
-// ✅ 解释意图
-// Skip index 0 because it is the sentinel slot.
-for (size_t i = 1; i < slots.size(); ++i) { ... }
-```
 
 ---
 

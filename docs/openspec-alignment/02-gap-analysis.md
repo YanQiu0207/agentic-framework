@@ -59,7 +59,7 @@ OpenSpec 明确主张「update any artifact anytime, no rigid phase gates」；`
 
 差异是非对称的——OpenSpec 的赌注全押在规范层，以下这些 OpenSpec 几乎没有：
 
-- **设计深度**：10 章重型 `spec.md` + 苏格拉底式逐节 `system-design`（OpenSpec 的 spec 是轻量需求清单）。
+- **设计深度**：10 章重型 `spec.md` + 按章节检查覆盖、AI 提方案由用户评审的 `system-design`（OpenSpec 的 spec 是轻量需求清单）。
 - **多 Agent 对抗式 code review**：5 reviewer + critic + Judge（`skills/workflow-code-review/SKILL.md:12`）；OpenSpec 无评审编排。
 - **客观验证门禁**：`verify.py` 基线对比、只追新增违规（`skills/workflow-verification/SKILL.md:32`）。
 - **编码规范体系**：`std-*` / `bp-*` 按需加载。

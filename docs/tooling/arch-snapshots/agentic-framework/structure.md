@@ -38,7 +38,7 @@ agentic-framework/
 
 | Skill | 职责 | AI 角色 |
 |---|---|---|
-| `workflow-requirements-clarification` | 明确「要解决什么问题」，产出 spec 1-3 章 | 苏格拉底式追问，只问业务问题 |
+| `workflow-requirements-clarification` | 明确「要解决什么问题」，产出 spec 1-3 章 | 追问到问题本质，只问业务问题 |
 | `workflow-system-design` | 将需求转化为设计，产出 spec 4-8 章 | 导师（只提问质疑），用户请求时才给方案 |
 | `workflow-quick-design` | 轻量替代路径，适合内部工具 | 设计者（主动给方案，1-2 轮确认） |
 | `workflow-code-generation` | 所有代码变更统一入口，复杂度路由 | 执行编排者 |

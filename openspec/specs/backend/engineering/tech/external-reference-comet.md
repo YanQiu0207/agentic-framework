@@ -107,7 +107,7 @@ Comet 把「想法 → 验证 → 归档」固化成状态机：阶段推进不�
 | 当前框架技能 | 与 Comet 对照后的候选价值 | 建议与替换边界 |
 | --- | --- | --- |
 | `workflow-requirements-clarification` | Why 追问、矛盾与遗漏清单；Comet Open 已强调复用确认事实、只问影响决策的缺口 | 保留提问方法，不替换 Open／Shape；若追求少交互，不建议保留旧流程的逐轮确认 |
-| `workflow-system-design` | 专项规范按需加载、详细设计指导；旧流程偏苏格拉底式引导，Comet Design 会提出方案供确认 | 取决于是否需要设计辅导；可抽取模板和规范，也可作为 Classic `design` producer 的适配候选，不能携带旧路径与后续路由 |
+| `workflow-system-design` | 专项规范按需加载、详细设计指导；原先偏苏格拉底式引导，2026-11-21 起改为 AI 先提方案、用户评审决定，与 Comet Design 提出方案供确认的方式接近 | 取决于是否需要设计辅导；可抽取模板和规范，也可作为 Classic `design` producer 的适配候选，不能携带旧路径与后续路由 |
 | `workflow-quick-design` | AI 主动提案、设计与任务概要合并确认 | 可作为轻量设计方法；不是 hotfix／tweak 的直接等价物。去掉旧工单脚本、任务合同和自动进入代码生成的链路，保留 Comet 必要确认 |
 | `workflow-frontend-design` | 多概念确认、UI Tokens、状态、响应式、保真与浏览器验收闭环 | **优先适配保留**；它实际绑定 `openspec/changes/`，并自动调用旧代码生成流程，不能原样独立使用 |
 | `workflow-code-generation` | 局部任务规划、风险判据等方法 | 不迁整个编排器；否则重新引入框架 Profile、Run、交付门与第二套任务推进机制 |

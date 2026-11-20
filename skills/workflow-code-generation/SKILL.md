@@ -110,7 +110,7 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 | 规范 | 何时加载 |
 | --- | --- |
 | `bp-coding-best-practices` | 必须 |
-| `bp-performance-optimization` | 必须（所有代码都性能敏感） |
+| `bp-performance-optimization` | 热路径、有性能指标或用户提出性能目标时 |
 | `std-cpp` / `std-go` / `std-python` | `.cc/.cpp/.h` / `.go` / `.py` 文件 |
 | `bp-cli-tool-design` | 实现或修改 CLI、部署脚本、运维脚本或自动化命令 |
 | `std-react` | `.tsx` / `.ts` 前端文件；默认用 shadcn/ui 写基础组件 |
