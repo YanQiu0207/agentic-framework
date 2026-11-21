@@ -47,7 +47,8 @@ def test_no_independent_compatibility_delivery_in_active_instructions() -> None:
         "--review-report",
         "--knowledge-impact",
         "knowledge-impact-reason",
-        "不得声明 strict Review 或 Trust Gate PASS",
+        "--require-verify --verify-report",
+        "不伪造 Verify 或 Trust Gate PASS",
     ):
         assert required in guide
     report = read("skills/workflow-code-review/reference/report-format.md")
@@ -231,7 +232,8 @@ def test_shared_native_instructions_respect_governance_not_risk() -> None:
     for required in ("--execution-mode runtime", "--audit-required",
                      "--cross-host-capability-verification",
                      "不因风险自动建 Run", "三项独立性声明",
-                     "独立 v2 验证报告，不初始化 Run"):
+                     "Native Delivery 不初始化 Run",
+                     "启用 Verify 时使用带内容主体的独立 v2 验证报告"):
         assert required in generation
     assert "SVN 命中 Runtime 升级需求时停止，不降级" in generation
     review = read("skills/workflow-code-review/SKILL.md")
@@ -246,7 +248,8 @@ def test_shared_native_instructions_respect_governance_not_risk() -> None:
     assert "不得提供 `run_id`、Harness、Trust Gate、Manifest 声明" in report
     delivery = read("skills/workflow-code-generation/reference/delivery-guide.md")
     assert "任务声明 `strict` 时使用 `strict`，由独立 Judge" in delivery
-    assert "与独立 v2 Verify，校验同一 `subject_id`" in delivery
+    assert "校验同一 `subject_id` 后生成有界 Verdict" in delivery
+    assert "未启用时不生成依赖 Verify 的 Verdict" in delivery
     runtime = read("skills/workflow-code-generation/reference/runtime-guide.md")
     assert "strict 风险本身不启用 Runtime" in runtime
     assert "--execution-mode runtime --long-task-recovery" in runtime

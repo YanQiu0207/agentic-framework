@@ -208,9 +208,28 @@ class WorkspaceResidueTest(unittest.TestCase):
                 check_delivery.workspace_residue,
                 "compare_workspace_residue",
                 return_value=[],
-            ):
+            ), mock.patch.object(
+                check_delivery.vcs,
+                "verify_delivery",
+                return_value={"subject_id": "sha256:delivered"},
+            ), mock.patch.object(
+                check_delivery, "_current_subject"
+            ) as current_subject:
+                current_subject.return_value = (
+                    {"subject_id": "sha256:delivered"}, []
+                )
                 self.assertEqual(
                     [],
+                    check_delivery.check_scoped_delivery(
+                        Path(temp_dir), baseline, None, "8"
+                    ),
+                )
+                # 工作副本主体与确切 revision 主体不同时必须阻断
+                current_subject.return_value = (
+                    {"subject_id": "sha256:drifted"}, []
+                )
+                self.assertEqual(
+                    ["当前工作副本主体与确切 revision 主体不一致"],
                     check_delivery.check_scoped_delivery(
                         Path(temp_dir), baseline, None, "8"
                     ),
