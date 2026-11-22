@@ -57,6 +57,7 @@ Agentic Engineering Framework 以一个 Shared Core 支撑两个独立生命周�
 
 - Comet 流程编排状态机（rpamis/comet）的双工作流、源码核验机制、三层扩展模型、与本框架 27 skills 的迁移对照及共存策略：[`external-reference-comet.md`](specs/backend/engineering/tech/external-reference-comet.md)
 - Tencent LoopForge 的平台版与 Local 版、SOP 与角色 Skill 下发机制、与本框架的对照、接入可行性及不采用结论（2026-11-15）：[`external-reference-loopforge.md`](specs/backend/engineering/tech/external-reference-loopforge.md)
+- pstack（Cursor 插件技能包）的证据优先审查、验证技能生成、委派纪律、文章说法核对，以及已吸收的 5 项与不采用项（2026-11-22）：[`external-reference-pstack.md`](specs/backend/engineering/tech/external-reference-pstack.md)
 
 - Agent 实验评测与 Review 首例（含四个经典 Bug 的普通组、standard 与 strict 实评）：[agent-evaluation](specs/backend/engineering/tech/agent-evaluation.md)
 - Review 效果评测方法：[SWR-Bench 与 SWE-PRBench](specs/backend/engineering/tech/external-reference-review-evaluation-methods.md)

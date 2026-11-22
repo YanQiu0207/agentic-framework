@@ -27,6 +27,16 @@
 
 只报你的维度内的问题。其他维度的线索可以用一行 handoff note 提示。
 
+只为本次变更引入或扩大的问题立案。改动前已存在、本次也未触及的问题，在 handoff note 里用一行列出，不计入 P0/P1。只有在假设的未来改动下才成立的风险，最多定为 P2。
+
+[Evidence]
+每条 finding 标注证据等级，取实际达到的最高一级：
+- 推理：只有逻辑推演，没有指到具体代码
+- 代码：指出 file:line，并写明触发路径
+- 复现：实际运行过的测试、脚本或命令，附命令和关键输出；没有运行过的命令不算
+
+正确性、健壮性和性能维的 P0/P1，如果能用现有测试、单测或小脚本低成本触发，就先复现。复现脚本放在临时目录，不修改被审文件。做不到时写明原因。
+
 当 `review_profile` 为 `lightweight` 或 `standard` 时，`comprehensive-reviewer` 还必须按 report-format.md 输出本轮完整、可直接保存的 JSON Artifact。无 Run 的 Native Delivery（含 Fast-Path 兼容别名）使用 v2：`schema_version: 2`、`subject_id`、`verdict`、`p0_count`、`p1_count`、`scope`、`review_profile`、`round`；集成交付使用 `scope: integration`。缺少与被审内容绑定的 `subject_id` 时先报告缺失，不得猜测或退回旧六字段报告。strict 由独立 Judge 按对应交付路径的合同生成，Reviewer 不代写裁决。编排方只能字节级原样保存该 JSON，不得手写、补全或改写字段。
 ```
 
@@ -47,7 +57,7 @@
 - **F-1** [P1 · 需求符合度]
   - **位置**: `file:line`
   - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
+  - **证据**: [等级：推理／代码／复现] [关键代码片段、复现命令与输出，或推理过程]
 - 💡 **Handoff notes**: [发现的超出轻量档的高风险线索 + 是否建议升档，无则省略此行]
 
 ### 性能审查 (performance-reviewer)
@@ -55,11 +65,11 @@
 - **F-1** [P1]
   - **位置**: `file:line`
   - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
+  - **证据**: [等级：推理／代码／复现] [关键代码片段、复现命令与输出，或推理过程]
 - **F-2** [P2]
   - **位置**: `file:line`
   - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
+  - **证据**: [等级：推理／代码／复现] [关键代码片段、复现命令与输出，或推理过程]
 - 💡 **Handoff notes**: [该 reviewer 发现但属于其他维度的线索，无则省略此行]
 
 ### 健壮性审查 (robustness-reviewer)
@@ -67,7 +77,7 @@
 - **F-3** [P0]
   - **位置**: `file:line`
   - **问题**: [一句话问题摘要]
-  - **证据**: [支撑该问题的关键代码片段/数据/逻辑推理]
+  - **证据**: [等级：推理／代码／复现] [关键代码片段、复现命令与输出，或推理过程]
 - 💡 **Handoff notes**: ...
 
 ### 工程规范审查 (standards-reviewer)
@@ -90,7 +100,7 @@
 
 ```
 [Issue 列表]
-（逐条列出 F-{seq}、claim、evidence、location、severity、assumptions）
+（逐条列出 F-{seq}、claim、evidence、evidence_level、location、severity、assumptions）
 
 [Review 上下文]
 - 相关文件：{files}

@@ -65,7 +65,7 @@ SVN Task 失败时停止该工作副本的所有后续写入任务（包括无�
 
 owner / implementer 的固定职责：
 
-1. 编码前自行读取适用的 `AGENTS.md`／`CLAUDE.md`、主 Skill 步骤 4 的编码规范及匹配的 Overlay；只修改分配 Task 声明的范围，发现范围或依赖错误时停止并报告。
+1. 编码前自行读取适用的 `AGENTS.md`／`CLAUDE.md`、主 Skill 步骤 4 的编码规范及匹配的 Overlay；只修改分配 Task 声明的范围，发现范围或依赖错误时停止并报告。完成标准就是 Task 的验收标准和 `verification`：不自行追加门禁、审查轮次或范围外的改进；改动前已存在的失败或缺陷，在返回摘要里用一行列出，不在本 Task 修复，也不因此阻塞。
 2. 实现功能并通过 `workflow-test-generation` 补齐测试。
 3. 内部开发与修复迭代优先运行已有相关测试，按 `workflow-verification` 的「开发反馈与正式验证」返回定向反馈；提交任务质量门前运行 Task 的 `verification`；启用 Verify 时再执行正式完整 Verify，禁止弱化配置绕过失败。
 4. 内部迭代返回摘要、实际定向命令、退出码和必要输出；启用 Verify 时另附完整验证报告路径和 Spec Drift 结论，不返回完整 diff。
