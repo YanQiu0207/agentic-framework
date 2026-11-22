@@ -165,6 +165,15 @@ class ProfileContractTest(unittest.TestCase):
         ):
             self.assertIn(required, text)
         self.assertIn("](reference/advanced-init.md)", text)
+        self.assertIn("](reference/agent-rules.md)", text)
+        agent_rules = (
+            ROOT / "skills/project-init/reference/agent-rules.md"
+        ).read_text(encoding="utf-8")
+        for marker in (
+            "<!-- AGENTIC_RULES_START -->",
+            "<!-- AGENTIC_RULES_END -->",
+        ):
+            self.assertEqual(1, agent_rules.count(marker))
         self.assertIn("选择 SVN、外置正文或公共库接线之前", text)
         self.assertIn("公共知识库由用户单独决定", text)
         self.assertIn("缺包或查询失败时停止", text)
