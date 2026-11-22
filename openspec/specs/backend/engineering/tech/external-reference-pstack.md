@@ -68,7 +68,7 @@ pstack 把 token 和流程押在「运行出来的证据」上：少写代码，
 | 候选 | pstack 来源 | 落点 |
 | --- | --- | --- |
 | 审查发现分证据等级（推理／代码／复现），可低成本复现的 P0/P1 先复现 | `blast-radius`、`interrogate` | `skills/workflow-code-review/reference/reviewer-prompts.md` 的 `[Evidence]` 与汇总模板；`agents/review-critic.md` 规则 5（证据不足且复现不了的给 `not_proven`） |
-| 审查和编码子 Agent 只按给定标准工作，基线问题一行报告 | `worker.md` | `reviewer-prompts.md`（基线问题不计 P0/P1，假设性风险最多 P2）；`delegated-execution-guide.md` Phase 1 第 1 条 |
+| 编码子 Agent 只按给定标准工作，基线问题一行报告 | `worker.md` | `delegated-execution-guide.md` Phase 1 第 1 条 |
 | 先审测得的数字再使用 | Explain the Number、`benchmark-checklist` | `skills/bp-performance-optimization/SKILL.md`「测量数字审查」；`agents/performance-reviewer.md` 规则 3 |
 | 缺陷修复留下失败→通过的证据；新测试说明能抓住哪种错误 | Bug fix 剧本、`tdd`、Test Behavior 原则 | `skills/workflow-test-generation/SKILL.md` 强制规则 7、9（「先红后绿」原已存在） |
 | 纠错落点优先级与「规则 → 强制手段」对照表 | `correct` | `skills/self-refinement/SKILL.md` Step 2、建议模板、Step 6 |
@@ -76,6 +76,7 @@ pstack 把 token 和流程押在「运行出来的证据」上：少写代码，
 吸收时的取舍：
 
 - 没有照搬「复现不了就丢弃」：设计、契约类问题往往无法运行，仍由 Critic 与 Judge 判断。
+- 审查侧撤回了「改动前已存在、本次未触及的问题不计 P0/P1」和「假设性风险最多 P2」两条：用户评审认为收得太紧，审查仍按问题本身定级。
 - 没有要求「失败测试先于修复单独提交」：交付提交由编排方完成，单独提交一个失败状态会让逐提交检查失败；改为要求在摘要中附修复前失败、修复后通过的输出。
 
 ## 不采用
