@@ -11,24 +11,28 @@ Verify 是否执行统一按主 Skill 步骤 1.5；本指南完整 Verify、基�
 轻量及标准路径在最终 Review 前执行：
 
 1. 完成实现与定向反馈后，先运行低成本结构检查，例如 `git diff --check`；适用时检查 Skill 引用或任务状态一致性。检查失败先修复，不将静态检查冒充正式 Verify。
-2. 核对修改范围，收口已知的 Change 文档、规格关联、知识影响说明及可提前完成的文档更新；未达成的验收不得提前勾选。
+2. 核对修改范围，收口已知的 Change 文档、规格关联、知识影响说明及可提前完成的文档更新；按下方「使用文档与核心流程验收」完成适用检查，未达成的验收不得提前勾选。
 3. 按原流程执行定向测试、前端验证、最终 Review 和后续交付步骤；仅在启用时执行正式完整 Verify。检查分类与证据边界以 `workflow-verification` 的「开发反馈与正式验证」为准。
 
 启用 Verify 后，Review 修复、知识同步、任务状态更新或归档等后续操作若改变受验证主体，仍须按现有主体绑定合同重新完整验证，不得复用失效报告或调整指纹排除规则。本顺序不取消后续沉淀、知识同步、归档和交付门，也不保证每个 Change 只运行一次完整 Verify。
 
+## 使用文档与核心流程验收
+
+轻量与标准交付均适用：
+
+- 新增或改变用户可见的使用方式（命令、参数、配置、安装、升级或操作路径）时，同步已有使用文档；无适用文档时补充最小使用说明，不另建重复手册。纯内部重构且外部行为不变时，不要求新增教程。
+- 按使用文档中的实际步骤运行核心流程，对照已确认需求与验收标准检查预期结果；在现有交付说明或证据报告中记录文档路径、必要前置条件、实际步骤、结果与证据。失败则修复后重验；无法执行时说明阻塞原因和补验方式，不得声称该流程已验证。
+- Agent 负责可客观执行的验证并提供证据；产品是否符合真实意图、体验是否满意，由用户判断。仅在确有此类待确认项时提供可操作的验收路径，不要求所有任务新增人工批准或等待。尚未确认的结果不得标为「用户已验收」，既有批准、失败停止与交付门要求保持不变。
+
 ## 轻量交付（Fast-Path 兼容）
 
-轻量任务由当前宿主执行；中等任务可下放 Agent 并按需使用 DAG。
-
-两者都属于 Native Delivery，不创建或伪造 Run Context。**Fast-Path 只是旧调用方的兼容别名，不再按「主会话直接修改」定义另一条默认路径。**兼容别名保留 lightweight integration Review；新的低／中风险标准交付使用 standard integration Review。
-
-两者都不增加完整 Runtime 的声明。
+轻量任务由当前宿主执行，属于 Native Delivery，不创建或伪造 Run Context，也不增加完整 Runtime 的声明。**Fast-Path 只是旧调用方的兼容别名，不再按「主会话直接修改」定义另一条默认路径。**轻量交付使用 lightweight integration Review；有 Change 的标准交付见下方「标准交付」。
 
 1. 加载编码规范（同步骤 4）。
 2. 实现改动；仅在启用 Verify 且有配置时，改动前按 `workflow-verification` 采基线。发现外溢（超出步骤 1 路由判据）→ **立即退出**，转标准流程。
 3. **机器验证**：先执行上方「正式验证前收口」并运行相关定向测试；启用 Verify 时加载 `workflow-verification` 完整验证，通过后继续。失败回第 2 步修复，不将失败当作跳过。
 4. **前端验证**：若涉及 UI / 样式 / `.tsx` / 用户操作路径，加载 `bp-frontend-taste` 后再用 `frontend-playwright-verification` 做浏览器验证；产生代码改动时回到第 3 步重验。
-5. **统一 Code Review**：实现、测试和机器验证全部完成后，加载一次 `workflow-code-review`（Fast-Path 兼容别名使用 `review_profile: lightweight`；新的 Native Delivery 使用 `standard`；均为 `scope: integration`，`mode: initial`）。
+5. **统一 Code Review**：实现、测试和机器验证全部完成后，加载一次 `workflow-code-review`（`review_profile: lightweight`、`scope: integration`、`mode: initial`）。
 
    Review Artifact 必须由审查流程生成，implementer 只能原样保存，不得依据对话手写 JSON。
 
@@ -90,7 +94,22 @@ Verify 是否执行统一按主 Skill 步骤 1.5；本指南完整 Verify、基�
 
 默认交付门保持「工作区干净」（Git）；SVN 原生路径按下方「SVN 原生交付」处理预期本地改动。
 
-本次任务须在动代码前冻结允许修改路径／生成目录并保存残留快照，Native Delivery 才可显式传 `check_delivery.py --scoped-delivery --workspace-residue-baseline <snapshot.json>`。启用 Verify 时沿用 `workflow-verification --save-baseline --delivery-scope <路径>`；未启用时不运行 Verify，在 Python 中导入 `json`、`pathlib.Path` 及解析后的受信框架根 `scripts/` 中的 `workspace_residue`，调用 `capture_workspace_residue(Path("<repo-root>"), "<base_sha>", ["<允许修改路径>", "<生成目录>"], backend="git")`，将返回值 `snapshot` 用 `Path("<snapshot.json>").write_text(json.dumps({"workspace_residue_snapshot": snapshot}, ensure_ascii=False), encoding="utf-8")` 保存。SVN 传 `backend="svn"`，`diff_base` 可传空字符串；快照文件放在 `.agentic-framework/verify/`，写入前用 `Path("<snapshot.json>").parent.mkdir(parents=True, exist_ok=True)` 确保父目录存在，与 Verify 基线同样仅在改动前采集一次。
+本次任务须在动代码前冻结允许修改路径／生成目录并保存残留快照，Native Delivery 才可显式传 `check_delivery.py --scoped-delivery --workspace-residue-baseline <snapshot.json>`。启用 Verify 时沿用 `workflow-verification --save-baseline --delivery-scope <路径>`；未启用时不运行 Verify，从解析后的受信框架根 `scripts/` 导入 `workspace_residue`，按下列方式保存快照：
+
+```python
+import json
+from pathlib import Path
+from workspace_residue import capture_workspace_residue
+
+snapshot = capture_workspace_residue(
+    Path("<repo-root>"), "<base_sha>", ["<允许修改路径>", "<生成目录>"], backend="git"
+)
+out = Path("<snapshot.json>")  # 放在 .agentic-framework/verify/
+out.parent.mkdir(parents=True, exist_ok=True)
+out.write_text(json.dumps({"workspace_residue_snapshot": snapshot}, ensure_ascii=False), encoding="utf-8")
+```
+
+SVN 传 `backend="svn"`，第二个参数 `diff_base` 可传空字符串。与 Verify 基线一样，仅在改动前采集一次。
 
 - Scoped Delivery 必须与 `--native-delivery` 一起使用，并声明 `--knowledge-impact hit|none`；`none` 时必须追加 `--knowledge-impact-reason "<具体理由>"`。Git 同时传 `--delivery-commit <HEAD>`，SVN 同时传 `--delivery-revision <已提交 revision>`。
 - 交付门比较 S1 与 S0，并拒绝提交 Diff 超出冻结范围的路径；`--ignore`、`ignore_paths` 和 `changed_files_snapshot` 不参与此判定。
@@ -99,7 +118,7 @@ Verify 是否执行统一按主 Skill 步骤 1.5；本指南完整 Verify、基�
 
 ## SVN 原生交付（串行工作流）
 
-纯 SVN 工作副本的 Native Delivery 按固定串行顺序推进；`update` / `commit` 只发生在下述明确步骤，查询与门禁绝不代执行（change 2048）：
+纯 SVN 工作副本的 Native Delivery 按固定串行顺序推进；`update` / `commit` 只发生在下述明确步骤，查询与门禁绝不代执行：
 
 1. **保护预存改动**：开始前检查工作副本本地改动。干净副本可继续；有预存改动时先展示影响，需要 Scoped Delivery 的在动代码前冻结范围并采残留快照，不得自动 revert 或用更新覆盖未知状态。
 2. **更新并记录基准**：完成必要更新后记录仓库身份（UUID + repository-relative URL）与节点基准。混合版本、switched、sparse、externals 等无法完整判定的状态不发完整 PASS，明确报告限制。
@@ -108,6 +127,12 @@ Verify 是否执行统一按主 Skill 步骤 1.5；本指南完整 Verify、基�
 5. **无授权 → 待提交**：没有提交授权时，本地完成验证与审查后运行 `check_delivery.py --native-delivery`（SVN 不适用 Git clean，本地预期改动即交付内容），产出 `svn-pending-commit`。这是完成报告状态，**不是正式交付 PASS**；交付报告逐字引用原始输出并注明待提交。
 6. **有授权 → 明确提交**：展示范围与差异后执行 `svn commit`，记录实际返回 revision。超时或响应丢失导致结果不明时，先核对服务器日志与实际内容，不盲目重提、不推断成功；SVN 可能接纳他人不同文件的提交，正式声明只绑定核验过的 revision。
 7. **确切版本验证**：更新到交付 revision，对当前内容重跑相关测试与 Review；启用 Verify 时再重跑完整验证（提交前的报告只保留为提交前证据），再以 `--scoped-delivery --delivery-revision <N>` 运行交付门；仅在启用 Verify 且证据齐备时产出 `svn-revision-verified`。提交后验证失败时如实报告「已提交、版本验证失败」，不自动回滚共享版本；是否修复或回退由后续明确任务决定。
+
+## 交付前沉淀检查
+
+Fast-Path 与标准交付都执行此检查。
+
+逐条检查「架构决策」「放弃方案」「新增红线约束」三个信号，并逐行作答「命中 → 已沉淀到 <具体 ADR / spec 章节>」或「未命中」。命中则更新相关 `proposal.md`、`design.md` 或长期 Specs；当前无法完成时在 `tasks.md` 建「intent 沉淀」任务。
 
 ## 统一交付证据格式
 
@@ -145,15 +170,6 @@ Verify 是否执行统一按主 Skill 步骤 1.5；本指南完整 Verify、基�
 - **测试命令**：列出实际运行命令、结果；未运行写原因。
 - **review 结论**：列出 review_profile、通过 / finding / 需人工。
 - **机器验证**：未启用时写「未运行 Verify」；启用时列出真实报告路径、`spec_drift` 结论和配置消费状态。工具或配置错误如实报告，不在任务内弱化配置。
+- **使用流程与用户确认**：按上方「使用文档与核心流程验收」列出适用流程的实际验证结果与证据；有待用户确认的产品判断时，单独列出确认事项和验收路径，不将工程验证通过表述为用户已验收。无此类待确认项时不制造占位审批。
 - **前端截图 / DOM 验证**：涉及 UI 时列截图路径、DOM / console / 交互检查；不涉及写「不涉及」。
 - **未验证风险**：列出无法验证项、阻塞原因和建议补验方式。
-
----
-
-## 交付前沉淀检查
-
-Fast-Path 与标准交付都执行此检查。
-
-逐条检查「架构决策」「放弃方案」「新增红线约束」三个信号，并逐行作答「命中 → 已沉淀到 <具体 ADR / spec 章节>」或「未命中」。命中则更新相关 `proposal.md`、`design.md` 或长期 Specs；当前无法完成时在 `tasks.md` 建「intent 沉淀」任务。
-
----
