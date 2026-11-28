@@ -49,7 +49,7 @@ python skills/workflow-code-generation/scripts/lint_spec.py <design.md> --phase 
 python skills/workflow-code-generation/scripts/check_delivery.py --tasks <tasks.md> --spec <spec.md> --review-report <review-report.json>  # 交付门
 ```
 
-流程门禁的挂点：`lint_spec.py` 挂在 `workflow-system-design` 前置条件（design）与 `workflow-code-generation` 步骤 2（code）；`lint_task_deps.py` 挂在任务规划检查表与执行段 Phase 0；`check_delivery.py` 挂在交付收尾（标准流程与 Fast-Path），非 0 禁止宣布交付。三道门随 skill 安装进目标项目，模板按兄弟 skill 目录解析。这三道门把「AI 自述完成」替换为机器判定；「AI 必须跑门禁」本身仍靠工作流指令遵循，客户端 hook 层强制（如 Claude Code Stop hook）另行立项评估。
+流程门禁的挂点：`lint_spec.py` 挂在 `workflow-system-design` 前置条件（`proposal.md --phase design`）与设计完成前（`design.md --phase design-code`），以及 `workflow-code-generation` 步骤 2（`proposal.md --phase code`，存在 `design.md` 时加 `--phase design-code`）；`lint_task_deps.py` 挂在任务规划检查表与执行段 Phase 0；`check_delivery.py` 挂在交付收尾（标准流程与 Fast-Path），非 0 禁止宣布交付。三道门随 skill 安装进目标项目，模板按兄弟 skill 目录解析。这三道门把「AI 自述完成」替换为机器判定；「AI 必须跑门禁」本身仍靠工作流指令遵循，客户端 hook 层强制（如 Claude Code Stop hook）另行立项评估。
 
 **能力边界**：脚本只查「结构对不对、引用通不通」（客观），查不出「引用存在但语义没接对」——后者靠 review 与上层评测。
 

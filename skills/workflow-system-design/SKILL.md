@@ -35,6 +35,7 @@ description: 系统设计。当 proposal.md 的需求章节已完整，需要建
 - `proposal.md` 已存在且背景、目标、需求和验收标准完整
 - `design.md` 不存在时，从 `reference/design_template.md` 复制创建；旧 `spec.md` 只允许迁移读取，不作为新写入目标
 - **章节号约定**：design.md 保留历史局部编号 4～9，可与 proposal.md 的编号重叠，不重新编号。跨文件引用必须带文件名，例如「design.md §4.1」
+- 开始设计前运行 `python <workflow-code-generation 目录>/scripts/lint_spec.py <proposal.md> --phase design`；退出码非 0 视为不完整，按下一条处理
 - 如果不存在或不完整 → **停止，切换到 `workflow-requirements-clarification` Skill**
 
 ## 触发条件
@@ -155,7 +156,7 @@ section 不适用时，AI 说明理由并在 design.md 标注 `N/A - 本需求�
 
 ## 设计完成后
 
-用户批准设计后，按 section-guide「写作边界」第 6 条定稿，再进入后续阶段。
+用户批准设计后，按 section-guide「写作边界」第 6 条定稿，再进入后续阶段。宣布 design.md 已完成前，运行 `python <workflow-code-generation 目录>/scripts/lint_spec.py <design.md> --phase design-code`；退出码非 0 时补齐对应章节（不适用的章节按 section-guide 标 N/A）后重跑，通过后再宣布完成。
 
 **前端分支检查**：proposal.md 或 design.md 涉及前端 UI（新页面 / 新组件 / 用户操作路径 / `.tsx` 产物）时，进入编码前**先调用 `workflow-frontend-design`** 生成 `ui-spec.md`，再回到本流程。这与 `workflow-quick-design` 的前端分支对齐，避免到 `workflow-code-generation` 步骤 2 才因缺少 ui-spec 被动停下。
 
