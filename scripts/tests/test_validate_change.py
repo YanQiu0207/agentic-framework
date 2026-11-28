@@ -675,6 +675,56 @@ class ValidateChangeCliTest(unittest.TestCase):
             combined = " ".join(item["message"] for item in errors)
             self.assertRegex(combined, r"(?i)(spec|design|映射)")
 
+    def standard_repo_without_delta(self, repo: Path, impact: str) -> None:
+        """Drop the Delta and spec mapping row, then set the knowledge impact."""
+        shutil.rmtree(repo / CHANGE / "specs")
+        self.rewrite(
+            repo,
+            "tasks.md",
+            "| `spec.md` 稳定退出码 | Task 1 | 实现退出码 |\n",
+            "",
+        )
+        self.rewrite(repo, "proposal.md", "- 更新校验器长期业务规则。", impact)
+
+    def plan_errors(self, repo: Path) -> list[dict[str, str]]:
+        """Return plan-phase errors reported for a temporary repository."""
+        result = self.run_repo(repo, "plan", json_output=True)
+        return json.loads(result.stdout)["errors"]
+
+    def test_standard_no_knowledge_impact_waives_delta_requirements(self) -> None:
+        """Declaring no long-term knowledge impact needs no Delta or spec mapping."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.standard_repo_without_delta(
+                temporary_repo, "- 无长期知识影响：仅调整内部校验脚本。"
+            )
+            rules = {item["rule_id"] for item in self.plan_errors(temporary_repo)}
+            self.assertNotIn("OPSX018", rules)
+            self.assertNotIn("OPSX029", rules)
+
+    def test_standard_without_delta_or_declaration_still_requires_delta(self) -> None:
+        """A standard change that does not declare no impact still needs a Delta."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.standard_repo_without_delta(
+                temporary_repo, "- 更新校验器长期业务规则。"
+            )
+            rules = {item["rule_id"] for item in self.plan_errors(temporary_repo)}
+            self.assertIn("OPSX018", rules)
+
+    def test_standard_delta_requires_spec_mapping_row(self) -> None:
+        """A change that carries a Delta must map it in the coverage table."""
+        with self.copied_repo("valid-standard") as temporary_repo:
+            self.rewrite(
+                temporary_repo,
+                "tasks.md",
+                "| `spec.md` 稳定退出码 | Task 1 | 实现退出码 |\n",
+                "",
+            )
+            errors = self.plan_errors(temporary_repo)
+            messages = [
+                item["message"] for item in errors if item["rule_id"] == "OPSX029"
+            ]
+            self.assertTrue(any("spec" in message for message in messages), errors)
+
     def test_quick_tasks_must_map_acceptance_criteria(self) -> None:
         """Quick tasks must explicitly map the proposal acceptance criteria."""
         with self.copied_repo("valid-quick") as temporary_repo:

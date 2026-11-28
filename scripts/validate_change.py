@@ -434,6 +434,14 @@ def _is_placeholder(value: str) -> bool:
     return not stripped or stripped in {"-", "待填写", "TODO", "TBD"}
 
 
+NO_KNOWLEDGE_IMPACT_RE = re.compile(r"无长期知识影响\s*[:：,，;；-]\s*\S")
+
+
+def _declares_no_knowledge_impact(impact_text: str) -> bool:
+    """Return whether a proposal's 知识影响 text declares no long-term impact."""
+    return bool(NO_KNOWLEDGE_IMPACT_RE.search(impact_text))
+
+
 def _parse_tasks(tasks_path: Path) -> tuple[list[Task], list[str]]:
     doc = task_ast.parse(_read_text(tasks_path))
     tasks: list[Task] = []
@@ -913,8 +921,10 @@ def _validate_artifacts(repo: Path, change: Path) -> tuple[list[Finding], str]:
                         )
                     )
         else:
-            spec_files = list((change / "specs").rglob("*.md"))
-            if not any(_nonempty_file(path) for path in spec_files):
+            impact_body, _ = knowledge_sync.section_lines(proposal_lines, "知识影响")
+            if not _has_delta(change) and not _declares_no_knowledge_impact(
+                "\n".join(impact_body)
+            ):
                 findings.append(
                     _finding(
                         "OPSX018",
@@ -922,7 +932,8 @@ def _validate_artifacts(repo: Path, change: Path) -> tuple[list[Finding], str]:
                         repo,
                         1,
                         "Standard 路径至少需要一个非空 specs/ 下的 Delta Markdown。",
-                        "创建本次变更的 Requirements Spec。",
+                        "命中长期知识时创建镜像 Delta；无影响时在 Proposal「知识影响」"
+                        "写明「无长期知识影响：<理由>」。",
                     )
                 )
             design_path = change / "design.md"
@@ -938,6 +949,11 @@ def _validate_artifacts(repo: Path, change: Path) -> tuple[list[Finding], str]:
                     )
                 )
     return findings, change_type
+
+
+def _has_delta(change: Path) -> bool:
+    """Return whether the change carries at least one nonempty Delta Markdown."""
+    return any(_nonempty_file(path) for path in (change / "specs").rglob("*.md"))
 
 
 def _delta_targets(repo: Path, change: Path) -> tuple[list[Finding], dict[str, str]]:
@@ -979,7 +995,7 @@ def _validate_archive_knowledge(repo: Path, change: Path) -> list[Finding]:
                 "添加「知识影响」章节，列出受影响长期知识，或写明无影响及理由。",
             )
         )
-    no_impact = bool(re.search(r"无长期知识影响\s*[:：,，;；-]\s*\S", impact_text))
+    no_impact = _declares_no_knowledge_impact(impact_text)
     if mappings and no_impact:
         findings.append(
             _finding(
@@ -1584,7 +1600,7 @@ def _validate_plan(
             artifact = cells[0].casefold()
             if "proposal.md" in artifact:
                 mapped_artifacts.add("proposal")
-            if "spec.md" in artifact:
+            if "spec.md" in artifact or "specs/" in artifact:
                 mapped_artifacts.add("spec")
             if "design.md" in artifact:
                 mapped_artifacts.add("design")
@@ -1593,7 +1609,10 @@ def _validate_plan(
             }
             if not references or not references <= task_numbers:
                 invalid_reference_line = line_number
-        missing = {"proposal", "spec", "design"} - mapped_artifacts
+        required = {"proposal", "design"}
+        if _has_delta(change):
+            required.add("spec")
+        missing = required - mapped_artifacts
         if not rows or missing or invalid_reference_line != 1:
             detail = ", ".join(sorted(missing)) if missing else "Task 引用无效"
             findings.append(
@@ -1603,7 +1622,8 @@ def _validate_plan(
                     repo,
                     invalid_reference_line,
                     f"Standard 文档覆盖映射不完整：{detail}。",
-                    "添加「文档覆盖映射」并映射 Requirements、Design 与 Tasks。",
+                    "添加「文档覆盖映射」，映射 Proposal、Design，"
+                    "有 Delta 时同时映射 Delta（specs/ 或 spec.md）。",
                 )
             )
     else:
