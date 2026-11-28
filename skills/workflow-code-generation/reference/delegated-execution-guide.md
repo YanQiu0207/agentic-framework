@@ -44,7 +44,7 @@ Verify 是否执行统一按主 Skill 步骤 1.5；下文 Verify 报告及完整
     ```
 
 5. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖。每个 Git Task（含单 Task 和串行链）使用独立分支与 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由可传 `--parallel-worktree-write` 记录执行需求；主编排方串行集成，不因此升级 Runtime。
-6. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts` 和 `review_profile`，附适用指令文件及编码 Skill 的绝对路径。派发时明确：「只执行 Task X；其他任务仅供理解依赖；完成后返回，不继续执行其他任务，不修改其他任务状态。」
+6. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts`、`review_profile` 和 `文档映射`，附 Change 目录、适用指令文件及编码 Skill 的绝对路径。派发时明确：「只执行 Task X；其他任务仅供理解依赖；完成后返回，不继续执行其他任务，不修改其他任务状态。」
 7. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。先对已加载 Skill 路径执行等价于 Python `Path(skill_path).resolve()` 的解析，再从真实路径逐级向上定位框架根；不要在 `~/.codex/skills/workflow-code-generation/scripts/` 下寻找框架 Adapter。失败时禁止 dispatch。
    - Codex 使用 `<framework-root>/harness/capabilities/codex.json` 与 `python <framework-root>/scripts/codex_adapter.py`。
    - Claude Code 使用 `<framework-root>/harness/capabilities/claude-code.json` 与 `python <framework-root>/scripts/claude_code_adapter.py`。
@@ -65,7 +65,7 @@ SVN Task 失败时停止该工作副本的所有后续写入任务（包括无�
 
 owner / implementer 的固定职责：
 
-1. 编码前自行读取适用的 `AGENTS.md`／`CLAUDE.md`、主 Skill 步骤 4 的编码规范及匹配的 Overlay；只修改分配 Task 声明的范围，发现范围或依赖错误时停止并报告。完成标准就是 Task 的验收标准和 `verification`：不自行追加门禁、审查轮次或范围外的改进；改动前已存在的失败或缺陷，在返回摘要里用一行列出，不在本 Task 修复，也不因此阻塞。
+1. 编码前自行读取适用的 `AGENTS.md`／`CLAUDE.md`、主 Skill 步骤 4 的编码规范及匹配的 Overlay，并读取 Task `文档映射` 指向的 proposal.md、design.md 和 Delta 章节，以一手文档核对 Task 描述；只修改分配 Task 声明的范围，发现范围或依赖错误时停止并报告。完成标准就是 Task 的验收标准和 `verification`：不自行追加门禁、审查轮次或范围外的改进；改动前已存在的失败或缺陷，在返回摘要里用一行列出，不在本 Task 修复，也不因此阻塞。
 2. 实现功能并通过 `workflow-test-generation` 补齐测试。
 3. 内部开发与修复迭代优先运行已有相关测试，按 `workflow-verification` 的「开发反馈与正式验证」返回定向反馈；提交任务质量门前运行 Task 的 `verification`；启用 Verify 时再执行正式完整 Verify，禁止弱化配置绕过失败。
 4. 内部迭代返回摘要、实际定向命令、退出码和必要输出；启用 Verify 时另附完整验证报告路径和 Spec Drift 结论，不返回完整 diff。
