@@ -15,7 +15,7 @@ description: 代码修改的统一入口；新增功能、修复、优化或重�
 
 ## 执行形态总览
 
-| 复杂度 | 默认执行形态 | 前置 |
+| 场景 | 默认执行形态 | 前置 |
 | --- | --- | --- |
 | **轻量**（请求即计划的局部低风险修改） | **Native Delivery**：当前宿主直接执行；Fast-Path 仅作兼容别名 | 免 spec / tasks |
 | **中等**（已明确目标与验收标准，需拆分或委派） | **Native Delivery**：每 Task 新 Agent 执行，按需使用 DAG | spec + tasks 批准 |
@@ -42,23 +42,19 @@ description: 代码修改的统一入口；新增功能、修复、优化或重�
 
 轻量兼容路径使用 `lightweight` Review。Quick Design 若发现安全、权限、数据迁移、并发、分布式、性能关键路径、公共 API 或大范围重构，升级到完整需求与系统设计。
 
-**Runtime 启用条件（change 2048）：** 只有显式 `--execution-mode runtime`、项目硬性审计要求（`--audit-required`，来源由编排方说明）或跨宿主验证（`--cross-host-capability-verification`）才使用完整 Runtime Run。`strict` 风险走 Native strict Review（独立 Judge），并行 Worktree 写入与长任务恢复按需使用隔离和恢复规划，均不自动升级；文件数量和模型版本不作为升级依据。硬性要求与显式 native 冲突、或 Runtime 在当前 VCS 下不受支持时，路由明确报错，不静默降级。
+**Runtime 启用条件：** 只有显式 `--execution-mode runtime`、项目硬性审计要求（`--audit-required`，来源由编排方说明）或跨宿主验证（`--cross-host-capability-verification`）才使用完整 Runtime Run。`strict` 风险走 Native strict Review（独立 Judge），并行 Worktree 写入与长任务恢复按需使用隔离和恢复规划，均不自动升级；文件数量和模型版本不作为升级依据。硬性要求与显式 native 冲突、或 Runtime 在当前 VCS 下不受支持时，路由明确报错，不静默降级。
 
 风险无法判断时使用 `standard`；「需要审计」但未说明证据要求时，先确定所需证据，不自动等同于完整 Runtime。SVN 工作副本不支持完整 Runtime：显式 Runtime 需求会被拒绝并说明原因，默认任务直接 Native，不创建 Run Context。
 
+**Runtime 能力前置检查：** 仅在路由确定需要 Runtime 时查询能力：从已加载 Skill 的真实路径（解析目录和文件链接）定位受信框架根，运行 `python <trusted-framework-root>/scripts/install_agentic_framework.py --show-packs <project>`，只消费 JSON 的 `enabled` 数组。不得执行目标 manifest 的 `source`。找不到受信根、查询失败或缺包时停止，提示 `--with runtime`；能力齐备后再读取 [Runtime 指南](reference/runtime-guide.md)。普通 SVN Native Delivery 不额外要求高级初始化能力包；SVN 命中 Runtime 升级需求时停止，不降级。
+
 ## 步骤 1.5：按用户要求启用 Verify
 
-### Runtime 能力前置检查
-
-仅在路由确定需要 Runtime 时查询能力：从已加载 Skill 的真实路径（解析目录和文件链接）定位受信框架根，运行 `python <trusted-framework-root>/scripts/install_agentic_framework.py --show-packs <project>`，只消费 JSON 的 `enabled` 数组。不得执行目标 manifest 的 `source`。找不到受信根、查询失败或缺包时停止，提示 `--with runtime`；能力齐备后再读取 [Runtime 指南](reference/runtime-guide.md)。strict 风险本身仍不自动启用 Runtime。普通 SVN Native Delivery 不额外要求高级初始化能力包；SVN 命中 Runtime 升级需求时停止，不降级。
+所有路径在实现中、修复后和交付前运行已有相关测试，记录实际命令、退出码和必要输出；这些定向结果不能冒充 Verify PASS。
 
 Verify 默认不启用，只有用户明确要求运行时才启用；Native、Runtime 和硬性审计路径均适用。未启用时不要求或初始化 Verify 配置、不采基线、不询问是否跳过，也不因缺少 Verify 报告停止。保留必要的定向测试，在交付报告注明「未运行 Verify」，不得声称 Verify PASS。
 
 用户明确启用时，加载 `workflow-verification`：有配置按原流程采基线和完整验证；无配置仅执行内置检查，用户要求初始化时才运行 `/verify-config`。调用任务质量门和交付门时追加 `--require-verify`，按对应路径传入真实 Verify 报告；启用后的失败不得当作跳过处理。
-
-## 开发与修复反馈
-
-实现中、修复后和交付前运行已有相关测试，记录实际命令、退出码和必要输出。正式 Verify 是否执行统一按步骤 1.5；启用时遵循 `workflow-verification` 的完整验证与报告要求，不用定向结果冒充 Verify PASS。
 
 ## 轻量任务执行
 
@@ -67,7 +63,7 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 1. 按步骤 1.5 确定是否运行 Verify，由实现者加载步骤 4 的适用规范。
 2. 实现并运行机器验证；超出轻量范围时转标准流程。
 3. 涉及 UI 时完成视觉和浏览器验证；修复后重跑受影响的机器检查。
-4. 调用一次 `workflow-code-review`：兼容路径为 `lightweight`，新的 Native Delivery 为 `standard`，均使用 `scope: integration`。
+4. 调用一次 `workflow-code-review`，使用 `review_profile: lightweight`、`scope: integration`；无 Change 的轻量交付只能走兼容交付门，该门只接受 lightweight Review。
 5. 按交付指南完成知识影响检查、本地提交、交付门和最终报告。复审遵循 Review Skill 的范围与 10 轮上限，禁止启动第二次全量首审。
 
 ## 标准流程
@@ -90,7 +86,7 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 ### 步骤 3：检查 / 创建 tasks.md
 
 - **已存在** → 进入步骤 4。
-- **不存在** → 先读 [reference/task_planning_guide.md](reference/task_planning_guide.md)，严格按其流程创建。每个 task 须带 `depends_on`、`review_profile`、`context_files`、`verification`、`artifacts`——**`depends_on` 是分波并行的依据，`review_profile` 是分级 review 的依据，均必填**。
+- **不存在** → 先读 [reference/task_planning_guide.md](reference/task_planning_guide.md)，严格按其流程创建。每个 task 须带该指南「硬性规则」列出的全部字段——**`depends_on` 是分波并行的依据，`review_profile` 是分级 review 的依据**。
 
 若本次改动可能涉及不可逆 / 高影响架构决策、放弃某方案或新增红线约束，预留一个「intent 沉淀」任务（步骤 6 收口）。
 
@@ -124,9 +120,9 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 
 ### 步骤 5：委派执行
 
-任务计划获批后，主会话负责编排，由 Agent 完成实现、测试和任务级机器验证。派发前读取 [执行准备](reference/execution-setup.md) 和 [下放执行指南](reference/delegated-execution-guide.md)。
+任务计划获批后，主会话负责编排，由 Agent 完成实现、测试和任务级机器验证。派发前读取 [下放执行指南](reference/delegated-execution-guide.md)。
 
-- 默认 Native Delivery；仅显式 Runtime 需求（execution-mode/audit/cross-host）才路由 `runtime-run`，`strict`、并行与恢复不再自动升级。
+- 执行路径按步骤 1 的 Runtime 启用条件选择，默认 Native Delivery。
 - 派发时明确「只执行 Task X；其他任务仅供理解依赖；完成后返回，不继续执行其他任务，不修改其他任务状态」。单任务或串行依赖同样每 Task 委派新 Agent，Git Task 使用独立分支与 Worktree，不复用其他 Task 的 Agent；不要求波次计算或 Runtime 宿主探测。并行分支、非线性依赖或恢复场景按需使用控制器的 `waves` / `dispatchable`。隔离与能力不足的停止条件见下放执行指南。
 - 每项产物通过测试和机器检查后才合并。失败或冲突标为 `需人工`，依赖它的任务标为 `阻塞`，Git 其他独立任务继续；SVN 共用工作副本须先停止后续写入并处理失败现场，详见下放执行指南。
 - owner / implementer 禁止在 task 内启动 LLM Review；全部可合并任务完成后进行一次最终审核。
@@ -139,7 +135,7 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 1. 汇总实现、测试、失败与合并结果。
 2. 对合并结果运行机器验证；涉及 UI 时再做视觉和浏览器验证。
 3. 对全部变更做一次最终审核。Native Delivery 按任务实际档位出 v2 集成 Review（`standard`；任务声明 `strict` 时为 `strict` 并要求独立 Judge 与三项独立性声明）；完整 Runtime Run 使用 `strict run`。修复后重验并定向复审，最多十轮，禁止启动第二次全量首审。
-4. 完成交付前沉淀检查、知识同步和任务状态一致性检查，再归档 Change。
+4. 完成[交付前沉淀检查](reference/delivery-guide.md#交付前沉淀检查)（逐条记录架构决策、放弃方案、新增约束是否沉淀及写入位置）、知识同步和任务状态一致性检查，再归档 Change。
 5. 提交本次代码与归档产物，按路径运行交付门。失败则回到对应步骤处理。
 6. 使用固定格式报告结果，列出待用户处理的 `需人工` / `阻塞` 项。
 
@@ -151,13 +147,8 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 
 交付前按 [统一交付证据格式](reference/delivery-guide.md#统一交付证据格式)落盘交付说明，包含提交文件清单、QA 测试点和按审核顺序排列的改动与文件；最终报告链接该文档。保留遥测字段，列出提交、测试、Review、Verify、知识影响和未验证项。交付门结果逐字引用 `check_delivery.py` 的原始输出；失败或未运行时报告实际状态。
 
-## 交付前沉淀检查
-
-所有路径均按 [交付前沉淀检查](reference/delivery-guide.md#交付前沉淀检查)，逐条记录架构决策、放弃方案、新增约束是否需要沉淀，以及具体写入位置。
-
 ## 执行约束
 
-- 轻量任务外，先取得规格和任务批准，再委派执行。Quick Design 自动 pipeline 的预授权按步骤 3 处理。
 - 有依赖的任务按顺序执行；依赖缺失时先保守串行或询问，不能放入同一波并行。
 - 测试与实现同批交付（Fast-Path 除外），接口层与核心逻辑覆盖关键路径。
 - 进度按实际状态报告：“已查看”表示读取核对，“进行中”表示已派发或改码，“已完成”表示已落地、合并并核对。

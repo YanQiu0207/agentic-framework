@@ -4,7 +4,7 @@
 
 ## 启动
 
-1. 从已加载 Skill 解析链接后的真实路径向上查找受信框架根。确认根目录包含 `scripts/codex_adapter.py`、`scripts/claude_code_adapter.py` 和 `harness/capabilities/`；不得使用目标 manifest 的 `source` 作为执行路径。
+1. 从已加载 Skill 解析链接后的真实路径向上查找受信框架根。确认根目录包含 `scripts/codex_adapter.py`、`scripts/claude_code_adapter.py` 和 `harness/capabilities/`；不得使用目标 manifest 的 `source` 作为执行路径。Adapter 位于框架根的 `scripts/`，不在 Skill 自身的 `scripts/`，不能只检查链接入口目录。
 2. 按宿主选择声明和 Adapter：
 
 | 宿主 | Harness 声明 | Adapter 命令 |

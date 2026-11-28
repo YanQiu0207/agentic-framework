@@ -1,20 +1,20 @@
 # 下放 Agent 执行指南
 
-本指南只定义 Tooling Profile 在 `tasks.md` 获批后的执行段。目标是保留 worktree、DAG、失败隔离和机器验证，同时让普通任务默认 Native Delivery；完整 Runtime Run 仅经显式选择启用（change 2048）：`strict` 风险、并行 Worktree 与恢复都不再自动升级。
+本指南只定义 Tooling Profile 在 `tasks.md` 获批后的执行段。目标是保留 worktree、DAG、失败隔离和机器验证，同时让普通任务默认 Native Delivery；完整 Runtime Run 仅经显式选择启用：`strict` 风险、并行 Worktree 与恢复都不再自动升级。
 
 ## 路由合同
 
-在业务副作用前运行路由（change 2048 语义：默认 Native，显式需求才选 Runtime）：
+默认直接进入 Native Delivery，不运行路由。只有存在显式 Runtime 需求时，主编排方才在业务副作用前运行：
 
 ```bash
-python scripts/workflow_control.py <tasks.md> route --review-profile <lightweight|standard|strict> [--execution-mode native|runtime]
+python scripts/workflow_control.py <tasks.md> route --review-profile <最高档位> --execution-mode runtime
 ```
 
-按需追加以下参数：显式 Runtime 需求用 `--execution-mode runtime`、项目硬性审计要求 `--audit-required`（来源由编排方说明）、跨宿主验证 `--cross-host-capability-verification`；`--parallel-worktree-write` 与 `--long-task-recovery` 只表示执行需求，不升级路径。输出如下：
+显式需求按实际情况传 `--execution-mode runtime`、项目硬性审计要求 `--audit-required`（来源由编排方说明）或跨宿主验证 `--cross-host-capability-verification`；`--parallel-worktree-write` 与 `--long-task-recovery` 只表示执行需求，不触发路由。输出如下：
 
 | 输出路径 | 条件 | 必须动作 |
 | --- | --- | --- |
-| `native-delivery` | 未显式要求 Runtime（含 `strict`、并行、恢复场景） | 不调用 `init-run`，不创建或伪造 Run Context；使用 v2 最终 Review；启用 Verify 时使用独立 v2 Verify（含 `subject_id`）并生成 Native Delivery Verdict。 |
+| `native-delivery` | 未运行路由，或路由未命中显式 Runtime 需求（含 `strict`、并行、恢复场景） | 不调用 `init-run`，不创建或伪造 Run Context；使用 v2 最终 Review；启用 Verify 时使用独立 v2 Verify（含 `subject_id`）并生成 Native Delivery Verdict。 |
 | `runtime-run` | 显式 `--execution-mode runtime`、`--audit-required` 或跨宿主验证，且环境为受支持的 Git 工作副本 | 在 dispatch 前调用 `init-run`；保留 Manifest、Journal、Capability Probe、Run-bound Artifact 与 Trust Gate。 |
 
 硬性要求与 `--execution-mode native` 冲突、或 Runtime 在 SVN/未知 VCS 下不受支持时，路由以非零退出拒绝并说明原因；不得静默降级或伪造 Run Context。任务文件数、模型版本或仅存在 `tasks.md` 不构成 Runtime 启用条件。「需要审计」但未说明证据要求时，先确定所需证据，不自动等同于完整 Runtime。
@@ -28,14 +28,14 @@ Verify 是否执行统一按主 Skill 步骤 1.5；下文 Verify 报告及完整
 - owner / implementer 禁止在 Task 内调用 `workflow-code-review`。
 - `review_profile` 是 Task 必填字段，只决定最终 Review 档位与独立 Judge 要求；`strict` 仍为 Native Delivery，不因此升级 Runtime。
 - Review finding 修复后只做定向 re-review，不启动第二次首轮 Review。
-- DAG、状态、阻塞和恢复可以独立使用，不自动创建 Runtime Run。
-- SVN 工作副本按串行写入执行：`merge_success` 只表示纳入本地集成内容，不等于 SVN 远程提交；任务内只读验证，`update`/`commit` 只在交付指南「SVN 原生交付」的明确步骤由编排方执行，不创建 Git 镜像或桥接。
+- DAG、状态、阻塞和恢复可以独立使用，不自动创建 Runtime Run。缺 `depends_on` 时先由 `lint_task_deps.py` 报错，修复前禁止全并行；禁止另写一套手工分波或状态判断。
+- SVN 工作副本按串行写入执行：`merge_success` 只表示纳入本地集成内容，不等于 SVN 远程提交；任务内只读验证，`update`/`commit` 只在交付指南「SVN 原生交付」的明确步骤由编排方执行，不创建 Git 镜像或桥接。Git 与 SVN 并存的工作副本在路由、Verify 与交付门处都拒绝隐式选择，需显式 `--vcs-backend git|svn` 确认开发后端。
 
 ## Phase 0：准备
 
 1. 按主 Skill 步骤 1.5，仅在用户明确要求时启用 Verify；不另行询问配置选择。
 2. 记录 `base_sha`；启用 Verify 且有 `verify.config.json` 时才采集基线。
-3. 按路由合同运行路由命令；只有输出 `runtime-run`（显式 Runtime 需求）时才在后续 Phase 0 初始化 Run，其余情况直接走 Native Delivery。
+3. 仅在存在显式 Runtime 需求时按路由合同运行路由命令；输出 `runtime-run` 时才执行第 7 步，其余情况直接走 Native Delivery。
 4. 存在可并行分支、非线性依赖图或中断恢复需求时，运行：
 
     ```bash
@@ -43,13 +43,11 @@ Verify 是否执行统一按主 Skill 步骤 1.5；下文 Verify 报告及完整
     python scripts/workflow_control.py <tasks.md> dispatchable
     ```
 
-5. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖。每个 Git Task（含单 Task 和串行链）使用独立分支与 worktree；同一波只并行无依赖且无文件冲突的 Task。若选择并行 worktree 写入，路由可传 `--parallel-worktree-write` 记录执行需求；主编排方串行集成，不因此升级 Runtime。
+    按第 6 步把当前一波的每个任务 ID 富化为 task 对象，再传入 Workflow 工具的 `args.waves`。
+
+5. 单 Task 或纯串行链不运行 `waves` / `dispatchable`；按 `tasks.md` 顺序执行 `event <id> start --write`，由该命令校验前置依赖。每个 Git Task（含单 Task 和串行链）使用独立分支与 worktree；同一波只并行无依赖且无文件冲突的 Task。选择并行 worktree 写入时，主编排方串行集成，不因此升级 Runtime。
 6. 为每个 Task 传入 `id`、`title`、`context_files`、`verification`、`artifacts`、`review_profile` 和 `文档映射`，附 Change 目录、适用指令文件及编码 Skill 的绝对路径。派发时明确：「只执行 Task X；其他任务仅供理解依赖；完成后返回，不继续执行其他任务，不修改其他任务状态。」
-7. 仅 `runtime-run` 执行：在业务副作用前运行 `init-run`，传入 `.agentic-framework/runs/<run-id>`、Spec、`AGENTS.md`、本 Skill、Harness 声明和 Adapter 命令。先对已加载 Skill 路径执行等价于 Python `Path(skill_path).resolve()` 的解析，再从真实路径逐级向上定位框架根；不要在 `~/.codex/skills/workflow-code-generation/scripts/` 下寻找框架 Adapter。失败时禁止 dispatch。
-   - Codex 使用 `<framework-root>/harness/capabilities/codex.json` 与 `python <framework-root>/scripts/codex_adapter.py`。
-   - Claude Code 使用 `<framework-root>/harness/capabilities/claude-code.json` 与 `python <framework-root>/scripts/claude_code_adapter.py`。
-   - Adapter 只探测能力，不负责下放 Agent；`subagents` 或 `worktree_isolation` 为 `unsupported` 不等于 Adapter 缺失。只把任务实际依赖的能力传给 `--required-capability`，其余能力按降级模式记录。
-   - 仅当按真实路径定位后内置 Adapter 仍缺失、探测进程失败或明确声明的必需能力不受支持时报告阻塞；禁止用临时脚本伪造能力结果。可选能力不受支持时走降级模式，不能阻塞代码实现。
+7. 仅 `runtime-run` 执行：按 [Runtime 指南「启动」](runtime-guide.md#启动) 定位受信框架根、选择 Harness 声明与 Adapter，并在业务副作用前运行 `init-run`；失败时禁止 dispatch。
 
 ## Task 隔离与能力不足
 
@@ -63,7 +61,7 @@ SVN Task 失败时停止该工作副本的所有后续写入任务（包括无�
 
 ## Phase 1：逐波执行
 
-owner / implementer 的固定职责：
+宿主支持嵌套子 Agent 时，每个 Task 派 owner 子 Agent；不支持时由 implementer 承担相同职责，主 Agent 负责状态编排。owner / implementer 的固定职责：
 
 1. 编码前自行读取适用的 `AGENTS.md`／`CLAUDE.md`、主 Skill 步骤 4 的编码规范及匹配的 Overlay，并读取 Task `文档映射` 指向的 proposal.md、design.md 和 Delta 章节，以一手文档核对 Task 描述；只修改分配 Task 声明的范围，发现范围或依赖错误时停止并报告。完成标准就是 Task 的验收标准和 `verification`：不自行追加门禁、审查轮次或范围外的改进；改动前已存在的失败或缺陷，在返回摘要里用一行列出，不在本 Task 修复，也不因此阻塞。
 2. 实现功能并通过 `workflow-test-generation` 补齐测试。
@@ -74,7 +72,7 @@ owner / implementer 的固定职责：
 主编排方收到结果后：
 
 - 实现、任务验收及定向测试通过 → 使用 `event <task-id> quality_passed --write` 写入状态；Runtime 另传 `--run-dir <run-dir>`。
-- 用户明确启用 Verify 时，质量门追加 `--require-verify --verify-report <verify-report.json>`，必须通过正式完整 Verify；Native Delivery 接受独立 v2 报告，Runtime 要求 Artifact 与 Run、Task、Attempt 绑定。不得将定向结果冒充 Verify PASS。
+- 用户明确启用 Verify 时，质量门追加 `--require-verify --verify-report <verify-report.json>`，必须通过正式完整 Verify；Native Delivery 接受独立 v2 报告（顶层 `schema_version: 2` 与 `subject_id`、`PASS` 结论、零错误／违规、完整 `CheckResult`；旧 v1 报告不能作为新完成证据，不写入任何 Run Artifact），Runtime 要求 Artifact 与 Run、Task、Attempt 绑定。不得将定向结果冒充 Verify PASS。
 - 失败且两轮内可修复 → 优先由原 Agent 在原 worktree 修复并重验；同一 Task 不因每轮修复更换 Agent。原 Agent 无法恢复时，由新 Agent 读取该 Task 的现场与证据接手，保留原 worktree。
 - 仍失败、Agent 未返回或出现范围冲突 → 标 `需人工`，保留 worktree。
 - 上游未合并 → 下游标 `阻塞`，不得 dispatch。
