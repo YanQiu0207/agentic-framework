@@ -74,6 +74,33 @@ class SharedKnowledgeValidatorTest(unittest.TestCase):
         self.assertIn("source_version, applies_to, excludes", joined)
         self.assertIn("status `draft`", joined)
 
+    def test_superseded_requires_non_empty_superseded_by(self) -> None:
+        superseded = VALID_FRONTMATTER.replace("verified", "superseded")
+        cases = {
+            "with target": (
+                superseded.replace(
+                    "excludes:", "superseded_by: domains/testing/new.md\nexcludes:"
+                ),
+                False,
+            ),
+            "missing": (superseded, True),
+            "empty": (
+                superseded.replace("excludes:", "superseded_by:\nexcludes:"),
+                True,
+            ),
+        }
+        for name, (frontmatter, expect_error) in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as temp_dir:
+                root = self._root(temp_dir)
+                (root / "domains" / "testing" / "entry.md").write_text(
+                    frontmatter + "\n# Entry\n", encoding="utf-8"
+                )
+                joined = "\n".join(validate_shared_knowledge.validate(root))
+                if expect_error:
+                    self.assertIn("superseded_by", joined)
+                else:
+                    self.assertEqual("", joined)
+
     def test_rejects_projects_navigation_and_private_index_links(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = self._root(temp_dir)
