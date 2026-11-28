@@ -557,12 +557,6 @@ def capture_subject(
             continue
         if entry["type"] == "missing" and value in required:
             limitations.add("required_input_missing:" + value)
-        if (
-            entry["type"] == "missing"
-            and config_path is not None
-            and value == config_relative
-        ):
-            limitations.add("verify_config_missing")
         entries.append(entry)
     if _config_bytes(config) != config_content:
         raise SubjectError("inputs_changed_during_capture")

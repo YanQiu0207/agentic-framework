@@ -2064,17 +2064,13 @@ def test_standalone_verify_rejects_input_edits_during_checks(repository):
     validate_native_report(payload)
 
 
-def test_standalone_verify_without_config_is_not_complete(repository):
-    # 无 Verify 配置的仓库不能产生完整已验证声明（Task 4 冻结分类）。
+def test_standalone_verify_without_config_is_complete(repository):
+    # 无 Verify 配置只跑内置门禁，缺失配置不算主体覆盖限制。
     base = head(repository)
     code, report = _run_in_repo(repository, ["--diff-base", base])
-    assert code == 2
+    assert code == 0
     payload = json.loads(report.read_text(encoding="utf-8"))
-    assert payload["verdict"] == "ERROR"
-    subject_result = payload["results"][-1]
-    assert subject_result["name"] == "native-subject"
-    assert "覆盖不完整" in subject_result["detail"]
-    assert any("verify_config" in item for item in subject_result["detail"].split(";"))
+    assert payload["verdict"] == "PASS"
 
 
 def test_standalone_without_vcs_writes_no_report(tmp_path):
