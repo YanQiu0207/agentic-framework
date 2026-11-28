@@ -3,7 +3,7 @@
 **作者**：YanQi
 **日期**：2026-11-28
 **变更**：2061-doc-gate-alignment
-**状态**：Quick Draft
+**状态**：Archived
 
 ---
 
