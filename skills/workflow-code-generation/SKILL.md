@@ -75,6 +75,8 @@ Verify 默认不启用，只有用户明确要求运行时才启用；Native、R
 - Quick：`proposal.md` 标记 `Quick Draft`，允许不创建 `design.md` 和 Delta；缺必要章节时调用 `workflow-quick-design`。
 - 旧 `spec.md` 和 `docs/design-docs/` 只允许迁移读取，任何新 Change 禁止写入旧 Artifact。
 
+**脚本门**：编码前运行 `python <本 skill 目录>/scripts/lint_spec.py <proposal.md> --phase code`（Quick Draft 自动按四个小节检查）；存在 `design.md` 时再运行 `python <本 skill 目录>/scripts/lint_spec.py <design.md> --phase design-code`。退出码非 0 时按上述路由退回 `workflow-requirements-clarification`、`workflow-system-design` 或 `workflow-quick-design` 补齐，不得带着错误进入编码。
+
 **强制**：`proposal.md` 与 `tasks.md` 同时存在时，编码前必须完整读取；存在 `design.md` 和 Delta 时也必须完整读取。
 
 同时读取 `openspec/index.md`，再按当前 Task 定向读取相关模块 `custom/` 约束和踩坑；Change 目录存在 `research.md` 时将其一并纳入强制通读，实现前按当前任务的 `实现参考` 字段定位已有实现，不重造现有代码已覆盖的方案。research.md 只辅助理解，随后仍回到代码核实现状。知识与代码冲突时必须显式报告双方证据，不得静默修改任意一方。
