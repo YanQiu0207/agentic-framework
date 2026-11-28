@@ -14,7 +14,7 @@ expires_hint: 涉及 verify.py / lint_spec.py / 模板文件的提交后即失�
 
 1. **生成侧（skills 产物模板）**
    - `skills/workflow-requirements-clarification/reference/proposal_template.md`：标准 proposal，章节 1~5（1~3 需求、4 知识影响、5 参考资料）。
-   - `skills/workflow-system-design/reference/design_template.md`：design，**沿用旧单文件 spec 的全局章节号 4~9**（4 设计方案、5 备选、6 业界调研、7 测试计划、8 可观测性与运维、9 参考资料）。编号不重叠是有意设计：跨文件「文档映射：proposal.md / design.md / 章节 X.Y.Z」引用时无歧义。
+   - `skills/workflow-system-design/reference/design_template.md`：design，**沿用旧单文件 spec 的全局章节号 4~9**（4 设计方案、5 假设与未决事项、6 风险、7 验证方式、8 发布与运维、9 参考资料；2026-11 起由固定小节改为评审导向章节）。编号不重叠是有意设计：跨文件「文档映射：proposal.md / design.md / 章节 X.Y.Z」引用时无歧义。
    - `skills/workflow-quick-design/reference/quick-proposal-template.md`：Quick Draft（`### 问题/目标/非目标/验收标准` + `## 2. 设计方案`）。
    - 旧 `spec_template.md` / `quick-spec-template.md` 已弃用（文件头有弃用注释），仅作历史迁移读取。
 2. **验证侧（workflow-verification/scripts/verify.py）**

@@ -47,13 +47,13 @@ description: 提供架构方案概览的检查要点：需求回顾、数据架�
 | 场景 | 加载 Skill |
 |------|-----------|
 | 涉及网络通信、多节点、一致性、故障恢复 | `bp-distributed-systems` |
-| 涉及类/接口详细设计 | `bp-component-design`（4.2 节使用） |
+| 涉及类/接口详细设计 | `bp-component-design`（design.md §4.3、§4.4 使用） |
 
 ---
 
-## 4.1 方案概览 Checklist
+## 方案概览 Checklist
 
-在 design.md §4.1 节，确认以下内容已讨论：
+在 design.md §4.1、§4.2 确认以下内容已讨论：
 
 - [ ] **整体思路**：用 1-2 句话描述方案核心
 - [ ] **模块划分**：涉及哪些模块？边界在哪？
