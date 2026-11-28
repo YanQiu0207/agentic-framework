@@ -251,6 +251,67 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 - 核对状态：Pending。归档前记录实际 Diff、Change 和测试证据的核对命令与 PASS 结论。
 ```
 
+### Production 追加字段
+
+治理 Profile 为 production 时，`scripts/validate_change.py` 校验 `tasks.md`，Production 计划门（`start` 事件）按下表拦截；上方模板只覆盖 Tooling 的 `lint_task_deps`，须在模板基础上追加。Profile 为 tooling 时不需要追加。
+
+| 字段 | 写法与取值 | 位置 | 规则 |
+| --- | --- | --- | --- |
+| 任务头 | `### 任务 N：[ ] 描述`：`###` 顶格，冒号后状态括号非空，描述非空 | 每个任务首行 | OPSX022、OPSX064 |
+| 依赖 | `- depends_on:` 或 `- 依赖：`，值为 `[]`、`无` 或 `Task 1, Task 3` | 任务块内 | OPSX023～025 |
+| 验收标准 | `- 验收标准：`，下面至少一个缩进的 `- [ ]` 复选项；内容与 `verification` 的可机械执行检查一致 | 任务块内，`verification` 之前 | OPSX026、OPSX036 |
+| 文件 | `- 文件：<路径>`；任务不改代码时写 `- 无需修改代码：<理由>`，二选一，值不得为空或「待填写」 | 任务块内 | OPSX027 |
+| 文档映射 | `- 文档映射：<proposal.md / design.md / Delta 章节>`，非空 | 任务块内 | OPSX035 |
+| Review 档位 | `- review_profile: standard` 或 `strict`；production 下 `lightweight` 被拒，小需求也写 `standard` | 任务块内 | OPSX037、OPSX063 |
+| Task Review | `- Task Review: Pending`，每任务恰好一行 | 任务块内 | OPSX038 |
+| 文档覆盖映射表 | 节标题为「文档覆盖映射」；首列写文档名 `proposal.md`、`design.md`，有 Delta 时再写 Delta 路径；第二列写 `Task 1, Task 2`，引用的任务须存在。Quick 路径不用表，改为至少一个任务写 `- 文档映射：proposal.md 验收标准 …` | 任务列表之后 | OPSX029 |
+| Code Review | `> Code Review: Pending`，整个头部恰好一行 | 第一个任务之前的头部 | OPSX032（交付阶段） |
+
+任务完成时按下列顺序更新，否则交付门拦截：
+
+1. 任务头 `[ ]` 改 `[x]`，`- 状态：` 改 `完成`，并勾选该任务块内所有复选框，含验收标准、`verification` 与子任务（OPSX030、OPSX031、OPSX056）。
+2. 任务级独立审核通过后，`Task Review` 改 `PASS`，并在其后加一行 `- Review Report: <任务级 review-report.json 路径>`（OPSX038）。
+3. 全部任务完成、集成 Review 通过后，头部 `Code Review` 改 `PASS`，并在头部加一行 `- Review Report: <集成级 review-report.json 路径>`；该行以 `- ` 开头，不用 `> `（OPSX032）。
+
+最小示例（单任务，含头部、追加字段与覆盖映射表；追加字段为 `Task Review`、`验收标准`、头部 `Code Review` 与映射表首列的文档名）：
+
+```markdown
+# 实施任务清单
+
+> 任务总数：1
+> Code Review: Pending
+
+## 任务列表
+
+### 任务 1：[ ] 新增 FooBar 接口
+- 状态：未开始
+- 文件：`src/foo.cc`（修改）, `src/foo_test.cc`（新建）
+- depends_on: []
+- review_profile: standard
+- Task Review: Pending
+- 文档映射：proposal.md 验收标准 1；design.md §2.1
+- 说明：在 `src/foo.cc` 新增 `FooBar()` 并补测试
+- context_files:
+  - `src/foo.cc:FooBar()` — 直接修改目标
+- 验收标准：
+  - [ ] `<运行测试的具体命令>` 全部通过
+- verification:
+  - [ ] `<运行测试的具体命令>` 全部通过
+- artifacts:
+  - `src/foo.cc`
+  - `src/foo_test.cc`
+- 子任务：
+  - [ ] 1.1: 实现 `FooBar()`
+  - [ ] 1.2: 运行测试，全部通过
+
+## 文档覆盖映射
+
+| 文档条目 | 任务 | 说明 |
+| --- | --- | --- |
+| proposal.md 验收标准 1 | Task 1 | FooBar 行为 |
+| design.md §2.1 | Task 1 | 接口设计 |
+```
+
 ## 质量自检
 
 写入 `tasks.md` 后，对照以下 checklist 自检（如果自检不通过，修正后重新写入）：
@@ -281,4 +342,4 @@ Task 3 (描述)  ← 被 Task 6, 7 依赖
 2. **必须先读代码**：不理解现有代码就拆任务是禁止的
 3. **必须引用 Change 文档**：每个任务的 `文档映射` 字段必须有值
 4. **歧义必须记录**：拆解过程中遇到 spec 有歧义或需要假设的地方，必须在对应任务中明确标注假设，禁止默默补全
-5. **半结构化字段必须齐全**：每个任务必须写 `状态`、`depends_on`、`review_profile`、`文档映射`、`context_files`、`verification`、`artifacts`
+5. **半结构化字段必须齐全**：每个任务必须写 `状态`、`depends_on`、`review_profile`、`文档映射`、`context_files`、`verification`、`artifacts`；治理 Profile 为 production 时另按「Production 追加字段」补充
