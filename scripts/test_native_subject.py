@@ -267,6 +267,19 @@ def test_actual_content_and_config_changes(repository):
     assert capture(repository, base)["subject_id"] != config["subject_id"]
 
 
+def test_missing_verify_config_is_complete_and_creation_changes_identity(
+    repository,
+):
+    config = repository / "verify.config.json"
+    absent = capture(repository, config_path=config)
+    assert absent["complete"]
+    assert "verify_config_missing" not in absent["limitations"]
+    write(repository, "verify.config.json", '{"checks":[]}')
+    created = capture(repository, config_path=config)
+    assert created["complete"]
+    assert created["subject_id"] != absent["subject_id"]
+
+
 def test_ignored_untracked_build_inputs_included(repository):
     write(repository, ".gitignore", "inputs/\n")
     base = head(repository)
@@ -458,7 +471,7 @@ def test_external_inputs_and_external_verify_config_reject(
     assert not result["complete"]
     outside = repository.parent / "outside-verify.json"
     assert not capture(repository, config_path=outside)["complete"]
-    assert not capture(
+    assert capture(
         repository, config_path=repository / "missing-config.json"
     )["complete"]
 
