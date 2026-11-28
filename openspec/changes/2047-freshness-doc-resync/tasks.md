@@ -49,13 +49,15 @@
   - [x] 1.5: §5 实测快照
   - [x] 1.6: §6.1 入口
   - [x] 1.7: §7 增量核验小节
+- artifacts:
+  - `docs/framework-features-status-and-comparison.md`
 
 ### 任务 2: [x] 07 文档修正漂移并解除 P1 未核实项
 - 状态：完成
 - attempts：0
 - control_stage：completed
 - 文件: `docs/harness-alignment/07-host-capability-alignment.md`（修改）
-- depends_on: [1]
+- depends_on: Task 1
 - review_profile: standard
 - 文档映射: proposal.md §2.1 第 2 条
 - 说明: 守卫引用改 `:1125` `_event_governance_errors`；行数 1302/1478；installer 关键引用补函数名；P1 未核实项改写为已核验（Codex hooks，0.150.1+ 信任审核，来源 learn.chatgpt.com/docs/hooks）；§4.6 补 codex.json 静态默认值说明。
@@ -71,6 +73,8 @@
   - [x] 2.1: 行号/行数修正
   - [x] 2.2: P1 未核实项解除
   - [x] 2.3: §4.6 静态声明补注
+- artifacts:
+  - `docs/harness-alignment/07-host-capability-alignment.md`
 
 ### 任务 3: [x] meta.yaml quality-gates 来源指针修复
 - 状态：完成
@@ -81,11 +85,16 @@
 - review_profile: standard
 - 文档映射: proposal.md §1 问题 1（同类知识同步缺口）
 - 说明: verify 门禁 WARN 暴露 `quality-gates` 条目仍引用 change 2045 已删除的 `skills/opsx-code-generation/SKILL.md` 与 `skills/opsx-archive/SKILL.md`（「来源路径不可用」WARN，改动前 19 条中含 2 条）。替换为现行事实源：`workflow-code-generation/SKILL.md`、`governance_guards.py`、`check_delivery.py`。复跑后「不可用」类 WARN 清零；剩余均为 `source_ref 停在 2026-07-20` 的 freshness 类非阻塞提示（既有维护项，超出本 change 范围，不在 Quick 内扩修 source_ref 重生成）。
+- context_files:
+  - `openspec/specs/backend/framework/meta.yaml` — quality-gates 条目来源指针
+  - `skills/workflow-code-generation/SKILL.md`、`skills/workflow-code-generation/scripts/governance_guards.py`、`skills/workflow-code-generation/scripts/check_delivery.py` — 替换后的现行事实源
 - verification:
   - [x] `verify.py` 总判定 PASS，`来源路径不可用` WARN 为 0
   - [x] `harness/capabilities/*.json` 未被修改
 - 子任务:
   - [x] 3.1: 替换两条失效指针为现行事实源
+- artifacts:
+  - `openspec/specs/backend/framework/meta.yaml`
 
 ## 文档覆盖映射
 

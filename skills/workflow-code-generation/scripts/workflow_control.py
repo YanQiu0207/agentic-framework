@@ -233,6 +233,8 @@ def _validate_dependencies(tasks: dict[int, dict]) -> list[list[int]]:
     for task_id, task in tasks.items():
         if not task["has_dep_field"]:
             raise ValueError(f"任务 {task_id} 缺少 depends_on 字段")
+        if task.get("dep_error"):
+            raise ValueError(task["dep_error"])
         missing = task["deps"] - tasks.keys()
         if missing:
             raise ValueError(f"任务 {task_id} 依赖不存在的任务 {min(missing)}")

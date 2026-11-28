@@ -24,6 +24,14 @@ class TaskDependencyTest(unittest.TestCase):
     def test_empty_depends_on_is_present(self) -> None:
         self.assertEqual((set(), True), lint_task_deps.parse_deps("", "depends_on"))
 
+    def test_empty_depends_on_value_is_rejected(self) -> None:
+        """字段存在但值为空不能静默当作无依赖：无依赖须显式写 `[]`。"""
+        message = lint_task_deps.dep_format_error(1, "", "depends_on")
+        self.assertIsNotNone(message)
+        self.assertIn("为空", message)
+        text = "### 任务 1：A\n- depends_on:\n"
+        self.assertEqual(message, lint_task_deps.parse_tasks(text)[1]["dep_error"])
+
     def test_missing_depends_on_is_absent(self) -> None:
         self.assertEqual((set(), False), lint_task_deps.parse_deps(None, None))
 

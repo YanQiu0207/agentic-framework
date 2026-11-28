@@ -927,6 +927,25 @@ class WorkflowControlTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "缺少 depends_on"):
             workflow_control.apply_event(missing, 1, "start")
 
+    def test_malformed_dependency_fails_closed_instead_of_dropping_edge(self) -> None:
+        """`[Task 1]` 不合规时解析得到空依赖，调度器不得把它当作无依赖并行派发。"""
+        text = (
+            "### 任务 1：甲\n- 状态：未开始\n- attempts：0\n- depends_on：[]\n"
+            "### 任务 2：乙\n- 状态：未开始\n- attempts：0\n- depends_on：[Task 1]\n"
+        )
+        tasks = lint_task_deps.parse_tasks(text)
+        with self.assertRaisesRegex(ValueError, "depends_on `\\[Task 1\\]` 不合规"):
+            workflow_control.build_waves(tasks)
+        with self.assertRaisesRegex(ValueError, "不合规"):
+            workflow_control.dispatchable_tasks(tasks)
+        with self.assertRaisesRegex(ValueError, "不合规"):
+            workflow_control.apply_event(tasks, 2, "start")
+        empty = lint_task_deps.parse_tasks(
+            "### 任务 1：甲\n- 状态：未开始\n- attempts：0\n- depends_on：\n"
+        )
+        with self.assertRaisesRegex(ValueError, "为空"):
+            workflow_control.build_waves(empty)
+
     def test_illegal_transition_and_reason_injection_fail(self) -> None:
         completed = lint_task_deps.parse_tasks(tasks_text({1: "完成"}, {1: []}))
         with self.assertRaisesRegex(ValueError, "不允许"):

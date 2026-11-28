@@ -94,9 +94,11 @@ def parse_deps(
 def dep_format_error(
     tid: int, dep_field_raw: str | None, dep_field_name: str | None
 ) -> str | None:
-    """依赖字段值不合规时返回错误消息，合规或字段缺失时返回 None。"""
-    if dep_field_name is None or not dep_field_raw:
+    """依赖字段值不合规或为空时返回错误消息，合规或字段缺失时返回 None。"""
+    if dep_field_name is None:
         return None
+    if not dep_field_raw:
+        return f"任务 {tid} 的 {dep_field_name} 为空（无依赖须显式写 `[]`）"
     if task_ast.DEP_VALUE_RE.fullmatch(dep_field_raw) is None:
         return (
             f"任务 {tid} 的 {dep_field_name} `{dep_field_raw}` 不合规"
