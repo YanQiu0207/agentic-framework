@@ -1,6 +1,5 @@
 {
     "_comment": "agentic-engineering-framework 的 verify 门禁配置。纯 Python 标准库脚本仓库，无编译步骤：以 pytest 全量测试为交付门槛，以 skill 引用图 lint 为工程一致性检查。",
-
     "checks": [
         {
             "name": "B-tests-pass",
@@ -29,5 +28,9 @@
             "expect_code": 0,
             "baseline_aware": false
         }
+    ],
+    "local_exclude_dirs": [
+        ".learn-by-gpt",
+        "resource_downloads"
     ]
 }
