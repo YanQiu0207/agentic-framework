@@ -438,7 +438,8 @@ shared-knowledge-base/
 - `provisional`：只有一个真实案例，边界已经写明。
 - `verified`：有官方依据和真实验证，或多个独立案例一致。
 - `uncertain`：证据冲突或无法复核。
-- `deprecated`：已经被新证据取代。
+- `deprecated`：已失效，且没有指定的替代条目。
+- `superseded`：已被指定的新条目取代，必须在 frontmatter 填写非空 `superseded_by` 指向替代条目。
 
 只有 `verified` 可以默认作为建议；其他状态必须同时说明限制。
 

@@ -52,8 +52,10 @@ Task 5 (lint_spec 接线)
 
 ## 任务列表
 
-### 任务 1：[ ] Standard 无知识影响时豁免 OPSX018 与 OPSX029 的 Delta 要求
-- 状态：未开始
+### 任务 1：[x] Standard 无知识影响时豁免 OPSX018 与 OPSX029 的 Delta 要求
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`scripts/validate_change.py`（修改）, `scripts/tests/test_validate_change.py`（修改）
 - depends_on: []
 - review_profile: standard
@@ -65,14 +67,16 @@ Task 5 (lint_spec 接线)
   - `scripts/validate_change.py:969-992` — 「知识影响」读取与 `no_impact` 正则（OPSX043）
   - `scripts/knowledge_sync.py` — `section_lines`、`delta_map`
 - verification:
-  - [ ] 复现测试修复前失败、修复后通过：无影响无 Delta 不报 OPSX018／029；有影响无 Delta 仍报 OPSX018
-  - [ ] `python -m pytest scripts/tests/test_validate_change.py -q` 全部通过
+  - [x] 复现测试修复前失败、修复后通过：无影响无 Delta 不报 OPSX018／029；有影响无 Delta 仍报 OPSX018
+  - [x] `python -m pytest scripts/tests/test_validate_change.py -q` 全部通过
 - artifacts:
   - `scripts/validate_change.py`
   - `scripts/tests/test_validate_change.py`
 
-### 任务 2：[ ] 缺少 verify.config.json 不再算主体覆盖不完整
-- 状态：未开始
+### 任务 2：[x] 缺少 verify.config.json 不再算主体覆盖不完整
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`scripts/native_subject.py`（修改）, `scripts/test_native_subject.py`（修改）
 - depends_on: []
 - review_profile: standard
@@ -83,14 +87,16 @@ Task 5 (lint_spec 接线)
   - `skills/workflow-verification/scripts/verify.py:1425-1455` — 覆盖不完整判 ERROR
   - `skills/workflow-code-generation/scripts/check_delivery.py:467-495` — 交付门重算主体
 - verification:
-  - [ ] 复现测试修复前失败、修复后通过：无配置 `complete=True`；补配置后 `subject_id` 改变
-  - [ ] `python -m pytest scripts/test_native_subject.py skills/workflow-verification -q` 全部通过
+  - [x] 复现测试修复前失败、修复后通过：无配置 `complete=True`；补配置后 `subject_id` 改变
+  - [x] `python -m pytest scripts/test_native_subject.py skills/workflow-verification -q` 全部通过
 - artifacts:
   - `scripts/native_subject.py`
   - `scripts/test_native_subject.py`
 
-### 任务 3：[ ] 公共库状态值增加 superseded 并写明合法值
-- 状态：未开始
+### 任务 3：[x] 公共库状态值增加 superseded 并写明合法值
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`scripts/validate_shared_knowledge.py`（修改）, `scripts/test_validate_shared_knowledge.py`（修改）, `skills/project-knowledge/reference/knowledge-advanced.md`（修改）
 - depends_on: []
 - review_profile: standard
@@ -102,16 +108,18 @@ Task 5 (lint_spec 接线)
   - `E:/work/shared-knowledge-base/index.md` — 写入规则第 5 条
   - `openspec/specs/backend/engineering/tech/knowledge-management.md` §11 — 证据等级
 - verification:
-  - [ ] 复现测试修复前失败、修复后通过：`superseded` 缺 `superseded_by` 报错，填写后通过
-  - [ ] `python -m pytest scripts/test_validate_shared_knowledge.py -q` 全部通过
+  - [x] 复现测试修复前失败、修复后通过：`superseded` 缺 `superseded_by` 报错，填写后通过
+  - [x] `python -m pytest scripts/test_validate_shared_knowledge.py -q` 全部通过
 - artifacts:
   - `scripts/validate_shared_knowledge.py`
   - `scripts/test_validate_shared_knowledge.py`
   - `skills/project-knowledge/reference/knowledge-advanced.md`
   - `E:/work/shared-knowledge-base/index.md`
 
-### 任务 4：[ ] 任务拆解指南补 Production 追加字段
-- 状态：未开始
+### 任务 4：[x] 任务拆解指南补 Production 追加字段
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-code-generation/reference/task_planning_guide.md`（修改）
 - depends_on: []
 - review_profile: standard
@@ -121,13 +129,15 @@ Task 5 (lint_spec 接线)
   - `scripts/validate_change.py:1262-1560` — Tasks 字段规则（OPSX022～038、063～064）
   - `scripts/validate_change.py:1954-2000` — 交付阶段头部 Code Review（OPSX032）
 - verification:
-  - [ ] 按新小节写的样例在临时目录通过 `validate_change --phase plan --governance-profile production` 的 Tasks 规则
-  - [ ] `python -m pytest scripts/test_skill_slimming_contracts.py scripts/test_profile_contracts.py -q` 全部通过
+  - [x] 按新小节写的样例在临时目录通过 `validate_change --phase plan --governance-profile production` 的 Tasks 规则
+  - [x] `python -m pytest scripts/test_skill_slimming_contracts.py scripts/test_profile_contracts.py -q` 全部通过
 - artifacts:
   - `skills/workflow-code-generation/reference/task_planning_guide.md`
 
-### 任务 5：[ ] lint_spec 接入系统设计与代码生成
-- 状态：未开始
+### 任务 5：[x] lint_spec 接入系统设计与代码生成
+- 状态：完成
+- attempts：0
+- control_stage：completed
 - 文件：`skills/workflow-system-design/SKILL.md`（修改）, `skills/workflow-code-generation/SKILL.md`（修改）, `docs/tooling/08-evaluation-strategy.md`（修改）
 - depends_on: []
 - review_profile: standard
@@ -139,8 +149,8 @@ Task 5 (lint_spec 接线)
   - `skills/workflow-code-generation/scripts/lint_spec.py` — 参数与退出码
   - `docs/tooling/08-evaluation-strategy.md:47-52` — 挂点描述
 - verification:
-  - [ ] `python scripts/lint_skill_graph.py` 0 错
-  - [ ] `python -m pytest scripts/test_skill_slimming_contracts.py scripts/test_profile_contracts.py -q` 全部通过
+  - [x] `python scripts/lint_skill_graph.py` 0 错
+  - [x] `python -m pytest scripts/test_skill_slimming_contracts.py scripts/test_profile_contracts.py -q` 全部通过
 - artifacts:
   - `skills/workflow-system-design/SKILL.md`
   - `skills/workflow-code-generation/SKILL.md`
@@ -161,12 +171,13 @@ Task 5 (lint_spec 接线)
 
 | Delta | 长期目标 | 动作 | 状态 | 索引更新 |
 | --- | --- | --- | --- | --- |
-| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | Pending | TODO |
+| `specs/backend/engineering/tech/knowledge-management.md` | `openspec/specs/backend/engineering/tech/knowledge-management.md` | MODIFIED | Completed | `openspec/specs/backend/engineering/tech/` 无索引文件 |
 
 ## 知识冲突
 
-- 结论：待核对。已知差异：全局规则要求 `superseded` 与 `superseded_by`，长期 Spec 与脚本只有四个状态，本 Change 以 Delta 对齐。
+- 结论：无冲突。全局规则要求的 `superseded` 与 `superseded_by` 已通过 Delta 就位并在归档时合并；`validate_shared_knowledge.py` 已同步。
 
 ## 实际 Diff 核对
 
-- 核对状态：Pending。
+- 核对状态：PASS。
+- 核对命令与结论：`git log 10e7d1b..HEAD --stat`（5 个任务分支合并，改动文件与任务声明一致）；`pytest scripts skills -q`（全量通过，见交付说明）；`lint_task_deps.py --state-consistency`（0 矛盾）；`lint_skill_graph.py`（0 错）。
