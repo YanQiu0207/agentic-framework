@@ -22,7 +22,13 @@ REQUIRED_ENTRY_FIELDS = (
     "applies_to",
     "excludes",
 )
-ALLOWED_STATUSES = {"provisional", "verified", "uncertain", "deprecated"}
+ALLOWED_STATUSES = {
+    "provisional",
+    "verified",
+    "uncertain",
+    "deprecated",
+    "superseded",
+}
 PROJECT_CANDIDATE_HEADINGS = re.compile(
     r"^#{1,6}\s*(?:跨项目|项目)?知识(?:晋升)?候选(?:[:：].*)?$", re.MULTILINE
 )
@@ -99,6 +105,10 @@ def _check_entries(
                 allowed = ", ".join(sorted(ALLOWED_STATUSES))
                 problems.append(
                     f"{relative}：status `{status}` 不在允许值中：{allowed}"
+                )
+            if status == "superseded" and not fields.get("superseded_by"):
+                problems.append(
+                    f"{relative}：status `superseded` 必须填写 superseded_by"
                 )
             if fields.get("scope", "").lower() == "project":
                 problems.append(f"{relative}：公共条目禁止 scope: project")

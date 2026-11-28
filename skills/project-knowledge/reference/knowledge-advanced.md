@@ -4,6 +4,6 @@
 
 1. 候选先留在当前 Change；无 Change 时可留交付报告。未确认候选不得写入公共库任何目录，包括临时目录或公共 `changes/`。
 2. 去除项目名、内部路径、接口和业务数据，说明通用机制、适用及不适用范围。
-3. 检查公共库现有权威条目，记录来源、证据等级和限制。
+3. 检查公共库现有权威条目，记录来源、证据等级和限制。条目 frontmatter `status` 取 `provisional`、`verified`、`uncertain`、`deprecated`、`superseded` 之一；`deprecated` 表示已失效且无替代，`superseded` 表示已被指定条目取代，须填写非空 `superseded_by`。
 4. 通用方法写公共 `domains/`；通用且已验证的故障写公共 `issues/`，更新索引。公共条目不得反向链接项目私有正文。
 5. 公共 `changes/` 只记录公共知识库自身治理，不保存项目候选。缺少授权、能力包或证据时保留本地候选，不做公共写入。
